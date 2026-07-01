@@ -46,28 +46,28 @@ model AprovacaoFluxo {
 }
 
 model AprovacaoSC {
-  id            String            @id @default(cuid())
-  necessidadeId String?
-  cotacaoId     String?
-  etapaOrdem    Int
-  etapaNome     String?
-  aprovadorId   String
-  status        StatusAprovacao   @default(PENDENTE)
-  observacao    String?
-  respondidoEm  DateTime?
-  waMsgId       String?
+  id             String             @id @default(cuid())
+  necessidadeId  String?
+  cotacaoId      String?
+  etapaOrdem     Int
+  etapaNome      String?
+  aprovadorId    String
+  status         StatusAprovacao    @default(PENDENTE)
+  observacao     String?
+  respondidoEm   DateTime?
+  waMsgId        String?
   // Mensagem do Telegram enviada ao aprovador (DM) — guardada p/ editar ao
   // aprovar/reprovar (novo status, sem botões).
   telegramChatId String?
   telegramMsgId  Int?
-  createdAt     DateTime          @default(now())
-  fluxoId       String?
+  createdAt      DateTime           @default(now())
+  fluxoId        String?
   // Quem submeteu p/ aprovação — notificado quando a aprovação é decidida.
-  solicitadoPor String?
-  aprovador     Usuario           @relation(fields: [aprovadorId], references: [id])
-  fluxo         AprovacaoFluxo?   @relation(fields: [fluxoId], references: [id])
-  necessidade   NecessidadeCompra? @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
-  cotacao       CotacaoCompra?    @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+  solicitadoPor  String?
+  aprovador      Usuario            @relation(fields: [aprovadorId], references: [id])
+  fluxo          AprovacaoFluxo?    @relation(fields: [fluxoId], references: [id])
+  necessidade    NecessidadeCompra? @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
+  cotacao        CotacaoCompra?     @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
 }
 
 // Notificação in-app por usuário (toast estilo macOS + sino). Criada por eventos
@@ -75,7 +75,7 @@ model AprovacaoSC {
 model Notificacao {
   id        String   @id @default(cuid())
   usuarioId String
-  tipo      String   // ex.: COTACAO_APROVACAO_SOLICITADA, COTACAO_APROVADA, COTACAO_REPROVADA
+  tipo      String // ex.: COTACAO_APROVACAO_SOLICITADA, COTACAO_APROVADA, COTACAO_REPROVADA
   titulo    String
   mensagem  String
   link      String?
@@ -138,6 +138,7 @@ model Cliente {
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   contasReceber          ContaReceber[]
+  compensacoes           Compensacao[]
   pedidosVenda           PedidoVenda[]          @relation("PedidoVendaCliente")
   pedidosVendaFinal      PedidoVenda[]          @relation("PedidoVendaClienteFinal")
   movimentacoesComodato  MovimentacaoComodato[]
@@ -330,28 +331,28 @@ model Setor {
 }
 
 model CondicaoPagamento {
-  id                String              @id @default(cuid())
-  nome              String
-  descricao         String?
-  numeroParcelas    Int                 @default(1)
-  prazoInicial      Int                 @default(0)
-  intervaloParcelas Int                 @default(30)
+  id                  String              @id @default(cuid())
+  nome                String
+  descricao           String?
+  numeroParcelas      Int                 @default(1)
+  prazoInicial        Int                 @default(0)
+  intervaloParcelas   Int                 @default(30)
   // Dias de vencimento de cada parcela a partir da emissão, ex.: "15,30,45" ou
   // irregular "30,45,90". Quando preenchido, define o nº e os prazos das parcelas
   // (sobrepõe numeroParcelas/prazoInicial/intervaloParcelas).
-  diasParcelas      String?
+  diasParcelas        String?
   // Percentual de cada parcela sobre o total, ex.: "50,50" (entrada+saldo) ou
   // "50,30,20". Quando preenchido, cada parcela usa seu % (senão divide igual).
   percentuaisParcelas String?
   // "Faturado / a combinar": gera o título SEM data de vencimento prevista.
-  semVencimento     Boolean             @default(false)
-  descontoVista     Decimal?            @db.Decimal(5, 2)
-  ativo             Boolean             @default(true)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  pedidosVenda      PedidoVenda[]
-  pedidosCompra     PedidoCompra[]      @relation("CondPgtoPedidoCompra")
-  conferencias      ConferenciaCompra[] @relation("CondPgtoConferencia")
+  semVencimento       Boolean             @default(false)
+  descontoVista       Decimal?            @db.Decimal(5, 2)
+  ativo               Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  pedidosVenda        PedidoVenda[]
+  pedidosCompra       PedidoCompra[]      @relation("CondPgtoPedidoCompra")
+  conferencias        ConferenciaCompra[] @relation("CondPgtoConferencia")
 }
 
 model ConferenciaCompra {
@@ -506,7 +507,13 @@ model ContaPagar {
   naturezaFinanceiraId  String?
   naturezaFinanceira    NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   lancamentos           LancamentoFinanceiro[]
-  naturezas             ContaPagarNatureza[]   // rateio gerencial por natureza (definido na baixa)
+  naturezas             ContaPagarNatureza[] // rateio gerencial por natureza (definido na baixa)
+  // Título-resíduo nascido de um Encontro de Contas (modo "nova parcela"): a perna
+  // de nascimento é um RECLASS contra a conta transitória de compensação (não gera
+  // nova despesa). Aponta para a Compensacao que o criou.
+  compensacaoOrigemId   String?
+  compensacaoOrigem     Compensacao?           @relation("CompensacaoResiduoPagar", fields: [compensacaoOrigemId], references: [id])
+  compensacaoItens      CompensacaoItem[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -524,62 +531,68 @@ model ContaPagar {
 // estoque já têm o custo no estoque; aqui a natureza é só etiqueta gerencial. Em
 // títulos avulsos, a contabilização divide a despesa entre as naturezas.
 model ContaPagarNatureza {
-  id                   String             @id @default(cuid())
+  id                   String   @id @default(cuid())
   contaPagarId         String
   naturezaFinanceiraId String
   detalhamento         String?
-  valor                Decimal            @db.Decimal(15, 2)
-  createdAt            DateTime           @default(now())
+  valor                Decimal  @db.Decimal(15, 2)
+  createdAt            DateTime @default(now())
 
-  contaPagar           ContaPagar         @relation(fields: [contaPagarId], references: [id], onDelete: Cascade)
-  naturezaFinanceira   NaturezaFinanceira @relation(fields: [naturezaFinanceiraId], references: [id])
+  contaPagar         ContaPagar         @relation(fields: [contaPagarId], references: [id], onDelete: Cascade)
+  naturezaFinanceira NaturezaFinanceira @relation(fields: [naturezaFinanceiraId], references: [id])
 
   @@index([contaPagarId])
   @@index([naturezaFinanceiraId])
 }
 
 model ContaReceber {
-  id                    String                 @id @default(cuid())
-  empresaId             String                 @default("emp_tramontin")
-  numero                String
-  clienteId             String?
-  pedidoVendaId         String?
+  id                   String                 @id @default(cuid())
+  empresaId            String                 @default("emp_tramontin")
+  numero               String
+  clienteId            String?
+  pedidoVendaId        String?
   // Beneficiário polimórfico da ENTRADA: 'CLIENTE' | null (receita sem vínculo,
   // ex.: rendimento de aplicação, devolução de imposto). Não interfere na
   // contabilização — quem define as contas é a natureza financeira.
-  beneficiarioTipo      String?
-  beneficiarioId        String?
-  descricao             String
-  centroCustoId         String?
-  contaBancariaId       String?
-  grupoParcelamentoId   String?
-  recorrenciaId         String?
-  parcelaNumero         Int?
-  parcelaTotal          Int?
-  valorOriginal         Decimal                @db.Decimal(15, 2)
-  valorPago             Decimal                @default(0) @db.Decimal(15, 2)
-  valorMulta            Decimal                @default(0) @db.Decimal(15, 2)
-  valorJuros            Decimal                @default(0) @db.Decimal(15, 2)
-  dataVencimento        DateTime? // null = sem data prevista (ex.: "Faturado")
-  dataPagamento         DateTime?
-  dataCompetencia       DateTime?
-  status                StatusConta            @default(ABERTA)
-  formaPagamento        String?
-  nossoNumero           String?
-  intragrupo            Boolean                @default(false)
-  observacoes           String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  cliente               Cliente?               @relation(fields: [clienteId], references: [id])
-  pedidoVenda           PedidoVenda?           @relation(fields: [pedidoVendaId], references: [id])
-  centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
-  contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
-  recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
-  naturezaFinanceiraId  String?
-  naturezaFinanceira    NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
-  espelhoPagar          ContaPagar?            @relation("EspelhoIntragrupoCR")
-  lancamentos           LancamentoFinanceiro[]
-  naturezas             ContaReceberNatureza[] // rateio gerencial por natureza (definido na criação)
+  beneficiarioTipo     String?
+  beneficiarioId       String?
+  descricao            String
+  centroCustoId        String?
+  contaBancariaId      String?
+  grupoParcelamentoId  String?
+  recorrenciaId        String?
+  parcelaNumero        Int?
+  parcelaTotal         Int?
+  valorOriginal        Decimal                @db.Decimal(15, 2)
+  valorPago            Decimal                @default(0) @db.Decimal(15, 2)
+  valorMulta           Decimal                @default(0) @db.Decimal(15, 2)
+  valorJuros           Decimal                @default(0) @db.Decimal(15, 2)
+  dataVencimento       DateTime? // null = sem data prevista (ex.: "Faturado")
+  dataPagamento        DateTime?
+  dataCompetencia      DateTime?
+  status               StatusConta            @default(ABERTA)
+  formaPagamento       String?
+  nossoNumero          String?
+  intragrupo           Boolean                @default(false)
+  observacoes          String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  cliente              Cliente?               @relation(fields: [clienteId], references: [id])
+  pedidoVenda          PedidoVenda?           @relation(fields: [pedidoVendaId], references: [id])
+  centroCusto          CentroCusto?           @relation(fields: [centroCustoId], references: [id])
+  contaBancaria        ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
+  recorrencia          Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
+  naturezaFinanceiraId String?
+  naturezaFinanceira   NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
+  espelhoPagar         ContaPagar?            @relation("EspelhoIntragrupoCR")
+  lancamentos          LancamentoFinanceiro[]
+  naturezas            ContaReceberNatureza[] // rateio gerencial por natureza (definido na criação)
+  // Título-resíduo nascido de um Encontro de Contas (modo "nova parcela"): a perna
+  // de nascimento é um RECLASS contra a conta transitória de compensação (não gera
+  // nova receita). Aponta para a Compensacao que o criou.
+  compensacaoOrigemId  String?
+  compensacaoOrigem    Compensacao?           @relation("CompensacaoResiduoReceber", fields: [compensacaoOrigemId], references: [id])
+  compensacaoItens     CompensacaoItem[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -596,18 +609,83 @@ model ContaReceber {
 // Dimensão nas partidas — não cria títulos separados; a receita é dividida entre
 // as naturezas na contabilização.
 model ContaReceberNatureza {
-  id                   String             @id @default(cuid())
+  id                   String   @id @default(cuid())
   contaReceberId       String
   naturezaFinanceiraId String
   detalhamento         String?
-  valor                Decimal            @db.Decimal(15, 2)
-  createdAt            DateTime           @default(now())
+  valor                Decimal  @db.Decimal(15, 2)
+  createdAt            DateTime @default(now())
 
-  contaReceber         ContaReceber       @relation(fields: [contaReceberId], references: [id], onDelete: Cascade)
-  naturezaFinanceira   NaturezaFinanceira @relation(fields: [naturezaFinanceiraId], references: [id])
+  contaReceber       ContaReceber       @relation(fields: [contaReceberId], references: [id], onDelete: Cascade)
+  naturezaFinanceira NaturezaFinanceira @relation(fields: [naturezaFinanceiraId], references: [id])
 
   @@index([contaReceberId])
   @@index([naturezaFinanceiraId])
+}
+
+// Encontro de Contas (AP-AR netting): liquida títulos a RECEBER contra títulos a
+// PAGAR do MESMO parceiro externo (mesmo CNPJ, cliente e fornecedor da mesma
+// empresa) SEM movimento de caixa. As baixas dos dois lados passam pela conta
+// bancária transitória (ContaBancaria.compensacao), que zera; o efeito líquido é
+// D Fornecedores / C Clientes pelo min(Σ receber, Σ pagar). Toda a contabilização
+// reusa o fluxo de baixa existente (LancamentoFinanceiro + recontabilizar).
+model Compensacao {
+  id                         String   @id @default(cuid())
+  empresaId                  String   @default("emp_tramontin")
+  numero                     String
+  // Parceiro (mesmo CNPJ nos dois cadastros).
+  cpfCnpj                    String
+  clienteId                  String?
+  fornecedorId               String?
+  data                       DateTime @default(now())
+  valorCompensado            Decimal  @default(0) @db.Decimal(15, 2)
+  // "PARCIAL" (resíduo fica aberto nos originais) | "NOVA_PARCELA" (quita 100% e
+  // cria um título novo com a diferença).
+  modoResiduo                String   @default("PARCIAL")
+  // "RASCUNHO" | "CONFIRMADA" | "ESTORNADA".
+  status                     String   @default("RASCUNHO")
+  contaBancariaCompensacaoId String?
+  observacoes                String?
+  criadoPor                  String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  contaBancariaCompensacao ContaBancaria?    @relation(fields: [contaBancariaCompensacaoId], references: [id])
+  cliente                  Cliente?          @relation(fields: [clienteId], references: [id])
+  fornecedor               Fornecedor?       @relation(fields: [fornecedorId], references: [id])
+  empresa                  Empresa           @relation(fields: [empresaId], references: [id])
+  itens                    CompensacaoItem[]
+  // Títulos-resíduo criados por esta compensação (modo "nova parcela").
+  residuosReceber          ContaReceber[]    @relation("CompensacaoResiduoReceber")
+  residuosPagar            ContaPagar[]      @relation("CompensacaoResiduoPagar")
+
+  @@unique([empresaId, numero])
+  @@index([empresaId])
+  @@index([cpfCnpj])
+  @@index([status])
+}
+
+// Um título (a receber OU a pagar) alocado numa compensação, com o valor aplicado.
+model CompensacaoItem {
+  id                     String   @id @default(cuid())
+  compensacaoId          String
+  tipo                   String // "RECEBER" | "PAGAR"
+  contaReceberId         String?
+  contaPagarId           String?
+  valorAplicado          Decimal  @db.Decimal(15, 2)
+  // Baixa (LancamentoFinanceiro na transitória) gerada por este item — usado no
+  // estorno para apagar exatamente a baixa desta compensação.
+  lancamentoFinanceiroId String?
+  createdAt              DateTime @default(now())
+
+  compensacao          Compensacao           @relation(fields: [compensacaoId], references: [id], onDelete: Cascade)
+  contaReceber         ContaReceber?         @relation(fields: [contaReceberId], references: [id])
+  contaPagar           ContaPagar?           @relation(fields: [contaPagarId], references: [id])
+  lancamentoFinanceiro LancamentoFinanceiro? @relation(fields: [lancamentoFinanceiroId], references: [id])
+
+  @@index([compensacaoId])
+  @@index([contaReceberId])
+  @@index([contaPagarId])
 }
 
 model Banco {
@@ -630,6 +708,11 @@ model ContaBancaria {
   tipo             TipoContaBancaria      @default(CORRENTE)
   saldoInicial     Decimal                @default(0) @db.Decimal(15, 2)
   ativo            Boolean                @default(true)
+  // Conta TRANSITÓRIA de compensação ("Compensações a liquidar"): não é banco de
+  // verdade — só serve de contrapartida no Encontro de Contas (AP-AR netting), onde
+  // as baixas dos dois lados passam por ela e a zeram. Filtrada de fluxo de caixa,
+  // saldos e dropdowns de baixa.
+  compensacao      Boolean                @default(false)
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   banco            Banco?                 @relation(fields: [bancoId], references: [id])
@@ -640,6 +723,7 @@ model ContaBancaria {
   recorrencias     Recorrencia[]
   importacoesOFX   ImportacaoOFX[]
   contasContabeis  ContaContabil[]
+  compensacoes     Compensacao[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -666,47 +750,47 @@ model NaturezaSubgrupo {
 }
 
 model NaturezaFinanceira {
-  id            String              @id @default(cuid())
-  empresaId     String              @default("emp_tramontin")
-  nome          String
-  tipo          NaturezaTipo
-  grupo         NaturezaGrupo
-  subgrupoId    String?
-  ativo         Boolean             @default(true)
+  id                   String                   @id @default(cuid())
+  empresaId            String                   @default("emp_tramontin")
+  nome                 String
+  tipo                 NaturezaTipo
+  grupo                NaturezaGrupo
+  subgrupoId           String?
+  ativo                Boolean                  @default(true)
   // Natureza de Custo Indireto de Fabricação: o débito de origem vai para
   // "CIF a Apropriar" (1.1.4.0001), não para a conta de resultado da natureza.
-  cif           Boolean             @default(false)
+  cif                  Boolean                  @default(false)
   // Destino contábil que ESTA natureza implica — usado só para o alerta de coerência
   // na requisição (compara com o destino real das flags do item). Não roteia nada.
-  destinoSugerido DestinoConsumo?
+  destinoSugerido      DestinoConsumo?
   // Aparece no seletor da Requisição de Material (consumo de estoque). Naturezas de
   // tesouraria/compra/investimento ficam false e não poluem a RM. Não apaga nada.
-  aplicavelRequisicao Boolean         @default(false)
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  subgrupo      NaturezaSubgrupo?   @relation(fields: [subgrupoId], references: [id])
-  empresa       Empresa             @relation(fields: [empresaId], references: [id])
-  contasReceber ContaReceber[]
-  contasPagar   ContaPagar[]
-  pedidosVenda  PedidoVenda[]
-  conferencias  ConferenciaCompra[]
-  lancamentos   LancamentoFinanceiro[]
-  recorrencias  Recorrencia[]
-  requisicoes   RequisicaoMaterial[] // natureza da saída de estoque (ex.: CIF)
-  requisicaoItens RequisicaoMaterialItem[] // natureza por item da requisição
-  contasPagarRateio ContaPagarNatureza[] // rateio gerencial por natureza na baixa de contas a pagar
-  contasReceberRateio ContaReceberNatureza[] // rateio gerencial por natureza no título a receber
-  itensPadrao   Item[]              @relation("ItemNaturezaPadrao") // natureza-padrão do item
-  partidasContabeis PartidaContabil[] // dimensão natureza nas partidas (ex.: CIF)
+  aplicavelRequisicao  Boolean                  @default(false)
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  subgrupo             NaturezaSubgrupo?        @relation(fields: [subgrupoId], references: [id])
+  empresa              Empresa                  @relation(fields: [empresaId], references: [id])
+  contasReceber        ContaReceber[]
+  contasPagar          ContaPagar[]
+  pedidosVenda         PedidoVenda[]
+  conferencias         ConferenciaCompra[]
+  lancamentos          LancamentoFinanceiro[]
+  recorrencias         Recorrencia[]
+  requisicoes          RequisicaoMaterial[] // natureza da saída de estoque (ex.: CIF)
+  requisicaoItens      RequisicaoMaterialItem[] // natureza por item da requisição
+  contasPagarRateio    ContaPagarNatureza[] // rateio gerencial por natureza na baixa de contas a pagar
+  contasReceberRateio  ContaReceberNatureza[] // rateio gerencial por natureza no título a receber
+  itensPadrao          Item[]                   @relation("ItemNaturezaPadrao") // natureza-padrão do item
+  partidasContabeis    PartidaContabil[] // dimensão natureza nas partidas (ex.: CIF)
   // Conta de RESULTADO (receita p/ ENTRADA, despesa p/ SAIDA): vínculo via
   // ContaContabil.naturezaFinanceiraId (uma conta por natureza).
-  contasContabeis ContaContabil[]    @relation("NaturezaResultado")
+  contasContabeis      ContaContabil[]          @relation("NaturezaResultado")
   // Conta de CONTRAPARTIDA patrimonial: ATIVO (a receber) p/ ENTRADA, PASSIVO
   // (a pagar/obrigação) p/ SAIDA. Debitada/creditada na provisão e revertida na
   // liquidação — assim a saída/entrada passa pelo ativo/passivo, não direto no
   // resultado. Definida no cadastro da natureza.
   contaContrapartidaId String?
-  contaContrapartida   ContaContabil? @relation("NaturezaContrapartida", fields: [contaContrapartidaId], references: [id])
+  contaContrapartida   ContaContabil?           @relation("NaturezaContrapartida", fields: [contaContrapartidaId], references: [id])
 
   @@index([empresaId])
   @@index([tipo])
@@ -736,38 +820,39 @@ enum TipoContaContabil {
 }
 
 model ContaContabil {
-  id               String            @id @default(cuid())
-  empresaId        String            @default("emp_tramontin")
-  codigo           String // hierárquico, ex "1.1.02.0001"
-  nome             String
-  grupo            GrupoContabil
-  natureza         NaturezaContabil
-  tipo             TipoContaContabil
-  nivel            Int
-  aceitaLancamento Boolean           @default(false) // true só nas analíticas
-  paiId            String?
-  clienteId        String? // analítica vinculada a um cliente (uma por empresa)
-  fornecedorId     String? // analítica vinculada a um fornecedor (uma por empresa)
-  colaboradorId    String? // analítica vinculada a um colaborador (Salários a Pagar, uma por empresa)
-  naturezaFinanceiraId String? // analítica de resultado vinculada a uma natureza
-  localEstoqueId   String? // analítica de estoque vinculada a um local
-  contaBancariaId  String? // analítica de disponibilidade vinculada a uma conta bancária
-  dreSecaoId       String? // seção da DRE (estrutura gerencial editável) — só contas de resultado
-  ordemDre         Int               @default(0) // ordem da conta dentro da seção da DRE
-  ativo            Boolean           @default(true)
-  manual           Boolean           @default(false) // true = criada manualmente pelo usuário; false = automática (seed/motor)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  pai              ContaContabil?    @relation("ContaArvore", fields: [paiId], references: [id])
-  filhos           ContaContabil[]   @relation("ContaArvore")
-  cliente          Cliente?          @relation(fields: [clienteId], references: [id])
-  fornecedor       Fornecedor?       @relation(fields: [fornecedorId], references: [id])
-  colaborador      Colaborador?      @relation(fields: [colaboradorId], references: [id])
-  naturezaFinanceira NaturezaFinanceira? @relation("NaturezaResultado", fields: [naturezaFinanceiraId], references: [id])
+  id                       String               @id @default(cuid())
+  empresaId                String               @default("emp_tramontin")
+  codigo                   String // hierárquico, ex "1.1.02.0001"
+  nome                     String
+  grupo                    GrupoContabil
+  natureza                 NaturezaContabil
+  tipo                     TipoContaContabil
+  nivel                    Int
+  aceitaLancamento         Boolean              @default(false) // true só nas analíticas
+  paiId                    String?
+  clienteId                String? // analítica vinculada a um cliente (uma por empresa)
+  fornecedorId             String? // analítica vinculada a um fornecedor (uma por empresa)
+  colaboradorId            String? // analítica vinculada a um colaborador (Salários a Pagar, uma por empresa)
+  naturezaFinanceiraId     String? // analítica de resultado vinculada a uma natureza
+  localEstoqueId           String? // analítica de estoque vinculada a um local
+  contaBancariaId          String? // analítica de disponibilidade vinculada a uma conta bancária
+  dreSecaoId               String? // seção da DRE (estrutura gerencial editável) — só contas de resultado
+  ordemDre                 Int                  @default(0) // ordem da conta dentro da seção da DRE
+  ativo                    Boolean              @default(true)
+  manual                   Boolean              @default(false) // true = criada manualmente pelo usuário; false = automática (seed/motor)
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  pai                      ContaContabil?       @relation("ContaArvore", fields: [paiId], references: [id])
+  filhos                   ContaContabil[]      @relation("ContaArvore")
+  cliente                  Cliente?             @relation(fields: [clienteId], references: [id])
+  fornecedor               Fornecedor?          @relation(fields: [fornecedorId], references: [id])
+  colaborador              Colaborador?         @relation(fields: [colaboradorId], references: [id])
+  naturezaFinanceira       NaturezaFinanceira?  @relation("NaturezaResultado", fields: [naturezaFinanceiraId], references: [id])
   contrapartidaDeNaturezas NaturezaFinanceira[] @relation("NaturezaContrapartida")
-  localEstoque     LocalEstoque?     @relation(fields: [localEstoqueId], references: [id])
-  contaBancaria    ContaBancaria?    @relation(fields: [contaBancariaId], references: [id])
-  empresa          Empresa           @relation(fields: [empresaId], references: [id])
+  localEstoque             LocalEstoque?        @relation(fields: [localEstoqueId], references: [id])
+  contaBancaria            ContaBancaria?       @relation(fields: [contaBancariaId], references: [id])
+  empresa                  Empresa              @relation(fields: [empresaId], references: [id])
+  partidas                 PartidaContabil[]
 
   @@unique([empresaId, codigo])
   // Unicidade por PAI: um cliente tem várias analíticas com o mesmo clienteId —
@@ -782,7 +867,6 @@ model ContaContabil {
   @@index([empresaId])
   @@index([paiId])
   @@index([grupo])
-  partidas PartidaContabil[]
 }
 
 // Lançamentos contábeis (partidas dobradas). Derivados dos fatos do ERP
@@ -833,21 +917,21 @@ model LancamentoContabil {
 }
 
 model PartidaContabil {
-  id           String             @id @default(cuid())
-  empresaId    String             @default("emp_tramontin")
-  lancamentoId String
-  contaId      String
-  tipo         TipoPartida
-  valor        Decimal            @db.Decimal(15, 2)
-  clienteId    String? // razão auxiliar
-  fornecedorId String? // razão auxiliar
+  id                   String              @id @default(cuid())
+  empresaId            String              @default("emp_tramontin")
+  lancamentoId         String
+  contaId              String
+  tipo                 TipoPartida
+  valor                Decimal             @db.Decimal(15, 2)
+  clienteId            String? // razão auxiliar
+  fornecedorId         String? // razão auxiliar
   // Dimensões de custeio (não são contas): estágio do WIP e natureza (ex.: CIF).
   estagio              EstadoWIP?
   naturezaFinanceiraId String?
-  lancamento   LancamentoContabil @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
-  conta        ContaContabil      @relation(fields: [contaId], references: [id])
-  empresa      Empresa            @relation(fields: [empresaId], references: [id])
-  naturezaFinanceira NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
+  lancamento           LancamentoContabil  @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  conta                ContaContabil       @relation(fields: [contaId], references: [id])
+  empresa              Empresa             @relation(fields: [empresaId], references: [id])
+  naturezaFinanceira   NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
 
   @@index([empresaId])
   @@index([contaId])
@@ -949,30 +1033,30 @@ model DepreciacaoLancamento {
 }
 
 model Recorrencia {
-  id                    String                   @id @default(cuid())
-  empresaId             String                   @default("emp_tramontin")
-  tipo                  TipoRecorrencia
-  descricao             String
-  valor                 Decimal                  @db.Decimal(15, 2)
-  naturezaFinanceiraId  String?
-  contaBancariaId       String?
-  clienteId             String?
-  fornecedorId          String?
-  centroCustoId         String?
-  periodicidade         PeriodicidadeRecorrencia @default(MENSAL)
-  diaVencimento         Int                      @default(1)
-  proximaGeracao        DateTime
-  ativo                 Boolean                  @default(true)
-  observacoes           String?
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  naturezaFinanceira    NaturezaFinanceira?      @relation(fields: [naturezaFinanceiraId], references: [id])
-  contaBancaria         ContaBancaria?           @relation(fields: [contaBancariaId], references: [id])
-  cliente               Cliente?                 @relation(fields: [clienteId], references: [id])
-  fornecedor            Fornecedor?              @relation(fields: [fornecedorId], references: [id])
-  centroCusto           CentroCusto?             @relation(fields: [centroCustoId], references: [id])
-  contasReceber         ContaReceber[]
-  contasPagar           ContaPagar[]
+  id                   String                   @id @default(cuid())
+  empresaId            String                   @default("emp_tramontin")
+  tipo                 TipoRecorrencia
+  descricao            String
+  valor                Decimal                  @db.Decimal(15, 2)
+  naturezaFinanceiraId String?
+  contaBancariaId      String?
+  clienteId            String?
+  fornecedorId         String?
+  centroCustoId        String?
+  periodicidade        PeriodicidadeRecorrencia @default(MENSAL)
+  diaVencimento        Int                      @default(1)
+  proximaGeracao       DateTime
+  ativo                Boolean                  @default(true)
+  observacoes          String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  naturezaFinanceira   NaturezaFinanceira?      @relation(fields: [naturezaFinanceiraId], references: [id])
+  contaBancaria        ContaBancaria?           @relation(fields: [contaBancariaId], references: [id])
+  cliente              Cliente?                 @relation(fields: [clienteId], references: [id])
+  fornecedor           Fornecedor?              @relation(fields: [fornecedorId], references: [id])
+  centroCusto          CentroCusto?             @relation(fields: [centroCustoId], references: [id])
+  contasReceber        ContaReceber[]
+  contasPagar          ContaPagar[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -1111,6 +1195,7 @@ model Empresa {
   naturezasFinanceiras      NaturezaFinanceira[]
   naturezaSubgrupos         NaturezaSubgrupo[]
   contaBancarias            ContaBancaria[]
+  compensacoes              Compensacao[]
   recorrencias              Recorrencia[]
   cotacaoCompras            CotacaoCompra[]
   estoqueItems              EstoqueItem[]
@@ -1219,16 +1304,16 @@ model Filial {
 }
 
 model FormaPagamento {
-  id        String             @id @default(cuid())
-  nome      String
-  tipo      TipoFormaPagamento @default(OUTROS)
-  descricao String?
+  id              String             @id @default(cuid())
+  nome            String
+  tipo            TipoFormaPagamento @default(OUTROS)
+  descricao       String?
   // Dias até a compensação (ex.: cartão de crédito = 30). > 0 → a venda no balcão
   // não baixa caixa na hora: gera conta a receber com vencimento +N dias.
-  diasCompensacao Int          @default(0)
-  ativo     Boolean            @default(true)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+  diasCompensacao Int                @default(0)
+  ativo           Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 }
 
 model Fornecedor {
@@ -1254,6 +1339,7 @@ model Fornecedor {
   contato         String?
   observacoes     String?
   contasPagar     ContaPagar[]
+  compensacoes    Compensacao[]
   cotacoes        CotacaoFornecedor[]
   contatos        FornecedorContato[]
   pedidosCompra   PedidoCompra[]
@@ -1298,85 +1384,85 @@ enum DestinoConsumo {
 }
 
 model Item {
-  id                     String                   @id @default(cuid())
-  codigo                 String                   @unique
-  descricao              String
-  tipo                   TipoItem                 @default(PRODUTO)
-  unidadeMedida          UnidadeMedida            @default(UN)
-  ncm                    String?
-  cest                   String?
-  precoVenda             Decimal                  @db.Decimal(15, 2)
-  precoVendaMedio        Decimal?                 @db.Decimal(15, 2) // média ponderada das vendas reais (base de valoração do acabado enquanto não há custo de produção)
-  precoCusto             Decimal?                 @db.Decimal(15, 2)
-  pesoLiquido            Decimal?                 @db.Decimal(10, 3)
-  pesoBruto              Decimal?                 @db.Decimal(10, 3)
-  ativo                  Boolean                  @default(true)
-  favorito               Boolean                  @default(false)
-  vendavel               Boolean                  @default(false)
-  comodato               Boolean                  @default(false)
+  id                        String                     @id @default(cuid())
+  codigo                    String                     @unique
+  descricao                 String
+  tipo                      TipoItem                   @default(PRODUTO)
+  unidadeMedida             UnidadeMedida              @default(UN)
+  ncm                       String?
+  cest                      String?
+  precoVenda                Decimal                    @db.Decimal(15, 2)
+  precoVendaMedio           Decimal?                   @db.Decimal(15, 2) // média ponderada das vendas reais (base de valoração do acabado enquanto não há custo de produção)
+  precoCusto                Decimal?                   @db.Decimal(15, 2)
+  pesoLiquido               Decimal?                   @db.Decimal(10, 3)
+  pesoBruto                 Decimal?                   @db.Decimal(10, 3)
+  ativo                     Boolean                    @default(true)
+  favorito                  Boolean                    @default(false)
+  vendavel                  Boolean                    @default(false)
+  comodato                  Boolean                    @default(false)
   // Item consumível (baixa no consumo) vs. permanente (ferramentas: requisitadas
   // e devolvidas ao almoxarifado, sem baixa de estoque no uso).
-  consumivel             Boolean                  @default(true)
+  consumivel                Boolean                    @default(true)
   // Insumo que compõe custo/saldo de produção. false = ignorado no PCP (ex.: água).
-  compoeCusto            Boolean                  @default(true)
+  compoeCusto               Boolean                    @default(true)
   // Consumível INDIRETO de fábrica (peça de manutenção, lubrificante, refratário,
   // EPI, solda). Quando true, a requisição roteia para CIF se o centro de custo for
   // fabril (senão Despesa). Não usado por material direto (MATERIA_PRIMA/INSUMO/EMBALAGEM
   // com compoeCusto), que vai sempre para o PEP-MD. Ver src/lib/pcp/rotear-requisicao.ts.
-  fabril                 Boolean                  @default(false)
+  fabril                    Boolean                    @default(false)
   // Item que CAPITALIZA (vai ao Imobilizado, não vira custo/despesa do mês):
   // ferramental permanente de alto valor; material de obra/ampliação/benfeitoria
   // (CPC 27). A requisição roteia para "Imobilizado em Andamento" (1.2.4), com
   // precedência sobre `fabril`. Ver src/lib/pcp/rotear-requisicao.ts.
-  capitaliza             Boolean                  @default(false)
+  capitaliza                Boolean                    @default(false)
   // Natureza financeira-padrão (gaveta gerencial sugerida): pré-preenche a linha da
   // requisição. NÃO define o destino contábil (isso vem das flags + centro).
-  naturezaPadraoId       String?
-  naturezaPadrao         NaturezaFinanceira?      @relation("ItemNaturezaPadrao", fields: [naturezaPadraoId], references: [id])
-  estoqueMinimo          Decimal?                 @db.Decimal(15, 3)
-  estoqueMaximo          Decimal?                 @db.Decimal(15, 3)
-  pontoReposicao         Decimal?                 @db.Decimal(15, 3)
-  leadTimeDias           Int?
-  observacoes            String?
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
-  tipoProdutoId          String?
+  naturezaPadraoId          String?
+  naturezaPadrao            NaturezaFinanceira?        @relation("ItemNaturezaPadrao", fields: [naturezaPadraoId], references: [id])
+  estoqueMinimo             Decimal?                   @db.Decimal(15, 3)
+  estoqueMaximo             Decimal?                   @db.Decimal(15, 3)
+  pontoReposicao            Decimal?                   @db.Decimal(15, 3)
+  leadTimeDias              Int?
+  observacoes               String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  tipoProdutoId             String?
   // Natureza de armazenagem — valida em que locais o produto pode entrar.
-  categoriaEstoque       CategoriaEstoque?
+  categoriaEstoque          CategoriaEstoque?
   // Estados WIP que o produto atende (códigos de EstadoWip) — só p/ PA/WIP.
-  estadosWip             String[]                 @default([])
-  unidadeId              String?
-  conferenciaCompraItens ConferenciaCompraItem[]
-  cotacaoFornecedorItens CotacaoFornecedorItem[]
-  estoqueItems           EstoqueItem[]
-  tipoProduto            TipoProduto?             @relation(fields: [tipoProdutoId], references: [id])
-  unidade                Unidade?                 @relation(fields: [unidadeId], references: [id])
-  itemUnidades           ItemUnidade[]
-  cargasVeiculo          ItemCargaVeiculo[]
-  movimentacoes          MovimentacaoEstoque[]
-  movimentacoesComodato  MovimentacaoComodato[]
-  necessidadeCompraItens NecessidadeCompraItem[]
-  pedidoCompraItens      PedidoCompraItem[]
-  pedidoVendaItens       PedidoVendaItem[]
-  minutaItens            MinutaItem[]
-  produtosFornecedor     ProdutoFornecedor[]
-  itensRequisicao        RequisicaoMaterialItem[]
-  itensInventario        InventarioMaterialItem[]
-  tabelaPrecoItens       TabelaPrecoItem[]
-  fluxosProducao         FluxoProducao[]
-  ordensProducao         OrdemProducao[]
+  estadosWip                String[]                   @default([])
+  unidadeId                 String?
+  conferenciaCompraItens    ConferenciaCompraItem[]
+  cotacaoFornecedorItens    CotacaoFornecedorItem[]
+  estoqueItems              EstoqueItem[]
+  tipoProduto               TipoProduto?               @relation(fields: [tipoProdutoId], references: [id])
+  unidade                   Unidade?                   @relation(fields: [unidadeId], references: [id])
+  itemUnidades              ItemUnidade[]
+  cargasVeiculo             ItemCargaVeiculo[]
+  movimentacoes             MovimentacaoEstoque[]
+  movimentacoesComodato     MovimentacaoComodato[]
+  necessidadeCompraItens    NecessidadeCompraItem[]
+  pedidoCompraItens         PedidoCompraItem[]
+  pedidoVendaItens          PedidoVendaItem[]
+  minutaItens               MinutaItem[]
+  produtosFornecedor        ProdutoFornecedor[]
+  itensRequisicao           RequisicaoMaterialItem[]
+  itensInventario           InventarioMaterialItem[]
+  tabelaPrecoItens          TabelaPrecoItem[]
+  fluxosProducao            FluxoProducao[]
+  ordensProducao            OrdemProducao[]
   ordemProducaoProdutoItens OrdemProducaoProdutoItem[] @relation("OrdemProducaoProdutoItem_item")
-  engenhariaProduto      EngenhariaProduto?       @relation("EngenhariaProdutoItem")
-  insumosEngenharia      EngenhariaInsumo[]       @relation("EngenhariaInsumoItem")
+  engenhariaProduto         EngenhariaProduto?         @relation("EngenhariaProdutoItem")
+  insumosEngenharia         EngenhariaInsumo[]         @relation("EngenhariaInsumoItem")
   // Item de SEGUNDA qualidade: mesma engenharia/custo do produto base; muda só o
   // preço de venda. O custeio usa a engenharia do base quando a segunda não tem.
-  produtoBaseId          String?
-  produtoBase            Item?                    @relation("ProdutoSegunda", fields: [produtoBaseId], references: [id])
-  segundas               Item[]                   @relation("ProdutoSegunda")
-  planosMestre           PlanoMestre[]
-  metasProducaoDiaria    MetaProducaoDiaria[]
-  custosEmpresa          ItemCustoEmpresa[]
-  concorrentePrecos      ConcorrentePreco[]
+  produtoBaseId             String?
+  produtoBase               Item?                      @relation("ProdutoSegunda", fields: [produtoBaseId], references: [id])
+  segundas                  Item[]                     @relation("ProdutoSegunda")
+  planosMestre              PlanoMestre[]
+  metasProducaoDiaria       MetaProducaoDiaria[]
+  custosEmpresa             ItemCustoEmpresa[]
+  concorrentePrecos         ConcorrentePreco[]
 
   @@index([codigo])
   @@index([tipo])
@@ -1415,33 +1501,34 @@ model ItemUnidade {
 }
 
 model LancamentoFinanceiro {
-  id                    String                @id @default(cuid())
-  empresaId             String                @default("emp_tramontin")
-  tipo                  TipoLancamentoCaixa
-  descricao             String
-  valor                 Decimal               @db.Decimal(15, 2)
-  dataLancamento        DateTime
+  id                   String                @id @default(cuid())
+  empresaId            String                @default("emp_tramontin")
+  tipo                 TipoLancamentoCaixa
+  descricao            String
+  valor                Decimal               @db.Decimal(15, 2)
+  dataLancamento       DateTime
   // Datas opcionais do lançamento (formulário rico): vencimento e competência.
-  dataVencimento        DateTime?
-  dataCompetencia       DateTime?
-  contaBancariaId       String
-  naturezaFinanceiraId  String?
-  centroCustoId         String?
-  contaReceberId        String?
-  contaPagarId          String?
-  conciliado            Boolean               @default(false)
-  transferenciaParId    String?               @unique
-  favorecido            String?
-  observacoes           String?
-  createdAt             DateTime              @default(now())
-  contaBancaria         ContaBancaria         @relation(fields: [contaBancariaId], references: [id])
-  naturezaFinanceira    NaturezaFinanceira?   @relation(fields: [naturezaFinanceiraId], references: [id])
-  centroCusto           CentroCusto?          @relation(fields: [centroCustoId], references: [id])
-  contaPagar            ContaPagar?           @relation(fields: [contaPagarId], references: [id])
-  contaReceber          ContaReceber?         @relation(fields: [contaReceberId], references: [id])
-  transferenciaPar      LancamentoFinanceiro? @relation("Transferencia", fields: [transferenciaParId], references: [id])
-  transferenciaParDe    LancamentoFinanceiro? @relation("Transferencia")
-  linhaOFX              LinhaOFX?
+  dataVencimento       DateTime?
+  dataCompetencia      DateTime?
+  contaBancariaId      String
+  naturezaFinanceiraId String?
+  centroCustoId        String?
+  contaReceberId       String?
+  contaPagarId         String?
+  conciliado           Boolean               @default(false)
+  transferenciaParId   String?               @unique
+  favorecido           String?
+  observacoes          String?
+  createdAt            DateTime              @default(now())
+  contaBancaria        ContaBancaria         @relation(fields: [contaBancariaId], references: [id])
+  naturezaFinanceira   NaturezaFinanceira?   @relation(fields: [naturezaFinanceiraId], references: [id])
+  centroCusto          CentroCusto?          @relation(fields: [centroCustoId], references: [id])
+  contaPagar           ContaPagar?           @relation(fields: [contaPagarId], references: [id])
+  contaReceber         ContaReceber?         @relation(fields: [contaReceberId], references: [id])
+  transferenciaPar     LancamentoFinanceiro? @relation("Transferencia", fields: [transferenciaParId], references: [id])
+  transferenciaParDe   LancamentoFinanceiro? @relation("Transferencia")
+  linhaOFX             LinhaOFX?
+  compensacaoItens     CompensacaoItem[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -1505,8 +1592,8 @@ model LocalEstoque {
   necessidadesCompra   NecessidadeCompra[]
   docEntradaItens      ConferenciaCompraItem[]
   docEntradas          ConferenciaCompra[]
-  requisicoesMateriais RequisicaoMaterial[]   @relation("RM_LocalOrigem")
-  requisicoesDestino   RequisicaoMaterial[]   @relation("RM_LocalDestino")
+  requisicoesMateriais RequisicaoMaterial[]    @relation("RM_LocalOrigem")
+  requisicoesDestino   RequisicaoMaterial[]    @relation("RM_LocalDestino")
   inventariosMateriais InventarioMaterial[]
   minutas              Minuta[]
   contasContabeis      ContaContabil[]
@@ -1729,60 +1816,60 @@ model PedidoCompraItem {
 }
 
 model PedidoVenda {
-  id                     String                 @id @default(cuid())
-  empresaId              String                 @default("emp_tramontin")
-  numero                 String
-  numeroOrcamento        String?
-  intragrupo             Boolean                @default(false)
-  clienteId              String
+  id                      String                 @id @default(cuid())
+  empresaId               String                 @default("emp_tramontin")
+  numero                  String
+  numeroOrcamento         String?
+  intragrupo              Boolean                @default(false)
+  clienteId               String
   // Venda à ordem: nas entregas (matriz) o `cliente` é o adquirente (empresa
   // intermediária) e o destinatário (cliente final) fica aqui. null = normal.
-  clienteFinalId         String?
-  tabelaPrecoId          String?
-  vendedorId             String?
-  modalidade             String                 @default("AGENDADA") // legado/derivado de necessidadeEntrega (RETIRADA→BALCAO, ENTREGA→AGENDADA); mantido p/ relatórios
+  clienteFinalId          String?
+  tabelaPrecoId           String?
+  vendedorId              String?
+  modalidade              String                 @default("AGENDADA") // legado/derivado de necessidadeEntrega (RETIRADA→BALCAO, ENTREGA→AGENDADA); mantido p/ relatórios
   // Duas necessidades escolhidas na criação (substituem a escolha de modalidade):
-  necessidadePagamento   String                 @default("A_PRAZO") // A_VISTA (recebe agora) | A_PRAZO (conta a receber futura)
-  necessidadeEntrega     String                 @default("ENTREGA") // RETIRADA (leva na hora) | ENTREGA (agendada via minutas)
-  status                 StatusPedidoVenda      @default(ORCAMENTO)
+  necessidadePagamento    String                 @default("A_PRAZO") // A_VISTA (recebe agora) | A_PRAZO (conta a receber futura)
+  necessidadeEntrega      String                 @default("ENTREGA") // RETIRADA (leva na hora) | ENTREGA (agendada via minutas)
+  status                  StatusPedidoVenda      @default(ORCAMENTO)
   // Duas dimensões independentes do pedido (derivadas, mas persistidas p/ filtro):
   //  • entrega   → minutas (Pendente/Parcial/Entregue)
   //  • financeiro→ contas a receber, guiado pela condição de pagamento
-  statusEntrega          StatusEntregaPedido    @default(PENDENTE)
-  statusFinanceiro       StatusFinanceiroPedido @default(NAO_FATURADO)
-  dataEmissao            DateTime               @default(now())
-  dataEntrega            DateTime?
-  dataConclusao          DateTime?
+  statusEntrega           StatusEntregaPedido    @default(PENDENTE)
+  statusFinanceiro        StatusFinanceiroPedido @default(NAO_FATURADO)
+  dataEmissao             DateTime               @default(now())
+  dataEntrega             DateTime?
+  dataConclusao           DateTime?
   // Venda à ordem (triangular): estoque sai de OUTRA empresa do grupo. null =
   // normal (estoque da própria empresa). precoTransferencia é informativo na v1.
-  estoqueOrigemEmpresaId String?
-  precoTransferencia     Decimal?               @db.Decimal(15, 2)
+  estoqueOrigemEmpresaId  String?
+  precoTransferencia      Decimal?               @db.Decimal(15, 2)
   // Pedido de ENTREGA gerado na empresa de origem aponta de volta p/ a venda
   // comercial (triangular). null = pedido comum ou a própria venda comercial.
-  pedidoVendaOrigemId    String?
-  valorProdutos          Decimal                @default(0) @db.Decimal(15, 2)
-  valorDesconto          Decimal                @default(0) @db.Decimal(15, 2)
-  valorFrete             Decimal                @default(0) @db.Decimal(15, 2)
-  valorTotal             Decimal                @default(0) @db.Decimal(15, 2)
-  condicaoPagamento      String?
-  condicaoPagamentoId    String?
-  naturezaFinanceiraId   String?
-  formaPagamento         String?
-  observacoes            String?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
-  contasReceber          ContaReceber[]
-  espelhoCompra          PedidoCompra?          @relation("EspelhoIntragrupo")
-  cliente                Cliente                @relation("PedidoVendaCliente", fields: [clienteId], references: [id])
-  clienteFinal           Cliente?               @relation("PedidoVendaClienteFinal", fields: [clienteFinalId], references: [id])
-  condicaoPagamentoRef   CondicaoPagamento?     @relation(fields: [condicaoPagamentoId], references: [id])
-  naturezaFinanceira     NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
-  tabelaPreco            TabelaPreco?           @relation(fields: [tabelaPrecoId], references: [id])
-  vendedor               Vendedor?              @relation(fields: [vendedorId], references: [id])
-  itens                  PedidoVendaItem[]
-  pagamentos             PedidoVendaPagamento[]
-  minutas                Minuta[]
-  movimentacoesVendaOrdem MovimentacaoEstoque[] @relation("MovimentacoesVendaOrdem")
+  pedidoVendaOrigemId     String?
+  valorProdutos           Decimal                @default(0) @db.Decimal(15, 2)
+  valorDesconto           Decimal                @default(0) @db.Decimal(15, 2)
+  valorFrete              Decimal                @default(0) @db.Decimal(15, 2)
+  valorTotal              Decimal                @default(0) @db.Decimal(15, 2)
+  condicaoPagamento       String?
+  condicaoPagamentoId     String?
+  naturezaFinanceiraId    String?
+  formaPagamento          String?
+  observacoes             String?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  contasReceber           ContaReceber[]
+  espelhoCompra           PedidoCompra?          @relation("EspelhoIntragrupo")
+  cliente                 Cliente                @relation("PedidoVendaCliente", fields: [clienteId], references: [id])
+  clienteFinal            Cliente?               @relation("PedidoVendaClienteFinal", fields: [clienteFinalId], references: [id])
+  condicaoPagamentoRef    CondicaoPagamento?     @relation(fields: [condicaoPagamentoId], references: [id])
+  naturezaFinanceira      NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
+  tabelaPreco             TabelaPreco?           @relation(fields: [tabelaPrecoId], references: [id])
+  vendedor                Vendedor?              @relation(fields: [vendedorId], references: [id])
+  itens                   PedidoVendaItem[]
+  pagamentos              PedidoVendaPagamento[]
+  minutas                 Minuta[]
+  movimentacoesVendaOrdem MovimentacaoEstoque[]  @relation("MovimentacoesVendaOrdem")
 
   empresa              Empresa       @relation("PedidoVendaEmpresa", fields: [empresaId], references: [id])
   estoqueOrigemEmpresa Empresa?      @relation("PedidoVendaEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
@@ -1816,23 +1903,23 @@ model PedidoVendaPagamento {
 }
 
 model PedidoVendaItem {
-  id            String                @id @default(cuid())
-  empresaId     String                @default("emp_tramontin")
-  pedidoVendaId String
-  itemId        String
-  quantidade    Decimal               @db.Decimal(15, 3)
-  precoUnitario Decimal               @db.Decimal(15, 2)
+  id                 String                @id @default(cuid())
+  empresaId          String                @default("emp_tramontin")
+  pedidoVendaId      String
+  itemId             String
+  quantidade         Decimal               @db.Decimal(15, 3)
+  precoUnitario      Decimal               @db.Decimal(15, 2)
   // Venda à ordem: preço de compra unitário da empresa da venda com a origem
   // (Cimento ← Tramontin). Valora a entrada/saída-origem e o financeiro intragrupo.
-  precoTransferencia Decimal?          @db.Decimal(15, 2)
-  descontoPct   Decimal               @default(0) @db.Decimal(15, 4)
-  desconto      Decimal               @default(0) @db.Decimal(15, 2)
-  valorDesconto Decimal               @default(0) @db.Decimal(15, 2)
-  valorTotal    Decimal               @db.Decimal(15, 2)
-  movimentacoes MovimentacaoEstoque[]
-  minutaItens   MinutaItem[]
-  item          Item                  @relation(fields: [itemId], references: [id])
-  pedidoVenda   PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
+  precoTransferencia Decimal?              @db.Decimal(15, 2)
+  descontoPct        Decimal               @default(0) @db.Decimal(15, 4)
+  desconto           Decimal               @default(0) @db.Decimal(15, 2)
+  valorDesconto      Decimal               @default(0) @db.Decimal(15, 2)
+  valorTotal         Decimal               @db.Decimal(15, 2)
+  movimentacoes      MovimentacaoEstoque[]
+  minutaItens        MinutaItem[]
+  item               Item                  @relation(fields: [itemId], references: [id])
+  pedidoVenda        PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -1856,21 +1943,21 @@ enum StatusDevolucao {
 }
 
 model Devolucao {
-  id            String                 @id @default(cuid())
-  empresaId     String                 @default("emp_tramontin")
-  numero        String
-  pedidoVendaId String
-  clienteId     String
-  data          DateTime               @default(now())
-  valorTotal    Decimal                @db.Decimal(15, 2)
-  tipoResolucao TipoResolucaoDevolucao
-  status        StatusDevolucao        @default(CONCLUIDA)
-  contaBancariaId String?              // estorno: conta de saída do dinheiro
-  pedidoTrocaId   String?              // troca: novo pedido gerado (fase B3)
-  observacoes   String?
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
-  itens         DevolucaoItem[]
+  id              String                 @id @default(cuid())
+  empresaId       String                 @default("emp_tramontin")
+  numero          String
+  pedidoVendaId   String
+  clienteId       String
+  data            DateTime               @default(now())
+  valorTotal      Decimal                @db.Decimal(15, 2)
+  tipoResolucao   TipoResolucaoDevolucao
+  status          StatusDevolucao        @default(CONCLUIDA)
+  contaBancariaId String? // estorno: conta de saída do dinheiro
+  pedidoTrocaId   String? // troca: novo pedido gerado (fase B3)
+  observacoes     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  itens           DevolucaoItem[]
 
   @@unique([empresaId, numero])
   @@index([pedidoVendaId])
@@ -2121,20 +2208,20 @@ model TipoProduto {
 }
 
 model Unidade {
-  id                String                @id @default(cuid())
-  nome              String
-  sigla             String                @unique
-  ativo             Boolean               @default(true)
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
-  itens             Item[]
-  itemUnidadesBase  ItemUnidade[]         @relation("ItemUnidade_baseUnidadeIdToUnidade")
-  itemUnidades      ItemUnidade[]         @relation("ItemUnidade_unidadeIdToUnidade")
-  movimentacoes     MovimentacaoEstoque[]
-  minutaItens       MinutaItem[]
-  conversoesDestino UnidadeConversao[]    @relation("UnidadeConversao_unidadeDestinoIdToUnidade")
+  id                        String                     @id @default(cuid())
+  nome                      String
+  sigla                     String                     @unique
+  ativo                     Boolean                    @default(true)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  itens                     Item[]
+  itemUnidadesBase          ItemUnidade[]              @relation("ItemUnidade_baseUnidadeIdToUnidade")
+  itemUnidades              ItemUnidade[]              @relation("ItemUnidade_unidadeIdToUnidade")
+  movimentacoes             MovimentacaoEstoque[]
+  minutaItens               MinutaItem[]
+  conversoesDestino         UnidadeConversao[]         @relation("UnidadeConversao_unidadeDestinoIdToUnidade")
   ordemProducaoProdutoItens OrdemProducaoProdutoItem[]
-  conversoesOrigem  UnidadeConversao[]    @relation("UnidadeConversao_unidadeOrigemIdToUnidade")
+  conversoesOrigem          UnidadeConversao[]         @relation("UnidadeConversao_unidadeOrigemIdToUnidade")
 }
 
 model UnidadeConversao {
@@ -2447,31 +2534,31 @@ model ItemCustoHistorico {
 // Ordem de produção — executa uma versão publicada de um fluxo. As etapas são
 // um snapshot (em ordem topológica) das operações do grafo no momento da criação.
 model OrdemProducao {
-  id                  String                @id @default(cuid())
-  empresaId           String                @default("emp_tramontin")
-  numero              String
-  itemId              String?
-  fluxoVersaoId       String
-  quantidadePlanejada Decimal               @db.Decimal(15, 3)
-  unidade             String?
-  status              StatusOrdemProducao   @default(RASCUNHO)
-  estadoAtual         EstadoWIP             @default(UMIDO)
-  dataPrevista        DateTime?
-  dataPrevistaInicio  DateTime?
-  dataPrevistaFim     DateTime?
+  id                       String                     @id @default(cuid())
+  empresaId                String                     @default("emp_tramontin")
+  numero                   String
+  itemId                   String?
+  fluxoVersaoId            String
+  quantidadePlanejada      Decimal                    @db.Decimal(15, 3)
+  unidade                  String?
+  status                   StatusOrdemProducao        @default(RASCUNHO)
+  estadoAtual              EstadoWIP                  @default(UMIDO)
+  dataPrevista             DateTime?
+  dataPrevistaInicio       DateTime?
+  dataPrevistaFim          DateTime?
   responsavelColaboradorId String?
-  observacao          String?
-  criadoPor           String?
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  item                Item?                 @relation(fields: [itemId], references: [id])
-  fluxoVersao         FluxoProducaoVersao   @relation(fields: [fluxoVersaoId], references: [id])
-  responsavelColaborador Colaborador?       @relation("OrdemProducaoResponsavel", fields: [responsavelColaboradorId], references: [id])
-  produtoItens        OrdemProducaoProdutoItem[]
-  etapas              ItemOrdemProducao[]
-  consumos            ConsumoBiomassa[]
-  movimentacoes       MovimentacaoEstoque[]
-  anexos              OrdemProducaoAnexo[]
+  observacao               String?
+  criadoPor                String?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  item                     Item?                      @relation(fields: [itemId], references: [id])
+  fluxoVersao              FluxoProducaoVersao        @relation(fields: [fluxoVersaoId], references: [id])
+  responsavelColaborador   Colaborador?               @relation("OrdemProducaoResponsavel", fields: [responsavelColaboradorId], references: [id])
+  produtoItens             OrdemProducaoProdutoItem[]
+  etapas                   ItemOrdemProducao[]
+  consumos                 ConsumoBiomassa[]
+  movimentacoes            MovimentacaoEstoque[]
+  anexos                   OrdemProducaoAnexo[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -2531,7 +2618,7 @@ model ItemOrdemProducao {
   tempoCicloHoras     Decimal?      @db.Decimal(15, 3)
   subprodutoItemId    String?
   subprodutoDescricao String?
-  insumos             Json?         // [{ itemId, descricao, consumoPorMilheiro }] — custeio por fase
+  insumos             Json? // [{ itemId, descricao, consumoPorMilheiro }] — custeio por fase
   status              StatusEtapaOP @default(PENDENTE)
   qtdEntrada          Decimal?      @db.Decimal(15, 3)
   qtdSaida            Decimal?      @db.Decimal(15, 3)
@@ -2607,21 +2694,21 @@ model EngenhariaProduto {
 // Linha de BOM: um insumo (Item real) com quantidade por base. Categoria distingue
 // matéria-prima, mistura (semi-acabado), embalagem (pallet/fita/grampo) e energia.
 model EngenhariaInsumo {
-  id           String            @id @default(cuid())
-  engenhariaId String
-  insumoItemId String
-  quantidade   Decimal           @db.Decimal(15, 3)
-  base         BaseConsumo       @default(POR_MILHEIRO)
-  categoria    CategoriaInsumo   @default(MATERIA_PRIMA)
+  id            String            @id @default(cuid())
+  engenhariaId  String
+  insumoItemId  String
+  quantidade    Decimal           @db.Decimal(15, 3)
+  base          BaseConsumo       @default(POR_MILHEIRO)
+  categoria     CategoriaInsumo   @default(MATERIA_PRIMA)
   // Unidade em que a quantidade está expressa (id de Unidade); null = unidade-base do item.
-  unidadeId    String?
+  unidadeId     String?
   // Fase/estado em que o insumo é consumido (custeio por fase); null = primeira etapa.
   estadoConsumo EstadoWIP?
-  observacao   String?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  engenharia   EngenhariaProduto @relation(fields: [engenhariaId], references: [id], onDelete: Cascade)
-  insumoItem   Item              @relation("EngenhariaInsumoItem", fields: [insumoItemId], references: [id])
+  observacao    String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  engenharia    EngenhariaProduto @relation(fields: [engenhariaId], references: [id], onDelete: Cascade)
+  insumoItem    Item              @relation("EngenhariaInsumoItem", fields: [insumoItemId], references: [id])
 
   @@index([engenhariaId])
   @@index([insumoItemId])
@@ -2673,17 +2760,17 @@ enum OrigemDemanda {
 // Meta de produção do DIA por produto acabado — base da "rotina diária" que gera
 // as OPs do dia. Pode ser MANUAL ou derivada do MPS mensal (rateio por dias úteis).
 model MetaProducaoDiaria {
-  id         String          @id @default(cuid())
-  empresaId  String          @default("emp_tramontin")
+  id         String           @id @default(cuid())
+  empresaId  String           @default("emp_tramontin")
   itemId     String
-  data       DateTime        @db.Date
-  quantidade Decimal         @db.Decimal(15, 3)
+  data       DateTime         @db.Date
+  quantidade Decimal          @db.Decimal(15, 3)
   origem     OrigemMetaDiaria @default(MANUAL)
   observacao String?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  item       Item            @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  empresa    Empresa         @relation(fields: [empresaId], references: [id])
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  item       Item             @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  empresa    Empresa          @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, itemId, data])
   @@index([data])
@@ -2874,7 +2961,6 @@ enum NaturezaGrupo {
   FINANCIAMENTO
 }
 
-
 enum TipoRecorrencia {
   RECEBER
   PAGAR
@@ -2914,36 +3000,36 @@ enum UnidadeMedida {
 // ── Req/Dev de Materiais ──────────────────────────────────────────────────────
 
 model RequisicaoMaterial {
-  id             String                   @id @default(cuid())
-  empresaId      String                   @default("emp_tramontin")
-  numero         String
-  tipo           TipoRequisicaoMaterial   @default(REQUISICAO)
-  status         StatusRequisicaoMaterial @default(RASCUNHO)
-  localEstoqueId String
+  id                   String                   @id @default(cuid())
+  empresaId            String                   @default("emp_tramontin")
+  numero               String
+  tipo                 TipoRequisicaoMaterial   @default(REQUISICAO)
+  status               StatusRequisicaoMaterial @default(RASCUNHO)
+  localEstoqueId       String
   // Local de DESTINO opcional: preenchido = atender vira TRANSFERÊNCIA (saída na
   // origem + entrada no destino), não baixa/consumo. Ex.: liberar embalagem do
   // almoxarifado p/ o estoque de produção.
-  localDestinoId String?
-  colaboradorId  String?
-  setorId        String?
-  almoxarifeId   String?
-  os             String?
-  centroCustoId  String?
+  localDestinoId       String?
+  colaboradorId        String?
+  setorId              String?
+  almoxarifeId         String?
+  os                   String?
+  centroCustoId        String?
   // Natureza financeira da saída (ex.: CIF → consumo vai p/ "CIF a Apropriar").
   naturezaFinanceiraId String?
-  contaContabil  String?
-  data           DateTime                 @default(now())
-  observacoes    String?
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-  localEstoque   LocalEstoque             @relation("RM_LocalOrigem", fields: [localEstoqueId], references: [id])
-  localDestino   LocalEstoque?            @relation("RM_LocalDestino", fields: [localDestinoId], references: [id])
-  colaborador    Colaborador?             @relation("RM_Solicitante", fields: [colaboradorId], references: [id])
-  setor          Setor?                   @relation(fields: [setorId], references: [id])
-  almoxarife     Colaborador?             @relation("RM_Almoxarife", fields: [almoxarifeId], references: [id])
-  centroCusto    CentroCusto?             @relation(fields: [centroCustoId], references: [id])
-  naturezaFinanceira NaturezaFinanceira?  @relation(fields: [naturezaFinanceiraId], references: [id])
-  itens          RequisicaoMaterialItem[]
+  contaContabil        String?
+  data                 DateTime                 @default(now())
+  observacoes          String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  localEstoque         LocalEstoque             @relation("RM_LocalOrigem", fields: [localEstoqueId], references: [id])
+  localDestino         LocalEstoque?            @relation("RM_LocalDestino", fields: [localDestinoId], references: [id])
+  colaborador          Colaborador?             @relation("RM_Solicitante", fields: [colaboradorId], references: [id])
+  setor                Setor?                   @relation(fields: [setorId], references: [id])
+  almoxarife           Colaborador?             @relation("RM_Almoxarife", fields: [almoxarifeId], references: [id])
+  centroCusto          CentroCusto?             @relation(fields: [centroCustoId], references: [id])
+  naturezaFinanceira   NaturezaFinanceira?      @relation(fields: [naturezaFinanceiraId], references: [id])
+  itens                RequisicaoMaterialItem[]
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -2955,25 +3041,25 @@ model RequisicaoMaterial {
 }
 
 model RequisicaoMaterialItem {
-  id            String             @id @default(cuid())
-  requisicaoId  String
-  itemId        String
-  quantidade    Decimal            @db.Decimal(15, 3)
-  unidade       String?
-  localizacao   String?
-  centroCustoId String?
+  id                   String              @id @default(cuid())
+  requisicaoId         String
+  itemId               String
+  quantidade           Decimal             @db.Decimal(15, 3)
+  unidade              String?
+  localizacao          String?
+  centroCustoId        String?
   // Natureza financeira POR ITEM (gaveta gerencial; vence a do cabeçalho).
   naturezaFinanceiraId String?
   // Destino contábil MANUAL (escape explícito, independente da natureza): força o
   // destino da linha. Vence as flags do item (exceto material direto). null = automático.
-  destinoManual DestinoConsumo?
-  contaContabil String?
-  os            String?
-  requisicaoRef String?
-  requisicao    RequisicaoMaterial @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
-  item          Item               @relation(fields: [itemId], references: [id])
-  centroCusto   CentroCusto?       @relation(fields: [centroCustoId], references: [id])
-  naturezaFinanceira NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
+  destinoManual        DestinoConsumo?
+  contaContabil        String?
+  os                   String?
+  requisicaoRef        String?
+  requisicao           RequisicaoMaterial  @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
+  item                 Item                @relation(fields: [itemId], references: [id])
+  centroCusto          CentroCusto?        @relation(fields: [centroCustoId], references: [id])
+  naturezaFinanceira   NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
 
   @@index([requisicaoId])
 }
@@ -3109,37 +3195,37 @@ enum PrioridadeTicket {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model Concorrente {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("emp_tramontin")
-  tipoPessoa    TipoPessoa @default(JURIDICA)
-  razaoSocial   String
-  nomeFantasia  String?
-  cpfCnpj       String?
+  id           String     @id @default(cuid())
+  empresaId    String     @default("emp_tramontin")
+  tipoPessoa   TipoPessoa @default(JURIDICA)
+  razaoSocial  String
+  nomeFantasia String?
+  cpfCnpj      String?
 
   // Vínculo opcional: concorrente que também é um cliente cadastrado. Apenas
   // referência (sem FK forte) para registrar a origem e exibir o selo cruzado.
-  clienteId     String?
+  clienteId String?
 
   // Categoria — fornecedor, revendedor, construtora e/ou consumidor final (pode ser vários).
-  ehFornecedor      Boolean  @default(false)
-  ehRevendedor      Boolean  @default(false)
-  ehConstrutora     Boolean  @default(false)
-  ehConsumidorFinal Boolean  @default(false)
+  ehFornecedor      Boolean @default(false)
+  ehRevendedor      Boolean @default(false)
+  ehConstrutora     Boolean @default(false)
+  ehConsumidorFinal Boolean @default(false)
 
   // Contato
-  email         String?
-  telefone      String?
-  celular       String?
-  site          String?
+  email    String?
+  telefone String?
+  celular  String?
+  site     String?
 
   // Endereço (mesma decomposição de Cliente/Fornecedor)
-  cep           String?
-  logradouro    String?
-  numero        String?
-  complemento   String?
-  bairro        String?
-  cidade        String?
-  estado        String?
+  cep         String?
+  logradouro  String?
+  numero      String?
+  complemento String?
+  bairro      String?
+  cidade      String?
+  estado      String?
 
   // Geolocalização (geomarketing). Preenchida por geocodificação (Nominatim/OSM)
   // ou ajuste manual. Float p/ chegar ao front como número puro.
@@ -3147,20 +3233,20 @@ model Concorrente {
   longitude     Float?
   // Quando true, as coordenadas foram fixadas manualmente (pino arrastado ou
   // coladas do Google Maps) — o geocoding automático não as sobrescreve.
-  geoManual     Boolean  @default(false)
+  geoManual     Boolean @default(false)
   // Referência crua do ajuste manual: a URL do Google Maps ou o "lat, lng"
   // informado/arrastado. Mantida para conferência e reuso.
   geoReferencia String?
 
-  observacoes   String?
-  ativo         Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  observacoes String?
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  empresa       Empresa  @relation(fields: [empresaId], references: [id])
-  precos        ConcorrentePreco[]
-  contatos      ConcorrenteContato[]
-  canais        ConcorrenteCanal[]
+  empresa  Empresa              @relation(fields: [empresaId], references: [id])
+  precos   ConcorrentePreco[]
+  contatos ConcorrenteContato[]
+  canais   ConcorrenteCanal[]
 
   @@index([empresaId])
   @@index([cidade])
@@ -3170,15 +3256,15 @@ model Concorrente {
 
 // Um concorrente pode ter vários contatos (vendedor, gerente, dono...).
 model ConcorrenteContato {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("emp_tramontin")
+  id            String      @id @default(cuid())
+  empresaId     String      @default("emp_tramontin")
   concorrenteId String
   nome          String
   cargo         String?
   telefone      String?
   email         String?
   observacao    String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime    @default(now())
   concorrente   Concorrente @relation(fields: [concorrenteId], references: [id], onDelete: Cascade)
 
   @@index([concorrenteId])
@@ -3190,11 +3276,11 @@ model ConcorrenteContato {
 // Quando tipo=LOCALIZACAO, o canal é um ponto físico (filial/depósito) com
 // endereço + coordenadas e vai pro mapa do geomarketing.
 model ConcorrenteCanal {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("emp_tramontin")
+  id            String      @id @default(cuid())
+  empresaId     String      @default("emp_tramontin")
   concorrenteId String
   tipo          String
-  valor         String?  // link/@perfil/número/descrição (ou nome do local)
+  valor         String? // link/@perfil/número/descrição (ou nome do local)
   observacao    String?
   // Geo — só p/ tipo=LOCALIZACAO.
   cep           String?
@@ -3206,38 +3292,38 @@ model ConcorrenteCanal {
   estado        String?
   latitude      Float?
   longitude     Float?
-  geoManual     Boolean  @default(false)
+  geoManual     Boolean     @default(false)
   geoReferencia String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt @default(now())
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @default(now()) @updatedAt
   concorrente   Concorrente @relation(fields: [concorrenteId], references: [id], onDelete: Cascade)
 
   @@index([concorrenteId])
 }
 
 model ConcorrentePreco {
-  id             String   @id @default(cuid())
-  empresaId      String   @default("emp_tramontin")
-  concorrenteId  String
+  id            String @id @default(cuid())
+  empresaId     String @default("emp_tramontin")
+  concorrenteId String
 
   // Vínculo opcional com o nosso catálogo. Quando nulo, é produto avulso
   // identificado apenas por produtoNome.
-  itemId         String?
-  produtoNome    String
+  itemId      String?
+  produtoNome String
 
-  preco          Decimal  @db.Decimal(15, 2)
-  unidade        String?
+  preco             Decimal  @db.Decimal(15, 2)
+  unidade           String?
   // Condições que fazem o preço variar — permitem mais de um preço por produto.
-  condicaoPagamento String?          // ex.: "À vista", "30 dias", "30/60/90"
-  modalidade        String?          // "ENTREGA" | "RETIRADA" | null (indiferente)
-  dataColeta     DateTime @default(now())
-  observacao     String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  condicaoPagamento String? // ex.: "À vista", "30 dias", "30/60/90"
+  modalidade        String? // "ENTREGA" | "RETIRADA" | null (indiferente)
+  dataColeta        DateTime @default(now())
+  observacao        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  empresa        Empresa     @relation(fields: [empresaId], references: [id])
-  concorrente    Concorrente @relation(fields: [concorrenteId], references: [id], onDelete: Cascade)
-  item           Item?       @relation(fields: [itemId], references: [id])
+  empresa     Empresa     @relation(fields: [empresaId], references: [id])
+  concorrente Concorrente @relation(fields: [concorrenteId], references: [id], onDelete: Cascade)
+  item        Item?       @relation(fields: [itemId], references: [id])
 
   @@index([empresaId])
   @@index([concorrenteId])

@@ -116,6 +116,14 @@ export async function contaContrapartidaDaNatureza(empresaId: string, naturezaFi
 export async function contaDoBanco(empresaId: string, contaBancariaId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, contaBancariaId }, select: { id: true } });
 }
+// Conta contábil da TRANSITÓRIA de compensação (Encontro de Contas): contrapartida
+// do reclass do título-resíduo (modo "nova parcela"). Nula se a empresa ainda não
+// tem a conta de compensação semeada.
+export async function contaContabilCompensacao(empresaId: string) {
+  const cb = await prismaSemEscopo.contaBancaria.findFirst({ where: { empresaId, compensacao: true }, select: { id: true } });
+  if (!cb) return null;
+  return contaDoBanco(empresaId, cb.id);
+}
 
 // detalheItens vive em @/lib/detalhe-itens (reusado nas descrições dos títulos).
 
@@ -261,7 +269,7 @@ export async function registrarLancamento(input: LancamentoIn) {
 export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
-    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true,
+    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true,
       cliente: { select: { razaoSocial: true } },
       pedidoVenda: { select: { numero: true, itens: { select: { quantidade: true, precoUnitario: true, item: { select: { descricao: true } } } } } } },
   });
@@ -327,19 +335,31 @@ export async function contabilizarTituloReceber(crId: string) {
   // D Ativo (Clientes ou contrapartida da natureza) / C Receita (por natureza).
   const valor = decimalToNumber(cr.valorOriginal);
   if (!ehPedido && valor > 0 && contaReceita) {
-    const split = dividirReceita(valor);
     const creditos: PartidaIn[] = [];
-    if (split.length > 0) {
-      for (const s of split) {
-        const conta = (await contaDaNatureza(cr.empresaId, s.natId)) ?? contaReceita;
-        creditos.push({ contaId: conta.id, tipo: "CREDITO", valor: s.valor, naturezaId: s.natId });
-      }
+    let historico = `Venda — ${refCr}${cliNome ? ` · ${cliNome}` : ""}`;
+    if (cr.compensacaoOrigemId) {
+      // Título-resíduo de Encontro de Contas (modo "nova parcela"): a perna de
+      // nascimento é um RECLASS contra a transitória de compensação (não gera
+      // receita). D Clientes / C Compensações a liquidar (a transitória zera com
+      // a baixa dos originais que sobraram nesta compensação).
+      const contaComp = await contaContabilCompensacao(cr.empresaId);
+      if (!contaComp) return;
+      creditos.push({ contaId: contaComp.id, tipo: "CREDITO", valor });
+      historico = `Reclass. compensação — ${refCr}${cliNome ? ` · ${cliNome}` : ""}`;
     } else {
-      creditos.push({ contaId: contaReceita.id, tipo: "CREDITO", valor });
+      const split = dividirReceita(valor);
+      if (split.length > 0) {
+        for (const s of split) {
+          const conta = (await contaDaNatureza(cr.empresaId, s.natId)) ?? contaReceita;
+          creditos.push({ contaId: conta.id, tipo: "CREDITO", valor: s.valor, naturezaId: s.natId });
+        }
+      } else {
+        creditos.push({ contaId: contaReceita.id, tipo: "CREDITO", valor });
+      }
     }
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
-      historico: `Venda — ${refCr}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "VENDA", origemId: cr.id,
+      historico, origemTipo: "VENDA", origemId: cr.id,
       partidas: [
         { contaId: contaAtivo.id, tipo: "DEBITO", valor, clienteId: cli },
         ...creditos,
@@ -383,7 +403,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
 
@@ -535,7 +555,22 @@ export async function contabilizarTituloPagar(cpId: string) {
   if (!contaForn) return;
 
   const valor = decimalToNumber(cp.valorOriginal);
-  if (!ehCompraEstoque && valor > 0) {
+  if (!ehCompraEstoque && valor > 0 && cp.compensacaoOrigemId) {
+    // Título-resíduo de Encontro de Contas (modo "nova parcela"): perna de
+    // nascimento é RECLASS contra a transitória (não gera despesa).
+    // D Compensações a liquidar / C Fornecedores.
+    const contaComp = await contaContabilCompensacao(cp.empresaId);
+    if (contaComp) {
+      await registrarLancamento({
+        empresaId: cp.empresaId, data: cp.dataCompetencia ?? cp.createdAt,
+        historico: `Reclass. compensação — ${refCp}`, origemTipo: "COMPRA", origemId: cp.id,
+        partidas: [
+          { contaId: contaComp.id, tipo: "DEBITO", valor },
+          { contaId: contaForn.id, tipo: "CREDITO", valor, fornecedorId: cp.fornecedorId },
+        ],
+      });
+    }
+  } else if (!ehCompraEstoque && valor > 0) {
     const compraSplit = dividirPorNatureza(valor);
     if (compraSplit.length > 0) {
       // Rateio: um débito por natureza (CIF→1.1.4.0001; senão a conta da natureza),

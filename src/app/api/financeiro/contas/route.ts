@@ -12,6 +12,8 @@ export async function GET() {
 
   const [contas, saldos] = await Promise.all([
     prisma.contaBancaria.findMany({
+      // A transitória de compensação (Encontro de Contas) não é banco de verdade.
+      where: { compensacao: false },
       include: {
         banco: { select: { id: true, nome: true } },
         contasContabeis: { select: { id: true, codigo: true, nome: true }, take: 1 },
