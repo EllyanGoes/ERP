@@ -46,6 +46,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
           },
           localEstoque: { select: { id: true, nome: true } },
           centroCusto: { select: { id: true, codigo: true, nome: true } },
+          imobilizado: { select: { id: true, descricao: true } },
+          componenteSubstituido: { select: { id: true, descricao: true } },
           movimentacoes: { select: { id: true, tipo: true, quantidade: true, createdAt: true } },
         },
       },
@@ -134,6 +136,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               localEstoqueId: item.localEstoqueId || null,
               // Centro herdado do pedido / escolhido na entrada (default editável).
               centroCustoId: item.centroCustoId || null,
+              // Capex (herança/orçamento na entrada): bem só quando capitaliza.
+              capitaliza: item.capitaliza ?? null,
+              imobilizadoId: item.capitaliza ? (item.imobilizadoId || null) : null,
+              componenteSubstituidoId: item.capitaliza ? (item.componenteSubstituidoId || null) : null,
               desconto: itemDesconto ?? null,
             },
           });
@@ -165,6 +171,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             ...(item.tpOper !== undefined ? { tpOper: item.tpOper || null } : {}),
             ...(item.localEstoqueId !== undefined ? { localEstoqueId: item.localEstoqueId || null } : {}),
             ...(item.centroCustoId !== undefined ? { centroCustoId: item.centroCustoId || null } : {}),
+            ...(item.capitaliza !== undefined ? {
+              capitaliza: item.capitaliza ?? null,
+              imobilizadoId: item.capitaliza ? (item.imobilizadoId || null) : null,
+              componenteSubstituidoId: item.capitaliza ? (item.componenteSubstituidoId || null) : null,
+            } : {}),
             ...(itemDesconto !== undefined ? { desconto: itemDesconto || null } : {}),
           },
         });
@@ -242,6 +253,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
           localEstoque: { select: { id: true, nome: true } },
           centroCusto: { select: { id: true, codigo: true, nome: true } },
+          imobilizado: { select: { id: true, descricao: true } },
+          componenteSubstituido: { select: { id: true, descricao: true } },
           movimentacoes: true,
         },
       },

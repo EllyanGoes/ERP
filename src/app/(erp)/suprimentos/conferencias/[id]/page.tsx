@@ -50,6 +50,10 @@ type ConferenciaItem = {
   localEstoque: LocalEstoque;
   centroCustoId: string | null;
   centroCusto: { id: string; codigo: string; nome: string } | null;
+  capitaliza: boolean | null;
+  imobilizadoId: string | null;
+  imobilizado: { id: string; descricao: string } | null;
+  componenteSubstituidoId: string | null;
   desconto: unknown;
   unidadeId: string | null;
   item: {
@@ -120,6 +124,9 @@ type EditItem = {
   tpOper: string;
   localEstoqueId: string;
   centroCustoId: string;      // herdado do pedido (default editável); não classifica custo
+  capitaliza: boolean;        // capex nesta linha (carga/orçamento na entrada); exige bem
+  imobilizadoId: string;
+  componenteSubstituidoId: string;
   desconto: string;
   unidadeId: string;          // unidade de compra escolhida ("" = base)
   unidades: UnidadeOpc[];     // opções (base + alternativas) do item
@@ -142,6 +149,9 @@ type NewItem = {
   desconto: string;
   localEstoqueId: string;
   centroCustoId: string;
+  capitaliza: boolean;
+  imobilizadoId: string;
+  componenteSubstituidoId: string;
 };
 
 function getItemStatus(pedida: number, recebida: number): { label: string; cls: string } {
@@ -210,6 +220,7 @@ export default function DocumentoEntradaDetailPage() {
   const [saving, setSaving] = useState(false);
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [imobilizados, setImobilizados] = useState<{ id: string; descricao: string }[]>([]);
 
   // Add item inline
   const [produtos, setProdutos] = useState<ProdutoOption[]>([]);
@@ -274,6 +285,9 @@ export default function DocumentoEntradaDetailPage() {
             tpOper: i.tpOper ?? "",
             localEstoqueId: resolvedModo === "GLOBAL" ? globalLocalId : (i.localEstoqueId ?? ""),
             centroCustoId: i.centroCustoId ?? "",
+            capitaliza: i.capitaliza ?? false,
+            imobilizadoId: i.imobilizadoId ?? "",
+            componenteSubstituidoId: i.componenteSubstituidoId ?? "",
             desconto: decimalToNumber(i.desconto) > 0 ? String(decimalToNumber(i.desconto)) : "",
             unidadeId: i.unidadeId ?? "",
             unidades,
@@ -299,6 +313,9 @@ export default function DocumentoEntradaDetailPage() {
       .catch(() => {});
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
       .then((j) => setCentrosCusto(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    fetch("/api/contabilidade/imobilizado").then((r) => r.json())
+      .then((j) => setImobilizados(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
@@ -338,16 +355,16 @@ export default function DocumentoEntradaDetailPage() {
       .catch(() => {});
   }, []);
 
-  function updateNewItem(key: string, field: keyof NewItem, value: string) {
+  function updateNewItem(key: string, field: keyof NewItem, value: string | boolean) {
     setNewItems((prev) =>
       prev.map((ni) => {
         if (ni._key !== key) return ni;
         const updated = { ...ni, [field]: value };
         // auto-calc vlrTotal
         if (field === "vlrUnitario" || field === "quantidadeRecebida" || field === "desconto") {
-          const qtd  = parseFloat(field === "quantidadeRecebida" ? value : ni.quantidadeRecebida) || 0;
-          const unit = parseFloat(field === "vlrUnitario" ? value : ni.vlrUnitario) || 0;
-          const pct  = parseFloat(field === "desconto" ? value : ni.desconto) || 0;
+          const qtd  = parseFloat(field === "quantidadeRecebida" ? String(value) : ni.quantidadeRecebida) || 0;
+          const unit = parseFloat(field === "vlrUnitario" ? String(value) : ni.vlrUnitario) || 0;
+          const pct  = parseFloat(field === "desconto" ? String(value) : ni.desconto) || 0;
           if (qtd > 0 && unit > 0) {
             const bruto = qtd * unit;
             updated.vlrTotal = (bruto - (bruto * pct) / 100).toFixed(2);
@@ -375,6 +392,9 @@ export default function DocumentoEntradaDetailPage() {
         desconto: "",
         localEstoqueId: localEstoqueGlobalId,
         centroCustoId: "",
+        capitaliza: false,
+        imobilizadoId: "",
+        componenteSubstituidoId: "",
       },
     ]);
     setAddItemSearch("");
@@ -387,7 +407,7 @@ export default function DocumentoEntradaDetailPage() {
     setNewItems((prev) => prev.filter((ni) => ni._key !== key));
   }
 
-  function updateEditItem(itemId: string, key: keyof EditItem, value: string) {
+  function updateEditItem(itemId: string, key: keyof EditItem, value: string | boolean) {
     setEditItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, [key]: value } : i)));
   }
 
@@ -436,6 +456,10 @@ export default function DocumentoEntradaDetailPage() {
       const semLocal = allItems.some((i) => !i.localEstoqueId);
       if (semLocal) { setValidationError("Todos os itens precisam ter um Local de Estoque definido."); return; }
     }
+    // Capex: linha que capitaliza exige o bem (imobilizado).
+    if ([...editItems, ...newItems].some((i) => i.capitaliza && !i.imobilizadoId)) {
+      setValidationError("Item que capitaliza exige o bem (imobilizado)."); return;
+    }
 
     setSaving(true);
     setActionError("");
@@ -477,6 +501,9 @@ export default function DocumentoEntradaDetailPage() {
               tpOper: i.tpOper || null,
               localEstoqueId: i.localEstoqueId || null,
               centroCustoId: i.centroCustoId || null,
+              capitaliza: i.capitaliza ? true : null,
+              imobilizadoId: i.capitaliza ? (i.imobilizadoId || null) : null,
+              componenteSubstituidoId: i.capitaliza ? (i.componenteSubstituidoId || null) : null,
               desconto: i.desconto ? parseFloat(i.desconto) : null,
             })),
             // new items (no id — will be created by API)
@@ -491,6 +518,9 @@ export default function DocumentoEntradaDetailPage() {
               desconto: ni.desconto ? parseFloat(ni.desconto) : null,
               localEstoqueId: ni.localEstoqueId || null,
               centroCustoId: ni.centroCustoId || null,
+              capitaliza: ni.capitaliza ? true : null,
+              imobilizadoId: ni.capitaliza ? (ni.imobilizadoId || null) : null,
+              componenteSubstituidoId: ni.capitaliza ? (ni.componenteSubstituidoId || null) : null,
             })),
           ],
         }),
@@ -1253,6 +1283,7 @@ export default function DocumentoEntradaDetailPage() {
                       <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Local Estoque</th>
                     )}
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs" title="Capitaliza (imobilizado): marca a linha como capex e exige o bem. Herança/orçamento na entrada.">Capex</th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">U.M.</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Qtd. Pedida</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Qtd. Recebida</th>
@@ -1311,6 +1342,36 @@ export default function DocumentoEntradaDetailPage() {
                             />
                           ) : (
                             <span className="text-xs text-muted-foreground">{item.centroCusto ? `${item.centroCusto.codigo} - ${item.centroCusto.nome}` : "—"}</span>
+                          )}
+                        </td>
+
+                        {/* Capex — capitaliza (carga/orçamento na entrada); exige o bem */}
+                        <td className="px-3 py-2 align-top">
+                          {canEdit && ei ? (
+                            <div className="space-y-1">
+                              <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                <input type="checkbox" checked={ei.capitaliza}
+                                  onChange={(e) => updateEditItem(item.id, "capitaliza", e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-border" />
+                                <span className="text-muted-foreground">Capitaliza</span>
+                              </label>
+                              {ei.capitaliza && (
+                                <>
+                                  <select value={ei.imobilizadoId} onChange={(e) => updateEditItem(item.id, "imobilizadoId", e.target.value)}
+                                    className={cn("h-7 rounded text-xs w-full border bg-card px-1", !ei.imobilizadoId ? "border-red-400 bg-danger/10" : "border-border")}>
+                                    <option value="">— Bem (obrigatório) —</option>
+                                    {imobilizados.map((b) => <option key={b.id} value={b.id}>{b.descricao}</option>)}
+                                  </select>
+                                  <select value={ei.componenteSubstituidoId} onChange={(e) => updateEditItem(item.id, "componenteSubstituidoId", e.target.value)}
+                                    className="h-7 rounded text-xs w-full border border-border bg-card px-1" title="Componente velho a dar baixa (troca)">
+                                    <option value="">— Troca? componente —</option>
+                                    {imobilizados.map((b) => <option key={b.id} value={b.id}>{b.descricao}</option>)}
+                                  </select>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{item.capitaliza ? (item.imobilizado?.descricao ?? "Capex") : "—"}</span>
                           )}
                         </td>
 
@@ -1514,6 +1575,31 @@ export default function DocumentoEntradaDetailPage() {
                           triggerClassName="h-7 rounded text-xs min-w-[9rem]"
                           options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                         />
+                      </td>
+                      {/* Capex */}
+                      <td className="px-3 py-2 align-top">
+                        <div className="space-y-1">
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input type="checkbox" checked={ni.capitaliza}
+                              onChange={(e) => updateNewItem(ni._key, "capitaliza", e.target.checked)}
+                              className="w-3.5 h-3.5 rounded border-border" />
+                            <span className="text-muted-foreground">Capitaliza</span>
+                          </label>
+                          {ni.capitaliza && (
+                            <>
+                              <select value={ni.imobilizadoId} onChange={(e) => updateNewItem(ni._key, "imobilizadoId", e.target.value)}
+                                className={cn("h-7 rounded text-xs w-full border bg-card px-1", !ni.imobilizadoId ? "border-red-400 bg-danger/10" : "border-border")}>
+                                <option value="">— Bem (obrigatório) —</option>
+                                {imobilizados.map((b) => <option key={b.id} value={b.id}>{b.descricao}</option>)}
+                              </select>
+                              <select value={ni.componenteSubstituidoId} onChange={(e) => updateNewItem(ni._key, "componenteSubstituidoId", e.target.value)}
+                                className="h-7 rounded text-xs w-full border border-border bg-card px-1" title="Componente velho a dar baixa (troca)">
+                                <option value="">— Troca? componente —</option>
+                                {imobilizados.map((b) => <option key={b.id} value={b.id}>{b.descricao}</option>)}
+                              </select>
+                            </>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{ni.unidadeMedida}</td>
                       <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>

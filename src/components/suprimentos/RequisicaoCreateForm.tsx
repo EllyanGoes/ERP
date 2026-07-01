@@ -54,6 +54,9 @@ type ItemRow = {
   centroCustoId: string;
   naturezaFinanceiraId: string;
   destinoManual: string; // escape explícito (PEP_MD/IMOBILIZADO/CIF/DESPESA) ou "" = auto
+  capitaliza:   boolean; // marcado = capex nesta linha (vence item); exige o bem
+  imobilizadoId: string; // bem que recebe o valor (obrigatório quando capitaliza)
+  componenteSubstituidoId: string; // peça velha a dar baixa numa troca (opcional)
   os:           string;
   requisicaoRef: string;
 };
@@ -73,6 +76,9 @@ function emptyRow(): ItemRow {
     centroCustoId: "",
     naturezaFinanceiraId: "",
     destinoManual: "",
+    capitaliza:   false,
+    imobilizadoId: "",
+    componenteSubstituidoId: "",
     os:           "",
     requisicaoRef: "",
   };
@@ -648,6 +654,7 @@ export default function RequisicaoCreateForm() {
   const [centros,       setCentros]       = useState<CentroCustoOpt[]>([]);
   const [naturezas,     setNaturezas]     = useState<NaturezaOpt[]>([]);
   const [itensCat,      setItensCat]      = useState<ItemOpt[]>([]);
+  const [imobilizados,  setImobilizados]  = useState<{ id: string; descricao: string }[]>([]);
   // Unidades cadastradas por produto (para limitar o seletor e converter à base).
   const [itemUnidades,  setItemUnidades]  = useState<Map<string, UnidadeOpt[]>>(new Map());
   // Itens do local selecionado → saldo atual (inclui saldo zero). Requisição só
@@ -678,6 +685,8 @@ export default function RequisicaoCreateForm() {
       safeFetch("/api/suprimentos/produtos"),
       safeFetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1&requisitaveis=1"),
     ]);
+    const imData = await safeFetch("/api/contabilidade/imobilizado");
+    if (imData != null) setImobilizados(Array.isArray(imData) ? imData : imData.data ?? []);
 
     if (lData  != null) setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);
     if (cData  != null) setColaboradores(Array.isArray(cData)  ? cData  : cData.data  ?? []);
@@ -765,7 +774,7 @@ export default function RequisicaoCreateForm() {
     setRows((prev) => prev.map((r) => r._key === key ? { ...r, unidade: u.sigla, unidadeId: u.unidadeId } : r));
   }
 
-  function updateRow(key: string, field: keyof ItemRow, value: string) {
+  function updateRow(key: string, field: keyof ItemRow, value: string | boolean) {
     setRows((prev) => prev.map((r) => r._key === key ? { ...r, [field]: value } : r));
   }
 
@@ -792,6 +801,13 @@ export default function RequisicaoCreateForm() {
         setSaveError(`Centro de custo é obrigatório em cada item: ${cods}. Informe no cabeçalho (aplica a todos) ou na linha.`);
         return;
       }
+    }
+    // Capex: linha que capitaliza exige o bem (imobilizado_id). Não posta sem o bem.
+    const semBem = validRows.filter((r) => r.capitaliza && !r.imobilizadoId);
+    if (semBem.length > 0) {
+      const cods = semBem.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
+      setSaveError(`Item que capitaliza exige o bem (imobilizado): ${cods}.`);
+      return;
     }
     // Saída só de itens COM saldo: estoque zerado/negativo não pode ser lançado.
     if (tipo === "REQUISICAO" && itensNoLocal) {
@@ -832,6 +848,9 @@ export default function RequisicaoCreateForm() {
               centroCustoId: r.centroCustoId || null,
               naturezaFinanceiraId: r.naturezaFinanceiraId || null,
               destinoManual: r.destinoManual || null,
+              capitaliza: r.capitaliza ? true : null,
+              imobilizadoId: r.capitaliza ? (r.imobilizadoId || null) : null,
+              componenteSubstituidoId: r.capitaliza ? (r.componenteSubstituidoId || null) : null,
               os: r.os || null, requisicaoRef: r.requisicaoRef || null,
             };
           }),
@@ -1046,6 +1065,7 @@ export default function RequisicaoCreateForm() {
                       <th className="text-left px-3 py-2.5 min-w-[140px]">Centro de Custo <span className="text-red-500">*</span></th>
                       <th className="text-left px-3 py-2.5 min-w-[150px]">Natureza <span className="text-red-500">*</span></th>
                       <th className="text-left px-3 py-2.5 w-32">Destino</th>
+                      <th className="text-left px-3 py-2.5 w-40" title="Capitaliza (imobilizado): marca esta linha como capex e exige o bem. Vence o cadastro do item.">Capex</th>
                       <th className="text-left px-3 py-2.5 w-24">O.S.</th>
                       <th className="text-left px-3 py-2.5 w-24">Requisição</th>
                     </>}
@@ -1145,7 +1165,7 @@ export default function RequisicaoCreateForm() {
                             if (!it) return null;
                             const centro = centros.find((c) => c.id === (row.centroCustoId || centroCustoId));
                             const destino = rotearDestinoRequisicao({
-                              item: { categoriaEstoque: it.categoriaEstoque ?? null, compoeCusto: it.compoeCusto ?? false, fabril: it.fabril ?? false, capitaliza: it.capitaliza ?? false },
+                              item: { categoriaEstoque: it.categoriaEstoque ?? null, compoeCusto: it.compoeCusto ?? false, fabril: it.fabril ?? false, capitaliza: row.capitaliza || (it.capitaliza ?? false) },
                               destinoManual: (row.destinoManual || null) as never,
                               centroFabril: centro ? !!centro.fabril : null,
                             });
@@ -1153,6 +1173,29 @@ export default function RequisicaoCreateForm() {
                             if (!nat?.destinoSugerido || destino === "INDEFINIDO" || nat.destinoSugerido === destino) return null;
                             return <p className="text-[10px] text-amber-600 mt-0.5">⚠ natureza sugere {nat.destinoSugerido}, mas o destino é {destino}</p>;
                           })()}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input type="checkbox" checked={row.capitaliza}
+                              onChange={(e) => updateRow(row._key, "capitaliza", e.target.checked)}
+                              className="w-3.5 h-3.5 rounded border-border" />
+                            <span className="text-muted-foreground">Capitaliza</span>
+                          </label>
+                          {row.capitaliza && (
+                            <div className="mt-1 space-y-1">
+                              <select value={row.imobilizadoId} onChange={(e) => updateRow(row._key, "imobilizadoId", e.target.value)}
+                                className={cn("h-8 text-xs w-full rounded-md border bg-card px-1", submitted && !row.imobilizadoId ? "border-red-400 bg-danger/10" : "border-border")}>
+                                <option value="">— Bem (obrigatório) —</option>
+                                {imobilizados.map((b) => <option key={b.id} value={b.id}>{b.descricao}</option>)}
+                              </select>
+                              {submitted && !row.imobilizadoId && <p className="text-[10px] text-red-500">bem obrigatório</p>}
+                              <select value={row.componenteSubstituidoId} onChange={(e) => updateRow(row._key, "componenteSubstituidoId", e.target.value)}
+                                className="h-8 text-xs w-full rounded-md border border-border bg-card px-1" title="Componente velho a dar baixa (troca, CPC 27)">
+                                <option value="">— Troca? componente velho —</option>
+                                {imobilizados.map((b) => <option key={b.id} value={b.id}>{b.descricao}</option>)}
+                              </select>
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <Input value={row.os} onChange={(e) => updateRow(row._key, "os", e.target.value)} className="h-8 text-xs" />
