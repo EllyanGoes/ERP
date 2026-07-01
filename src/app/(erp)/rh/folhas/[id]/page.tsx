@@ -232,6 +232,7 @@ export default function FolhaDetalhePage() {
                         }}
                         placeholder="Buscar colaborador…"
                         noneLabel="— selecionar —"
+                        menuMinWidth={340}
                         triggerClassName={cn("h-8 rounded-md", !it.colaboradorId && "border-warning/50")}
                         disabled={!editavel}
                         options={colabs.map((c) => ({ value: c.id, label: c.nome }))}
