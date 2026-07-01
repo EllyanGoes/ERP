@@ -4,6 +4,7 @@ import type { EstadoWIP } from "@prisma/client";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
+import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
 import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa } from "@/lib/conta-contabil";
 
@@ -1232,6 +1233,125 @@ export async function apropriarCifAoPep(input: {
   // EXTENSÃO (predeterminado — NÃO implementado): em vez do saldo real, lançar
   // D PEP-CIF / C 1.1.4.0002 CIF Aplicado pela taxa × base e tratar a variação
   // (real − aplicado) no fechamento.
+}
+
+/**
+ * ABSORÇÃO de conversão (MOD + CIF) ao estoque produzido — "apropriar os custos"
+ * ao WIP/PA no fechamento da competência. Move os pools REAIS de PEP-MOD
+ * (1.1.3.0005.0002) e PEP-CIF (1.1.3.0005.0003) para dentro do custo dos itens
+ * produzidos no mês, por rateio de volume ANCORADO nas bases dos pools (não % linear):
+ *  - Térmico (biomassa+combustível+energia, fração vinda do ParametroCusteio) → só
+ *    seco+queimado (o que passou pela secagem/queima); WIP úmido NÃO carrega térmico.
+ *  - CIF geral (MOI+depreciação) e MOD → volume total produzido.
+ * Sobe o CMPM de cada item (material → material+conversão) e lança
+ * D estoque (PEP-MD p/ WIP, PA p/ acabado) / C PEP-MOD + C PEP-CIF, zerando os pools.
+ * Idempotente por (empresa, ESTOQUE_PRODUCAO, ABSORCAO-<competencia>).
+ */
+export async function absorverConversaoAoEstoque(input: {
+  empresaId: string; data: Date; competencia: Date; criadoPor?: string | null;
+}): Promise<{ modAbsorvido: number; cifAbsorvido: number; volumeTotal: number; volumeSecoQueimado: number }> {
+  const { empresaId } = input;
+  const vazio = { modAbsorvido: 0, cifAbsorvido: 0, volumeTotal: 0, volumeSecoQueimado: 0 };
+  const [pepMod, pepCif, pepMd, contaPA] = await Promise.all([
+    contaPorCodigo(empresaId, "1.1.3.0005.0002"),
+    contaPorCodigo(empresaId, "1.1.3.0005.0003"),
+    contaPorCodigo(empresaId, "1.1.3.0005.0001"),
+    contaPorCodigo(empresaId, "1.1.3.0003"),
+  ]);
+  if (!pepMod || !pepCif || !pepMd || !contaPA) throw new Error("Contas de PEP/PA não encontradas.");
+
+  // Saldo devedor (a absorver) de cada pool.
+  const saldoConta = async (contaId: string) => {
+    const g = await prismaSemEscopo.partidaContabil.groupBy({ by: ["tipo"], where: { contaId }, _sum: { valor: true } });
+    let s = 0; for (const x of g) s += x.tipo === "DEBITO" ? decimalToNumber(x._sum.valor ?? 0) : -decimalToNumber(x._sum.valor ?? 0);
+    return Math.round(s * 100) / 100;
+  };
+  const poolMod = await saldoConta(pepMod.id);
+  const poolCifTotal = await saldoConta(pepCif.id);
+  if (poolMod <= EPS && poolCifTotal <= EPS) return vazio;
+
+  // Fração térmica do CIF pela composição do ParametroCusteio (não inventa %).
+  const ini = new Date(Date.UTC(input.competencia.getUTCFullYear(), input.competencia.getUTCMonth(), 1));
+  const fim = new Date(Date.UTC(input.competencia.getUTCFullYear(), input.competencia.getUTCMonth() + 1, 1));
+  const params = await prismaSemEscopo.parametroCusteio.findFirst({ where: { empresaId, competencia: ini } });
+  const dias = params?.diasTrabalhados ?? 26;
+  const termicoBase = decimalToNumber(params?.biomassaDia ?? 0) * dias + decimalToNumber(params?.combustivelDia ?? 0) * dias + decimalToNumber(params?.energiaMes ?? 0);
+  const geralBase = decimalToNumber(params?.folhaMoiMes ?? 0) + decimalToNumber(params?.depreciacaoMes ?? 0);
+  const cifBase = termicoBase + geralBase;
+  const fracTermico = cifBase > 0 ? termicoBase / cifBase : 0;
+  const cifTermico = Math.round(poolCifTotal * fracTermico * 100) / 100;
+  const cifGeral = Math.round((poolCifTotal - cifTermico) * 100) / 100;
+
+  // Volumes produzidos na competência (entradas de produção), por estágio.
+  const entradas = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { empresaId, tipo: "ENTRADA", ordemProducaoId: { not: null }, clienteDonoId: null, createdAt: { gte: ini, lt: fim } },
+    select: { itemId: true, quantidade: true, item: { select: { codigo: true, categoriaEstoque: true } } },
+  });
+  type Prod = { itemId: string; qtd: number; secoQueimado: boolean; acabado: boolean };
+  const porItem = new Map<string, Prod>();
+  for (const m of entradas) {
+    const cod = m.item?.codigo ?? "";
+    const acabado = m.item?.categoriaEstoque === "PRODUTO_ACABADO";
+    // Acabado e WIP seco/queimado passaram pela queima → carregam térmico.
+    const secoQ = acabado || /-(SECO|QUEIMADO)$/i.test(cod);
+    const p = porItem.get(m.itemId) ?? { itemId: m.itemId, qtd: 0, secoQueimado: secoQ, acabado };
+    p.qtd += decimalToNumber(m.quantidade);
+    porItem.set(m.itemId, p);
+  }
+  const prods = Array.from(porItem.values()).filter((p) => p.qtd > 0);
+  const volumeTotal = prods.reduce((s, p) => s + p.qtd, 0);
+  const volumeSecoQueimado = prods.filter((p) => p.secoQueimado).reduce((s, p) => s + p.qtd, 0);
+  if (volumeTotal <= 0) return vazio;
+
+  // Taxas por unidade (ancoradas nas bases dos pools).
+  const modRate = poolMod / volumeTotal;
+  const geralRate = cifGeral / volumeTotal;
+  const termicoRate = volumeSecoQueimado > 0 ? cifTermico / volumeSecoQueimado : 0;
+
+  // Aplica CMPM por item e acumula o débito por conta de estoque (WIP→PEP-MD, acabado→PA).
+  const debPorConta = new Map<string, number>();
+  let modAbs = 0, cifAbs = 0;
+  await prismaSemEscopo.$transaction(async (tx) => {
+    for (const p of prods) {
+      const modV = modRate * p.qtd;
+      const cifV = geralRate * p.qtd + (p.secoQueimado ? termicoRate * p.qtd : 0);
+      const convV = modV + cifV;
+      if (convV <= 0.005) continue;
+      await aplicarCmpmEmpresa(tx, empresaId, p.itemId, p.qtd, convV / p.qtd, { incluirAcabado: true });
+      const contaId = p.acabado ? contaPA.id : pepMd.id;
+      debPorConta.set(contaId, (debPorConta.get(contaId) ?? 0) + convV);
+      modAbs += modV; cifAbs += cifV;
+    }
+  });
+
+  // Contábil: D estoque produzido / C PEP-MOD + C PEP-CIF. Ajuste de centavo no maior débito.
+  const partidas: PartidaIn[] = [];
+  for (const [contaId, v] of Array.from(debPorConta.entries())) {
+    const r = Math.round(v * 100) / 100;
+    if (r > 0.005) partidas.push({ contaId, tipo: "DEBITO", valor: r, estagio: contaId === contaPA.id ? "ACABADO" : undefined });
+  }
+  const credMod = Math.round(modAbs * 100) / 100;
+  const credCif = Math.round(cifAbs * 100) / 100;
+  if (credMod > 0.005) partidas.push({ contaId: pepMod.id, tipo: "CREDITO", valor: credMod });
+  if (credCif > 0.005) partidas.push({ contaId: pepCif.id, tipo: "CREDITO", valor: credCif });
+  // Fecha o arredondamento: iguala Σdébito a Σcrédito ajustando o maior débito.
+  const somaDeb = partidas.filter((x) => x.tipo === "DEBITO").reduce((s, x) => s + x.valor, 0);
+  const somaCred = credMod + credCif;
+  const resid = Math.round((somaCred - somaDeb) * 100) / 100;
+  if (Math.abs(resid) >= 0.01) {
+    const maior = partidas.filter((x) => x.tipo === "DEBITO").sort((a, b) => b.valor - a.valor)[0];
+    if (maior) maior.valor = Math.round((maior.valor + resid) * 100) / 100;
+  }
+  if (partidas.length >= 2) {
+    const compStr = ini.toISOString().slice(0, 7);
+    await registrarLancamento({
+      empresaId, data: input.data, criadoPor: input.criadoPor ?? null,
+      historico: `Absorção de MOD+CIF ao estoque produzido — ${compStr}`,
+      origemTipo: "ESTOQUE_PRODUCAO", origemId: `ABSORCAO-${compStr}`,
+      partidas,
+    });
+  }
+  return { modAbsorvido: credMod, cifAbsorvido: credCif, volumeTotal, volumeSecoQueimado };
 }
 
 /**

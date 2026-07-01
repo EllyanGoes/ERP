@@ -165,6 +165,24 @@ export default function CusteioPage() {
     } finally { setApropriando(false); }
   }
 
+  const [absorvendo, setAbsorvendo] = useState(false);
+  async function absorverConversao() {
+    if (!confirm("Absorver os pools de MOD (1.1.3.0005.0002) e CIF (0003) ao custo dos itens produzidos na competência? Sobe o CMPM do WIP/acabado e zera os pools.")) return;
+    setAbsorvendo(true); setMsg(null);
+    try {
+      const r = await fetch("/api/contabilidade/absorver-conversao", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competencia }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao absorver");
+      const mod = j.data?.modAbsorvido ?? 0, cif = j.data?.cifAbsorvido ?? 0;
+      setMsg({ ok: true, text: (mod + cif) > 0 ? `Absorvido ao estoque: MOD ${brl(mod)} + CIF ${brl(cif)}.` : "Nada a absorver (pools zerados ou sem produção no mês)." });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "Erro" });
+    } finally { setAbsorvendo(false); }
+  }
+
   return (
     <TooltipProvider delay={150}>
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -355,6 +373,19 @@ export default function CusteioPage() {
                 className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-border hover:bg-muted">
                 <FileText className="w-4 h-4" /> Ir para Folhas
               </a>
+            </div>
+            <div className="rounded-lg border border-border p-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Absorver MOD + CIF ao estoque produzido</p>
+                <p className="text-[12px] text-muted-foreground">
+                  Leva os pools <b>PEP-MOD</b> (1.1.3.0005.0002) e <b>PEP-CIF</b> (0003) para o custo dos itens
+                  fabricados na competência (sobe o CMPM de WIP/acabado). Térmico (biomassa/combustível/energia)
+                  só entra em seco+queimado; geral e MOD por volume total. Rode <b>após</b> apropriar CIF e fechar a folha.
+                </p>
+              </div>
+              <Button onClick={absorverConversao} disabled={absorvendo} variant="default">
+                {absorvendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />} Absorver
+              </Button>
             </div>
             {msg && <span className={`text-sm ${msg.ok ? "text-emerald-600" : "text-rose-500"}`}>{msg.text}</span>}
           </CardContent>
