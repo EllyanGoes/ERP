@@ -116,24 +116,7 @@ export async function contaDoBanco(empresaId: string, contaBancariaId: string) {
   return prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, contaBancariaId }, select: { id: true } });
 }
 
-// Detalhe dos itens p/ o histórico no padrão do razão: "120× Areia × R$ 85,00;
-// 28× Brita 0 × R$ 260,00" — quantidade, produto e preço unitário por item.
-function detalheItens(
-  itens: { quantidade: unknown; precoUnitario?: unknown; item?: { descricao?: string | null } | null }[],
-  max = 4,
-): string {
-  if (!itens.length) return "";
-  const fmt = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const partes = itens.slice(0, max).map((it) => {
-    const q = decimalToNumber(it.quantidade);
-    const qStr = Number.isInteger(q) ? String(q) : q.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
-    const desc = it.item?.descricao ?? "item";
-    const pu = it.precoUnitario != null ? decimalToNumber(it.precoUnitario) : null;
-    return `${qStr}× ${desc}${pu != null ? ` × R$ ${fmt(pu)}` : ""}`;
-  });
-  const resto = itens.length - max;
-  return partes.join("; ") + (resto > 0 ? ` +${resto} item(ns)` : "");
-}
+// detalheItens vive em @/lib/detalhe-itens (reusado nas descrições dos títulos).
 
 // Agrupa movimentações por item (soma a quantidade, mantém o valor unitário e a
 // descrição) e devolve o detalhe "qtd× produto × R$ unit" — usado no histórico
@@ -1260,19 +1243,25 @@ export async function absorverConversaoAoEstoque(input: {
   ]);
   if (!pepMod || !pepCif || !pepMd || !contaPA) throw new Error("Contas de PEP/PA não encontradas.");
 
-  // Saldo devedor (a absorver) de cada pool.
-  const saldoConta = async (contaId: string) => {
-    const g = await prismaSemEscopo.partidaContabil.groupBy({ by: ["tipo"], where: { contaId }, _sum: { valor: true } });
-    let s = 0; for (const x of g) s += x.tipo === "DEBITO" ? decimalToNumber(x._sum.valor ?? 0) : -decimalToNumber(x._sum.valor ?? 0);
-    return Math.round(s * 100) / 100;
+  const ini = new Date(Date.UTC(input.competencia.getUTCFullYear(), input.competencia.getUTCMonth(), 1));
+  const fim = new Date(Date.UTC(input.competencia.getUTCFullYear(), input.competencia.getUTCMonth() + 1, 1));
+
+  // Pool de conversão APROPRIADO na competência = Σ dos DÉBITOS datados no mês em
+  // PEP-MOD/PEP-CIF (folha do mês + apropriação de CIF do mês). Não usa o saldo
+  // total acumulado (misturaria meses); os créditos (as próprias absorções) não
+  // entram → idempotente por mês mesmo re-rodando.
+  const poolDebMes = async (contaId: string) => {
+    const g = await prismaSemEscopo.partidaContabil.aggregate({
+      _sum: { valor: true },
+      where: { contaId, tipo: "DEBITO", lancamento: { data: { gte: ini, lt: fim } } },
+    });
+    return Math.round(decimalToNumber(g._sum.valor ?? 0) * 100) / 100;
   };
-  const poolMod = await saldoConta(pepMod.id);
-  const poolCifTotal = await saldoConta(pepCif.id);
+  const poolMod = await poolDebMes(pepMod.id);
+  const poolCifTotal = await poolDebMes(pepCif.id);
   if (poolMod <= EPS && poolCifTotal <= EPS) return vazio;
 
   // Fração térmica do CIF pela composição do ParametroCusteio (não inventa %).
-  const ini = new Date(Date.UTC(input.competencia.getUTCFullYear(), input.competencia.getUTCMonth(), 1));
-  const fim = new Date(Date.UTC(input.competencia.getUTCFullYear(), input.competencia.getUTCMonth() + 1, 1));
   const params = await prismaSemEscopo.parametroCusteio.findFirst({ where: { empresaId, competencia: ini } });
   const dias = params?.diasTrabalhados ?? 26;
   const termicoBase = decimalToNumber(params?.biomassaDia ?? 0) * dias + decimalToNumber(params?.combustivelDia ?? 0) * dias + decimalToNumber(params?.energiaMes ?? 0);
@@ -1282,9 +1271,20 @@ export async function absorverConversaoAoEstoque(input: {
   const cifTermico = Math.round(poolCifTotal * fracTermico * 100) / 100;
   const cifGeral = Math.round((poolCifTotal - cifTermico) * 100) / 100;
 
-  // Volumes produzidos na competência (entradas de produção), por estágio.
+  // Volumes produzidos na competência — considera AS DUAS formas de lançar produção:
+  //  (1) manual: ENTRADA de PRODUTO_ACABADO num local de PA, sem OP;
+  //  (2) por OP: ENTRADA com ordemProducaoId (WIP por estágio + acabado).
+  // Conjuntos distintos por ordemProducaoId → sem dupla contagem.
+  const locaisPA = await prismaSemEscopo.localEstoque.findMany({ where: { categoriasAceitas: { has: "PRODUTO_ACABADO" } }, select: { id: true } });
+  const paLocalIds = locaisPA.map((l) => l.id);
   const entradas = await prismaSemEscopo.movimentacaoEstoque.findMany({
-    where: { empresaId, tipo: "ENTRADA", ordemProducaoId: { not: null }, clienteDonoId: null, createdAt: { gte: ini, lt: fim } },
+    where: {
+      empresaId, tipo: "ENTRADA", clienteDonoId: null, createdAt: { gte: ini, lt: fim },
+      OR: [
+        { ordemProducaoId: { not: null } },
+        { ordemProducaoId: null, localEstoqueId: { in: paLocalIds }, item: { categoriaEstoque: "PRODUTO_ACABADO" } },
+      ],
+    },
     select: { itemId: true, quantidade: true, item: { select: { codigo: true, categoriaEstoque: true } } },
   });
   type Prod = { itemId: string; qtd: number; secoQueimado: boolean; acabado: boolean };
