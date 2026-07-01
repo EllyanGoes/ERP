@@ -7,7 +7,7 @@ import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaAdiantamentoFornecedor } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -18,7 +18,7 @@ export type OrigemIn =
   | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA"
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
   | "DEPRECIACAO" | "ENCERRAMENTO" | "RECEITA_ENTREGA"
-  | "FOLHA_PAGAMENTO" | "COMPENSACAO_AJUSTE"
+  | "FOLHA_PAGAMENTO" | "COMPENSACAO_AJUSTE" | "BAIXA_IMOBILIZADO"
   | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
@@ -1503,6 +1503,68 @@ export async function absorverConversaoAoEstoque(input: {
  * `registrarLancamento` (gerarPartidas) NÃO é alterado. Idempotente por
  * (empresa, ESTOQUE_CONSUMO, origemId).
  */
+/**
+ * Conta de ativo do BEM (1.2.1.NNNN) onde o capex é capitalizado. Usa
+ * `Imobilizado.contaAtivoId`; se faltar, cria a analítica do bem e persiste.
+ * Retorna null se o bem não existir ou o plano não estiver semeado.
+ */
+async function contaAtivoDoBem(imobilizadoId: string): Promise<string | null> {
+  const bem = await prismaSemEscopo.imobilizado.findUnique({
+    where: { id: imobilizadoId },
+    select: { empresaId: true, descricao: true, contaAtivoId: true },
+  });
+  if (!bem) return null;
+  if (bem.contaAtivoId) return bem.contaAtivoId;
+  const conta = await garantirContaImobilizadoBem(bem.empresaId, bem.descricao);
+  if (!conta) return null;
+  await prismaSemEscopo.imobilizado.update({ where: { id: imobilizadoId }, data: { contaAtivoId: conta.id } }).catch(() => null);
+  return conta.id;
+}
+
+/**
+ * Baixa do componente velho numa TROCA (CPC 27, abordagem por componente):
+ * D Depreciação Acumulada (o já depreciado) + D Perda na Baixa (valor contábil
+ * líquido residual) / C Imobilizado do bem (custo bruto). Idempotente por
+ * (empresa, BAIXA_IMOBILIZADO, `${requisicaoId}#baixa-${componenteId}`). Marca o
+ * bem como BAIXADO. Guardado: pula se faltar conta do bem ou custo <= 0.
+ */
+async function baixarComponenteSubstituido(componenteId: string, requisicaoId: string, data: Date) {
+  const bem = await prismaSemEscopo.imobilizado.findUnique({
+    where: { id: componenteId },
+    select: { id: true, empresaId: true, status: true, valorAquisicao: true, contaAtivoId: true, contaDepreciacaoAcumuladaId: true },
+  });
+  if (!bem) return;
+  const bruto = decimalToNumber(bem.valorAquisicao);
+  if (bruto <= 0.005) return;
+
+  const contaBemId = bem.contaAtivoId ?? (await contaAtivoDoBem(componenteId));
+  if (!contaBemId) return; // sem conta do bem → não desbalancear
+  const { deprAcumId } = await garantirContasImobilizado(bem.empresaId);
+  const contaDeprAcumId = bem.contaDepreciacaoAcumuladaId ?? deprAcumId;
+  const contaPerda = await garantirContaPerdaBaixaImobilizado(bem.empresaId);
+  if (!contaDeprAcumId || !contaPerda) return;
+
+  // Depreciação acumulada real do bem; resíduo = valor contábil líquido.
+  const ja = await prismaSemEscopo.depreciacaoLancamento.aggregate({ where: { imobilizadoId: componenteId }, _sum: { valor: true } });
+  const acumulado = Math.min(decimalToNumber(ja._sum.valor ?? 0), bruto);
+  const residuo = Math.round((bruto - acumulado) * 100) / 100;
+
+  const partidas: PartidaIn[] = [{ contaId: contaBemId, tipo: "CREDITO", valor: bruto }];
+  if (acumulado > 0.005) partidas.unshift({ contaId: contaDeprAcumId, tipo: "DEBITO", valor: acumulado });
+  if (residuo > 0.005) partidas.unshift({ contaId: contaPerda.id, tipo: "DEBITO", valor: residuo });
+  if (partidas.length < 2) return; // nada a debitar (bruto ~ 0)
+
+  await registrarLancamento({
+    empresaId: bem.empresaId, data,
+    historico: `Baixa de componente substituído (troca) — ${requisicaoId.slice(-8)}`,
+    origemTipo: "BAIXA_IMOBILIZADO", origemId: `${requisicaoId}#baixa-${componenteId}`,
+    partidas,
+  });
+  if (bem.status !== "BAIXADO") {
+    await prismaSemEscopo.imobilizado.update({ where: { id: componenteId }, data: { status: "BAIXADO" } }).catch(() => null);
+  }
+}
+
 export async function contabilizarRequisicao(requisicaoId: string) {
   const req = await prismaSemEscopo.requisicaoMaterial.findUnique({
     where: { id: requisicaoId },
@@ -1510,7 +1572,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
       id: true, numero: true, status: true, updatedAt: true, localDestinoId: true,
       naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } },
       centroCusto: { select: { fabril: true } },
-      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } }, naturezaFinanceiraId: true, destinoManual: true } },
+      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } }, naturezaFinanceiraId: true, destinoManual: true, capitaliza: true, imobilizadoId: true, componenteSubstituidoId: true } },
     },
   });
   if (!req || req.status !== "ATENDIDA") return;
@@ -1518,9 +1580,15 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   // contábil (D destino / C origem) é feito pelo lote de movimentação. Limpa qualquer
   // lançamento de consumo de reprocessos anteriores e sai.
   if (req.localDestinoId) {
-    for (const oid of [requisicaoId, `${requisicaoId}#pep`, `${requisicaoId}#imob`, `${requisicaoId}#cif`]) {
+    for (const oid of [requisicaoId, `${requisicaoId}#pep`, `${requisicaoId}#cif`]) {
       await apagarLancamentosContabeis({ origemTipo: "ESTOQUE_CONSUMO", origemId: oid });
     }
+    // Capex por bem (`#imob`/`#imob-<id>`) e baixas de componente também saem.
+    const orfaos = await prismaSemEscopo.lancamentoContabil.findMany({
+      where: { origemTipo: { in: ["ESTOQUE_CONSUMO", "BAIXA_IMOBILIZADO"] }, origemId: { startsWith: `${requisicaoId}#` } },
+      select: { origemId: true, origemTipo: true },
+    });
+    for (const o of orfaos) if (o.origemId) await apagarLancamentosContabeis({ origemTipo: o.origemTipo as OrigemIn, origemId: o.origemId });
     return;
   }
 
@@ -1538,10 +1606,17 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const centroFabrilPorItem = new Map<string, boolean | null>();
   const destinoManualPorItem = new Map<string, DestinoConsumo | null>();
   const naturezaIdPorItem = new Map<string, string | null>();
+  // Capitaliza da LINHA (null = herda item.capitaliza), o bem e o componente velho.
+  const capitalizaLinhaPorItem = new Map<string, boolean | null>();
+  const imobilizadoIdPorItem = new Map<string, string | null>();
+  const componenteIdPorItem = new Map<string, string | null>();
   for (const it of req.itens) {
     centroFabrilPorItem.set(it.itemId, it.centroCusto?.fabril ?? req.centroCusto?.fabril ?? null);
     destinoManualPorItem.set(it.itemId, (it.destinoManual as DestinoConsumo | null) ?? null);
     naturezaIdPorItem.set(it.itemId, it.naturezaFinanceiraId ?? req.naturezaFinanceiraId ?? null);
+    capitalizaLinhaPorItem.set(it.itemId, it.capitaliza ?? null);
+    imobilizadoIdPorItem.set(it.itemId, it.imobilizadoId ?? null);
+    componenteIdPorItem.set(it.itemId, it.componenteSubstituidoId ?? null);
   }
 
   // Contas de destino (resolvidas uma vez).
@@ -1557,8 +1632,10 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const buckets = { PEP_MD: [] as typeof movs, IMOBILIZADO: [] as typeof movs, CIF: [] as typeof movs, DESPESA: [] as typeof movs };
   const indefinidos: string[] = [];
   for (const m of movs) {
+    // capitaliza da LINHA vence o cadastro (null = herda item.capitaliza).
+    const capitalizaEfetivo = capitalizaLinhaPorItem.get(m.itemId) ?? (m.item?.capitaliza ?? false);
     let destino = rotearDestinoRequisicao({
-      item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: m.item?.compoeCusto ?? false, fabril: m.item?.fabril ?? false, capitaliza: m.item?.capitaliza ?? false },
+      item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: m.item?.compoeCusto ?? false, fabril: m.item?.fabril ?? false, capitaliza: capitalizaEfetivo },
       destinoManual: destinoManualPorItem.get(m.itemId) ?? null,
       centroFabril: centroFabrilPorItem.get(m.itemId) ?? null,
     });
@@ -1577,11 +1654,11 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const cifNats = new Set(buckets.CIF.map((m) => naturezaIdPorItem.get(m.itemId)).filter((x): x is string => !!x));
   const cifNatId = cifNats.size === 1 ? Array.from(cifNats)[0] : null;
 
-  // Cada destino → um lançamento (origemId distinto). Bucket vazio → limpa órfão de reprocesso anterior.
+  // DESPESA/PEP_MD/CIF → um lançamento por destino (origemId distinto). Bucket vazio
+  // → limpa órfão de reprocesso anterior. IMOBILIZADO é tratado à parte (por bem).
   const planos: Array<{ destino: keyof typeof buckets; origemId: string; contaId: string | null | undefined; rotulo: string; natId: string | null }> = [
     { destino: "DESPESA", origemId: requisicaoId, contaId: consumoId, rotulo: "", natId: null },
     { destino: "PEP_MD", origemId: `${requisicaoId}#pep`, contaId: pepMd?.id, rotulo: " (PEP-MD)", natId: null },
-    { destino: "IMOBILIZADO", origemId: `${requisicaoId}#imob`, contaId: imobAndamento?.id, rotulo: " (Imobilizado em Andamento)", natId: null },
     { destino: "CIF", origemId: `${requisicaoId}#cif`, contaId: cifAprop?.id, rotulo: " (CIF)", natId: cifNatId },
   ];
   for (const plano of planos) {
@@ -1597,6 +1674,53 @@ export async function contabilizarRequisicao(requisicaoId: string) {
       movs: bucket, contaPositivoId: plano.contaId, contaNegativoId: plano.contaId,
       naturezaContrapartidaId: plano.natId,
     });
+  }
+
+  // ── CAPEX (IMOBILIZADO) — por BEM ────────────────────────────────────────────
+  // Cada linha capex vai para a conta do SEU bem (Imobilizado.contaAtivoId); sem
+  // bem informado, cai no genérico "Imobilizado em Andamento" (1.2.4). Um lançamento
+  // por conta-destino (origemId `#imob-<bemId>` ou `#imob`). Idempotente + limpa os
+  // órfãos de reprocessos anteriores (bens que saíram do conjunto).
+  const capexPorOrigem = new Map<string, { contaId: string; movs: typeof movs; rotulo: string }>();
+  for (const m of buckets.IMOBILIZADO) {
+    const imobId = imobilizadoIdPorItem.get(m.itemId) ?? null;
+    let contaId: string | null = null;
+    let origemId = `${requisicaoId}#imob`;
+    let rotulo = " (Imobilizado em Andamento)";
+    if (imobId) {
+      contaId = await contaAtivoDoBem(imobId);
+      if (contaId) { origemId = `${requisicaoId}#imob-${imobId}`; rotulo = " (Imobilizado)"; }
+    }
+    if (!contaId) contaId = imobAndamento?.id ?? null; // sem bem/conta → genérico 1.2.4
+    if (!contaId) continue; // sem destino → não desbalancear (fica no estoque)
+    const g = capexPorOrigem.get(origemId) ?? { contaId, movs: [] as typeof movs, rotulo };
+    g.movs.push(m);
+    capexPorOrigem.set(origemId, g);
+  }
+  // Limpa lançamentos de capex de reprocessos anteriores que não estão mais no conjunto.
+  const manterImob = new Set(capexPorOrigem.keys());
+  const imobExistentes = await prismaSemEscopo.lancamentoContabil.findMany({
+    where: { empresaId, origemTipo: "ESTOQUE_CONSUMO", origemId: { startsWith: `${requisicaoId}#imob` } },
+    select: { origemId: true },
+  });
+  for (const e of imobExistentes) {
+    if (e.origemId && !manterImob.has(e.origemId)) await apagarLancamentosContabeis({ empresaId, origemTipo: "ESTOQUE_CONSUMO", origemId: e.origemId });
+  }
+  for (const [origemId, g] of Array.from(capexPorOrigem.entries())) {
+    const det = agruparItensParaDetalhe(g.movs);
+    await postMovimentosEstoque({
+      empresaId, data: req.updatedAt, historico: `Requisição — ${req.numero}${g.rotulo}${det ? ` — ${det}` : ""}`,
+      origemTipo: "ESTOQUE_CONSUMO", origemId,
+      movs: g.movs, contaPositivoId: g.contaId, contaNegativoId: g.contaId,
+    });
+  }
+
+  // Baixa do componente velho (CPC 27) nas linhas capex que são TROCA. Distinto por bem.
+  const componentesBaixa = new Set(
+    buckets.IMOBILIZADO.map((m) => componenteIdPorItem.get(m.itemId)).filter((x): x is string => !!x)
+  );
+  for (const compId of Array.from(componentesBaixa)) {
+    await baixarComponenteSubstituido(compId, requisicaoId, req.updatedAt).catch(() => null);
   }
 }
 

@@ -433,6 +433,14 @@ model ConferenciaCompraItem {
   // IMOBILIZADO/CIF/DESPESA na entrada ou na RM, partindo deste centro herdado.
   centroCustoId      String?
   centroCusto        CentroCusto?          @relation(fields: [centroCustoId], references: [id])
+  // Capitaliza / bem / componente substituído — mesmos atributos da linha da RM
+  // (herança/orçamento na entrada; a precedência do material lê a flag). null =
+  // herda item.capitaliza. Ver src/lib/pcp/rotear-requisicao.ts.
+  capitaliza              Boolean?
+  imobilizadoId           String?
+  imobilizado             Imobilizado?     @relation("ConfItemImobilizado", fields: [imobilizadoId], references: [id])
+  componenteSubstituidoId String?
+  componenteSubstituido   Imobilizado?     @relation("ConfItemComponente", fields: [componenteSubstituidoId], references: [id])
   conferencia        ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
   item               Item                  @relation(fields: [itemId], references: [id])
   localEstoque       LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
@@ -441,6 +449,7 @@ model ConferenciaCompraItem {
 
   @@index([empresaId])
   @@index([centroCustoId])
+  @@index([imobilizadoId])
 }
 
 model Configuracao {
@@ -916,6 +925,7 @@ enum OrigemLancamento {
   RECEITA_ENTREGA // reconhecimento de receita na entrega (D Material a Entregar / C Receita)
   FOLHA_PAGAMENTO // apropriação da folha (D PEP-MOD/CIF/Despesa / C Salários, INSS, IRRF, FGTS)
   COMPENSACAO_AJUSTE // ajuste (juros/multa/desconto) por título no Encontro de Contas
+  BAIXA_IMOBILIZADO // baixa do componente velho numa troca (CPC 27): D Deprec.Acum + Perda / C Imobilizado
   MANUAL
   ESTORNO
 }
@@ -1043,6 +1053,10 @@ model Imobilizado {
   createdAt                   DateTime                @default(now())
   updatedAt                   DateTime                @updatedAt
   depreciacoes                DepreciacaoLancamento[]
+  confItensImobilizado        ConferenciaCompraItem[]  @relation("ConfItemImobilizado")
+  confItensComponente         ConferenciaCompraItem[]  @relation("ConfItemComponente")
+  rmItensImobilizado          RequisicaoMaterialItem[] @relation("RmItemImobilizado")
+  rmItensComponente           RequisicaoMaterialItem[] @relation("RmItemComponente")
 
   @@index([empresaId])
 }
@@ -3095,12 +3109,24 @@ model RequisicaoMaterialItem {
   contaContabil        String?
   os                   String?
   requisicaoRef        String?
+  // Capitaliza (degrau do meio da precedência): null = herda item.capitaliza; true/
+  // false = decisão da LINHA (a mesma peça é capex numa melhoria e opex numa
+  // restauração). NÃO é natureza. Quando true, exige imobilizadoId (o bem que recebe
+  // o valor). Ver src/lib/pcp/rotear-requisicao.ts.
+  capitaliza              Boolean?
+  imobilizadoId           String?
+  imobilizado             Imobilizado?    @relation("RmItemImobilizado", fields: [imobilizadoId], references: [id])
+  // Componente velho a dar baixa (abordagem por componente, CPC 27) quando a
+  // capitalização é uma TROCA.
+  componenteSubstituidoId String?
+  componenteSubstituido   Imobilizado?    @relation("RmItemComponente", fields: [componenteSubstituidoId], references: [id])
   requisicao           RequisicaoMaterial  @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
   item                 Item                @relation(fields: [itemId], references: [id])
   centroCusto          CentroCusto?        @relation(fields: [centroCustoId], references: [id])
   naturezaFinanceira   NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
 
   @@index([requisicaoId])
+  @@index([imobilizadoId])
 }
 
 // ── Inventário de Materiais ───────────────────────────────────────────────────

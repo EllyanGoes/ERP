@@ -489,6 +489,12 @@ export async function garantirContasImobilizado(empresaId: string) {
   return { deprAcumId: deprAcum?.id ?? null, despesaId: despesa?.id ?? null };
 }
 
+/** Conta de resultado "Perda na Baixa de Imobilizado" (3.3.9004) — resíduo (valor
+ *  contábil líquido) do componente velho dado baixa numa troca (CPC 27). */
+export async function garantirContaPerdaBaixaImobilizado(empresaId: string) {
+  return garantirContaPorCodigo(empresaId, { codigo: "3.3.9004", nome: "Perda na Baixa de Imobilizado", pai: "3.3", grupo: "RESULTADO", natureza: "DEVEDORA" });
+}
+
 /**
  * Garante (idempotente) a conta "Imobilizado em Andamento" (1.2.4) — obra/ferramental
  * capitalizado a partir de requisição (CPC 27), antes de virar bem depreciável.
