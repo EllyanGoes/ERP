@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,9 @@ import DatePicker from "@/components/shared/DatePicker";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
-import { formatBRL } from "@/lib/utils";
-import { Wallet, Plus, ArrowLeftRight, ExternalLink, Landmark, Pencil, ShieldCheck, Lock } from "lucide-react";
+import { formatBRL, cn } from "@/lib/utils";
+import { usePersistedState } from "@/lib/use-persisted-state";
+import { Wallet, Plus, ArrowLeftRight, ExternalLink, Landmark, Pencil, ShieldCheck, Lock, Layers } from "lucide-react";
 
 type Conta = {
   id: string;
@@ -41,6 +42,8 @@ export default function ContasBancariasPage() {
   const [loading, setLoading] = useState(true);
   // Diálogo de conta: null = fechado; { conta: null } = nova; { conta } = editar.
   const [dlg, setDlg] = useState<{ conta: Conta | null } | null>(null);
+  // Agrupar as contas por tipo (Caixa / Conta Corrente / …), persistido por usuário.
+  const [agruparTipo, setAgruparTipo] = usePersistedState("financeiro:contas:agruparTipo", false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,6 +59,25 @@ export default function ContasBancariasPage() {
   useEffect(() => { load(); }, [load]);
 
   const total = contas.filter((c) => c.ativo).reduce((s, c) => s + (c.saldoAtual ?? 0), 0);
+
+  // Agrupamento por tipo (compensação vira grupo próprio). Ordem fixa; total do grupo = ativos.
+  const ORDEM_TIPO = ["Caixa", "Conta Corrente", "Poupança", "Compensação"];
+  const grupos = (() => {
+    if (!agruparTipo) return null;
+    const map = new Map<string, Conta[]>();
+    for (const c of contas) {
+      const key = c.compensacao ? "Compensação" : TIPO_LABEL[c.tipo];
+      const arr = map.get(key) ?? [];
+      arr.push(c);
+      map.set(key, arr);
+    }
+    return Array.from(map.keys())
+      .sort((a, b) => (ORDEM_TIPO.indexOf(a) + 1 || 99) - (ORDEM_TIPO.indexOf(b) + 1 || 99))
+      .map((k) => {
+        const cs = map.get(k)!;
+        return { key: k, label: k, contas: cs, total: cs.filter((c) => c.ativo).reduce((s, c) => s + (c.saldoAtual ?? 0), 0) };
+      });
+  })();
 
   return (
     <div>
@@ -92,6 +114,24 @@ export default function ContasBancariasPage() {
           </div>
         </div>
 
+        {/* Agrupar por tipo (persistido) */}
+        {!loading && contas.length > 0 && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => setAgruparTipo((v) => !v)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                agruparTipo
+                  ? "border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300"
+                  : "border-border bg-card text-muted-foreground hover:text-foreground",
+              )}
+              title="Agrupar as contas por tipo (Caixa / Conta Corrente / …)"
+            >
+              <Layers className="w-3.5 h-3.5" /> Agrupar por tipo
+            </button>
+          </div>
+        )}
+
         {/* Tabela */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           {loading ? (
@@ -112,7 +152,22 @@ export default function ContasBancariasPage() {
                 </tr>
               </thead>
               <tbody>
-                {contas.map((c) => (
+                {(agruparTipo && grupos ? grupos : [{ key: "__all__", label: "", contas, total: 0 }]).map((g) => (
+                  <Fragment key={g.key}>
+                    {agruparTipo && (
+                      <tr className="bg-muted/50 border-y border-border">
+                        <td colSpan={2} className="px-6 py-2">
+                          <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-foreground">
+                            <Layers className="w-3.5 h-3.5 text-muted-foreground" /> {g.label}
+                            <span className="font-normal normal-case text-muted-foreground">· {g.contas.length}</span>
+                          </span>
+                        </td>
+                        <td />
+                        <td className="px-6 py-2 text-right text-xs font-semibold tabular-nums text-foreground">{formatBRL(g.total)}</td>
+                        <td />
+                      </tr>
+                    )}
+                    {g.contas.map((c) => (
                   <tr key={c.id} className={`border-b border-gray-50 hover:bg-muted ${!c.ativo ? "opacity-50" : ""}`}>
                     <td className="px-6 py-3">
                       <Link href={`/financeiro/contas/${c.id}`} className="font-medium text-foreground hover:text-info">
@@ -162,6 +217,8 @@ export default function ContasBancariasPage() {
                       </div>
                     </td>
                   </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
