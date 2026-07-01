@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatBRL } from "@/lib/utils";
-import { Wallet, Plus, ArrowLeftRight, ExternalLink, Landmark, Pencil } from "lucide-react";
+import { Wallet, Plus, ArrowLeftRight, ExternalLink, Landmark, Pencil, ShieldCheck, Lock } from "lucide-react";
 
 type Conta = {
   id: string;
@@ -23,6 +23,7 @@ type Conta = {
   saldoInicial: string | number;
   saldoAtual: number;
   ativo: boolean;
+  compensacao?: boolean;
   banco: { id: string; nome: string } | null;
   contasContabeis?: { id: string; codigo: string; nome: string }[];
 };
@@ -131,15 +132,30 @@ export default function ContasBancariasPage() {
                         <span className="inline-flex items-center gap-1.5"><Landmark className="w-3.5 h-3.5 text-muted-foreground" />{c.banco.nome}</span>
                       ) : "—"}
                     </td>
-                    <td className="px-6 py-3 text-muted-foreground">{TIPO_LABEL[c.tipo]}</td>
+                    <td className="px-6 py-3 text-muted-foreground">
+                      {c.compensacao ? (
+                        <span
+                          title="Conta transitória do Encontro de Contas — gerada pelo sistema, não pode ser excluída."
+                          className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400"
+                        >
+                          <ShieldCheck className="w-3 h-3" /> Compensação
+                        </span>
+                      ) : TIPO_LABEL[c.tipo]}
+                    </td>
                     <td className={`px-6 py-3 text-right font-semibold tabular-nums ${c.saldoAtual >= 0 ? "text-foreground" : "text-danger"}`}>
                       {formatBRL(c.saldoAtual)}
                     </td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => setDlg({ conta: c })} className="text-muted-foreground/60 hover:text-info" title="Editar conta">
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
+                        {c.compensacao ? (
+                          <span title="Conta do sistema — não editável nem excluível" className="text-muted-foreground/50">
+                            <Lock className="w-3.5 h-3.5" />
+                          </span>
+                        ) : (
+                          <button onClick={() => setDlg({ conta: c })} className="text-muted-foreground/60 hover:text-info" title="Editar conta">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         <Link href={`/financeiro/contas/${c.id}`} className="text-muted-foreground/60 hover:text-blue-500" title="Abrir conta">
                           <ExternalLink className="w-3.5 h-3.5" />
                         </Link>
@@ -287,12 +303,12 @@ function TransferenciaDialog({ contas, onDone }: { contas: Conta[]; onDone: () =
           <div className="space-y-1.5">
             <Label>De (origem)</Label>
             <ComboboxWithCreate value={contaOrigemId} onChange={setContaOrigemId} placeholder="Selecione..." noneLabel="Selecione" triggerClassName="h-10 rounded-lg"
-              options={contas.map((c) => ({ value: c.id, label: `${c.nome} (${formatBRL(c.saldoAtual)})` }))} />
+              options={contas.filter((c) => !c.compensacao).map((c) => ({ value: c.id, label: `${c.nome} (${formatBRL(c.saldoAtual)})` }))} />
           </div>
           <div className="space-y-1.5">
             <Label>Para (destino)</Label>
             <ComboboxWithCreate value={contaDestinoId} onChange={setContaDestinoId} placeholder="Selecione..." noneLabel="Selecione" triggerClassName="h-10 rounded-lg"
-              options={contas.map((c) => ({ value: c.id, label: `${c.nome} (${formatBRL(c.saldoAtual)})` }))} />
+              options={contas.filter((c) => !c.compensacao).map((c) => ({ value: c.id, label: `${c.nome} (${formatBRL(c.saldoAtual)})` }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

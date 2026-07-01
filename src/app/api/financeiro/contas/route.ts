@@ -12,13 +12,13 @@ export async function GET() {
 
   const [contas, saldos] = await Promise.all([
     prisma.contaBancaria.findMany({
-      // A transitória de compensação (Encontro de Contas) não é banco de verdade.
-      where: { compensacao: false },
+      // A transitória de compensação (Encontro de Contas) aparece na lista, mas
+      // sinalizada e protegida (não é banco de verdade); vai por último.
       include: {
         banco: { select: { id: true, nome: true } },
         contasContabeis: { select: { id: true, codigo: true, nome: true }, take: 1 },
       },
-      orderBy: { nome: "asc" },
+      orderBy: [{ compensacao: "asc" }, { nome: "asc" }],
     }),
     saldosTodasContas(),
   ]);
