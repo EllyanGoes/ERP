@@ -44,8 +44,9 @@ export default function ContasBancariasPage() {
   const [loading, setLoading] = useState(true);
   // Diálogo de conta: null = fechado; { conta: null } = nova; { conta } = editar.
   const [dlg, setDlg] = useState<{ conta: Conta | null } | null>(null);
-  // Agrupar as contas por tipo (Caixa / Conta Corrente / …), persistido por usuário.
-  const [agruparTipo, setAgruparTipo] = usePersistedState("financeiro:contas:agruparTipo", false);
+  // Agrupar as contas: por tipo (Caixa / Conta Corrente…) ou por titularidade
+  // (Da empresa / Terceiros). Persistido por usuário.
+  const [agrupar, setAgrupar] = usePersistedState<"none" | "tipo" | "titularidade">("financeiro:contas:agrupar", "none");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,19 +63,25 @@ export default function ContasBancariasPage() {
 
   const total = contas.filter((c) => c.ativo).reduce((s, c) => s + (c.saldoAtual ?? 0), 0);
 
-  // Agrupamento por tipo (compensação vira grupo próprio). Ordem fixa; total do grupo = ativos.
+  // Agrupamento por tipo ou por titularidade (compensação vira grupo próprio).
   const ORDEM_TIPO = ["Caixa", "Conta Corrente", "Poupança", "Compensação"];
+  const ORDEM_TIT = ["Da empresa", "Terceiros", "Compensação"];
   const grupos = (() => {
-    if (!agruparTipo) return null;
+    if (agrupar === "none") return null;
+    const chaveDe = (c: Conta) =>
+      c.compensacao ? "Compensação"
+        : agrupar === "titularidade" ? (c.ehTerceiro ? "Terceiros" : "Da empresa")
+        : TIPO_LABEL[c.tipo];
+    const ordem = agrupar === "titularidade" ? ORDEM_TIT : ORDEM_TIPO;
     const map = new Map<string, Conta[]>();
     for (const c of contas) {
-      const key = c.compensacao ? "Compensação" : TIPO_LABEL[c.tipo];
+      const key = chaveDe(c);
       const arr = map.get(key) ?? [];
       arr.push(c);
       map.set(key, arr);
     }
     return Array.from(map.keys())
-      .sort((a, b) => (ORDEM_TIPO.indexOf(a) + 1 || 99) - (ORDEM_TIPO.indexOf(b) + 1 || 99))
+      .sort((a, b) => (ordem.indexOf(a) + 1 || 99) - (ordem.indexOf(b) + 1 || 99))
       .map((k) => {
         const cs = map.get(k)!;
         return { key: k, label: k, contas: cs, total: cs.filter((c) => c.ativo).reduce((s, c) => s + (c.saldoAtual ?? 0), 0) };
@@ -116,21 +123,24 @@ export default function ContasBancariasPage() {
           </div>
         </div>
 
-        {/* Agrupar por tipo (persistido) */}
+        {/* Agrupar por tipo ou titularidade (persistido) */}
         {!loading && contas.length > 0 && (
-          <div className="flex justify-end">
-            <button
-              onClick={() => setAgruparTipo((v) => !v)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-                agruparTipo
-                  ? "border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300"
-                  : "border-border bg-card text-muted-foreground hover:text-foreground",
-              )}
-              title="Agrupar as contas por tipo (Caixa / Conta Corrente / …)"
-            >
-              <Layers className="w-3.5 h-3.5" /> Agrupar por tipo
-            </button>
+          <div className="flex justify-end gap-2">
+            {([["tipo", "Por tipo"], ["titularidade", "Por titularidade"]] as const).map(([mode, lbl]) => (
+              <button
+                key={mode}
+                onClick={() => setAgrupar((v) => (v === mode ? "none" : mode))}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                  agrupar === mode
+                    ? "border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground",
+                )}
+                title={`Agrupar as contas ${lbl.toLowerCase()}`}
+              >
+                <Layers className="w-3.5 h-3.5" /> {lbl}
+              </button>
+            ))}
           </div>
         )}
 
@@ -154,9 +164,9 @@ export default function ContasBancariasPage() {
                 </tr>
               </thead>
               <tbody>
-                {(agruparTipo && grupos ? grupos : [{ key: "__all__", label: "", contas, total: 0 }]).map((g) => (
+                {(agrupar !== "none" && grupos ? grupos : [{ key: "__all__", label: "", contas, total: 0 }]).map((g) => (
                   <Fragment key={g.key}>
-                    {agruparTipo && (
+                    {agrupar !== "none" && (
                       <tr className="bg-muted/50 border-y border-border">
                         <td colSpan={2} className="px-6 py-2">
                           <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-foreground">
@@ -276,7 +286,13 @@ function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
     const res = await fetch(editing ? `/api/financeiro/contas/${conta!.id}` : "/api/financeiro/contas", {
       method: editing ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, bancoId: bancoId || null, agencia, numero, tipo, saldoInicial, ativo, ehTerceiro, terceiroNome: ehTerceiro ? terceiroNome : null }),
+      body: JSON.stringify({
+        nome,
+        bancoId: ehTerceiro ? null : (bancoId || null),
+        agencia: ehTerceiro ? null : agencia,
+        numero: ehTerceiro ? null : numero,
+        tipo, saldoInicial, ativo, ehTerceiro, terceiroNome: ehTerceiro ? terceiroNome : null,
+      }),
     });
     setSaving(false);
     if (res.ok) { onOpenChange(false); onDone(); }
@@ -312,12 +328,15 @@ function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
               <Input value={terceiroNome} onChange={(e) => setTerceiroNome(e.target.value)} placeholder="De quem é a conta" />
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Banco</Label>
-              <ComboboxWithCreate value={bancoId} onChange={setBancoId} placeholder="— Nenhum —" noneLabel="Nenhum" triggerClassName="h-10 rounded-lg"
-                options={bancos.map((b) => ({ value: b.id, label: b.nome }))} />
-            </div>
+          {/* Terceiros não têm banco/agência/número fixos (usam várias contas). */}
+          <div className={cn("grid gap-3", ehTerceiro ? "grid-cols-1" : "grid-cols-2")}>
+            {!ehTerceiro && (
+              <div className="space-y-1.5">
+                <Label>Banco</Label>
+                <ComboboxWithCreate value={bancoId} onChange={setBancoId} placeholder="— Nenhum —" noneLabel="Nenhum" triggerClassName="h-10 rounded-lg"
+                  options={bancos.map((b) => ({ value: b.id, label: b.nome }))} />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Tipo</Label>
               <select value={tipo} onChange={(e) => setTipo(e.target.value as Conta["tipo"])} className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card">
@@ -327,15 +346,19 @@ function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label>Agência</Label>
-              <Input value={agencia} onChange={(e) => setAgencia(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Número</Label>
-              <Input value={numero} onChange={(e) => setNumero(e.target.value)} />
-            </div>
+          <div className={cn("grid gap-3", ehTerceiro ? "grid-cols-1" : "grid-cols-3")}>
+            {!ehTerceiro && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Agência</Label>
+                  <Input value={agencia} onChange={(e) => setAgencia(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Número</Label>
+                  <Input value={numero} onChange={(e) => setNumero(e.target.value)} />
+                </div>
+              </>
+            )}
             <div className="space-y-1.5">
               <Label>Saldo inicial</Label>
               <Input type="number" step="0.01" value={saldoInicial} onChange={(e) => setSaldoInicial(e.target.value)} />

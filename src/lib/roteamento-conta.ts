@@ -7,7 +7,7 @@
 type DbRoteamento = {
   contaBancaria: {
     findFirst(args: { where: { empresaId: string; tipo: { not: "CAIXA" }; ativo: true }; select: { id: true } }): Promise<{ id: string } | null>;
-    findMany(args: { where: { id: { in: string[] } }; select: { id: true; tipo: true } }): Promise<{ id: string; tipo: string }[]>;
+    findMany(args: { where: { id: { in: string[] } }; select: { id: true; tipo: true; ehTerceiro: true } }): Promise<{ id: string; tipo: string; ehTerceiro: boolean }[]>;
   };
   formaPagamento: {
     findMany(args: { select: { nome: true; tipo: true } }): Promise<{ nome: string; tipo: string }[]>;
@@ -34,7 +34,7 @@ export async function formaEletronicaNoCaixa(
 
   const contaIds = Array.from(new Set(linhas.map((l) => l.contaBancariaId)));
   const [contasInfo, formasInfo] = await Promise.all([
-    db.contaBancaria.findMany({ where: { id: { in: contaIds } }, select: { id: true, tipo: true } }),
+    db.contaBancaria.findMany({ where: { id: { in: contaIds } }, select: { id: true, tipo: true, ehTerceiro: true } }),
     db.formaPagamento.findMany({ select: { nome: true, tipo: true } }),
   ]);
   const ehDinheiro = (forma: string | null) => {
@@ -42,7 +42,8 @@ export async function formaEletronicaNoCaixa(
     const f = formasInfo.find((x) => x.nome === forma);
     return f ? f.tipo === "DINHEIRO" : /dinheiro|esp[ée]cie/i.test(forma);
   };
-  const contaEhCaixa = (id: string) => id === "caixa-geral" || contasInfo.some((c) => c.id === id && c.tipo === "CAIXA");
+  // Conta de TERCEIROS é isenta da trava (o terceiro pode usar várias contas).
+  const contaEhCaixa = (id: string) => id === "caixa-geral" || contasInfo.some((c) => c.id === id && c.tipo === "CAIXA" && !c.ehTerceiro);
 
   return linhas.find((l) => l.forma != null && l.forma !== "" && !ehDinheiro(l.forma) && contaEhCaixa(l.contaBancariaId)) ?? null;
 }

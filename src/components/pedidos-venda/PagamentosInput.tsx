@@ -8,7 +8,7 @@ import { cn, formatBRL } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 export type FormaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
-export type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
+export type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean; ehTerceiro?: boolean };
 
 /**
  * Conta de destino padrão para dinheiro: o "Caixa em Dinheiro" (tipo CAIXA) da
@@ -45,11 +45,12 @@ export function formaEhDinheiro(nome: string, formas: FormaOpt[]): boolean {
   return /dinheiro|espécie|especie/i.test(nome);
 }
 
-/** É conta do tipo Caixa (dinheiro físico)? Inclui o "caixa-geral" legado. */
+/** É conta do tipo Caixa (dinheiro físico)? Inclui o "caixa-geral" legado.
+ *  Conta de TERCEIROS é isenta da trava (o terceiro pode usar várias contas). */
 export function contaEhCaixa(contaId: string, contas: ContaOpt[]): boolean {
   if (!contaId) return false;
   if (contaId === "caixa-geral") return true;
-  return contas.some((c) => c.id === contaId && c.tipo === "CAIXA");
+  return contas.some((c) => c.id === contaId && c.tipo === "CAIXA" && !c.ehTerceiro);
 }
 
 /** A empresa tem alguma conta bancária (não-Caixa) cadastrada? */
