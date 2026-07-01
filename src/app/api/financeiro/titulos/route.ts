@@ -74,61 +74,64 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  try {
-    const criados = await prisma.$transaction(async (tx) => {
-      const out: { id: string; numero: string }[] = [];
-      for (const l of f.linhas) {
-        const numero = generateDocNumber(prefixo, await proximaSequenciaDaEmpresa(empresaId, prefixo));
-        const descricao = [f.descricao?.trim(), l.detalhamento?.trim()].filter(Boolean).join(" — ") || "Lançamento avulso";
-        const valor = Math.round(l.valor * 100) / 100;
+  // UM título só; as naturezas viram RATEIO (dimensão gerencial), não títulos
+  // separados. valorOriginal = soma das linhas; a 1ª natureza é a "principal"
+  // (fallback da contabilização); rateio só quando há 2+ naturezas.
+  const total = Math.round(f.linhas.reduce((s, l) => s + l.valor, 0) * 100) / 100;
+  const natPrincipal = f.linhas[0].naturezaFinanceiraId;
+  const descricaoTitulo = f.descricao?.trim() || (f.linhas.length === 1 ? (f.linhas[0].detalhamento?.trim() || "Lançamento avulso") : "Lançamento avulso");
+  const rateio = f.linhas.length > 1
+    ? f.linhas.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento?.trim() || null, valor: Math.round(l.valor * 100) / 100 }))
+    : [];
 
-        if (isReceber) {
-          const cr = await tx.contaReceber.create({
-            data: {
-              empresaId, numero, clienteId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao,
-              valorOriginal: valor, valorPago: pago ? valor : 0,
-              dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
-              status: pago ? "PAGA" : "ABERTA",
-              formaPagamento: f.formaPagamento || null,
-              naturezaFinanceiraId: l.naturezaFinanceiraId,
-            },
+  try {
+    const criado = await prisma.$transaction(async (tx) => {
+      const numero = generateDocNumber(prefixo, await proximaSequenciaDaEmpresa(empresaId, prefixo));
+      if (isReceber) {
+        const cr = await tx.contaReceber.create({
+          data: {
+            empresaId, numero, clienteId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao: descricaoTitulo,
+            valorOriginal: total, valorPago: pago ? total : 0,
+            dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
+            status: pago ? "PAGA" : "ABERTA",
+            formaPagamento: f.formaPagamento || null,
+            naturezaFinanceiraId: natPrincipal,
+            ...(rateio.length ? { naturezas: { create: rateio } } : {}),
+          },
+        });
+        if (pago) {
+          await tx.lancamentoFinanceiro.create({
+            data: { empresaId, tipo: "RECEITA", descricao: `Recebimento ${numero}`, valor: total, dataLancamento: pagamento!, contaReceberId: cr.id, contaBancariaId: contaBancariaId! },
           });
-          if (pago) {
-            await tx.lancamentoFinanceiro.create({
-              data: { empresaId, tipo: "RECEITA", descricao: `Recebimento ${numero}`, valor, dataLancamento: pagamento!, contaReceberId: cr.id, contaBancariaId: contaBancariaId! },
-            });
-          }
-          out.push({ id: cr.id, numero: cr.numero });
-        } else {
-          const cp = await tx.contaPagar.create({
-            data: {
-              empresaId, numero, fornecedorId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao,
-              valorOriginal: valor, valorPago: pago ? valor : 0,
-              dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
-              status: pago ? "PAGA" : "ABERTA",
-              formaPagamento: f.formaPagamento || null,
-              naturezaFinanceiraId: l.naturezaFinanceiraId,
-            },
-          });
-          if (pago) {
-            await tx.lancamentoFinanceiro.create({
-              data: { empresaId, tipo: "DESPESA", descricao: `Pagamento ${numero}`, valor, dataLancamento: pagamento!, contaPagarId: cp.id, contaBancariaId: contaBancariaId! },
-            });
-          }
-          out.push({ id: cp.id, numero: cp.numero });
         }
+        return { id: cr.id, numero: cr.numero };
+      } else {
+        const cp = await tx.contaPagar.create({
+          data: {
+            empresaId, numero, fornecedorId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao: descricaoTitulo,
+            valorOriginal: total, valorPago: pago ? total : 0,
+            dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
+            status: pago ? "PAGA" : "ABERTA",
+            formaPagamento: f.formaPagamento || null,
+            naturezaFinanceiraId: natPrincipal,
+            ...(rateio.length ? { naturezas: { create: rateio } } : {}),
+          },
+        });
+        if (pago) {
+          await tx.lancamentoFinanceiro.create({
+            data: { empresaId, tipo: "DESPESA", descricao: `Pagamento ${numero}`, valor: total, dataLancamento: pagamento!, contaPagarId: cp.id, contaBancariaId: contaBancariaId! },
+          });
+        }
+        return { id: cp.id, numero: cp.numero };
       }
-      return out;
     });
 
-    // Contabiliza cada título (best-effort, pós-commit) — gera as partidas pela
-    // natureza (resultado + contrapartida ativo/passivo).
-    for (const t of criados) {
-      if (isReceber) { await espelharContaReceber(t.id).catch(() => {}); await contabilizarTituloReceber(t.id).catch(() => {}); }
-      else await contabilizarTituloPagar(t.id).catch(() => {});
-    }
+    // Contabiliza o título (best-effort, pós-commit) — a natureza/rateio gera as
+    // partidas (resultado por natureza + contrapartida ativo/passivo).
+    if (isReceber) { await espelharContaReceber(criado.id).catch(() => {}); await contabilizarTituloReceber(criado.id).catch(() => {}); }
+    else await contabilizarTituloPagar(criado.id).catch(() => {});
 
-    return NextResponse.json({ data: { numeros: criados.map((t) => t.numero), total: criados.length } }, { status: 201 });
+    return NextResponse.json({ data: { numeros: [criado.numero], total: 1 } }, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao criar lançamento";
     console.error("[POST /api/financeiro/titulos]", err);

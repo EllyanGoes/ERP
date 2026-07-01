@@ -579,6 +579,7 @@ model ContaReceber {
   naturezaFinanceira    NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   espelhoPagar          ContaPagar?            @relation("EspelhoIntragrupoCR")
   lancamentos           LancamentoFinanceiro[]
+  naturezas             ContaReceberNatureza[] // rateio gerencial por natureza (definido na criação)
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -589,6 +590,24 @@ model ContaReceber {
   @@index([recorrenciaId])
   @@index([grupoParcelamentoId])
   @@index([empresaId])
+}
+
+// Rateio gerencial de um título a RECEBER por natureza (espelha ContaPagarNatureza).
+// Dimensão nas partidas — não cria títulos separados; a receita é dividida entre
+// as naturezas na contabilização.
+model ContaReceberNatureza {
+  id                   String             @id @default(cuid())
+  contaReceberId       String
+  naturezaFinanceiraId String
+  detalhamento         String?
+  valor                Decimal            @db.Decimal(15, 2)
+  createdAt            DateTime           @default(now())
+
+  contaReceber         ContaReceber       @relation(fields: [contaReceberId], references: [id], onDelete: Cascade)
+  naturezaFinanceira   NaturezaFinanceira @relation(fields: [naturezaFinanceiraId], references: [id])
+
+  @@index([contaReceberId])
+  @@index([naturezaFinanceiraId])
 }
 
 model Banco {
@@ -676,6 +695,7 @@ model NaturezaFinanceira {
   requisicoes   RequisicaoMaterial[] // natureza da saída de estoque (ex.: CIF)
   requisicaoItens RequisicaoMaterialItem[] // natureza por item da requisição
   contasPagarRateio ContaPagarNatureza[] // rateio gerencial por natureza na baixa de contas a pagar
+  contasReceberRateio ContaReceberNatureza[] // rateio gerencial por natureza no título a receber
   itensPadrao   Item[]              @relation("ItemNaturezaPadrao") // natureza-padrão do item
   partidasContabeis PartidaContabil[] // dimensão natureza nas partidas (ex.: CIF)
   // Conta de RESULTADO (receita p/ ENTRADA, despesa p/ SAIDA): vínculo via

@@ -314,18 +314,50 @@ export async function contabilizarTituloReceber(crId: string) {
   const cli = cr.clienteId ?? undefined;
   if (!contaAtivo) return;
 
+  // Rateio gerencial por natureza (título avulso com 2+ naturezas): o CRÉDITO de
+  // receita é dividido entre as naturezas como DIMENSÃO (razão/relatório por
+  // natureza); sem rateio segue single-natureza. Espelha o pagar.
+  const rateioR = await prismaSemEscopo.contaReceberNatureza.findMany({
+    where: { contaReceberId: cr.id },
+    select: { naturezaFinanceiraId: true, valor: true },
+  });
+  const somaRateioR = rateioR.reduce((s, r) => s + decimalToNumber(r.valor), 0);
+  const dividirReceita = (tot: number) => {
+    if (rateioR.length === 0 || somaRateioR <= 0) return [] as { natId: string; valor: number }[];
+    let acc = 0;
+    return rateioR
+      .map((r, i) => {
+        const v = i === rateioR.length - 1
+          ? Math.round((tot - acc) * 100) / 100
+          : Math.round((tot * decimalToNumber(r.valor) / somaRateioR) * 100) / 100;
+        acc += v;
+        return { natId: r.naturezaFinanceiraId, valor: v };
+      })
+      .filter((x) => x.valor > 0.005);
+  };
+
   // Venda de PEDIDO: o recebível já nasceu na CONFIRMAÇÃO (D Clientes a Receber /
   // C Material a Entregar, em contabilizarVendaPedido) e a receita na ENTREGA —
   // aqui não se repete. Só a venda AVULSA (CR sem pedido) gera a perna VENDA:
-  // D Ativo (Clientes ou contrapartida da natureza) / C Receita.
+  // D Ativo (Clientes ou contrapartida da natureza) / C Receita (por natureza).
   const valor = decimalToNumber(cr.valorOriginal);
   if (!ehPedido && valor > 0 && contaReceita) {
+    const split = dividirReceita(valor);
+    const creditos: PartidaIn[] = [];
+    if (split.length > 0) {
+      for (const s of split) {
+        const conta = (await contaDaNatureza(cr.empresaId, s.natId)) ?? contaReceita;
+        creditos.push({ contaId: conta.id, tipo: "CREDITO", valor: s.valor, naturezaId: s.natId });
+      }
+    } else {
+      creditos.push({ contaId: contaReceita.id, tipo: "CREDITO", valor });
+    }
     await registrarLancamento({
       empresaId: cr.empresaId, data: cr.dataCompetencia ?? cr.createdAt,
       historico: `Venda — ${refCr}${cliNome ? ` · ${cliNome}` : ""}`, origemTipo: "VENDA", origemId: cr.id,
       partidas: [
         { contaId: contaAtivo.id, tipo: "DEBITO", valor, clienteId: cli },
-        { contaId: contaReceita.id, tipo: "CREDITO", valor },
+        ...creditos,
       ],
     });
   }

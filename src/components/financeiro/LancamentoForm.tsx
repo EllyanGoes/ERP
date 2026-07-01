@@ -24,8 +24,8 @@ const novaLinha = (): Linha => ({ key: crypto.randomUUID(), naturezaFinanceiraId
 /**
  * "Novo Lançamento" — cria contas a receber/pagar no formato flow-charted-funds:
  * status (Pagamento/Agendamento), conta, contato, datas (pagamento/vencimento/
- * competência) e rateio por natureza financeira (várias linhas). Cada linha vira um
- * título via POST /api/financeiro/titulos.
+ * competência) e rateio por natureza financeira (várias linhas). Vira UM título
+ * (com as naturezas como rateio gerencial) via POST /api/financeiro/titulos.
  *
  * Dois modos:
  * - Listas (contas a pagar/receber): `tipo` fixo, conta selecionável.
@@ -263,7 +263,7 @@ export default function LancamentoForm({
             </button>
           </div>
         ))}
-        <p className="text-[11px] text-muted-foreground">Cada natureza vira um título. Crie/edite naturezas em Financeiro → Naturezas Financeiras.</p>
+        <p className="text-[11px] text-muted-foreground">As naturezas classificam o título (rateio) — a soma é o valor total. Crie/edite naturezas em Financeiro → Naturezas Financeiras.</p>
       </div>
 
       {erro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{erro}</p>}
