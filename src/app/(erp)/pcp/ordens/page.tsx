@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
@@ -1032,7 +1033,7 @@ export default function OrdensBoardPage() {
               })()}
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Data do saldo</label>
-                <input type="date" value={saldoIni.data} onChange={(e) => setSaldoIni({ ...saldoIni, data: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card" />
+                <DatePicker value={saldoIni.data} onChange={(v) => setSaldoIni({ ...saldoIni, data: v })} className="w-full" />
               </div>
             </div>
             <div className="mt-5 flex items-center justify-end gap-2">

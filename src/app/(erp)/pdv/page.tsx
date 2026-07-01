@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn, formatBRL, decimalToNumber, parseDecimal } from "@/lib/utils";
@@ -443,7 +444,7 @@ export default function PdvPage() {
                   </label>
                   <label className="space-y-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     Data do recebimento
-                    <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-full h-10 rounded-lg border border-border px-2 text-sm font-normal bg-card focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <DatePicker value={data} onChange={(v) => setData(v)} className="w-full" />
                   </label>
                 </div>
 

@@ -5,6 +5,7 @@ import { ReactFlow, Background, Controls, MiniMap, type Node, type Edge } from "
 import "@xyflow/react/dist/style.css";
 import { nodeTypes, NODE_STYLE } from "@/components/pcp/editor/nodes";
 import ItemSearch from "@/components/pcp/ItemSearch";
+import DatePicker from "@/components/shared/DatePicker";
 import { RefreshCw, X, PlayCircle, Loader2, CalendarDays, Boxes, Layers, PackageCheck } from "lucide-react";
 import type { FlowGraph, FlowNode, NodeKind } from "@/lib/pcp/types";
 
@@ -115,7 +116,7 @@ export default function ChaoView() {
         </div>
         <div className="flex items-center gap-1.5 ml-2">
           <CalendarDays className="w-4 h-4 text-muted-foreground" />
-          <input type="date" value={dia} onChange={(e) => setDia(e.target.value)} className="h-9 rounded-lg border border-border px-2 text-sm" />
+          <DatePicker value={dia} onChange={(v) => setDia(v)} />
         </div>
         {chao && (
           <span className="text-xs text-muted-foreground">

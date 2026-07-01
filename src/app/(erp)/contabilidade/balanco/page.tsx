@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import GerarRetroativos from "@/components/contabilidade/GerarRetroativos";
-import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtSaldo, saldoAnormal, type FormatoModo, type NaturezaConta } from "@/lib/formato-contabil";
@@ -135,7 +135,7 @@ export default function BalancoPage() {
         <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Posição em
-            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-10 w-44 border-border" />
+            <DatePicker value={data} onChange={(v) => setData(v)} className="w-44" triggerClassName="h-10" />
           </label>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input type="checkbox" checked={soComSaldo} onChange={(e) => setSoComSaldo(e.target.checked)} className="w-4 h-4 rounded border-border text-info" />

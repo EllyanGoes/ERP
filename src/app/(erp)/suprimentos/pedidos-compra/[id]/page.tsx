@@ -12,6 +12,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import StatusBadge from "@/components/shared/StatusBadge";
 import FinanceiroCompraBadge from "@/components/suprimentos/FinanceiroCompraBadge";
 import ModalPortal from "@/components/shared/ModalPortal";
+import DatePicker from "@/components/shared/DatePicker";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import {
@@ -1287,8 +1288,7 @@ async function openWAModal() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Data *</Label>
-                  <input type="date" value={cpData} onChange={(e) => setCpData(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <DatePicker value={cpData} onChange={(v) => setCpData(v)} className="w-full" triggerClassName="h-10" />
                 </div>
               </div>
               <div className="space-y-1">

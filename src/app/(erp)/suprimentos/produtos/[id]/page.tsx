@@ -19,6 +19,7 @@ import { UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared
 import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
 import EstadosWipMultiSelect from "@/components/shared/EstadosWipMultiSelect";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import DatePicker from "@/components/shared/DatePicker";
 import MovimentacoesDiariasChart from "@/components/suprimentos/MovimentacoesDiariasChart";
 import { cn, formatBRL, decimalToNumber, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -3203,10 +3204,9 @@ export default function ProdutoDetailPage() {
               {/* Data da movimentação */}
               <div className="space-y-1.5">
                 <Label>Data <span className="text-red-500">*</span></Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={saldoForm.data}
-                  onChange={(e) => setSaldoForm((p) => ({ ...p, data: e.target.value }))}
+                  onChange={(v) => setSaldoForm((p) => ({ ...p, data: v }))}
                   className="w-full"
                 />
               </div>
@@ -3352,10 +3352,9 @@ export default function ProdutoDetailPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Prazo Necessário</Label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={necForm.dataNecessidade}
-                    onChange={(e) => setNecForm((p) => ({ ...p, dataNecessidade: e.target.value }))}
+                    onChange={(v) => setNecForm((p) => ({ ...p, dataNecessidade: v }))}
                   />
                 </div>
               </div>

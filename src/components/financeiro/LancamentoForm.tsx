@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import BeneficiarioCombobox, { type BenTipo } from "@/components/financeiro/BeneficiarioCombobox";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
@@ -222,15 +223,15 @@ export default function LancamentoForm({
       <div className="grid grid-cols-4 gap-3 items-end">
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">{isReceber ? "Recebimento" : "Pagamento"}</Label>
-          <input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} disabled={!pago} className={`${inputCls} disabled:bg-muted disabled:text-muted-foreground`} />
+          <DatePicker value={dataPagamento} onChange={(v) => setDataPagamento(v)} disabled={!pago} className="w-full" />
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Vencimento</Label>
-          <input type="date" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} className={inputCls} />
+          <DatePicker value={dataVencimento} onChange={(v) => setDataVencimento(v)} className="w-full" />
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Competência</Label>
-          <input type="date" value={dataCompetencia} onChange={(e) => setDataCompetencia(e.target.value)} className={inputCls} />
+          <DatePicker value={dataCompetencia} onChange={(v) => setDataCompetencia(v)} className="w-full" />
         </div>
         <div className="text-right">
           <Label className="text-xs text-muted-foreground block">Total</Label>

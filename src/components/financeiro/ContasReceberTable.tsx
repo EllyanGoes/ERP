@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
   novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
@@ -223,7 +224,7 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
           <div className="space-y-4 py-2">
             <div>
               <Label>Data do Recebimento</Label>
-              <Input type="date" value={dataPag} onChange={(e) => setDataPag(e.target.value)} className="mt-1" />
+              <DatePicker value={dataPag} onChange={(v) => setDataPag(v)} className="mt-1 w-full" />
             </div>
             <PagamentosInput
               linhas={linhas}

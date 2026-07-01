@@ -5,6 +5,7 @@ import Link from "next/link";
 import ModalPortal from "@/components/shared/ModalPortal";
 import StatusDimBadges, { EntregaBadge, FinanceiroBadge } from "@/components/pedidos-venda/StatusDimBadges";
 import StatusBadge from "@/components/shared/StatusBadge";
+import DatePicker from "@/components/shared/DatePicker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -1033,11 +1034,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-muted-foreground mb-1">Data</label>
-                      <input
-                        type="date"
+                      <DatePicker
                         value={comodatoData}
-                        onChange={(e) => setComodatoData(e.target.value)}
-                        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                        onChange={(v) => setComodatoData(v)}
+                        className="w-full"
                       />
                     </div>
                   </div>
@@ -1261,11 +1261,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data do Recebimento <span className="text-red-500">*</span></label>
-                <input
-                  type="date"
+                <DatePicker
                   value={balcaoData}
-                  onChange={(e) => setBalcaoData(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(v) => setBalcaoData(v)}
+                  className="w-full"
                 />
                 <p className="text-[11px] text-muted-foreground">Vale para a baixa de estoque, o recebimento no caixa e a conclusão do pedido.</p>
               </div>
@@ -1301,11 +1300,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             {recebErro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{recebErro}</p>}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data do Recebimento <span className="text-red-500">*</span></label>
-              <input
-                type="date"
+              <DatePicker
                 value={recebData}
-                onChange={(e) => setRecebData(e.target.value)}
-                className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(v) => setRecebData(v)}
+                className="w-full"
               />
             </div>
             <PagamentosInput linhas={recebPagamentos} setLinhas={setRecebPagamentos} formas={balcaoFormas} contas={balcaoContas} total={balcaoTotal} />
@@ -1382,11 +1380,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data da Saída <span className="text-red-500">*</span></label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={saidaData}
-                    onChange={(e) => setSaidaData(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(v) => setSaidaData(v)}
+                    className="w-full"
                   />
                 </div>
               </div>
@@ -1417,8 +1414,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data <span className="text-red-500">*</span></label>
-                <input type="date" value={crData} onChange={(e) => setCrData(e.target.value)}
-                  className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <DatePicker value={crData} onChange={(v) => setCrData(v)} className="w-full" />
               </div>
             </div>
             <div className="space-y-1">
@@ -1462,11 +1458,10 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             {concluirErro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{concluirErro}</p>}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data de Conclusão <span className="text-red-500">*</span></label>
-              <input
-                type="date"
+              <DatePicker
                 value={concluirData}
-                onChange={(e) => setConcluirData(e.target.value)}
-                className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(v) => setConcluirData(v)}
+                className="w-full"
               />
             </div>
             {temSaldoPendente && (

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 
@@ -257,7 +258,7 @@ export default function InventarioDetailPage() {
               </div>
               <div>
                 <Label className="text-xs mb-1 block">Data</Label>
-                <Input type="date" value={editData} onChange={(e) => setEditData(e.target.value)} className="h-8 text-sm" />
+                <DatePicker value={editData} onChange={(v) => setEditData(v)} triggerClassName="h-8" />
               </div>
               <div className="col-span-full">
                 <Label className="text-xs mb-1 block">Observações</Label>

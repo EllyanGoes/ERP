@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle, Plus, X } from "lucide-react";
@@ -500,11 +501,9 @@ export default function EditarMinutaPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-foreground uppercase tracking-wide mb-1.5">Data de {tipo === "RETIRADA" ? "Retirada" : "Entrega"}</label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={dataEntrega}
-                  onChange={e => setDataEntrega(e.target.value)}
-                  className="h-10 border-border"
+                  onChange={v => setDataEntrega(v)}
                 />
               </div>
               <div>

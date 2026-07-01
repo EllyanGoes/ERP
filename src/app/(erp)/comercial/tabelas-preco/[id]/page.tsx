@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { Label } from "@/components/ui/label";
 import {
   Plus, Trash2, Save, X, Search, Loader2,
@@ -485,9 +486,9 @@ export default function TabelaPrecoDetailPage() {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Data Inicial</Label>
               {editing ? (
-                <Input
-                  type="date" value={form.dataInicial}
-                  onChange={(e) => { setForm((f) => ({ ...f, dataInicial: e.target.value })); setDirty(true); }}
+                <DatePicker
+                  value={form.dataInicial}
+                  onChange={(v) => { setForm((f) => ({ ...f, dataInicial: v })); setDirty(true); }}
                 />
               ) : (
                 <p className="text-sm text-foreground py-1">
@@ -498,9 +499,9 @@ export default function TabelaPrecoDetailPage() {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Data Final</Label>
               {editing ? (
-                <Input
-                  type="date" value={form.dataFinal}
-                  onChange={(e) => { setForm((f) => ({ ...f, dataFinal: e.target.value })); setDirty(true); }}
+                <DatePicker
+                  value={form.dataFinal}
+                  onChange={(v) => { setForm((f) => ({ ...f, dataFinal: v })); setDirty(true); }}
                 />
               ) : (
                 <p className="text-sm text-foreground py-1">

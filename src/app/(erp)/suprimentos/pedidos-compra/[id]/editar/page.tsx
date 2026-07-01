@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { Plus, Trash2, Loader2, Save, CheckCircle2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 
 type Fornecedor = {
   id: string; razaoSocial: string; nomeFantasia: string | null;
@@ -513,7 +514,7 @@ export default function EditarPedidoCompraPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Entrega Prevista</Label>
-              <Input type="date" value={dataEntregaPrevista} onChange={(e) => setDataEntregaPrevista(e.target.value)} />
+              <DatePicker value={dataEntregaPrevista} onChange={(v) => setDataEntregaPrevista(v)} />
             </div>
           </div>
         </div>

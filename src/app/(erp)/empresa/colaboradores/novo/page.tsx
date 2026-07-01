@@ -5,6 +5,7 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -264,10 +265,10 @@ export default function NovoColaboradorPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <Field label="Data de Admissão">
-                <Input
-                  type="date"
+                <DatePicker
                   value={dataAdmissao}
-                  onChange={(e) => setDataAdmissao(e.target.value)}
+                  onChange={(v) => setDataAdmissao(v)}
+                  className="w-full"
                 />
               </Field>
               <Field label="Filial">

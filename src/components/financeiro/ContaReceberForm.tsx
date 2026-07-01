@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 
@@ -112,7 +113,7 @@ export default function ContaReceberForm({ clientes, naturezas }: { clientes: Cl
               <FormItem><FormLabel>Valor (R$) *</FormLabel><FormControl><Input type="number" step="0.01" min="0" {...field} /></FormControl><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="dataVencimento" render={({ field }) => (
-              <FormItem><FormLabel>Vencimento *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
+              <FormItem><FormLabel>Vencimento *</FormLabel><FormControl><DatePicker value={field.value ?? ""} onChange={field.onChange} /></FormControl><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="formaPagamento" render={({ field }) => (
               <FormItem className="col-span-2">

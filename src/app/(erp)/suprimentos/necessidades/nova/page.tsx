@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
 type ItemOption = { id: string; codigo: string; descricao: string };
@@ -123,7 +124,7 @@ export default function NovaNecessidadePage() {
             </div>
             <div className="space-y-1.5">
               <Label>Data de Necessidade</Label>
-              <Input type="date" value={dataNecessidade} onChange={(e) => setDataNecessidade(e.target.value)} />
+              <DatePicker value={dataNecessidade} onChange={(v) => setDataNecessidade(v)} />
             </div>
             <div className="space-y-1.5 md:col-span-2">
               <Label>Justificativa</Label>

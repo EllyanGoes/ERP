@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
@@ -1021,13 +1022,13 @@ export default function PedidoForm({
             {/* Data Emissão */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data de Emissão</Label>
-              <Input type="date" value={dataEmissao} onChange={(e) => setDataEmissao(e.target.value)} className="h-10 border-border" />
+              <DatePicker value={dataEmissao} onChange={(v) => setDataEmissao(v)} />
             </div>
 
             {/* Previsão de Entrega */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Previsão de Entrega</Label>
-              <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} className="h-10 border-border" />
+              <DatePicker value={dataEntrega} onChange={(v) => setDataEntrega(v)} />
             </div>
           </div>
 
@@ -1466,11 +1467,10 @@ export default function PedidoForm({
                 <p className="text-[11px] text-muted-foreground">Pedido já pago — você pode corrigir a conta de destino e a data do recebimento (o lançamento no caixa é movido junto).</p>
                 <div className="space-y-1 max-w-[12rem]">
                   <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data do Recebimento</Label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={pagamentoData}
-                    onChange={(e) => setPagamentoData(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-border px-3 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(v) => setPagamentoData(v)}
+                    className="w-full"
                   />
                 </div>
               </>

@@ -6,6 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { Label } from "@/components/ui/label";
 import {
   TrendingUp,
@@ -414,43 +415,21 @@ export default function RelatorioMtbfPage() {
             <div className="flex flex-wrap items-end gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Data Início</Label>
-                <div className="relative">
-                  <Input
-                    type="date"
-                    value={dataInicio}
-                    onChange={(e) => { setDataInicio(e.target.value); setResultado(null); }}
-                    className="h-10 text-sm w-44 pr-8"
-                  />
-                  {dataInicio && (
-                    <button
-                      type="button"
-                      onClick={() => { setDataInicio(""); setResultado(null); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+                <DatePicker
+                  value={dataInicio}
+                  onChange={(v) => { setDataInicio(v); setResultado(null); }}
+                  className="w-44"
+                  allowClear
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Data Fim</Label>
-                <div className="relative">
-                  <Input
-                    type="date"
-                    value={dataFim}
-                    onChange={(e) => { setDataFim(e.target.value); setResultado(null); }}
-                    className="h-10 text-sm w-44 pr-8"
-                  />
-                  {dataFim && (
-                    <button
-                      type="button"
-                      onClick={() => { setDataFim(""); setResultado(null); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
+                <DatePicker
+                  value={dataFim}
+                  onChange={(v) => { setDataFim(v); setResultado(null); }}
+                  className="w-44"
+                  allowClear
+                />
               </div>
               {/* Atalhos rápidos */}
               <div className="flex gap-1.5 pb-0.5">

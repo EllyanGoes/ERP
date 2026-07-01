@@ -33,6 +33,7 @@ import { formatBRL, formatDate, decimalToNumber } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 
 type FornecedorContato = {
   id: string;
@@ -987,7 +988,7 @@ export default function FornecedorDetailPage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label>Data Última Compra</Label>
-                      <Input type="date" value={addProd.dataUltimaCompra} onChange={(e) => setAddProd((p) => ({ ...p, dataUltimaCompra: e.target.value }))} />
+                      <DatePicker value={addProd.dataUltimaCompra} onChange={(v) => setAddProd((p) => ({ ...p, dataUltimaCompra: v }))} />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Valor Últ. Compra (R$)</Label>

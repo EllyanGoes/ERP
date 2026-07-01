@@ -16,6 +16,7 @@ import { cn, formatBRL, formatDate, decimalToNumber } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import DatePicker from "@/components/shared/DatePicker";
 import {
   Loader2, CheckCircle2, XCircle, Clock, ChevronDown, ChevronRight,
   Plus, ArrowLeft, BarChart3, X, Pencil, Search, Trash2,
@@ -851,11 +852,9 @@ export default function CotacaoDetailPage() {
                 <Label>
                   Prazo de recebimento <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={editDataLimite}
-                  onChange={(e) => setEditDataLimite(e.target.value)}
-                  className={cn(!editDataLimite && editError ? "border-red-400" : "")}
+                  onChange={(v) => setEditDataLimite(v)}
                 />
                 <p className="text-xs text-muted-foreground">
                   Prazo limite para os fornecedores enviarem suas propostas.

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate, { type ComboboxOption } from "@/components/shared/ComboboxWithCreate";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -108,7 +109,7 @@ export default function DiariaDetailPage() {
         <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card p-4">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Data</label>
-            <Input type="date" value={data} disabled={bloqueado} onChange={(e) => setData(e.target.value)} className="h-10 w-48 border-border" />
+            <DatePicker value={data} disabled={bloqueado} onChange={(v) => setData(v)} className="w-48" />
           </div>
           <div className="flex-1 min-w-[200px]">
             <label className="block text-xs font-medium text-muted-foreground mb-1">Observações</label>

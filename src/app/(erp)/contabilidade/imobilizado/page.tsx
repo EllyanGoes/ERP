@@ -5,6 +5,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import DatePicker from "@/components/shared/DatePicker";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -156,7 +157,7 @@ function NovoBemDialog({ onDone }: { onDone: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Data de aquisição</Label>
-              <Input type="date" value={dataAquisicao} onChange={(e) => setDataAquisicao(e.target.value)} />
+              <DatePicker value={dataAquisicao} onChange={(v) => setDataAquisicao(v)} className="w-full" />
             </div>
             <div>
               <Label>Vida útil (meses)</Label>

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
 import { CheckCircle2 } from "lucide-react";
 
@@ -171,7 +171,7 @@ export default function AgendaFinanceiraPage() {
             </div>
             <div className="space-y-1">
               <label className="block text-xs font-medium text-muted-foreground">Data</label>
-              <Input type="date" value={dataPagamento} onChange={(e) => setDataPagamento(e.target.value)} className="h-9 w-40" />
+              <DatePicker value={dataPagamento} onChange={(v) => setDataPagamento(v)} className="w-40" />
             </div>
             <Button onClick={baixarLote} disabled={baixando || !contaBancariaId}>
               <CheckCircle2 className="w-4 h-4 mr-1.5" />

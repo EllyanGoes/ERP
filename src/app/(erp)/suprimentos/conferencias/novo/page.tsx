@@ -15,6 +15,7 @@ import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -961,10 +962,9 @@ export default function NovoDocumentoEntradaPage() {
             {/* DT Emissão */}
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">DT Emissão</Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={dtEmissao}
-                onChange={(e) => setDtEmissao(e.target.value)}
+                onChange={(v) => setDtEmissao(v)}
               />
             </div>
 

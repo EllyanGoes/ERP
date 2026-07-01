@@ -15,6 +15,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Send, CheckCircle2, XCircle, Clock, MessageCircle, Users, Search, Copy, ExternalLink } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 
 // ── WA user type ──────────────────────────────────────────────────────────────
 type WAUser = { id: string; nome: string; email?: string; telefone: string | null; telegramChatId?: string | null; _type?: "colaborador" | "usuario" };
@@ -649,7 +650,7 @@ export default function NecessidadeDetailPage() {
                 </div>
                 <div className="col-span-3 space-y-1.5">
                   <Label>Entrega desejada</Label>
-                  <Input type="date" value={eEntregaDesejada} onChange={(e) => setEEntregaDesejada(e.target.value)} />
+                  <DatePicker value={eEntregaDesejada} onChange={(v) => setEEntregaDesejada(v)} />
                 </div>
               </div>
 

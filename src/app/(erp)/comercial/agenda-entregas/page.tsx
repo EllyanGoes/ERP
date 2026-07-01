@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
@@ -579,11 +580,11 @@ export default function AgendaEntregasPage() {
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <Input
-            type="date"
+          <DatePicker
             value={day}
-            onChange={(e) => e.target.value && setDay(e.target.value)}
-            className="h-8 w-40 border-border text-sm"
+            onChange={(v) => v && setDay(v)}
+            className="w-40"
+            triggerClassName="h-8"
           />
           <button
             onClick={() => setDay((d) => view === "dia" ? addDaysISO(d, 1) : view === "semana" ? addDaysISO(d, 7) : addMonthsISO(d, 1))}

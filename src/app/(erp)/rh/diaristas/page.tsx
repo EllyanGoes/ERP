@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { CalendarDays, Plus, Loader2, Users, Trash2 } from "lucide-react";
@@ -65,7 +65,7 @@ export default function DiaristasPage() {
         <div className="flex items-end gap-3 rounded-xl border border-border bg-card p-4">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Data da folha</label>
-            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-10 w-48 border-border" />
+            <DatePicker value={data} onChange={(v) => setData(v)} className="w-48" />
           </div>
           <Button onClick={criar} disabled={criando || !data} className="h-10 gap-1.5">
             {criando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Nova folha

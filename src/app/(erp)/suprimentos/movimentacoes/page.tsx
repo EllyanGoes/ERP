@@ -16,6 +16,7 @@ import {
   ChevronDown, ChevronRight, Trash2, AlertTriangle, Info, Pencil, Save, RefreshCw,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import { cn, formatDate } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
@@ -1111,7 +1112,7 @@ export default function MovimentacoesPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <Label>Data da Movimentação <span className="text-red-500">*</span></Label>
-                    <Input type="date" value={dataMov} onChange={(e) => setDataMov(e.target.value)} />
+                    <DatePicker value={dataMov} onChange={(v) => setDataMov(v)} />
                   </div>
 
                   <div className="space-y-1.5">

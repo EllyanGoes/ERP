@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, CheckCircle2, AlertCircle, X, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useSession } from "@/lib/session-context";
 
 type Cliente = { id: string; razaoSocial: string; nomeFantasia: string | null };
@@ -257,11 +258,10 @@ export default function ComodatoClient({
             </div>
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Data</label>
-              <input
-                type="date"
+              <DatePicker
                 value={data}
-                onChange={(e) => setData(e.target.value)}
-                className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                onChange={(v) => setData(v)}
+                className="w-full"
               />
             </div>
           </div>

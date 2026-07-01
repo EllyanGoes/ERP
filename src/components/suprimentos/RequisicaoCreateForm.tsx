@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { cn } from "@/lib/utils";
@@ -967,7 +968,7 @@ export default function RequisicaoCreateForm() {
               {/* Data */}
               <div className="space-y-1.5">
                 <Label>Data <span className="text-red-500">*</span></Label>
-                <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+                <DatePicker value={data} onChange={(v) => setData(v)} />
               </div>
 
               {/* O.S. (Requisição only) */}

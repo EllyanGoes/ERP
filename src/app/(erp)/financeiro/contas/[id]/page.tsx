@@ -8,6 +8,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { Button } from "@/components/ui/button";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import LancamentoForm from "@/components/financeiro/LancamentoForm";
+import DatePicker from "@/components/shared/DatePicker";
 import { formatBRL, formatDate } from "@/lib/utils";
 import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2, Plus } from "lucide-react";
 
@@ -174,13 +175,11 @@ export default function ExtratoContaPage() {
             <div className="flex flex-wrap items-end gap-3">
               <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                 De
-                <input type="date" value={de} onChange={(e) => setDe(e.target.value)}
-                  className="h-9 rounded-lg border border-border px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <DatePicker value={de} onChange={(v) => setDe(v)} triggerClassName="h-9" />
               </label>
               <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                 Até
-                <input type="date" value={ate} onChange={(e) => setAte(e.target.value)}
-                  className="h-9 rounded-lg border border-border px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <DatePicker value={ate} onChange={(v) => setAte(v)} triggerClassName="h-9" />
               </label>
               {(de || ate) && (
                 <Button variant="outline" size="sm" onClick={() => { setDe(""); setAte(""); }} className="h-9">Limpar</Button>

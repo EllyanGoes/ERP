@@ -9,6 +9,7 @@ import MinutaCreateForm from "@/components/comercial/MinutaCreateForm";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { formatDate, cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
@@ -741,20 +742,18 @@ export default function MinutasPage() {
         {/* Date range */}
         <div className="flex items-center gap-1.5">
           <CalendarDays className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <Input
-            type="date"
+          <DatePicker
             value={filters.dateFrom}
-            onChange={(e) => updateFilters({ dateFrom: e.target.value })}
-            className="h-8 w-36 border-border text-sm"
-            title="De"
+            onChange={(v) => updateFilters({ dateFrom: v })}
+            className="w-36"
+            triggerClassName="h-8"
           />
           <span className="text-muted-foreground/60 text-sm">—</span>
-          <Input
-            type="date"
+          <DatePicker
             value={filters.dateTo}
-            onChange={(e) => updateFilters({ dateTo: e.target.value })}
-            className="h-8 w-36 border-border text-sm"
-            title="Até"
+            onChange={(v) => updateFilters({ dateTo: v })}
+            className="w-36"
+            triggerClassName="h-8"
           />
         </div>
 

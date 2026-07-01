@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { Label } from "@/components/ui/label";
 import { formatBRL } from "@/lib/utils";
 import { useSession } from "@/lib/session-context";
@@ -99,11 +99,11 @@ export default function ConsolidadoGrupoPage() {
           <div className="flex items-end gap-2">
             <div className="space-y-1">
               <Label className="text-xs">De</Label>
-              <Input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="h-8 w-36" />
+              <DatePicker value={de} onChange={(v) => setDe(v)} className="w-36" triggerClassName="h-8" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Até</Label>
-              <Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="h-8 w-36" />
+              <DatePicker value={ate} onChange={(v) => setAte(v)} className="w-36" triggerClassName="h-8" />
             </div>
             <Button size="sm" onClick={() => carregar(de, ate)} disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Atualizar"}

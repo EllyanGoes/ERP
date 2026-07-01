@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DatePicker from "@/components/shared/DatePicker";
 import { Plus, Search, Tag, CheckCircle2, XCircle, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -218,7 +219,7 @@ export default function TabelasPrecoPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Data Inicial *</label>
-                <Input type="date" value={form.dataInicial} onChange={(e) => setForm((f) => ({ ...f, dataInicial: e.target.value }))} />
+                <DatePicker value={form.dataInicial} onChange={(v) => setForm((f) => ({ ...f, dataInicial: v }))} />
               </div>
               <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 cursor-pointer">

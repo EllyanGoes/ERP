@@ -6,6 +6,7 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -358,10 +359,10 @@ export default function ColaboradorDetailPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Data de Admissão">
-                  <Input type="date" value={eDataAdmissao} onChange={(e) => setEDataAdmissao(e.target.value)} />
+                  <DatePicker value={eDataAdmissao} onChange={(v) => setEDataAdmissao(v)} className="w-full" />
                 </Field>
                 <Field label="Data de Demissão">
-                  <Input type="date" value={eDataDemissao} onChange={(e) => setEDataDemissao(e.target.value)} />
+                  <DatePicker value={eDataDemissao} onChange={(v) => setEDataDemissao(v)} className="w-full" />
                 </Field>
               </div>
               <Field label="Filial">

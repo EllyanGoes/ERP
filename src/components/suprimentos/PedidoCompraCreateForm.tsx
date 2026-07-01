@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEscToClose } from "@/lib/use-esc-to-close";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import StatusBadge from "@/components/shared/StatusBadge";
 
 type Fornecedor = {
@@ -719,7 +720,7 @@ export default function PedidoCompraCreateForm() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Entrega Prevista</Label>
-              <Input type="date" value={dataEntregaPrevista} onChange={(e) => setDataEntregaPrevista(e.target.value)} />
+              <DatePicker value={dataEntregaPrevista} onChange={(v) => setDataEntregaPrevista(v)} />
             </div>
           </div>
         </div>

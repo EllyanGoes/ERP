@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import DatePicker from "@/components/shared/DatePicker";
 import { CalendarClock, RefreshCw, Flame, AlertTriangle } from "lucide-react";
 
 interface ItemCron {
@@ -117,7 +118,7 @@ export default function SequenciamentoPage() {
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1">Início (opcional)</label>
-              <input type="date" className={inputCls} value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+              <DatePicker value={dataInicio} onChange={(v) => setDataInicio(v)} className="w-full" />
             </div>
           </div>
         </div>

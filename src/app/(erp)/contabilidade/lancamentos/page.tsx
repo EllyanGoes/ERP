@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { Loader2, RefreshCw, BookText, Plus, Trash2 } from "lucide-react";
@@ -343,7 +344,7 @@ function NovoLancamentoDialog({ onDone }: { onDone: () => void }) {
         <DialogHeader><DialogTitle>Novo lançamento manual</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-3">
-            <div><Label>Data</Label><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
+            <div><Label>Data</Label><DatePicker value={data} onChange={(v) => setData(v)} className="w-full" /></div>
             <div className="col-span-2"><Label>Descrição</Label><Input value={historico} onChange={(e) => setHistorico(e.target.value)} placeholder="Descrição do lançamento" /></div>
           </div>
           <div className="space-y-2">

@@ -12,6 +12,7 @@ import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { cn } from "@/lib/utils";
 import { createPortal } from "react-dom";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 
 type LocalEstoqueOpt = { id: string; nome: string };
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
@@ -378,11 +379,10 @@ export default function InventarioCreateForm() {
                 <Label className="text-xs text-muted-foreground">
                   Data do Inventário <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={data}
-                  onChange={(e) => setData(e.target.value)}
-                  className={cn("h-9", submitted && !data && "border-red-300")}
+                  onChange={(v) => setData(v)}
+                  invalid={submitted && !data}
                 />
               </div>
 

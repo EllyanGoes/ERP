@@ -15,6 +15,7 @@ import { useSession } from "@/lib/session-context";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Save, Loader2, Trash2, LinkIcon } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { useEscToClose } from "@/lib/use-esc-to-close";
 
@@ -962,11 +963,9 @@ export default function DocumentoEntradaDetailPage() {
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">DT Emissão <span className="text-red-500">*</span></Label>
               {nfEditable ? (
-                <Input
-                  type="date"
+                <DatePicker
                   value={dtEmissao}
-                  onChange={(e) => setDtEmissao(e.target.value)}
-                  className={!dtEmissao ? "border-red-300" : ""}
+                  onChange={(v) => setDtEmissao(v)}
                 />
               ) : (
                 <Input

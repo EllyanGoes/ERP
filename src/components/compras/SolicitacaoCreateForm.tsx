@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2, ChevronDown, Loader2, Save, X, AlertTriangle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { cn } from "@/lib/utils";
@@ -602,7 +603,7 @@ export default function SolicitacaoCreateForm() {
               </div>
               <div className="col-span-3 space-y-1.5">
                 <Label>Entrega desejada</Label>
-                <Input type="date" value={entregaDesejada} onChange={(e) => setEntregaDesejada(e.target.value)} />
+                <DatePicker value={entregaDesejada} onChange={(v) => setEntregaDesejada(v)} />
               </div>
             </div>
 

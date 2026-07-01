@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -300,7 +301,7 @@ function TransferenciaDialog({ contas, onDone }: { contas: Conta[]; onDone: () =
             </div>
             <div className="space-y-1.5">
               <Label>Data</Label>
-              <Input type="date" value={dataLancamento} onChange={(e) => setDataLancamento(e.target.value)} />
+              <DatePicker value={dataLancamento} onChange={(v) => setDataLancamento(v)} className="w-full" />
             </div>
           </div>
           <div className="space-y-1.5">

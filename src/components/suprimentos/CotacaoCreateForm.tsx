@@ -11,6 +11,7 @@ import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useCreateDrawer, useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
+import DatePicker from "@/components/shared/DatePicker";
 import {
   CheckSquare, Square, ChevronRight, Loader2, Search,
   X, Building2, AlertTriangle, SlidersHorizontal, EyeOff,
@@ -697,11 +698,10 @@ export default function CotacaoCreateForm() {
               <Label>
                 Recebimento cotação <span className="text-red-500">*</span>
               </Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={dataLimite}
-                onChange={(e) => setDataLimite(e.target.value)}
-                className={cn("focus-visible:ring-blue-400", !dataLimite && step2Error && "border-red-400")}
+                onChange={(v) => setDataLimite(v)}
+                invalid={!dataLimite && !!step2Error}
               />
               <p className="text-xs text-muted-foreground">Prazo limite para os fornecedores enviarem suas propostas.</p>
             </div>
