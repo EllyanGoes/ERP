@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
-import { Loader2, Save, BadgeCheck, Calculator, Info, FileText } from "lucide-react";
+import { useState, useEffect, Fragment } from "react";
+import { Loader2, Save, BadgeCheck, Calculator, Info, FileText, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { useRelatorioCache } from "@/lib/use-relatorio-cache";
+import { useCachedData, invalidarCache } from "@/lib/use-cached-data";
 import { cn } from "@/lib/utils";
 
 type Produto = {
@@ -81,8 +83,6 @@ export default function CusteioPage() {
   const [depreciacaoMes, setDepreciacaoMes] = useState("");
   const [diaristasMes, setDiaristasMes] = useState("");
   const [diasTrabalhados, setDiasTrabalhados] = useState("26");
-  const [result, setResult] = useState<Result | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -92,27 +92,27 @@ export default function CusteioPage() {
   // Continuidade: a aba antiga "mensal" (CPV do razão) virou "efetivo".
   useEffect(() => { if ((aba as string) === "mensal") setAba("efetivo"); }, [aba, setAba]);
 
-  const load = useCallback(async (comp: string) => {
-    setLoading(true);
-    try {
-      const r = await fetch(`/api/contabilidade/custeio?competencia=${comp}`);
-      const j = await r.json();
-      const d: Result = j.data;
-      setResult(d);
-      if (d.params) {
-        setBiomassaDia(String(d.params.biomassaDia));
-        setEnergiaMes(String(d.params.energiaMes));
-        setCombustivelDia(String(d.params.combustivelDia));
-        setFolhaMes(String(d.params.folhaMes));
-        setFolhaMoiMes(String(d.params.folhaMoiMes));
-        setDepreciacaoMes(String(d.params.depreciacaoMes ?? 0));
-        setDiaristasMes(String(d.params.diaristasMes ?? 0));
-        setDiasTrabalhados(String(d.params.diasTrabalhados));
-      }
-    } finally { setLoading(false); }
-  }, []);
+  // Cache em memória por competência (TTL 5 min): reabrir a aba não recalcula à
+  // toa — mostra o último cálculo na hora e só revalida se estiver "velho".
+  const { data: result, loading, refetch } = useCachedData<Result>(
+    `cpv:custeio:${competencia}`,
+    () => fetch(`/api/contabilidade/custeio?competencia=${competencia}`).then((r) => r.json()).then((j) => j.data as Result),
+    { ttlMs: 5 * 60_000 },
+  );
 
-  useEffect(() => { load(competencia); }, [competencia, load]);
+  // Popula os campos do formulário a partir dos parâmetros salvos da competência.
+  useEffect(() => {
+    const p = result?.params;
+    if (!p) return;
+    setBiomassaDia(String(p.biomassaDia));
+    setEnergiaMes(String(p.energiaMes));
+    setCombustivelDia(String(p.combustivelDia));
+    setFolhaMes(String(p.folhaMes));
+    setFolhaMoiMes(String(p.folhaMoiMes));
+    setDepreciacaoMes(String(p.depreciacaoMes ?? 0));
+    setDiaristasMes(String(p.diaristasMes ?? 0));
+    setDiasTrabalhados(String(p.diasTrabalhados));
+  }, [result]);
 
   async function salvar() {
     setSaving(true); setMsg(null);
@@ -123,7 +123,7 @@ export default function CusteioPage() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao salvar");
-      setResult(j.data);
+      invalidarCache(`cpv:custeio:${competencia}`); refetch();
       setMsg({ ok: true, text: "Parâmetros salvos e taxa recalculada." });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Erro" });
@@ -140,7 +140,7 @@ export default function CusteioPage() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao aplicar");
-      setResult(j.data);
+      invalidarCache(`cpv:custeio:${competencia}`); refetch();
       setMsg({ ok: true, text: `Custo aplicado a ${j.aplicados} produto(s) no estoque de acabado.` });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Erro" });
@@ -159,6 +159,7 @@ export default function CusteioPage() {
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao apropriar");
       const ap = j.data?.apropriado ?? 0;
+      invalidarCache(`cpv:custeio:${competencia}`); refetch();
       setMsg({ ok: true, text: ap > 0 ? `CIF apropriado ao PEP: ${brl(ap)}.` : "Nada a apropriar (CIF a Apropriar já está zerado)." });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Erro" });
@@ -177,6 +178,7 @@ export default function CusteioPage() {
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao absorver");
       const mod = j.data?.modAbsorvido ?? 0, cif = j.data?.cifAbsorvido ?? 0;
+      invalidarCache(`cpv:custeio:${competencia}`); refetch();
       setMsg({ ok: true, text: (mod + cif) > 0 ? `Absorvido ao estoque: MOD ${brl(mod)} + CIF ${brl(cif)}.` : "Nada a absorver (pools zerados ou sem produção no mês)." });
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : "Erro" });
@@ -428,16 +430,9 @@ const MESES_CURTO = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Se
 // Mão-de-obra, Gastos Gerais de Fabricação e Depreciação — somam ao CPV do razão.
 function CpvMensal({ endpoint, titulo, nota }: { endpoint: string; titulo: string; nota: string }) {
   const [ano, setAno] = useState<number>(() => new Date().getUTCFullYear());
-  const [data, setData] = useState<CpvDetalhadoData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(`${endpoint}?ano=${ano}`)
-      .then((r) => r.json())
-      .then((d: CpvDetalhadoData) => setData(d))
-      .finally(() => setLoading(false));
-  }, [ano, endpoint]);
+  // Cache stale-while-revalidate por URL (exercício): reabrir a aba mostra o
+  // último resultado NA HORA e revalida em segundo plano — sem ficar recarregando.
+  const { data, loading, refreshing, recarregar } = useRelatorioCache<CpvDetalhadoData>(`${endpoint}?ano=${ano}`);
 
   const cel = (v: number) =>
     Math.abs(v) < 0.005 ? <span className="text-muted-foreground/50">—</span> : <span className={v < 0 ? "text-rose-500" : ""}>{brl(v)}</span>;
@@ -450,12 +445,23 @@ function CpvMensal({ endpoint, titulo, nota }: { endpoint: string; titulo: strin
           <CardTitle className="text-base">{titulo}</CardTitle>
           <p className="text-[12px] text-muted-foreground">{nota}</p>
         </div>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
-          Exercício
-          <select value={ano} onChange={(e) => setAno(parseInt(e.target.value, 10))} className="h-9 rounded-lg border border-border px-2 text-sm bg-card">
-            {Array.from({ length: 6 }).map((_, i) => { const y = new Date().getUTCFullYear() - i; return <option key={y} value={y}>{y}</option>; })}
-          </select>
-        </label>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={recarregar}
+            disabled={loading || refreshing}
+            title="Atualizar dados"
+            className="inline-flex items-center gap-1.5 h-9 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-60"
+          >
+            <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} /> Atualizar
+          </button>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            Exercício
+            <select value={ano} onChange={(e) => setAno(parseInt(e.target.value, 10))} className="h-9 rounded-lg border border-border px-2 text-sm bg-card">
+              {Array.from({ length: 6 }).map((_, i) => { const y = new Date().getUTCFullYear() - i; return <option key={y} value={y}>{y}</option>; })}
+            </select>
+          </label>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (
