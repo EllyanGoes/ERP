@@ -44,6 +44,9 @@ function applyWidths(table: HTMLTableElement, widths: number[]): boolean {
   table.style.tableLayout = "fixed";
   table.style.width = widths.reduce((a, b) => a + b, 0) + "px";
   ths.forEach((th, i) => { th.style.width = widths[i] + "px"; });
+  // Marca a tabela como "congelada" p/ a regra global que clipa o conteúdo que
+  // ultrapassa a largura da coluna (senão o texto transborda p/ a coluna vizinha).
+  table.dataset.colw = "1";
   return true;
 }
 
@@ -63,6 +66,22 @@ export default function ColumnResizer() {
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Regra global (injetada 1x): em tabelas congeladas, a célula clipa o conteúdo
+  // que passa da largura da coluna — assim ele "se esconde" em vez de transbordar.
+  useEffect(() => {
+    const id = "erp-colw-style";
+    if (document.getElementById(id)) return;
+    const el = document.createElement("style");
+    el.id = id;
+    el.textContent =
+      'table[data-colw="1"] > thead > tr > th,' +
+      'table[data-colw="1"] > tbody > tr > td,' +
+      'table[data-colw="1"] > tbody > tr > th,' +
+      'table[data-colw="1"] > tr > td,' +
+      'table[data-colw="1"] > tr > th{overflow:hidden;text-overflow:ellipsis;}';
+    document.head.appendChild(el);
+  }, []);
 
   // Ao trocar de tela, some com alças de uma tabela que não existe mais.
   useEffect(() => { activeRef.current = null; setHandles([]); }, [pathname]);
