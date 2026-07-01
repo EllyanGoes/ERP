@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Plus, Search, MapPin, Map as MapIcon, Building2, Store, Tag, Loader2, ChevronRight, Crosshair, BarChart3, Handshake } from "lucide-react";
+import { Plus, Search, MapPin, Map as MapIcon, Building2, Store, HardHat, User, Tag, Loader2, ChevronRight, Crosshair, BarChart3, Handshake } from "lucide-react";
 
 type Concorrente = {
   id: string;
@@ -18,6 +18,8 @@ type Concorrente = {
   nomeFantasia: string | null;
   ehFornecedor: boolean;
   ehRevendedor: boolean;
+  ehConstrutora: boolean;
+  ehConsumidorFinal: boolean;
   clienteId: string | null;
   bairro: string | null;
   cidade: string | null;
@@ -195,6 +197,8 @@ export default function InteligenciaComercialPage() {
                       <div className="flex flex-wrap gap-1.5">
                         {c.ehFornecedor && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"><Building2 className="h-3 w-3" /> Fornecedor</span>}
                         {c.ehRevendedor && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400"><Store className="h-3 w-3" /> Revendedor</span>}
+                        {c.ehConstrutora && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400"><HardHat className="h-3 w-3" /> Construtora</span>}
+                        {c.ehConsumidorFinal && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400"><User className="h-3 w-3" /> Consumidor final</span>}
                         {c.clienteId && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400" title="Está na nossa base de clientes — atendido pelo grupo"><Handshake className="h-3 w-3" /> Parceiro</span>}
                       </div>
                     </td>

@@ -11,6 +11,8 @@ type Concorrente = {
   cpfCnpj: string | null;
   ehFornecedor: boolean;
   ehRevendedor: boolean;
+  ehConstrutora?: boolean;
+  ehConsumidorFinal?: boolean;
   ativo: boolean;
   email: string | null;
   telefone: string | null;
@@ -54,9 +56,12 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 export default function ConcorrenteDadosView({ c }: { c: Concorrente }) {
-  const categoria = [c.ehFornecedor ? "Fornecedor" : null, c.ehRevendedor ? "Revendedor" : null]
-    .filter(Boolean)
-    .join(" e ") || "—";
+  const categoria = [
+    c.ehFornecedor ? "Fornecedor" : null,
+    c.ehRevendedor ? "Revendedor" : null,
+    c.ehConstrutora ? "Construtora" : null,
+    c.ehConsumidorFinal ? "Consumidor final" : null,
+  ].filter(Boolean).join(" · ") || "—";
 
   const endereco = [
     c.logradouro,

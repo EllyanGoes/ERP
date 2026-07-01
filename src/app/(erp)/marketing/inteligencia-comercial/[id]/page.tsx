@@ -11,7 +11,7 @@ import ConcorrenteContatos, { type ContatoConcorrente } from "@/components/marke
 import ConcorrenteCanais, { type CanalConcorrente } from "@/components/marketing/ConcorrenteCanais";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Loader2, Trash2, Pencil, Building2, Store, Handshake } from "lucide-react";
+import { Loader2, Trash2, Pencil, Building2, Store, HardHat, User, Handshake } from "lucide-react";
 
 type Concorrente = {
   id: string;
@@ -19,6 +19,8 @@ type Concorrente = {
   nomeFantasia: string | null;
   ehFornecedor: boolean;
   ehRevendedor: boolean;
+  ehConstrutora: boolean;
+  ehConsumidorFinal: boolean;
   ativo: boolean;
   latitude: number | null;
   longitude: number | null;
@@ -96,6 +98,12 @@ export default function ConcorrenteDetailPage() {
             )}
             {data.ehRevendedor && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400"><Store className="h-3 w-3" /> Revendedor</span>
+            )}
+            {data.ehConstrutora && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400"><HardHat className="h-3 w-3" /> Construtora</span>
+            )}
+            {data.ehConsumidorFinal && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400"><User className="h-3 w-3" /> Consumidor final</span>
             )}
             <span className={cn("text-[11px] font-medium px-2 py-1 rounded-full", data.ativo ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
               {data.ativo ? "Ativo" : "Inativo"}

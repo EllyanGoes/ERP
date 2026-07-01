@@ -9,6 +9,8 @@ export const concorrenteSchema = z.object({
 
   ehFornecedor: z.boolean(),
   ehRevendedor: z.boolean(),
+  ehConstrutora: z.boolean().optional(),
+  ehConsumidorFinal: z.boolean().optional(),
 
   email: z.string().email("E-mail inválido").optional().nullable().or(z.literal("")),
   telefone: z.string().optional().nullable(),
@@ -42,11 +44,11 @@ export const concorrenteSchema = z.object({
     observacao: z.string().optional().nullable(),
   })).optional(),
 }).superRefine((data, ctx) => {
-  if (!data.ehFornecedor && !data.ehRevendedor) {
+  if (!data.ehFornecedor && !data.ehRevendedor && !data.ehConstrutora && !data.ehConsumidorFinal) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["ehFornecedor"],
-      message: "Marque ao menos uma categoria: fornecedor e/ou revendedor.",
+      message: "Marque ao menos uma categoria.",
     });
   }
 });

@@ -10,8 +10,15 @@ export async function POST(req: NextRequest) {
   const auth = await requireModulo("marketing");
   if (!auth.ok) return auth.response;
 
-  const { clienteId } = await req.json().catch(() => ({ clienteId: null }));
+  const body = await req.json().catch(() => ({}));
+  const clienteId = body.clienteId;
   if (!clienteId) return NextResponse.json({ error: "clienteId é obrigatório" }, { status: 400 });
+  // Categorias escolhidas ao mapear; se nenhuma vier, default = revendedor.
+  const ehFornecedor = !!body.ehFornecedor;
+  const ehRevendedor = !!body.ehRevendedor;
+  const ehConstrutora = !!body.ehConstrutora;
+  const ehConsumidorFinal = !!body.ehConsumidorFinal;
+  const nenhuma = !ehFornecedor && !ehRevendedor && !ehConstrutora && !ehConsumidorFinal;
 
   const cli = await prisma.cliente.findUnique({ where: { id: clienteId } });
   if (!cli) return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
@@ -43,9 +50,10 @@ export async function POST(req: NextRequest) {
       razaoSocial: cli.razaoSocial,
       nomeFantasia: cli.nomeFantasia,
       cpfCnpj: cli.cpfCnpj,
-      // Cliente atendido pelo grupo que também concorre — por padrão, revendedor.
-      ehFornecedor: false,
-      ehRevendedor: true,
+      ehFornecedor,
+      ehRevendedor: nenhuma ? true : ehRevendedor,
+      ehConstrutora,
+      ehConsumidorFinal,
       email: cli.email,
       telefone: cli.telefone,
       celular: cli.celular,

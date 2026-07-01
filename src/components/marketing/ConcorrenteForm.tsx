@@ -13,7 +13,7 @@ import ComboboxWithCreate, { type ComboboxOption } from "@/components/shared/Com
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Building2, Store, UserPlus } from "lucide-react";
+import { Building2, Store, UserPlus, HardHat, User } from "lucide-react";
 
 type ConcorrenteData = { id: string } & ConcorrenteFormData;
 
@@ -59,6 +59,8 @@ export default function ConcorrenteForm({
   const tipoPessoa = form.watch("tipoPessoa");
   const ehFornecedor = form.watch("ehFornecedor");
   const ehRevendedor = form.watch("ehRevendedor");
+  const ehConstrutora = form.watch("ehConstrutora");
+  const ehConsumidorFinal = form.watch("ehConsumidorFinal");
   const [serverError, setServerError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -208,7 +210,7 @@ export default function ConcorrenteForm({
           <SectionTitle>Categoria do Concorrente</SectionTitle>
           <div className="p-5">
             <p className="text-xs text-muted-foreground mb-3">Marque como o concorrente atua. Pode ser ambos.</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
                 type="button"
                 onClick={() => form.setValue("ehFornecedor", !ehFornecedor, { shouldDirty: true })}
@@ -239,6 +241,38 @@ export default function ConcorrenteForm({
                 <div>
                   <p className="text-sm font-medium text-foreground">Revendedor</p>
                   <p className="text-xs text-muted-foreground">Revende produtos ao consumidor</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => form.setValue("ehConstrutora", !ehConstrutora, { shouldDirty: true })}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                  ehConstrutora ? "border-orange-400 bg-orange-50 dark:bg-orange-500/15" : "border-border hover:bg-muted",
+                )}
+              >
+                <span className={cn("flex h-9 w-9 items-center justify-center rounded-md", ehConstrutora ? "bg-orange-100 text-orange-600 dark:bg-orange-500/25 dark:text-orange-400" : "bg-muted text-muted-foreground")}>
+                  <HardHat className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Construtora</p>
+                  <p className="text-xs text-muted-foreground">Executa obras / construção</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => form.setValue("ehConsumidorFinal", !ehConsumidorFinal, { shouldDirty: true })}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3 text-left transition-colors",
+                  ehConsumidorFinal ? "border-violet-400 bg-violet-50 dark:bg-violet-500/15" : "border-border hover:bg-muted",
+                )}
+              >
+                <span className={cn("flex h-9 w-9 items-center justify-center rounded-md", ehConsumidorFinal ? "bg-violet-100 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400" : "bg-muted text-muted-foreground")}>
+                  <User className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Consumidor final</p>
+                  <p className="text-xs text-muted-foreground">Compra para uso próprio</p>
                 </div>
               </button>
             </div>

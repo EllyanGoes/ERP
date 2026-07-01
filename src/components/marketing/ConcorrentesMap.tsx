@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from "react-leaflet";
-import { Building2, Store, Handshake, Loader2 } from "lucide-react";
+import { Building2, Store, HardHat, User, Handshake, Loader2 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 
 type Ponto = {
@@ -14,6 +14,8 @@ type Ponto = {
   nomeFantasia: string | null;
   ehFornecedor: boolean;
   ehRevendedor: boolean;
+  ehConstrutora: boolean;
+  ehConsumidorFinal: boolean;
   clienteId: string | null;
   cidade: string | null;
   estado: string | null;
@@ -27,14 +29,16 @@ function ehParceiro(p: Ponto): boolean {
   return !!p.clienteId;
 }
 
-type Categoria = "fornecedor" | "revendedor" | "parceiro" | "ambos";
+type Categoria = "construtora" | "consumidor" | "fornecedor" | "revendedor" | "parceiro" | "ambos";
 
-// Cor por categoria: fornecedor=âmbar, ambos=violeta, revendedor parceiro=verde,
-// revendedor (não parceiro)=azul.
+// Cor por categoria: construtora=laranja, consumidor=fúcsia, fornecedor=âmbar,
+// ambos=violeta, revendedor parceiro=verde, revendedor (não parceiro)=azul.
 const COR: Record<Categoria, string> = {
-  fornecedor: "#f59e0b", revendedor: "#3b82f6", parceiro: "#10b981", ambos: "#8b5cf6",
+  construtora: "#f97316", consumidor: "#d946ef", fornecedor: "#f59e0b", revendedor: "#3b82f6", parceiro: "#10b981", ambos: "#8b5cf6",
 };
 function categoriaDe(p: Ponto): Categoria {
+  if (p.ehConstrutora) return "construtora";
+  if (p.ehConsumidorFinal) return "consumidor";
   if (p.ehFornecedor && p.ehRevendedor) return "ambos";
   if (p.ehFornecedor) return "fornecedor";
   if (p.ehRevendedor && ehParceiro(p)) return "parceiro";
@@ -77,7 +81,7 @@ export default function ConcorrentesMap() {
 
   // Contagem de concorrentes por categoria (mesma classificação das cores).
   const contagem = useMemo(() => {
-    const c: Record<Categoria, number> = { fornecedor: 0, revendedor: 0, parceiro: 0, ambos: 0 };
+    const c: Record<Categoria, number> = { construtora: 0, consumidor: 0, fornecedor: 0, revendedor: 0, parceiro: 0, ambos: 0 };
     for (const p of pontos) c[categoriaDe(p)]++;
     return c;
   }, [pontos]);
@@ -115,6 +119,8 @@ export default function ConcorrentesMap() {
                   {p.ehFornecedor && <span className="inline-flex items-center gap-0.5 text-amber-700">Fornecedor</span>}
                   {p.ehFornecedor && p.ehRevendedor && <span>·</span>}
                   {p.ehRevendedor && <span className="inline-flex items-center gap-0.5 text-blue-700">Revendedor</span>}
+                  {p.ehConstrutora && <span className="inline-flex items-center gap-0.5 text-orange-700">· Construtora</span>}
+                  {p.ehConsumidorFinal && <span className="inline-flex items-center gap-0.5 text-fuchsia-700">· Consumidor final</span>}
                   {ehParceiro(p) && <span className="inline-flex items-center gap-0.5 text-emerald-700">· Parceiro</span>}
                 </div>
                 <p className="text-xs text-gray-600">{p._count.precos} preço(s) mapeado(s)</p>
@@ -136,6 +142,8 @@ export default function ConcorrentesMap() {
         <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.revendedor }} /> <Store className="h-3 w-3 shrink-0" /> Revendedor <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.revendedor}</span></div>
         <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.parceiro }} /> <Handshake className="h-3 w-3 shrink-0" /> Revendedor parceiro <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.parceiro}</span></div>
         <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.ambos }} /> Ambos <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.ambos}</span></div>
+        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.construtora }} /> <HardHat className="h-3 w-3 shrink-0" /> Construtora <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.construtora}</span></div>
+        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.consumidor }} /> <User className="h-3 w-3 shrink-0" /> Consumidor final <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.consumidor}</span></div>
       </div>
 
       {pontos.length === 0 && (
