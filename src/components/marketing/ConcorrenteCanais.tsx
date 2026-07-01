@@ -75,6 +75,19 @@ function instaHandle(v?: string | null): string | null {
   return /^[A-Za-z0-9._]+$/.test(h) ? h : null;
 }
 
+// Normaliza a URL de um site (aceita "exemplo.com", "www...", "https://...").
+function siteUrl(v?: string | null): string | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  const withProto = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  try {
+    const url = new URL(withProto);
+    return url.hostname.includes(".") ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 type Rascunho = Partial<CanalConcorrente> & { tipo: string };
 
 export default function ConcorrenteCanais({
@@ -159,7 +172,10 @@ export default function ConcorrenteCanais({
   const ehLocal = editando ? ehCanalLocal(editando.tipo) : false;
   const ehInsta = editando?.tipo === "INSTAGRAM";
   const igHandle = ehInsta ? instaHandle(editando?.valor) : null;
-  const temCol3 = ehLocal || ehInsta; // 3ª coluna: mapa (loja física) ou prévia (Instagram)
+  const ehSite = editando?.tipo === "SITE";
+  const sUrl = ehSite ? siteUrl(editando?.valor) : null;
+  const sHost = sUrl ? new URL(sUrl).hostname.replace(/^www\./, "") : null;
+  const temCol3 = ehLocal || ehInsta || ehSite; // 3ª coluna: mapa (loja física) ou prévia (Instagram/Site)
 
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden max-w-4xl">
@@ -314,6 +330,35 @@ export default function ConcorrenteCanais({
                     </>
                   ) : (
                     <p className="text-sm text-muted-foreground py-8 text-center px-3">Informe o link ou @ do Instagram (na coluna do meio) para ver a prévia do perfil.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Coluna 3 — Prévia do Site */}
+              {ehSite && (
+                <div className="p-4 overflow-y-auto bg-muted/20 flex flex-col">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase mb-2">Prévia do site</p>
+                  {sUrl ? (
+                    <>
+                      <div className="flex-1 min-h-[360px] rounded-lg border border-border overflow-hidden bg-white">
+                        <iframe
+                          key={sUrl}
+                          src={sUrl}
+                          title={`Site ${sHost}`}
+                          className="w-full h-full"
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                        />
+                      </div>
+                      <a href={sUrl} target="_blank" rel="noreferrer"
+                        className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted">
+                        <Globe className="h-4 w-4 text-indigo-600" /> Abrir {sHost} <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                      <p className="text-[10px] text-muted-foreground mt-1 text-center">A prévia depende do site permitir o embed; o botão sempre abre o site.</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-8 text-center px-3">Informe o link do site (na coluna do meio) para ver a prévia.</p>
                   )}
                 </div>
               )}
