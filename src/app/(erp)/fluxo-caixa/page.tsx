@@ -62,6 +62,7 @@ type DayDetail = {
 
 export default function FluxoCaixaPage() {
   const [view, setView] = useState<"projecao" | "relatorio">("projecao");
+  const [modo, setModo] = useState<"projetado" | "realizado">("projetado");
   const [data, setData] = useState<DayEntry[]>([]);
   const [periodo, setPeriodo] = useState<"7" | "30" | "90">("30");
 
@@ -72,10 +73,12 @@ export default function FluxoCaixaPage() {
   const [dayDetail, setDayDetail] = useState<DayDetail | null>(null);
 
   useEffect(() => {
-    fetch("/api/fluxo-caixa")
+    fetch(`/api/fluxo-caixa?modo=${modo}`)
       .then((r) => r.json())
       .then((json) => setData(json.data ?? []));
-  }, []);
+  }, [modo]);
+
+  const realizado = modo === "realizado";
 
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - parseInt(periodo));
@@ -100,7 +103,7 @@ export default function FluxoCaixaPage() {
     setDayDetail(null);
     setLoadingDetail(true);
     try {
-      const res = await fetch(`/api/fluxo-caixa/dia?data=${fullDate}`);
+      const res = await fetch(`/api/fluxo-caixa/dia?data=${fullDate}&modo=${modo}`);
       const json = await res.json();
       setDayDetail(json);
     } catch {
@@ -108,7 +111,7 @@ export default function FluxoCaixaPage() {
     } finally {
       setLoadingDetail(false);
     }
-  }, []);
+  }, [modo]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload?.length) {
@@ -152,28 +155,37 @@ export default function FluxoCaixaPage() {
           <RelatorioAnual />
         ) : (
         <>
-        {/* Period selector */}
-        <div className="flex items-center gap-2">
-          {(["7", "30", "90"] as const).map((p) => (
-            <Button
-              key={p}
-              variant={periodo === p ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPeriodo(p)}
-            >
-              {p === "7" ? "7 dias" : p === "30" ? "30 dias" : "90 dias"}
-            </Button>
-          ))}
+        {/* Modo: projetado (por vencimento) vs realizado (pago/recebido de fato) */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+            <Button variant={!realizado ? "default" : "ghost"} size="sm" onClick={() => setModo("projetado")}>Por vencimento</Button>
+            <Button variant={realizado ? "default" : "ghost"} size="sm" onClick={() => setModo("realizado")}>Realizado</Button>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {realizado ? "O que de fato foi pago e recebido (por data do pagamento)." : "Projeção pelo vencimento das contas a pagar/receber."}
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            {(["7", "30", "90"] as const).map((p) => (
+              <Button
+                key={p}
+                variant={periodo === p ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPeriodo(p)}
+              >
+                {p === "7" ? "7 dias" : p === "30" ? "30 dias" : "90 dias"}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-success/10 rounded-xl p-4">
-            <p className="text-sm text-success font-medium">Receitas Projetadas</p>
+            <p className="text-sm text-success font-medium">{realizado ? "Recebido" : "Receitas Projetadas"}</p>
             <p className="text-2xl font-bold text-success mt-1">{formatBRL(totalReceitas)}</p>
           </div>
           <div className="bg-danger/10 rounded-xl p-4">
-            <p className="text-sm text-danger font-medium">Despesas Projetadas</p>
+            <p className="text-sm text-danger font-medium">{realizado ? "Pago" : "Despesas Projetadas"}</p>
             <p className="text-2xl font-bold text-danger mt-1">{formatBRL(totalDespesas)}</p>
           </div>
           <div className={`rounded-xl p-4 ${saldoFinal >= 0 ? "bg-info/10" : "bg-warning/10"}`}>
@@ -190,7 +202,7 @@ export default function FluxoCaixaPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Receitas vs Despesas por Vencimento
+              {realizado ? "Recebido vs Pago (realizado)" : "Receitas vs Despesas por Vencimento"}
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 — clique em uma barra para detalhar o dia
               </span>
@@ -294,7 +306,7 @@ export default function FluxoCaixaPage() {
               {selectedDay ? formatDate(selectedDay) : ""}
             </SheetTitle>
             <SheetDescription>
-              Contas a receber e a pagar com vencimento neste dia
+              {realizado ? "Recebimentos e pagamentos realizados neste dia" : "Contas a receber e a pagar com vencimento neste dia"}
             </SheetDescription>
           </SheetHeader>
 
@@ -313,14 +325,14 @@ export default function FluxoCaixaPage() {
                   <div className="bg-success/10 rounded-xl p-3">
                     <div className="flex items-center gap-1.5 mb-1">
                       <TrendingUp className="w-3.5 h-3.5 text-success" />
-                      <span className="text-xs text-success font-medium">A Receber</span>
+                      <span className="text-xs text-success font-medium">{realizado ? "Recebido" : "A Receber"}</span>
                     </div>
                     <p className="text-lg font-bold text-success">{formatBRL(dayDetail.totalCR)}</p>
                   </div>
                   <div className="bg-danger/10 rounded-xl p-3">
                     <div className="flex items-center gap-1.5 mb-1">
                       <TrendingDown className="w-3.5 h-3.5 text-danger" />
-                      <span className="text-xs text-danger font-medium">A Pagar</span>
+                      <span className="text-xs text-danger font-medium">{realizado ? "Pago" : "A Pagar"}</span>
                     </div>
                     <p className="text-lg font-bold text-danger">{formatBRL(dayDetail.totalCP)}</p>
                   </div>
@@ -329,7 +341,7 @@ export default function FluxoCaixaPage() {
                 {/* Contas a Receber */}
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                    Contas a Receber ({dayDetail.cr.length})
+                    {realizado ? "Recebimentos" : "Contas a Receber"} ({dayDetail.cr.length})
                   </p>
                   {dayDetail.cr.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-3 text-center">Nenhuma conta a receber</p>
@@ -376,7 +388,7 @@ export default function FluxoCaixaPage() {
                 {/* Contas a Pagar */}
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                    Contas a Pagar ({dayDetail.cp.length})
+                    {realizado ? "Pagamentos" : "Contas a Pagar"} ({dayDetail.cp.length})
                   </p>
                   {dayDetail.cp.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-3 text-center">Nenhuma conta a pagar</p>
