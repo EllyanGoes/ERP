@@ -2,6 +2,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import type { EstadoWIP } from "@prisma/client";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
+import { detalheItens } from "@/lib/detalhe-itens";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
