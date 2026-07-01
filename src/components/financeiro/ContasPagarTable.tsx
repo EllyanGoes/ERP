@@ -18,7 +18,7 @@ import PagamentosInput, {
 } from "@/components/pedidos-venda/PagamentosInput";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Linha do rateio gerencial por natureza no modal de baixa.
@@ -31,6 +31,7 @@ type ContaRow = {
   fornecedor: { id: string; razaoSocial: string } | null;
   contasContrapartida?: { id: string; nome: string }[];
   naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown }[];
+  pedidoCompra?: { id: string; numero: string } | null;
 };
 
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
@@ -353,6 +354,18 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         const contas = detalhe.contasContrapartida ?? [];
         const campos: TituloCampo[] = [
           { label: "Fornecedor", valor: detalhe.fornecedor?.razaoSocial ?? "—", full: true },
+          ...(detalhe.pedidoCompra ? [{
+            label: "Pedido de origem", full: true,
+            valor: (
+              <button
+                type="button"
+                onClick={() => router.push(`/suprimentos/pedidos-compra/${detalhe.pedidoCompra!.id}`)}
+                className="inline-flex items-center gap-1 text-info hover:underline font-medium"
+              >
+                <ExternalLink className="w-3.5 h-3.5" /> {detalhe.pedidoCompra.numero}
+              </button>
+            ),
+          }] : []),
           { label: "Descrição", valor: detalhe.descricao || "—", full: true },
           { label: "Categoria", valor: detalhe.categoria ?? "—" },
           { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{formatDate(detalhe.dataVencimento)}</span> },

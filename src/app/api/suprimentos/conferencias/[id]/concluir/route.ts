@@ -366,11 +366,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       if (pc && !pc.intragrupo) {
         const jaTem = await tx.contaPagar.count({ where: { pedidoCompraId: pc.id } });
         if (jaTem === 0) {
+          // O contas a pagar deve bater com o que a ENTRADA credita ao Fornecedor
+          // (= Σ recebido × preço unitário, já LÍQUIDO de desconto). `pc.valorTotal`
+          // é só o SUBTOTAL (sem desconto/frete) e não pode ser usado — senão o
+          // título vai maior que a dívida real e o razão do fornecedor não zera.
           let valorTotal = conferencia.vrTotal != null ? num(conferencia.vrTotal) : 0;
-          if (valorTotal <= 0) valorTotal = num(pc.valorTotal);
           if (valorTotal <= 0) {
             valorTotal = conferencia.itens.reduce((s, it) => s + num(it.quantidadeRecebida) * num(it.vlrUnitario), 0);
           }
+          if (valorTotal <= 0) valorTotal = num(pc.valorTotal);
           if (valorTotal > 0) {
             const condId = conferencia.condicaoPagamentoId ?? pc.condicaoPagamentoId ?? null;
             let condicao = condId ? await tx.condicaoPagamento.findUnique({ where: { id: condId } }) : null;

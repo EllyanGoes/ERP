@@ -14,6 +14,7 @@ export default async function ContasPagarPage() {
       contaBancaria: { select: { id: true, nome: true } },
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
       naturezas: { select: { naturezaFinanceiraId: true, detalhamento: true, valor: true } },
+      pedidoCompra: { select: { id: true, numero: true } },
     },
     orderBy: { dataVencimento: "asc" },
   });
