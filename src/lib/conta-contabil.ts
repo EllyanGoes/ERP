@@ -37,6 +37,25 @@ export async function proximoCodigo(paiId: string, paiCodigo: string): Promise<s
   return montarProximo(paiCodigo, filhos.map((f) => f.codigo));
 }
 
+/**
+ * Chave de ordenação de exibição (plano/balanço): por segmento do código, usa a
+ * `ordem` do ancestral naquele nível quando definida (senão o próprio segmento).
+ * Assim uma conta pode aparecer fora da ordem numérica do código (ex.: "Contas de
+ * Terceiros" 1.1.6 logo após Disponibilidades 1.1.1). Sem `ordem` = ordena pelo código.
+ */
+export function chaveOrdenacaoConta(codigo: string, ordemPorCodigo: Map<string, number | null | undefined>): string {
+  const segs = codigo.split(".");
+  const partes: string[] = [];
+  let prefixo = "";
+  for (const seg of segs) {
+    prefixo = prefixo ? `${prefixo}.${seg}` : seg;
+    const ord = ordemPorCodigo.get(prefixo);
+    const chave = ord != null ? ord : (parseInt(seg, 10) || 0);
+    partes.push(String(chave).padStart(6, "0"));
+  }
+  return partes.join(".");
+}
+
 function montarProximo(paiCodigo: string, codigos: string[]): string {
   let max = 0;
   for (const c of codigos) {
@@ -210,15 +229,73 @@ export async function garantirContaContabilLocalEstoque(localId: string) {
   return garantirAnaliticaSobPai(l.empresaId, "1.1.3", l.nome, { localEstoqueId: localId });
 }
 
-/** Garante (idempotente) a conta de disponibilidade de uma conta bancária, sob 1.1.1. */
+/** Garante (idempotente) a sintética "Contas de Terceiros" (1.1.6, ATIVO) — dinheiro
+ *  de 3º sob guarda, exibida logo após Disponibilidades (ordem de liquidez = 2). */
+export async function garantirContaTerceiros(empresaId: string) {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.6" }, select: { id: true } });
+  if (ex) return ex;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "1.1.6", nome: "Contas de Terceiros",
+      grupo: "ATIVO", natureza: "DEVEDORA", tipo: "SINTETICA",
+      nivel: pai.nivel + 1, aceitaLancamento: false, paiId: pai.id, ativo: true, ordem: 2,
+    },
+    select: { id: true },
+  });
+}
+
+/**
+ * Garante (idempotente) a conta de uma conta bancária: da EMPRESA vai sob
+ * Disponibilidades (1.1.1); de TERCEIROS (ehTerceiro) vai sob "Contas de Terceiros"
+ * (1.1.6), com o nome do terceiro.
+ */
 export async function garantirContaContabilBanco(contaBancariaId: string) {
   const cb = await prismaSemEscopo.contaBancaria.findUnique({
     where: { id: contaBancariaId },
-    select: { empresaId: true, nome: true, banco: { select: { nome: true } } },
+    select: { empresaId: true, nome: true, ehTerceiro: true, terceiroNome: true, banco: { select: { nome: true } } },
   });
   if (!cb) return null;
+  if (cb.ehTerceiro) {
+    await garantirContaTerceiros(cb.empresaId);
+    const nome = `${cb.terceiroNome?.trim() || "Terceiro"} — ${cb.nome}`;
+    return garantirAnaliticaSobPai(cb.empresaId, "1.1.6", nome, { contaBancariaId });
+  }
   const nome = cb.banco?.nome ? `${cb.banco.nome} — ${cb.nome}` : cb.nome;
   return garantirAnaliticaSobPai(cb.empresaId, "1.1.1", nome, { contaBancariaId });
+}
+
+/**
+ * Sincroniza a conta contábil de uma conta bancária ao seu tipo (empresa/terceiro):
+ * cria se faltar; se já existe mas está no pai errado, MOVE (1.1.1 ↔ 1.1.6)
+ * renumerando o código; e atualiza o nome. Usar na edição da conta.
+ */
+export async function sincronizarContaContabilBanco(contaBancariaId: string) {
+  const cb = await prismaSemEscopo.contaBancaria.findUnique({
+    where: { id: contaBancariaId },
+    select: { empresaId: true, nome: true, ehTerceiro: true, terceiroNome: true, banco: { select: { nome: true } } },
+  });
+  if (!cb) return null;
+  const paiCodigo = cb.ehTerceiro ? "1.1.6" : "1.1.1";
+  const nome = cb.ehTerceiro
+    ? `${cb.terceiroNome?.trim() || "Terceiro"} — ${cb.nome}`
+    : (cb.banco?.nome ? `${cb.banco.nome} — ${cb.nome}` : cb.nome);
+  if (cb.ehTerceiro) await garantirContaTerceiros(cb.empresaId);
+
+  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId: cb.empresaId, contaBancariaId }, select: { id: true, paiId: true } });
+  if (!existente) return garantirContaContabilBanco(contaBancariaId);
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId: cb.empresaId, codigo: paiCodigo }, select: { id: true, codigo: true, nivel: true } });
+  if (!pai || existente.paiId === pai.id) {
+    await prismaSemEscopo.contaContabil.update({ where: { id: existente.id }, data: { nome } });
+    return existente;
+  }
+  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId: cb.empresaId, paiId: pai.id }, select: { codigo: true } });
+  await prismaSemEscopo.contaContabil.update({
+    where: { id: existente.id },
+    data: { paiId: pai.id, codigo: montarProximo(pai.codigo, filhos.map((f) => f.codigo)), nivel: pai.nivel + 1, nome },
+  });
+  return existente;
 }
 
 /**

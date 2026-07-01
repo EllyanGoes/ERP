@@ -25,6 +25,8 @@ type Conta = {
   saldoAtual: number;
   ativo: boolean;
   compensacao?: boolean;
+  ehTerceiro?: boolean;
+  terceiroNome?: string | null;
   banco: { id: string; nome: string } | null;
   contasContabeis?: { id: string; codigo: string; nome: string }[];
 };
@@ -195,7 +197,16 @@ export default function ContasBancariasPage() {
                         >
                           <ShieldCheck className="w-3 h-3" /> Compensação
                         </span>
-                      ) : TIPO_LABEL[c.tipo]}
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          {TIPO_LABEL[c.tipo]}
+                          {c.ehTerceiro && (
+                            <span title={c.terceiroNome ?? "Conta de terceiros"} className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+                              Terceiros{c.terceiroNome ? ` · ${c.terceiroNome}` : ""}
+                            </span>
+                          )}
+                        </span>
+                      )}
                     </td>
                     <td className={`px-6 py-3 text-right font-semibold tabular-nums ${c.saldoAtual >= 0 ? "text-foreground" : "text-danger"}`}>
                       {formatBRL(c.saldoAtual)}
@@ -242,6 +253,8 @@ function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
   const [tipo, setTipo] = useState<Conta["tipo"]>("CORRENTE");
   const [saldoInicial, setSaldoInicial] = useState("0");
   const [ativo, setAtivo] = useState(true);
+  const [ehTerceiro, setEhTerceiro] = useState(false);
+  const [terceiroNome, setTerceiroNome] = useState("");
 
   // Ao abrir, preenche a partir da conta (edição) ou zera (nova).
   useEffect(() => {
@@ -253,6 +266,8 @@ function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
     setTipo(conta?.tipo ?? "CORRENTE");
     setSaldoInicial(String(conta?.saldoInicial ?? "0"));
     setAtivo(conta?.ativo ?? true);
+    setEhTerceiro(conta?.ehTerceiro ?? false);
+    setTerceiroNome(conta?.terceiroNome ?? "");
   }, [open, conta]);
 
   async function salvar() {
@@ -261,7 +276,7 @@ function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
     const res = await fetch(editing ? `/api/financeiro/contas/${conta!.id}` : "/api/financeiro/contas", {
       method: editing ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, bancoId: bancoId || null, agencia, numero, tipo, saldoInicial, ativo }),
+      body: JSON.stringify({ nome, bancoId: bancoId || null, agencia, numero, tipo, saldoInicial, ativo, ehTerceiro, terceiroNome: ehTerceiro ? terceiroNome : null }),
     });
     setSaving(false);
     if (res.ok) { onOpenChange(false); onDone(); }
@@ -276,6 +291,27 @@ function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
             <Label>Nome *</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Itaú Movimento" />
           </div>
+          <div className="space-y-1.5">
+            <Label>Titularidade</Label>
+            <div className="flex gap-2">
+              {([[false, "Da empresa"], [true, "De terceiros"]] as const).map(([v, lbl]) => (
+                <button key={lbl} type="button" onClick={() => setEhTerceiro(v)}
+                  className={cn("flex-1 h-10 rounded-lg border text-sm font-medium transition-colors",
+                    ehTerceiro === v ? "border-blue-400 bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" : "border-border text-muted-foreground hover:text-foreground")}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {ehTerceiro ? "Vai para “Contas de Terceiros” (1.1.6) no plano de contas." : "Vai para Disponibilidades (1.1.1)."}
+            </p>
+          </div>
+          {ehTerceiro && (
+            <div className="space-y-1.5">
+              <Label>Nome do terceiro *</Label>
+              <Input value={terceiroNome} onChange={(e) => setTerceiroNome(e.target.value)} placeholder="De quem é a conta" />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Banco</Label>
@@ -314,7 +350,7 @@ function ContaDialog({ bancos, conta, open, onOpenChange, onDone }: {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={salvar} disabled={saving || !nome.trim()}>{saving ? "Salvando..." : "Salvar"}</Button>
+          <Button onClick={salvar} disabled={saving || !nome.trim() || (ehTerceiro && !terceiroNome.trim())}>{saving ? "Salvando..." : "Salvar"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

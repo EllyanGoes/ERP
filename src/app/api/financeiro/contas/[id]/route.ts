@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { contaBancariaSchema } from "@/lib/validations/financeiro";
+import { sincronizarContaContabilBanco } from "@/lib/conta-contabil";
 
 // GET → conta + extrato (lançamentos com saldo corrente acumulado)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -65,8 +66,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       tipo: parsed.data.tipo,
       saldoInicial: parsed.data.saldoInicial,
       ativo: parsed.data.ativo,
+      ehTerceiro: parsed.data.ehTerceiro,
+      terceiroNome: parsed.data.ehTerceiro ? (parsed.data.terceiroNome?.trim() || null) : null,
     },
   });
+  // Sincroniza a conta contábil (cria/move entre Disponibilidades ↔ Terceiros + nome).
+  await sincronizarContaContabilBanco(conta.id).catch(() => {});
   return NextResponse.json({ data: conta });
 }
 

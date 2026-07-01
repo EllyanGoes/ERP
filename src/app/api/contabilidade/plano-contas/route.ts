@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { proximoCodigo } from "@/lib/conta-contabil";
+import { proximoCodigo, chaveOrdenacaoConta } from "@/lib/conta-contabil";
 import { z } from "zod";
 
 const schema = z.object({
@@ -20,6 +20,9 @@ export async function GET() {
   const todas = await prisma.contaContabil.findMany({
     orderBy: { codigo: "asc" },
   });
+  // Ordem de exibição (liquidez): reordena irmãos pela `ordem` quando definida.
+  const ordemPorCodigo = new Map(todas.map((c) => [c.codigo, c.ordem]));
+  todas.sort((a, b) => chaveOrdenacaoConta(a.codigo, ordemPorCodigo).localeCompare(chaveOrdenacaoConta(b.codigo, ordemPorCodigo)));
 
   type Node = (typeof todas)[number] & { filhos: Node[] };
   const byId = new Map<string, Node>();

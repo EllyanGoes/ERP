@@ -43,9 +43,12 @@ export async function POST(req: NextRequest) {
       tipo: parsed.data.tipo,
       saldoInicial: parsed.data.saldoInicial,
       ativo: parsed.data.ativo,
+      ehTerceiro: parsed.data.ehTerceiro,
+      terceiroNome: parsed.data.ehTerceiro ? (parsed.data.terceiroNome?.trim() || null) : null,
     },
   });
-  // Vincula a conta à disponibilidade do plano de contas (analítica sob 1.1.1).
+  // Vincula a conta ao plano de contas: empresa → Disponibilidades (1.1.1);
+  // terceiros → "Contas de Terceiros" (1.1.6).
   await garantirContaContabilBanco(conta.id).catch(() => {});
 
   return NextResponse.json({ data: conta }, { status: 201 });

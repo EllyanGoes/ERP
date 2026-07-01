@@ -719,6 +719,10 @@ model ContaBancaria {
   // as baixas dos dois lados passam por ela e a zeram. Filtrada de fluxo de caixa,
   // saldos e dropdowns de baixa.
   compensacao      Boolean                @default(false)
+  // Conta de TERCEIROS: dinheiro de 3º sob guarda da empresa. A conta contábil vai
+  // p/ "Contas de Terceiros" (1.1.6), não Disponibilidades (1.1.1). terceiroNome = de quem é.
+  ehTerceiro       Boolean                @default(false)
+  terceiroNome     String?
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   banco            Banco?                 @relation(fields: [bancoId], references: [id])
@@ -844,6 +848,9 @@ model ContaContabil {
   contaBancariaId          String? // analítica de disponibilidade vinculada a uma conta bancária
   dreSecaoId               String? // seção da DRE (estrutura gerencial editável) — só contas de resultado
   ordemDre                 Int                  @default(0) // ordem da conta dentro da seção da DRE
+  // Ordem de exibição no plano/balanço (liquidez), quando o código não reflete a
+  // ordem desejada. null = ordena pelo próprio código (comportamento padrão).
+  ordem                    Int?
   ativo                    Boolean              @default(true)
   manual                   Boolean              @default(false) // true = criada manualmente pelo usuário; false = automática (seed/motor)
   createdAt                DateTime             @default(now())

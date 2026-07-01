@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { decimalToNumber } from "@/lib/utils";
+import { chaveOrdenacaoConta } from "@/lib/conta-contabil";
 
 function parseDate(value: string | null, fallback: Date): Date {
   if (!value) return fallback;
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const [contas, partidas] = await Promise.all([
     prisma.contaContabil.findMany({
-      select: { id: true, codigo: true, nome: true, grupo: true, natureza: true, tipo: true, paiId: true, nivel: true },
+      select: { id: true, codigo: true, nome: true, grupo: true, natureza: true, tipo: true, paiId: true, nivel: true, ordem: true },
     }),
     prisma.partidaContabil.groupBy({
       by: ["contaId", "tipo"],
@@ -53,12 +54,14 @@ export async function GET(req: NextRequest) {
     return c.natureza === "DEVEDORA" ? d - cr : cr - d;
   }
 
+  // Ordem de exibição (liquidez): mapa código→ordem p/ a chave de ordenação.
+  const ordemPorCodigo = new Map(contas.map((c) => [c.codigo, c.ordem]));
   type Linha = { id: string; codigo: string; nome: string; tipo: string; natureza: string; nivel: number; saldo: number };
   const linhasDoGrupo = (grupo: string): Linha[] =>
     contas
       .filter((c) => c.grupo === grupo)
       .map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome, tipo: c.tipo, natureza: c.natureza, nivel: c.nivel, saldo: saldoConta(c) }))
-      .sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
+      .sort((a, b) => chaveOrdenacaoConta(a.codigo, ordemPorCodigo).localeCompare(chaveOrdenacaoConta(b.codigo, ordemPorCodigo)));
 
   const ativo = linhasDoGrupo("ATIVO");
   const passivo = linhasDoGrupo("PASSIVO");

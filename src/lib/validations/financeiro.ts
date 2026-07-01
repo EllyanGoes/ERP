@@ -77,6 +77,9 @@ export const contaBancariaSchema = z.object({
   tipo: z.enum(["CORRENTE", "POUPANCA", "CAIXA"]).default("CORRENTE"),
   saldoInicial: z.coerce.number().default(0),
   ativo: z.boolean().default(true),
+  // Conta de terceiros (dinheiro de 3º sob guarda) → contábil em "Contas de Terceiros".
+  ehTerceiro: z.boolean().default(false),
+  terceiroNome: z.string().optional().nullable(),
 })
 
 export const lancamentoFinanceiroSchema = z.object({
