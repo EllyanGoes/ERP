@@ -21,6 +21,7 @@ type Concorrente = {
   ehRevendedor: boolean;
   ehConstrutora: boolean;
   ehConsumidorFinal: boolean;
+  ehParceiro: boolean;
   ativo: boolean;
   latitude: number | null;
   longitude: number | null;
@@ -53,6 +54,17 @@ export default function ConcorrenteDetailPage() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  // Mesma mecânica do balão do mapa: torna/desfaz a parceria comercial.
+  async function alternarParceria() {
+    if (!data) return;
+    const res = await fetch(`/api/marketing/concorrentes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ehParceiro: !data.ehParceiro }),
+    });
+    if (res.ok) setData({ ...data, ehParceiro: (await res.json()).data.ehParceiro });
+  }
+
   async function excluir() {
     if (!confirm("Inativar este concorrente? Ele sai das listas e do mapa, mas o histórico de preços é mantido.")) return;
     await fetch(`/api/marketing/concorrentes/${id}`, { method: "DELETE" });
@@ -84,13 +96,31 @@ export default function ConcorrenteDetailPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
+            {/* Parceria comercial: mesma mecânica do balão do mapa (tornar/desfazer). */}
+            {data.ehParceiro ? (
+              <button
+                onClick={alternarParceria}
+                title="Parceria comercial ativa — clique para desfazer"
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/25"
+              >
+                <Handshake className="h-3 w-3" /> Parceiro ×
+              </button>
+            ) : (
+              <button
+                onClick={alternarParceria}
+                title="Marcar parceria comercial (estrela no mapa)"
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full border border-emerald-300 text-emerald-700 dark:border-emerald-500/40 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/15"
+              >
+                <Handshake className="h-3 w-3" /> Tornar parceiro
+              </button>
+            )}
             {data.clienteId && (
               <a
                 href={`/clientes/${data.clienteId}`}
-                title="Está na nossa base de clientes — atendido por uma empresa do grupo"
-                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 hover:underline"
+                title="Está na nossa base de clientes — abrir o cadastro do cliente"
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-muted text-muted-foreground hover:underline"
               >
-                <Handshake className="h-3 w-3" /> Parceiro
+                Cliente ↗
               </a>
             )}
             {data.ehFornecedor && (

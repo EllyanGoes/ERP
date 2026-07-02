@@ -22,6 +22,7 @@ type Concorrente = {
   ehConstrutora: boolean;
   ehConsumidorFinal: boolean;
   clienteId: string | null;
+  ehParceiro: boolean;
   bairro: string | null;
   cidade: string | null;
   estado: string | null;
@@ -215,7 +216,7 @@ export default function InteligenciaComercialPage() {
                         {c.ehRevendedor && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400"><Store className="h-3 w-3" /> Revendedor</span>}
                         {c.ehConstrutora && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400"><HardHat className="h-3 w-3" /> Construtora</span>}
                         {c.ehConsumidorFinal && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400"><User className="h-3 w-3" /> Consumidor final</span>}
-                        {c.clienteId && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400" title="Está na nossa base de clientes — atendido pelo grupo"><Handshake className="h-3 w-3" /> Parceiro</span>}
+                        {c.ehParceiro && <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400" title="Parceria comercial ativa"><Handshake className="h-3 w-3" /> Parceiro</span>}
                       </div>
                     </td>
                     <td className="px-3 py-3 text-muted-foreground">{c.bairro || "—"}</td>

@@ -13,14 +13,14 @@ export async function GET(req: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
 
-  // Recorte de cada filtro de categoria. Parceiro = está na nossa base de
-  // clientes (atendido por empresa do grupo); sem-canais = nenhum canal cadastrado.
+  // Recorte de cada filtro de categoria. Parceiro = parceria comercial ativa
+  // (flag própria, editável no mapa/cadastro); sem-canais = nenhum canal cadastrado.
   const porCategoria: Record<string, object> = {
     fornecedor: { ehFornecedor: true },
     revendedor: { ehRevendedor: true },
     construtora: { ehConstrutora: true },
     "consumidor-final": { ehConsumidorFinal: true },
-    parceiro: { clienteId: { not: null } },
+    parceiro: { ehParceiro: true },
     "sem-canais": { canais: { none: {} } },
   };
 

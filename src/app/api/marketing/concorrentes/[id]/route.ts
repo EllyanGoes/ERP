@@ -21,6 +21,28 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   return NextResponse.json({ data: concorrente });
 }
 
+// Atualização pontual (sem o payload completo do PUT). Hoje só a parceria
+// comercial — usada pelo balão do mapa e pelo cabeçalho do cadastro.
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
+  const body = await req.json().catch(() => ({}));
+  if (typeof body.ehParceiro !== "boolean") {
+    return NextResponse.json({ error: "ehParceiro (boolean) é obrigatório" }, { status: 400 });
+  }
+
+  const existe = await prisma.concorrente.findUnique({ where: { id: params.id }, select: { id: true } });
+  if (!existe) return NextResponse.json({ error: "Concorrente não encontrado" }, { status: 404 });
+
+  const concorrente = await prisma.concorrente.update({
+    where: { id: params.id },
+    data: { ehParceiro: body.ehParceiro },
+    select: { id: true, ehParceiro: true },
+  });
+  return NextResponse.json({ data: concorrente });
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("marketing");
   if (!auth.ok) return auth.response;

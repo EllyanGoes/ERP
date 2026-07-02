@@ -20,6 +20,7 @@ type Ponto = {
   ehConstrutora: boolean;
   ehConsumidorFinal: boolean;
   clienteId: string | null;
+  ehParceiro: boolean;
   cidade: string | null;
   estado: string | null;
   latitude: number;
@@ -27,9 +28,9 @@ type Ponto = {
   _count: { precos: number };
 };
 
-// Parceiro = está na nossa base de clientes (clienteId vinculado).
+// Parceria comercial ativa (flag própria — dá pra tornar/desfazer pelo balão).
 function ehParceiro(p: Ponto): boolean {
-  return !!p.clienteId;
+  return p.ehParceiro;
 }
 
 type Categoria = "construtora" | "consumidor" | "fornecedor" | "revendedor" | "ambos";
@@ -103,6 +104,26 @@ function FitBounds({ pontos }: { pontos: Ponto[] }) {
 export default function ConcorrentesMap() {
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [salvandoParceria, setSalvandoParceria] = useState<string | null>(null);
+
+  // Torna/desfaz a parceria pelo balão. Atualiza todos os pontos do concorrente
+  // (matriz + filiais) — a estrela do pino muda na hora.
+  async function alternarParceria(p: Ponto) {
+    setSalvandoParceria(p.id);
+    try {
+      const res = await fetch(`/api/marketing/concorrentes/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ehParceiro: !p.ehParceiro }),
+      });
+      if (res.ok) {
+        const novo = (await res.json()).data.ehParceiro as boolean;
+        setPontos((prev) => prev.map((pt) => (pt.id === p.id ? { ...pt, ehParceiro: novo } : pt)));
+      }
+    } finally {
+      setSalvandoParceria(null);
+    }
+  }
   // Visibilidade por categoria (persistida por usuário). Merge sobre o default
   // p/ categorias novas não sumirem quando o valor salvo for antigo.
   const [visiveisSalvo, setVisiveis] = usePersistedState<Partial<Record<ChaveVisibilidade, boolean>>>("geomkt-visibilidade", TODAS_VISIVEIS);
@@ -172,6 +193,20 @@ export default function ConcorrentesMap() {
                   {ehParceiro(p) && <span className="inline-flex items-center gap-0.5 text-emerald-700">· Parceiro</span>}
                 </div>
                 <p className="text-xs text-gray-600">{p._count.precos} preço(s) mapeado(s)</p>
+                <button
+                  onClick={() => alternarParceria(p)}
+                  disabled={salvandoParceria === p.id}
+                  className={cn(
+                    "inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full border transition-colors disabled:opacity-50",
+                    p.ehParceiro
+                      ? "border-gray-300 text-gray-600 hover:bg-gray-100"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                  )}
+                >
+                  <Star className="h-3 w-3" fill={p.ehParceiro ? "none" : "currentColor"} strokeWidth={p.ehParceiro ? 2 : 0} />
+                  {salvandoParceria === p.id ? "Salvando..." : p.ehParceiro ? "Desfazer parceria" : "Tornar parceiro"}
+                </button>
+                <br />
                 <Link href={`/marketing/inteligencia-comercial/${p.id}`} className="text-xs text-blue-600 font-medium">Abrir cadastro →</Link>
               </div>
             </Popup>

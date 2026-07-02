@@ -3330,6 +3330,10 @@ model Concorrente {
   // referência (sem FK forte) para registrar a origem e exibir o selo cruzado.
   clienteId String?
 
+  // Parceria comercial (estrela no mapa). Independente do vínculo clienteId —
+  // dá pra desfazer a parceria sem perder o vínculo com a base de clientes.
+  ehParceiro Boolean @default(false)
+
   // Categoria — fornecedor, revendedor, construtora e/ou consumidor final (pode ser vários).
   ehFornecedor      Boolean @default(false)
   ehRevendedor      Boolean @default(false)

@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
   const concorrente = await prisma.concorrente.create({
     data: {
       clienteId: cli.id,
+      ehParceiro: true, // veio da base de clientes — já fazemos atividade comercial
       tipoPessoa: cli.tipoPessoa,
       razaoSocial: cli.razaoSocial,
       nomeFantasia: cli.nomeFantasia,

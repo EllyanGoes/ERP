@@ -10,7 +10,7 @@ export async function GET(_: NextRequest) {
     where: { ativo: true },
     select: {
       id: true, razaoSocial: true, nomeFantasia: true,
-      ehFornecedor: true, ehRevendedor: true, ehConstrutora: true, ehConsumidorFinal: true, clienteId: true,
+      ehFornecedor: true, ehRevendedor: true, ehConstrutora: true, ehConsumidorFinal: true, clienteId: true, ehParceiro: true,
       cidade: true, estado: true, latitude: true, longitude: true,
       _count: { select: { precos: true } },
       canais: {
@@ -25,7 +25,7 @@ export async function GET(_: NextRequest) {
     const base = {
       id: c.id, razaoSocial: c.razaoSocial, nomeFantasia: c.nomeFantasia,
       ehFornecedor: c.ehFornecedor, ehRevendedor: c.ehRevendedor,
-      ehConstrutora: c.ehConstrutora, ehConsumidorFinal: c.ehConsumidorFinal, clienteId: c.clienteId,
+      ehConstrutora: c.ehConstrutora, ehConsumidorFinal: c.ehConsumidorFinal, clienteId: c.clienteId, ehParceiro: c.ehParceiro,
       _count: c._count,
     };
     // Lojas físicas (canais de localização) são a fonte dos pontos. localNome só
