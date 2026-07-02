@@ -11,7 +11,7 @@ import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import ContaContabilCombobox from "@/components/contabilidade/ContaContabilCombobox";
 import RazaoLauncher from "@/components/contabilidade/RazaoLauncher";
-import GerarRetroativos from "@/components/contabilidade/GerarRetroativos";
+import BackfillConsistencia from "@/components/contabilidade/BackfillConsistencia";
 import { useCachedData } from "@/lib/use-cached-data";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -138,7 +138,7 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
     <div>
       <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade" }, { label: "Razão" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <GerarRetroativos onDone={refetch} />
+        <BackfillConsistencia onDone={refetch} />
         <div className="flex items-center gap-3 flex-wrap">
           {/* O seletor de cima só aparece na aba de uma conta — na tela de
               abertura o lançador abaixo já tem busca. */}

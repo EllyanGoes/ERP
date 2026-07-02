@@ -10,8 +10,9 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
-import { Loader2, RefreshCw, BookText, Plus, Trash2, HelpCircle, X, ShieldCheck, PenLine } from "lucide-react";
+import { Loader2, BookText, Plus, Trash2, HelpCircle, X, ShieldCheck, PenLine } from "lucide-react";
 import ModalPortal from "@/components/shared/ModalPortal";
+import BackfillConsistencia from "@/components/contabilidade/BackfillConsistencia";
 
 type Partida = { id: string; tipo: "DEBITO" | "CREDITO"; valor: unknown; conta: { codigo: string; nome: string } };
 type Lancamento = {
@@ -35,18 +36,7 @@ export default function LancamentosContabeisPage() {
   useTabTitle("Diário Contábil");
   const [lancs, setLancs] = useState<Lancamento[]>([]);
   const [loading, setLoading] = useState(true);
-  const [gerando, setGerando] = useState(false);
-  const [consistencia, setConsistencia] = useState(false);
-  const [progressoCons, setProgressoCons] = useState<{ pct: number; fase: string } | null>(null);
   const [infoAberto, setInfoAberto] = useState(false);
-  const [progresso, setProgresso] = useState<{ pct: number; fase: string } | null>(null);
-  const [aviso, setAviso] = useState("");
-  // Reprocesso em andamento em QUALQUER sessão. Como o % é persistido (Configuracao),
-  // ao trocar de aba e voltar a barra reaparece com o progresso real.
-  const [reprocessoAtivo, setReprocessoAtivo] = useState(false);
-  const [progressoRemoto, setProgressoRemoto] = useState<{ pct: number; fase: string } | null>(null);
-  // Última vez que o retroativo rodou (persistido) — exibido no topo da tela.
-  const [ultimaExecucao, setUltimaExecucao] = useState<{ at: string; processados?: number; total?: number; erros?: number; ok?: boolean; error?: string } | null>(null);
   // Filtros: classe (manual/auto), origem (tipo) e busca (histórico/código).
   const [classe, setClasse] = useState<"TODOS" | "AUTO" | "MANUAL">("TODOS");
   const [origemFiltro, setOrigemFiltro] = useState("TODOS");
@@ -60,35 +50,6 @@ export default function LancamentosContabeisPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  // Acompanha um reprocesso em andamento (qualquer sessão): busca status + % real.
-  const checarReprocesso = useCallback(async (): Promise<boolean> => {
-    try {
-      const j = await fetch("/api/contabilidade/backfill").then((r) => r.json());
-      setProgressoRemoto(j.progresso ?? null);
-      setUltimaExecucao(j.ultima ?? null);
-      return !!j.running;
-    } catch { return false; }
-  }, []);
-
-  // Ao abrir/voltar à tela: se já houver reprocesso rodando, reconstrói a barra.
-  useEffect(() => { checarReprocesso().then(setReprocessoAtivo); }, [checarReprocesso]);
-
-  // Seguindo um reprocesso (não iniciado por este cliente): polla até terminar
-  // e então recarrega os lançamentos.
-  useEffect(() => {
-    if (!reprocessoAtivo || gerando) return;
-    let parar = false;
-    const timer = setInterval(async () => {
-      const rodando = await checarReprocesso();
-      if (parar) return;
-      if (!rodando) {
-        setReprocessoAtivo(false); setProgressoRemoto(null);
-        setAviso("Reprocesso concluído."); await load();
-      }
-    }, 2000);
-    return () => { parar = true; clearInterval(timer); };
-  }, [reprocessoAtivo, gerando, checarReprocesso, load]);
 
   // Origens presentes (para o seletor de filtro por tipo).
   const origensPresentes = Array.from(new Set(lancs.map((l) => l.origemTipo))).sort();
@@ -112,109 +73,6 @@ export default function LancamentosContabeisPage() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focusId, loading, lancs]);
 
-  async function gerarRetroativos() {
-    setGerando(true); setAviso(""); setProgresso({ pct: 0, fase: "Iniciando" });
-    try {
-      const res = await fetch("/api/contabilidade/backfill?reset=vendas", { method: "POST" });
-      // 409 (já em execução) ou erro sem stream → corpo JSON.
-      if (!res.ok || !res.body) {
-        const j = await res.json().catch(() => ({}));
-        // 409: já há um reprocesso rodando — segue o job (barra com % persistido)
-        // em vez de só avisar.
-        if (res.status === 409) { setReprocessoAtivo(true); checarReprocesso(); }
-        else setAviso(j.error || "Erro ao gerar lançamentos");
-        return;
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let final: { processados?: number; erros?: string[]; error?: string } | null = null;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const partes = buffer.split("\n\n");
-        buffer = partes.pop() ?? "";
-        for (const parte of partes) {
-          const linha = parte.replace(/^data:\s*/, "").trim();
-          if (!linha) continue;
-          try {
-            const obj = JSON.parse(linha);
-            if (obj.done) final = obj;
-            else if (typeof obj.pct === "number") setProgresso({ pct: obj.pct, fase: obj.fase ?? "" });
-          } catch { /* linha parcial */ }
-        }
-      }
-      if (final?.error) {
-        setAviso(final.error);
-      } else if (final) {
-        setProgresso({ pct: 100, fase: "Concluído" });
-        setAviso(`${final.processados} título(s) processado(s).${final.erros?.length ? ` ${final.erros.length} com erro.` : ""}`);
-        await load();
-      }
-    } catch {
-      setAviso("Erro de conexão durante o reprocesso.");
-    } finally {
-      setGerando(false);
-      setProgresso(null);
-      checarReprocesso(); // atualiza "última execução" / status
-    }
-  }
-
-  // Backfill de consistência (jul/2026): motor idempotente que reponta a
-  // 3.3.9004, re-sincroniza títulos/pedidos/devoluções e o frete/desconto das
-  // entradas de compra. Roda no servidor (onde o DATABASE_URL vive); só ADMIN.
-  // Resposta em SSE — a barra de progresso segue o mesmo padrão do retroativo.
-  async function backfillConsistencia() {
-    if (!window.confirm("Rodar o backfill de consistência? É idempotente (re-rodar não duplica) e pode levar alguns minutos.")) return;
-    setConsistencia(true);
-    setProgressoCons({ pct: 0, fase: "Iniciando" });
-    setAviso("");
-    try {
-      const res = await fetch("/api/contabilidade/backfill-consistencia", { method: "POST" });
-      if (!res.ok || !res.body) {
-        const json = await res.json().catch(() => null);
-        setAviso(json?.error ?? "Falha no backfill de consistência.");
-        return;
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let final: { done?: boolean; log?: string[]; erros?: string[]; error?: string } | null = null;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const partes = buffer.split("\n\n");
-        buffer = partes.pop() ?? "";
-        for (const parte of partes) {
-          const linha = parte.replace(/^data:\s*/, "").trim();
-          if (!linha) continue;
-          try {
-            const obj = JSON.parse(linha);
-            if (obj.done) final = obj;
-            else if (typeof obj.pct === "number") setProgressoCons({ pct: obj.pct, fase: obj.fase ?? "" });
-          } catch { /* linha parcial */ }
-        }
-      }
-      if (final?.error) {
-        setAviso(final.error);
-      } else if (final) {
-        setProgressoCons({ pct: 100, fase: "Concluído" });
-        console.log("[backfill-consistencia]", final.log, final.erros);
-        setAviso(final.erros?.length
-          ? `Backfill concluído com ${final.erros.length} pendência(s) — detalhe no console: ${final.erros.slice(0, 2).join("; ")}…`
-          : "Backfill de consistência concluído sem erros.");
-        await load();
-      }
-    } catch {
-      setAviso("Erro de conexão no backfill de consistência.");
-    } finally {
-      setConsistencia(false);
-      setProgressoCons(null);
-    }
-  }
-
   return (
     <div>
       <PageHeader
@@ -230,16 +88,6 @@ export default function LancamentosContabeisPage() {
             >
               <HelpCircle className="w-4.5 h-4.5" />
             </button>
-            <Button size="sm" variant="outline" onClick={backfillConsistencia} disabled={consistencia || gerando || reprocessoAtivo}>
-              {consistencia ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
-              {consistencia ? `Consistência… ${progressoCons?.pct ?? 0}%` : "Backfill de consistência"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={gerarRetroativos} disabled={gerando || reprocessoAtivo}>
-              {gerando || reprocessoAtivo ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-              {gerando ? `Gerando… ${progresso?.pct ?? 0}%`
-                : reprocessoAtivo ? `Reprocessando… ${progressoRemoto?.pct ?? 0}%`
-                : "Gerar retroativos"}
-            </Button>
             <NovoLancamentoDialog onDone={load} />
           </div>
         }
@@ -268,19 +116,8 @@ export default function LancamentosContabeisPage() {
                   <ul className="text-[13px] text-muted-foreground space-y-1 list-disc pl-5">
                     <li>Revisão geral de saúde do razão: <span className="font-medium text-foreground">re-sincroniza títulos e pedidos</span> com as regras atuais (juros/multa em conta de resultado, arredondamento por partida), aplica <span className="font-medium text-foreground">frete/desconto nas entradas de compra</span> (crédito do fornecedor pelo líquido) e ajusta os contas a pagar em aberto correspondentes, contabiliza devoluções antigas e recomputa os status dos pedidos.</li>
                     <li><span className="font-medium text-foreground">É idempotente</span>: o que já está certo não muda; re-rodar não duplica nada. Se der timeout no meio, clique de novo — continua de onde parou.</li>
+                    <li>Também faz a <span className="font-medium text-foreground">faxina do razão</span>: remove partidas sem lançamento, lançamentos cujo documento de origem foi apagado e pernas de venda duplicadas de modelos antigos (substituiu o botão &quot;Gerar retroativos&quot;, que ficava nesta e nas telas de relatório).</li>
                     <li>Quando usar: após atualizações do sistema que mudam regras contábeis, ou quando algum razonete parecer defasado. Só administradores. Pendências que exigem revisão manual (ex.: título já baixado) aparecem no aviso e no console do navegador.</li>
-                  </ul>
-                </div>
-
-                <div className="rounded-xl border border-warning/30 bg-warning/10 p-4">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <RefreshCw className="w-5 h-5 text-warning" />
-                    <span className="font-semibold text-foreground">Gerar retroativos</span>
-                  </div>
-                  <ul className="text-[13px] text-muted-foreground space-y-1 list-disc pl-5">
-                    <li>Reprocesso <span className="font-medium text-foreground">pesado</span> das vendas: apaga os lançamentos de Venda / Receita na entrega / Recebimento e os <span className="font-medium text-foreground">regrava do zero</span> a partir dos pedidos, minutas e títulos existentes.</li>
-                    <li>Quando usar: migrações de modelo contábil ou quando o histórico de vendas precisa ser reconstruído por inteiro. Mostra barra de progresso e sobrevive a trocar de aba (o andamento fica salvo).</li>
-                    <li>Diferença para o backfill de consistência: este <span className="font-medium text-foreground">apaga e refaz</span> um escopo (vendas); o de consistência <span className="font-medium text-foreground">só corrige o que diverge</span>, em todos os módulos.</li>
                   </ul>
                 </div>
 
@@ -296,7 +133,7 @@ export default function LancamentosContabeisPage() {
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Lançamentos automáticos não devem ser editados aqui — corrija o documento de origem (pedido, título, conferência) que o razão re-sincroniza sozinho.
+                  Lançamentos automáticos não devem ser editados aqui — corrija o documento de origem (pedido, título, conferência) que o razão re-sincroniza sozinho. Reconstruções totais (migração de modelo contábil) são feitas por script, não por botão.
                 </p>
               </div>
             </div>
@@ -305,53 +142,7 @@ export default function LancamentosContabeisPage() {
       )}
 
       <div className="px-8 pb-8 space-y-4">
-        {ultimaExecucao?.at && (
-          <p className="text-xs text-muted-foreground">
-            Último retroativo gerado em <span className="font-medium text-foreground">{new Date(ultimaExecucao.at).toLocaleString("pt-BR")}</span>
-            {ultimaExecucao.ok === false
-              ? <span className="text-danger"> · falhou</span>
-              : <>{typeof ultimaExecucao.processados === "number" ? ` · ${ultimaExecucao.processados} lançamento(s) processado(s)` : ""}{ultimaExecucao.erros ? ` · ${ultimaExecucao.erros} com erro` : ""}</>}
-          </p>
-        )}
-        {gerando && progresso && (
-          <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm text-info space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span>Gerando lançamentos retroativos{progresso.fase ? ` — ${progresso.fase}` : ""}…</span>
-              <span className="font-semibold tabular-nums">{progresso.pct}%</span>
-            </div>
-            <div className="h-1.5 w-full rounded-full bg-info/20 overflow-hidden">
-              <div className="h-full rounded-full bg-info transition-all duration-300" style={{ width: `${progresso.pct}%` }} />
-            </div>
-          </div>
-        )}
-        {consistencia && progressoCons && (
-          <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm text-info space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span>Backfill de consistência{progressoCons.fase ? ` — ${progressoCons.fase}` : ""}…</span>
-              <span className="font-semibold tabular-nums">{progressoCons.pct}%</span>
-            </div>
-            <div className="h-1.5 w-full rounded-full bg-info/20 overflow-hidden">
-              <div className="h-full rounded-full bg-info transition-all duration-300" style={{ width: `${progressoCons.pct}%` }} />
-            </div>
-          </div>
-        )}
-        {/* Reprocesso em andamento iniciado em outra aba/sessão (ou retomado ao
-            voltar à tela): barra com o % real persistido. */}
-        {!gerando && reprocessoAtivo && (
-          <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm text-info space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                Reprocesso em andamento{progressoRemoto?.fase ? ` — ${progressoRemoto.fase}` : ""}… a página atualiza ao terminar.
-              </span>
-              <span className="font-semibold tabular-nums">{progressoRemoto?.pct ?? 0}%</span>
-            </div>
-            <div className="h-1.5 w-full rounded-full bg-info/20 overflow-hidden">
-              <div className="h-full rounded-full bg-info transition-all duration-300" style={{ width: `${progressoRemoto?.pct ?? 0}%` }} />
-            </div>
-          </div>
-        )}
-        {aviso && <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-2.5 text-sm text-info">{aviso}</div>}
+        <BackfillConsistencia onDone={load} />
 
         {/* Filtros */}
         {!loading && lancs.length > 0 && (
@@ -379,7 +170,7 @@ export default function LancamentosContabeisPage() {
           <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-xl">
             <BookText className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
             <p className="font-medium">Nenhum lançamento contábil</p>
-            <p className="text-xs mt-1">Use “Gerar retroativos” para lançar a partir dos títulos existentes.</p>
+            <p className="text-xs mt-1">Use “Backfill de consistência” para gerar os lançamentos a partir dos documentos existentes.</p>
           </div>
         ) : lancsFiltrados.length === 0 ? (
           <p className="text-sm text-muted-foreground py-10 text-center">Nenhum lançamento para o filtro.</p>

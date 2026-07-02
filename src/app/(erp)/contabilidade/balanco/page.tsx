@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
-import GerarRetroativos from "@/components/contabilidade/GerarRetroativos";
+import BackfillConsistencia from "@/components/contabilidade/BackfillConsistencia";
 import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate } from "@/lib/utils";
@@ -131,7 +131,7 @@ export default function BalancoPage() {
     <div>
       <PageHeader title="Balanço Patrimonial" breadcrumbs={[{ label: "Contabilidade" }, { label: "Balanço" }]} />
       <div className="px-8 pb-8 space-y-4">
-        <GerarRetroativos onDone={refetch} />
+        <BackfillConsistencia onDone={refetch} />
         <div className="flex items-center gap-3 flex-wrap no-print">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             Posição em

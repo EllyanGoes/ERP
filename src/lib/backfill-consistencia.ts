@@ -6,6 +6,7 @@ import {
   contabilizarVendaPedido,
   contabilizarDevolucao,
   recontabilizarConferencia,
+  apagarLancamentosContabeis,
 } from "@/lib/contabilidade";
 import { garantirContaJurosMultasPassivos, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
 import { recomputarStatusPedido, recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
@@ -32,7 +33,7 @@ export type ResultadoBackfill = { log: string[]; erros: string[] };
 // Faixas de % por passo (para a barra de progresso da UI). O peso reflete o
 // volume típico: títulos e recomputos dominam o tempo.
 const FAIXAS: Record<number, [number, number]> = {
-  1: [0, 2], 2: [2, 45], 3: [45, 55], 4: [55, 58], 5: [58, 82], 6: [82, 99],
+  0: [0, 1], 1: [1, 2], 2: [2, 45], 3: [45, 55], 4: [55, 58], 5: [58, 82], 6: [82, 99],
 };
 
 export async function executarBackfillConsistencia(
@@ -51,6 +52,39 @@ export async function executarBackfillConsistencia(
     const pct = n > 0 ? ini + ((fim - ini) * i) / n : fim;
     opts.onProgress?.(Math.min(99, Math.round(pct)), fase);
   };
+
+  // 0) Órfãos: partidas sem lançamento (lixo de deletes antigos, sem FK em
+  // cascata) e lançamentos cujo DOCUMENTO de origem foi apagado (origemId sem
+  // FK). Absorve o que o antigo botão "Gerar retroativos" fazia de único — com o
+  // re-sync por origem dos passos seguintes, remover órfãos era a única parte do
+  // "apagar e regravar" que ainda tinha valor. Órfão datado em exercício fechado
+  // é recusado pelo guard e reportado (exige reabrir o exercício).
+  tick(0, "Limpando órfãos", 0, 1);
+  const orfaos = await prismaSemEscopo.$queryRaw<{ id: string }[]>`
+    SELECT l.id FROM "LancamentoContabil" l WHERE l."origemId" IS NOT NULL AND (
+      (l."origemTipo" = 'VENDA' AND NOT EXISTS (SELECT 1 FROM "PedidoVenda" d WHERE d.id = l."origemId") AND NOT EXISTS (SELECT 1 FROM "ContaReceber" d WHERE d.id = l."origemId"))
+      OR (l."origemTipo" = 'RECEBIMENTO' AND NOT EXISTS (SELECT 1 FROM "ContaReceber" d WHERE d.id = l."origemId"))
+      OR (l."origemTipo" IN ('COMPRA', 'PAGAMENTO') AND NOT EXISTS (SELECT 1 FROM "ContaPagar" d WHERE d.id = l."origemId"))
+      OR (l."origemTipo" IN ('RECEITA_ENTREGA', 'ESTOQUE_SAIDA') AND NOT EXISTS (SELECT 1 FROM "Minuta" d WHERE d.id = l."origemId"))
+      OR (l."origemTipo" = 'ESTOQUE_ENTRADA' AND NOT EXISTS (SELECT 1 FROM "ConferenciaCompra" d WHERE d.id = l."origemId"))
+      OR (l."origemTipo" = 'DEVOLUCAO' AND NOT EXISTS (SELECT 1 FROM "Devolucao" d WHERE d.id = split_part(l."origemId", '#', 1)))
+    )`;
+  log.push(`0) Órfãos: ${orfaos.length} lançamento(s) de documento apagado${DRY ? " [dry]" : ""}`);
+  if (!DRY) {
+    const podres = await prismaSemEscopo.$executeRaw`DELETE FROM "PartidaContabil" p WHERE NOT EXISTS (SELECT 1 FROM "LancamentoContabil" l WHERE l.id = p."lancamentoId")`;
+    if (Number(podres) > 0) log.push(`  ${podres} partida(s) órfã(s) removida(s)`);
+    for (const o of orfaos) await apagarLancamentosContabeis({ id: o.id }).catch(guardar(`órfão ${o.id}`));
+  }
+  // Perna VENDA legada no nível da CR de PEDIDO: o modelo atual lança a venda no
+  // PEDIDO (D Clientes / C Material a Entregar) e a CR só tem RECEBIMENTO — a
+  // perna antiga na CR duplicava Clientes a Receber. Resíduo de compensação fica
+  // (a perna dele é o reclass legítimo contra a transitória).
+  const legadas = await prismaSemEscopo.$queryRaw<{ id: string }[]>`
+    SELECT l.id FROM "LancamentoContabil" l
+    JOIN "ContaReceber" cr ON cr.id = l."origemId" AND cr."pedidoVendaId" IS NOT NULL AND cr."compensacaoOrigemId" IS NULL
+    WHERE l."origemTipo" = 'VENDA'`;
+  if (legadas.length) log.push(`  ${legadas.length} perna(s) VENDA legada(s) em CR de pedido${DRY ? " [dry]" : ""}`);
+  if (!DRY) for (const o of legadas) await apagarLancamentosContabeis({ id: o.id }).catch(guardar(`VENDA legada ${o.id}`));
 
   // 1) Colisão 3.3.9004 → reponta partidas por origem do lançamento.
   log.push("1) Repontando partidas da 3.3.9004 (colisão de código)…");
