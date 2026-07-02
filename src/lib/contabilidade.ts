@@ -1572,7 +1572,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
       id: true, numero: true, status: true, updatedAt: true, localDestinoId: true,
       naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } },
       centroCusto: { select: { fabril: true } },
-      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } }, naturezaFinanceiraId: true, destinoManual: true, capitaliza: true, imobilizadoId: true, componenteSubstituidoId: true } },
+      itens: { select: { itemId: true, centroCusto: { select: { fabril: true } }, naturezaFinanceiraId: true, destinoManual: true, capitaliza: true, imobilizadoId: true, componenteSubstituidoId: true, compoeCusto: true } },
     },
   });
   if (!req || req.status !== "ATENDIDA") return;
@@ -1608,6 +1608,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const naturezaIdPorItem = new Map<string, string | null>();
   // Capitaliza da LINHA (null = herda item.capitaliza), o bem e o componente velho.
   const capitalizaLinhaPorItem = new Map<string, boolean | null>();
+  const compoeCustoLinhaPorItem = new Map<string, boolean | null>();
   const imobilizadoIdPorItem = new Map<string, string | null>();
   const componenteIdPorItem = new Map<string, string | null>();
   for (const it of req.itens) {
@@ -1615,6 +1616,7 @@ export async function contabilizarRequisicao(requisicaoId: string) {
     destinoManualPorItem.set(it.itemId, (it.destinoManual as DestinoConsumo | null) ?? null);
     naturezaIdPorItem.set(it.itemId, it.naturezaFinanceiraId ?? req.naturezaFinanceiraId ?? null);
     capitalizaLinhaPorItem.set(it.itemId, it.capitaliza ?? null);
+    compoeCustoLinhaPorItem.set(it.itemId, it.compoeCusto ?? null);
     imobilizadoIdPorItem.set(it.itemId, it.imobilizadoId ?? null);
     componenteIdPorItem.set(it.itemId, it.componenteSubstituidoId ?? null);
   }
@@ -1632,10 +1634,12 @@ export async function contabilizarRequisicao(requisicaoId: string) {
   const buckets = { PEP_MD: [] as typeof movs, IMOBILIZADO: [] as typeof movs, CIF: [] as typeof movs, DESPESA: [] as typeof movs };
   const indefinidos: string[] = [];
   for (const m of movs) {
-    // capitaliza da LINHA vence o cadastro (null = herda item.capitaliza).
+    // Flags da LINHA vencem o cadastro do item (null = herda o item). O TES preenche
+    // essas flags na linha; a precedência lê a linha, nunca o TES.
     const capitalizaEfetivo = capitalizaLinhaPorItem.get(m.itemId) ?? (m.item?.capitaliza ?? false);
+    const compoeCustoEfetivo = compoeCustoLinhaPorItem.get(m.itemId) ?? (m.item?.compoeCusto ?? false);
     let destino = rotearDestinoRequisicao({
-      item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: m.item?.compoeCusto ?? false, fabril: m.item?.fabril ?? false, capitaliza: capitalizaEfetivo },
+      item: { categoriaEstoque: m.item?.categoriaEstoque ?? null, compoeCusto: compoeCustoEfetivo, fabril: m.item?.fabril ?? false, capitaliza: capitalizaEfetivo },
       destinoManual: destinoManualPorItem.get(m.itemId) ?? null,
       centroFabril: centroFabrilPorItem.get(m.itemId) ?? null,
     });

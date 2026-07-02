@@ -50,6 +50,7 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "LocalEstoque", "EstoqueItem", "MovimentacaoEstoque", "LoteMovimentacao",
   "RequisicaoMaterial", "InventarioMaterial",
   "NecessidadeCompra", "CotacaoCompra", "PedidoCompra", "ConferenciaCompra", "ConferenciaCompraItem",
+  "TipoOperacao",
   "OrdemProducao", "ItemOrdemProducao", "ConsumoBiomassa", "PlanoMestre",
   "ContaPagar", "ContaReceber", "ContaBancaria", "LancamentoFinanceiro", "Recorrencia", "ImportacaoOFX",
   "NaturezaFinanceira", "NaturezaSubgrupo", "ContaContabil", "LancamentoContabil", "PartidaContabil",

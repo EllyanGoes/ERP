@@ -108,8 +108,46 @@ model CentroCusto {
   recorrencias           Recorrencia[]
   itensPedidoCompra      PedidoCompraItem[]
   itensConferencia       ConferenciaCompraItem[]
+  tesCentroSugerido      TipoOperacao[]           @relation("TesCentroSugerido")
 
   @@index([grupoCentroCustoId])
+}
+
+// TES (Tipo de Entrada e Saída): preset de COMPORTAMENTO operacional de uma
+// operação (movimenta estoque, gera fiscal/financeiro, permite capitalizar) que
+// preenche as flags da linha da nota. NÃO decide destino de custo e NÃO carrega
+// conta contábil — o destino sai da precedência do material lendo o centro (e o
+// bem, quando capitaliza). O TES é a ENTRADA da precedência, não o substituto dela.
+model TipoOperacao {
+  id                    String        @id @default(cuid())
+  empresaId             String        @default("emp_tramontin")
+  codigo                String
+  nome                  String
+  // Em que linha se aplica: ENTRADA (documento de entrada) ou SAIDA (RM/consumo).
+  sentido               String        @default("ENTRADA")
+  // Comportamento operacional (Passo 0 e presets editáveis da linha):
+  estocavel             Boolean       @default(true) // movimenta estoque (senão consumo/serviço direto)
+  almoxarifadoDefaultId String? // p/ qual estoque quando estocável
+  compoeCusto           Boolean       @default(false) // candidato a material direto (PEP_MD)
+  permiteCapitalizar    Boolean       @default(false) // HABILITA o degrau capitaliza (não obriga)
+  geraFinanceiro        Boolean       @default(true)
+  geraFiscal            Boolean       @default(true)
+  // Eixo fiscal (segue o Protheus à vontade — não conflita com o eixo de custo).
+  cfop                  String?
+  naturezaFiscal        String?
+  // Centro sugerido (default sobrescrivível na linha) — NÃO é classificação vinculante.
+  centroCustoSugeridoId String?
+  ativo                 Boolean       @default(true)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  almoxarifadoDefault   LocalEstoque? @relation("TesAlmoxarifado", fields: [almoxarifadoDefaultId], references: [id])
+  centroCustoSugerido   CentroCusto?  @relation("TesCentroSugerido", fields: [centroCustoSugeridoId], references: [id])
+  empresa               Empresa       @relation(fields: [empresaId], references: [id])
+  conferenciaItens      ConferenciaCompraItem[]
+  requisicaoItens       RequisicaoMaterialItem[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
 }
 
 model Cliente {
@@ -441,6 +479,11 @@ model ConferenciaCompraItem {
   imobilizado             Imobilizado?     @relation("ConfItemImobilizado", fields: [imobilizadoId], references: [id])
   componenteSubstituidoId String?
   componenteSubstituido   Imobilizado?     @relation("ConfItemComponente", fields: [componenteSubstituidoId], references: [id])
+  // TES da linha + compoeCusto da linha (null = herda item.compoeCusto). O TES
+  // preenche as flags; a precedência lê a linha. O TES não decide destino.
+  tesId                   String?
+  tes                     TipoOperacao?    @relation(fields: [tesId], references: [id])
+  compoeCusto             Boolean?
   conferencia        ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
   item               Item                  @relation(fields: [itemId], references: [id])
   localEstoque       LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
@@ -1254,6 +1297,7 @@ model Empresa {
   movimentacaoComodatoes    MovimentacaoComodato[]
   necessidadeCompras        NecessidadeCompra[]
   pedidoCompras             PedidoCompra[]
+  tiposOperacao             TipoOperacao[]
   pedidoVendas              PedidoVenda[]           @relation("PedidoVendaEmpresa")
   pedidoVendasOrigemEstoque PedidoVenda[]           @relation("PedidoVendaEstoqueOrigem")
   pedidoVendaItems          PedidoVendaItem[]
@@ -1641,6 +1685,7 @@ model LocalEstoque {
   inventariosMateriais InventarioMaterial[]
   minutas              Minuta[]
   contasContabeis      ContaContabil[]
+  tesAlmoxarifado      TipoOperacao[]          @relation("TesAlmoxarifado")
   empresa              Empresa                 @relation(fields: [empresaId], references: [id])
 
   @@index([empresaId])
@@ -3120,6 +3165,10 @@ model RequisicaoMaterialItem {
   // capitalização é uma TROCA.
   componenteSubstituidoId String?
   componenteSubstituido   Imobilizado?    @relation("RmItemComponente", fields: [componenteSubstituidoId], references: [id])
+  // TES da linha + compoeCusto da linha (null = herda item.compoeCusto).
+  tesId                   String?
+  tes                     TipoOperacao?   @relation(fields: [tesId], references: [id])
+  compoeCusto             Boolean?
   requisicao           RequisicaoMaterial  @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
   item                 Item                @relation(fields: [itemId], references: [id])
   centroCusto          CentroCusto?        @relation(fields: [centroCustoId], references: [id])

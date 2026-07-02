@@ -230,6 +230,8 @@ export async function POST(req: NextRequest) {
             capitaliza?: boolean | null;
             imobilizadoId?: string | null;
             componenteSubstituidoId?: string | null;
+            tesId?: string | null;
+            compoeCusto?: boolean | null;
             tipoEntrada?: string | null;
             codFiscal?: string | null;
           }) => {
@@ -256,6 +258,8 @@ export async function POST(req: NextRequest) {
               capitaliza: it.capitaliza ?? null,
               imobilizadoId: it.capitaliza ? (it.imobilizadoId || null) : null,
               componenteSubstituidoId: it.capitaliza ? (it.componenteSubstituidoId || null) : null,
+              tesId: it.tesId || null,
+              compoeCusto: it.compoeCusto ?? null,
               tipoEntrada: it.tipoEntrada || null,
               codFiscal: it.codFiscal || null,
             };

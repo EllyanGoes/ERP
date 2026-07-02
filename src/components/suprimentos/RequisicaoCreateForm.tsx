@@ -42,6 +42,7 @@ function iconeLocal(l: LocalEstoqueOpt): ReactNode {
 type ColaboradorOpt  = { id: string; nome: string; setorId: string | null };
 type SetorOpt        = { id: string; nome: string };
 type CentroCustoOpt  = { id: string; codigo: string; nome: string; fabril?: boolean; grupoCentroCusto?: { id: string; nome: string } | null };
+type TesOpt          = { id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean };
 type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null; fabril?: boolean; capitaliza?: boolean; categoriaEstoque?: string | null; compoeCusto?: boolean; naturezaPadraoId?: string | null };
 
 type ItemRow = {
@@ -54,6 +55,8 @@ type ItemRow = {
   centroCustoId: string;
   naturezaFinanceiraId: string;
   destinoManual: string; // escape explícito (PEP_MD/IMOBILIZADO/CIF/DESPESA) ou "" = auto
+  tesId:        string; // TES (preset de comportamento) escolhido na linha; preenche as flags
+  compoeCusto:  boolean | null; // preenchido pelo TES (null = herda item.compoeCusto)
   capitaliza:   boolean; // marcado = capex nesta linha (vence item); exige o bem
   imobilizadoId: string; // bem que recebe o valor (obrigatório quando capitaliza)
   componenteSubstituidoId: string; // peça velha a dar baixa numa troca (opcional)
@@ -76,6 +79,8 @@ function emptyRow(): ItemRow {
     centroCustoId: "",
     naturezaFinanceiraId: "",
     destinoManual: "",
+    tesId:        "",
+    compoeCusto:  null,
     capitaliza:   false,
     imobilizadoId: "",
     componenteSubstituidoId: "",
@@ -655,6 +660,7 @@ export default function RequisicaoCreateForm() {
   const [naturezas,     setNaturezas]     = useState<NaturezaOpt[]>([]);
   const [itensCat,      setItensCat]      = useState<ItemOpt[]>([]);
   const [imobilizados,  setImobilizados]  = useState<{ id: string; descricao: string }[]>([]);
+  const [tesList,       setTesList]       = useState<TesOpt[]>([]);
   // Unidades cadastradas por produto (para limitar o seletor e converter à base).
   const [itemUnidades,  setItemUnidades]  = useState<Map<string, UnidadeOpt[]>>(new Map());
   // Itens do local selecionado → saldo atual (inclui saldo zero). Requisição só
@@ -687,6 +693,8 @@ export default function RequisicaoCreateForm() {
     ]);
     const imData = await safeFetch("/api/contabilidade/imobilizado");
     if (imData != null) setImobilizados(Array.isArray(imData) ? imData : imData.data ?? []);
+    const tData = await safeFetch("/api/suprimentos/tipos-operacao");
+    if (tData != null) setTesList((Array.isArray(tData) ? tData : tData.data ?? []).filter((t: TesOpt) => t.ativo !== false));
 
     if (lData  != null) setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);
     if (cData  != null) setColaboradores(Array.isArray(cData)  ? cData  : cData.data  ?? []);
@@ -777,6 +785,24 @@ export default function RequisicaoCreateForm() {
   function updateRow(key: string, field: keyof ItemRow, value: string | boolean) {
     setRows((prev) => prev.map((r) => r._key === key ? { ...r, [field]: value } : r));
   }
+  // Escolher o TES preenche as flags da linha a partir do preset (ainda editáveis).
+  // O TES NÃO decide destino — só alimenta a precedência (centro, compoeCusto,
+  // habilita capitaliza). permiteCapitalizar=false bloqueia o degrau capitaliza.
+  function applyTes(key: string, tesId: string) {
+    const tes = tesList.find((t) => t.id === tesId);
+    setRows((prev) => prev.map((r) => {
+      if (r._key !== key) return r;
+      const next: ItemRow = { ...r, tesId };
+      if (tes) {
+        next.compoeCusto = tes.compoeCusto;
+        if (tes.centroCustoSugeridoId) next.centroCustoId = tes.centroCustoSugeridoId;
+        if (!tes.permiteCapitalizar) { next.capitaliza = false; next.imobilizadoId = ""; next.componenteSubstituidoId = ""; }
+      } else {
+        next.compoeCusto = null;
+      }
+      return next;
+    }));
+  }
 
   async function handleSave(statusFinal: "RASCUNHO" | "ABERTA") {
     setSubmitted(true);
@@ -848,6 +874,8 @@ export default function RequisicaoCreateForm() {
               centroCustoId: r.centroCustoId || null,
               naturezaFinanceiraId: r.naturezaFinanceiraId || null,
               destinoManual: r.destinoManual || null,
+              tesId: r.tesId || null,
+              compoeCusto: r.compoeCusto,
               capitaliza: r.capitaliza ? true : null,
               imobilizadoId: r.capitaliza ? (r.imobilizadoId || null) : null,
               componenteSubstituidoId: r.capitaliza ? (r.componenteSubstituidoId || null) : null,
@@ -1062,6 +1090,7 @@ export default function RequisicaoCreateForm() {
                     <th className="text-left px-3 py-2.5 w-16">Un.</th>
                     <th className="text-left px-3 py-2.5 w-28">Qtde</th>
                     {tipo === "REQUISICAO" && <>
+                      <th className="text-left px-3 py-2.5 min-w-[130px]" title="TES: preset de comportamento que preenche as flags da linha. Não decide destino.">TES</th>
                       <th className="text-left px-3 py-2.5 min-w-[140px]">Centro de Custo <span className="text-red-500">*</span></th>
                       <th className="text-left px-3 py-2.5 min-w-[150px]">Natureza <span className="text-red-500">*</span></th>
                       <th className="text-left px-3 py-2.5 w-32">Destino</th>
@@ -1126,6 +1155,13 @@ export default function RequisicaoCreateForm() {
                       </td>
                       {tipo === "REQUISICAO" && <>
                         <td className="px-3 py-2">
+                          <select value={row.tesId} onChange={(e) => applyTes(row._key, e.target.value)}
+                            className="h-8 text-xs w-full rounded-md border border-border bg-card px-1" title="Tipo de operação (preset)">
+                            <option value="">— TES —</option>
+                            {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
                           <GroupedSelect
                             options={centroOpts(centros)}
                             value={row.centroCustoId}
@@ -1165,7 +1201,7 @@ export default function RequisicaoCreateForm() {
                             if (!it) return null;
                             const centro = centros.find((c) => c.id === (row.centroCustoId || centroCustoId));
                             const destino = rotearDestinoRequisicao({
-                              item: { categoriaEstoque: it.categoriaEstoque ?? null, compoeCusto: it.compoeCusto ?? false, fabril: it.fabril ?? false, capitaliza: row.capitaliza || (it.capitaliza ?? false) },
+                              item: { categoriaEstoque: it.categoriaEstoque ?? null, compoeCusto: row.compoeCusto ?? (it.compoeCusto ?? false), fabril: it.fabril ?? false, capitaliza: row.capitaliza || (it.capitaliza ?? false) },
                               destinoManual: (row.destinoManual || null) as never,
                               centroFabril: centro ? !!centro.fabril : null,
                             });
@@ -1175,12 +1211,19 @@ export default function RequisicaoCreateForm() {
                           })()}
                         </td>
                         <td className="px-3 py-2 align-top">
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <input type="checkbox" checked={row.capitaliza}
-                              onChange={(e) => updateRow(row._key, "capitaliza", e.target.checked)}
-                              className="w-3.5 h-3.5 rounded border-border" />
-                            <span className="text-muted-foreground">Capitaliza</span>
-                          </label>
+                          {(() => {
+                            const tesRow = tesList.find((t) => t.id === row.tesId);
+                            const capexBloqueado = !!tesRow && !tesRow.permiteCapitalizar;
+                            return (
+                              <label className={cn("flex items-center gap-1.5 text-xs", capexBloqueado ? "opacity-40 cursor-not-allowed" : "cursor-pointer")}
+                                title={capexBloqueado ? "O TES desta linha não permite capitalizar" : undefined}>
+                                <input type="checkbox" checked={row.capitaliza} disabled={capexBloqueado}
+                                  onChange={(e) => updateRow(row._key, "capitaliza", e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-border" />
+                                <span className="text-muted-foreground">Capitaliza</span>
+                              </label>
+                            );
+                          })()}
                           {row.capitaliza && (
                             <div className="mt-1 space-y-1">
                               <select value={row.imobilizadoId} onChange={(e) => updateRow(row._key, "imobilizadoId", e.target.value)}

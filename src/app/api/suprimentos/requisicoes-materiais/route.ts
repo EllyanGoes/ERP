@@ -117,6 +117,7 @@ export async function POST(req: NextRequest) {
               localizacao?: string; centroCustoId?: string; naturezaFinanceiraId?: string;
               destinoManual?: string; os?: string; requisicaoRef?: string;
               capitaliza?: boolean | null; imobilizadoId?: string | null; componenteSubstituidoId?: string | null;
+              tesId?: string | null; compoeCusto?: boolean | null;
             }) => ({
               itemId:       it.itemId,
               quantidade:   parseFloat(String(it.quantidade)),
@@ -130,6 +131,9 @@ export async function POST(req: NextRequest) {
               capitaliza:    it.capitaliza ?? null,
               imobilizadoId: it.capitaliza ? (it.imobilizadoId || null) : null,
               componenteSubstituidoId: it.capitaliza ? (it.componenteSubstituidoId || null) : null,
+              // TES da linha + compoeCusto preenchido pelo TES (null = herda item).
+              tesId:         it.tesId || null,
+              compoeCusto:   it.compoeCusto ?? null,
               os:           it.os?.trim()            || null,
               requisicaoRef: it.requisicaoRef?.trim() || null,
             })),

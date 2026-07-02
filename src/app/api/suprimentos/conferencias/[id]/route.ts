@@ -140,6 +140,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               capitaliza: item.capitaliza ?? null,
               imobilizadoId: item.capitaliza ? (item.imobilizadoId || null) : null,
               componenteSubstituidoId: item.capitaliza ? (item.componenteSubstituidoId || null) : null,
+              tesId: item.tesId || null,
+              compoeCusto: item.compoeCusto ?? null,
               desconto: itemDesconto ?? null,
             },
           });
@@ -176,6 +178,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               imobilizadoId: item.capitaliza ? (item.imobilizadoId || null) : null,
               componenteSubstituidoId: item.capitaliza ? (item.componenteSubstituidoId || null) : null,
             } : {}),
+            ...(item.tesId !== undefined ? { tesId: item.tesId || null } : {}),
+            ...(item.compoeCusto !== undefined ? { compoeCusto: item.compoeCusto ?? null } : {}),
             ...(itemDesconto !== undefined ? { desconto: itemDesconto || null } : {}),
           },
         });

@@ -54,6 +54,8 @@ type ConferenciaItem = {
   imobilizadoId: string | null;
   imobilizado: { id: string; descricao: string } | null;
   componenteSubstituidoId: string | null;
+  tesId: string | null;
+  compoeCusto: boolean | null;
   desconto: unknown;
   unidadeId: string | null;
   item: {
@@ -124,6 +126,8 @@ type EditItem = {
   tpOper: string;
   localEstoqueId: string;
   centroCustoId: string;      // herdado do pedido (default editável); não classifica custo
+  tesId: string;              // TES (preset de comportamento) da linha
+  compoeCusto: boolean | null; // preenchido pelo TES (null = herda item)
   capitaliza: boolean;        // capex nesta linha (carga/orçamento na entrada); exige bem
   imobilizadoId: string;
   componenteSubstituidoId: string;
@@ -149,6 +153,8 @@ type NewItem = {
   desconto: string;
   localEstoqueId: string;
   centroCustoId: string;
+  tesId: string;
+  compoeCusto: boolean | null;
   capitaliza: boolean;
   imobilizadoId: string;
   componenteSubstituidoId: string;
@@ -221,6 +227,7 @@ export default function DocumentoEntradaDetailPage() {
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<{ id: string; codigo: string; nome: string }[]>([]);
   const [imobilizados, setImobilizados] = useState<{ id: string; descricao: string }[]>([]);
+  const [tesList, setTesList] = useState<{ id: string; codigo: string; nome: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean }[]>([]);
 
   // Add item inline
   const [produtos, setProdutos] = useState<ProdutoOption[]>([]);
@@ -285,6 +292,8 @@ export default function DocumentoEntradaDetailPage() {
             tpOper: i.tpOper ?? "",
             localEstoqueId: resolvedModo === "GLOBAL" ? globalLocalId : (i.localEstoqueId ?? ""),
             centroCustoId: i.centroCustoId ?? "",
+            tesId: i.tesId ?? "",
+            compoeCusto: i.compoeCusto ?? null,
             capitaliza: i.capitaliza ?? false,
             imobilizadoId: i.imobilizadoId ?? "",
             componenteSubstituidoId: i.componenteSubstituidoId ?? "",
@@ -317,7 +326,40 @@ export default function DocumentoEntradaDetailPage() {
     fetch("/api/contabilidade/imobilizado").then((r) => r.json())
       .then((j) => setImobilizados(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
+    fetch("/api/suprimentos/tipos-operacao").then((r) => r.json())
+      .then((j) => setTesList((Array.isArray(j) ? j : (j.data ?? [])).filter((t: { ativo?: boolean }) => t.ativo !== false)))
+      .catch(() => {});
   }, []);
+
+  // Escolher o TES preenche as flags da linha (editáveis). NÃO decide destino.
+  function applyTesEdit(itemId: string, tesId: string) {
+    const tes = tesList.find((t) => t.id === tesId);
+    setEditItems((prev) => prev.map((i) => {
+      if (i.id !== itemId) return i;
+      const next = { ...i, tesId };
+      if (tes) {
+        next.compoeCusto = tes.compoeCusto;
+        if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
+        if (tes.centroCustoSugeridoId) next.centroCustoId = tes.centroCustoSugeridoId;
+        if (!tes.permiteCapitalizar) { next.capitaliza = false; next.imobilizadoId = ""; next.componenteSubstituidoId = ""; }
+      } else { next.compoeCusto = null; }
+      return next;
+    }));
+  }
+  function applyTesNew(key: string, tesId: string) {
+    const tes = tesList.find((t) => t.id === tesId);
+    setNewItems((prev) => prev.map((ni) => {
+      if (ni._key !== key) return ni;
+      const next = { ...ni, tesId };
+      if (tes) {
+        next.compoeCusto = tes.compoeCusto;
+        if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
+        if (tes.centroCustoSugeridoId) next.centroCustoId = tes.centroCustoSugeridoId;
+        if (!tes.permiteCapitalizar) { next.capitaliza = false; next.imobilizadoId = ""; next.componenteSubstituidoId = ""; }
+      } else { next.compoeCusto = null; }
+      return next;
+    }));
+  }
 
   // Sync usuarioResponsavelId from responsavel name once users are loaded
   useEffect(() => {
@@ -392,6 +434,8 @@ export default function DocumentoEntradaDetailPage() {
         desconto: "",
         localEstoqueId: localEstoqueGlobalId,
         centroCustoId: "",
+        tesId: "",
+        compoeCusto: null,
         capitaliza: false,
         imobilizadoId: "",
         componenteSubstituidoId: "",
@@ -501,6 +545,8 @@ export default function DocumentoEntradaDetailPage() {
               tpOper: i.tpOper || null,
               localEstoqueId: i.localEstoqueId || null,
               centroCustoId: i.centroCustoId || null,
+              tesId: i.tesId || null,
+              compoeCusto: i.compoeCusto,
               capitaliza: i.capitaliza ? true : null,
               imobilizadoId: i.capitaliza ? (i.imobilizadoId || null) : null,
               componenteSubstituidoId: i.capitaliza ? (i.componenteSubstituidoId || null) : null,
@@ -518,6 +564,8 @@ export default function DocumentoEntradaDetailPage() {
               desconto: ni.desconto ? parseFloat(ni.desconto) : null,
               localEstoqueId: ni.localEstoqueId || null,
               centroCustoId: ni.centroCustoId || null,
+              tesId: ni.tesId || null,
+              compoeCusto: ni.compoeCusto,
               capitaliza: ni.capitaliza ? true : null,
               imobilizadoId: ni.capitaliza ? (ni.imobilizadoId || null) : null,
               componenteSubstituidoId: ni.capitaliza ? (ni.componenteSubstituidoId || null) : null,
@@ -1279,6 +1327,7 @@ export default function DocumentoEntradaDetailPage() {
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">#NF</th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Produto</th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Descrição</th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs" title="TES: preset de comportamento que preenche as flags da linha. Não decide destino.">TES</th>
                     {modoLocalEstoque === "POR_ITEM" && (
                       <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Local Estoque</th>
                     )}
@@ -1312,6 +1361,19 @@ export default function DocumentoEntradaDetailPage() {
                         <td className="px-3 py-2 text-xs text-muted-foreground">{idx + 1}</td>
                         <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
                         <td className="px-3 py-2 text-xs text-foreground max-w-[200px]">{item.item.descricao}</td>
+
+                        {/* TES — preset de comportamento (preenche as flags); não decide destino */}
+                        <td className="px-3 py-2">
+                          {canEdit && ei ? (
+                            <select value={ei.tesId} onChange={(e) => applyTesEdit(item.id, e.target.value)}
+                              className="h-7 rounded text-xs w-full border border-border bg-card px-1">
+                              <option value="">— TES —</option>
+                              {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                            </select>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{tesList.find((t) => t.id === item.tesId)?.codigo ?? "—"}</span>
+                          )}
+                        </td>
 
                         {/* Local Estoque — only shown in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
@@ -1349,12 +1411,19 @@ export default function DocumentoEntradaDetailPage() {
                         <td className="px-3 py-2 align-top">
                           {canEdit && ei ? (
                             <div className="space-y-1">
-                              <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                                <input type="checkbox" checked={ei.capitaliza}
-                                  onChange={(e) => updateEditItem(item.id, "capitaliza", e.target.checked)}
-                                  className="w-3.5 h-3.5 rounded border-border" />
-                                <span className="text-muted-foreground">Capitaliza</span>
-                              </label>
+                              {(() => {
+                                const t = tesList.find((x) => x.id === ei.tesId);
+                                const bloq = !!t && !t.permiteCapitalizar;
+                                return (
+                                  <label className={cn("flex items-center gap-1.5 text-xs", bloq ? "opacity-40 cursor-not-allowed" : "cursor-pointer")}
+                                    title={bloq ? "O TES desta linha não permite capitalizar" : undefined}>
+                                    <input type="checkbox" checked={ei.capitaliza} disabled={bloq}
+                                      onChange={(e) => updateEditItem(item.id, "capitaliza", e.target.checked)}
+                                      className="w-3.5 h-3.5 rounded border-border" />
+                                    <span className="text-muted-foreground">Capitaliza</span>
+                                  </label>
+                                );
+                              })()}
                               {ei.capitaliza && (
                                 <>
                                   <select value={ei.imobilizadoId} onChange={(e) => updateEditItem(item.id, "imobilizadoId", e.target.value)}
@@ -1555,6 +1624,14 @@ export default function DocumentoEntradaDetailPage() {
                       <td className="px-3 py-2 text-xs text-blue-400">+</td>
                       <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{ni.codigo}</td>
                       <td className="px-3 py-2 text-xs text-foreground max-w-[200px]">{ni.descricao}</td>
+                      {/* TES */}
+                      <td className="px-3 py-2">
+                        <select value={ni.tesId} onChange={(e) => applyTesNew(ni._key, e.target.value)}
+                          className="h-7 rounded text-xs w-full border border-border bg-card px-1">
+                          <option value="">— TES —</option>
+                          {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                        </select>
+                      </td>
                       {modoLocalEstoque === "POR_ITEM" && (
                         <td className="px-3 py-2">
                           <ComboboxWithCreate
@@ -1579,12 +1656,19 @@ export default function DocumentoEntradaDetailPage() {
                       {/* Capex */}
                       <td className="px-3 py-2 align-top">
                         <div className="space-y-1">
-                          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                            <input type="checkbox" checked={ni.capitaliza}
-                              onChange={(e) => updateNewItem(ni._key, "capitaliza", e.target.checked)}
-                              className="w-3.5 h-3.5 rounded border-border" />
-                            <span className="text-muted-foreground">Capitaliza</span>
-                          </label>
+                          {(() => {
+                            const t = tesList.find((x) => x.id === ni.tesId);
+                            const bloq = !!t && !t.permiteCapitalizar;
+                            return (
+                              <label className={cn("flex items-center gap-1.5 text-xs", bloq ? "opacity-40 cursor-not-allowed" : "cursor-pointer")}
+                                title={bloq ? "O TES desta linha não permite capitalizar" : undefined}>
+                                <input type="checkbox" checked={ni.capitaliza} disabled={bloq}
+                                  onChange={(e) => updateNewItem(ni._key, "capitaliza", e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded border-border" />
+                                <span className="text-muted-foreground">Capitaliza</span>
+                              </label>
+                            );
+                          })()}
                           {ni.capitaliza && (
                             <>
                               <select value={ni.imobilizadoId} onChange={(e) => updateNewItem(ni._key, "imobilizadoId", e.target.value)}
