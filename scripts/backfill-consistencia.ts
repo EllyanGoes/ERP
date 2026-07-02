@@ -1,211 +1,24 @@
 /**
- * Backfill de consistência contábil/financeira (jul/2026) — roda o MOTOR TS
- * contra o banco do DATABASE_URL. Idempotente: `registrarLancamento`
- * re-sincroniza lançamentos existentes por (empresa, origemTipo, origemId);
- * re-rodar não duplica nada.
+ * Backfill de consistência contábil/financeira — wrapper de linha de comando do
+ * motor em src/lib/backfill-consistencia.ts (a lógica vive lá; em produção o
+ * mesmo motor roda pelo endpoint admin POST /api/contabilidade/backfill-consistencia,
+ * ou pelo botão "Backfill de consistência" no Diário Contábil).
  *
  * Uso: npx tsx scripts/backfill-consistencia.ts [--dry]
- *
- * Passos:
- *  1) Reponta partidas históricas da conta 3.3.9004 (colisão de código) para as
- *     contas renumeradas: COMPENSACAO_AJUSTE → 3.3.9005 (Juros e Multas
- *     Passivos); BAIXA_IMOBILIZADO → 3.3.9006 (Perda na Baixa de Imobilizado).
- *     O que sobra em 3.3.9004 é Despesas Gerais legítima.
- *  2) Re-sincroniza TODOS os títulos (CR/CP) não cancelados — aplica o split de
- *     juros/multa em contas de resultado (o razonete do cliente/fornecedor
- *     passa a fechar no valor do título) e o arredondamento por partida.
- *  3) Re-sincroniza a perna de venda dos pedidos (D Clientes / C Material a
- *     Entregar) — modelo clássico, valores inalterados (no-op quando já certo).
- *  4) Devoluções existentes: revalora os movimentos de ENTRADA ao CUSTO atual
- *     (estavam a preço de venda), vincula os estornos em dinheiro por descrição
- *     (LancamentoFinanceiro.devolucaoId) e contabiliza (contabilizarDevolucao).
- *  5) Recomputa statusEntrega/statusFinanceiro de todos os pedidos de venda e
- *     o statusFinanceiro dos pedidos de compra.
- *
- * NÃO faz (deliberado): re-sync de minutas/conferências antigas (revaloraria
- * CMV/entradas históricas ao custo de HOJE) e re-execução de absorções passadas
- * (aplicarCmpmEmpresa não é idempotente — dobraria custo).
  */
 import { prismaSemEscopo } from "../src/lib/prisma";
-import {
-  contabilizarTituloReceber,
-  contabilizarTituloPagar,
-  contabilizarVendaPedido,
-  contabilizarDevolucao,
-  recontabilizarConferencia,
-} from "../src/lib/contabilidade";
-import { encargosConferencia } from "../src/lib/pedido-compra-de";
-import { garantirContaJurosMultasPassivos, garantirContaPerdaBaixaImobilizado } from "../src/lib/conta-contabil";
-import { recomputarStatusPedido, recomputarStatusFinanceiroCompra } from "../src/lib/pedido-totais";
-import { valoresEstoqueDaEmpresa } from "../src/lib/valor-estoque";
-
-const DRY = process.argv.includes("--dry");
-const erros: string[] = [];
-const log = (msg: string) => console.log(msg);
-const guardar = (ctx: string) => (e: unknown) => {
-  erros.push(`${ctx}: ${e instanceof Error ? e.message : String(e)}`);
-  return null;
-};
-
-async function passo1_repontar9004() {
-  const empresas = await prismaSemEscopo.empresa.findMany({ select: { id: true, razaoSocial: true } });
-  for (const emp of empresas) {
-    const c9004 = await prismaSemEscopo.contaContabil.findFirst({
-      where: { empresaId: emp.id, codigo: "3.3.9004" }, select: { id: true },
-    });
-    if (!c9004) continue;
-    const alvos: Array<{ origem: "COMPENSACAO_AJUSTE" | "BAIXA_IMOBILIZADO"; conta: () => Promise<{ id: string } | null> }> = [
-      { origem: "COMPENSACAO_AJUSTE", conta: () => garantirContaJurosMultasPassivos(emp.id) },
-      { origem: "BAIXA_IMOBILIZADO", conta: () => garantirContaPerdaBaixaImobilizado(emp.id) },
-    ];
-    for (const alvo of alvos) {
-      const qtd = await prismaSemEscopo.partidaContabil.count({
-        where: { contaId: c9004.id, lancamento: { origemTipo: alvo.origem } },
-      });
-      if (qtd === 0) continue;
-      if (DRY) { log(`  [dry] ${emp.razaoSocial}: ${qtd} partida(s) ${alvo.origem} sairiam da 3.3.9004`); continue; }
-      const destino = await alvo.conta();
-      if (!destino) { erros.push(`${emp.razaoSocial}: conta destino de ${alvo.origem} não criada`); continue; }
-      const r = await prismaSemEscopo.partidaContabil.updateMany({
-        where: { contaId: c9004.id, lancamento: { origemTipo: alvo.origem } },
-        data: { contaId: destino.id },
-      });
-      log(`  ${emp.razaoSocial}: ${r.count} partida(s) ${alvo.origem} repontada(s) da 3.3.9004`);
-    }
-  }
-}
-
-async function passo2_titulos() {
-  const crs = await prismaSemEscopo.contaReceber.findMany({ where: { status: { not: "CANCELADA" } }, select: { id: true } });
-  const cps = await prismaSemEscopo.contaPagar.findMany({ where: { status: { not: "CANCELADA" } }, select: { id: true } });
-  log(`  ${crs.length} CR + ${cps.length} CP a re-sincronizar${DRY ? " [dry — pulado]" : ""}`);
-  if (DRY) return;
-  for (const cr of crs) await contabilizarTituloReceber(cr.id).catch(guardar(`CR ${cr.id}`));
-  for (const cp of cps) await contabilizarTituloPagar(cp.id).catch(guardar(`CP ${cp.id}`));
-}
-
-async function passo3_pedidosVenda() {
-  const pedidos = await prismaSemEscopo.pedidoVenda.findMany({
-    where: { status: { in: ["CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO"] }, intragrupo: false },
-    select: { id: true },
-  });
-  log(`  ${pedidos.length} pedido(s) de venda${DRY ? " [dry — pulado]" : ""}`);
-  if (DRY) return;
-  for (const p of pedidos) await contabilizarVendaPedido(p.id).catch(guardar(`Pedido ${p.id}`));
-}
-
-async function passo4_devolucoes() {
-  const devs = await prismaSemEscopo.devolucao.findMany({
-    select: { id: true, empresaId: true, numero: true },
-  });
-  log(`  ${devs.length} devolução(ões)${DRY ? " [dry — pulado]" : ""}`);
-  if (DRY) return;
-  for (const dev of devs) {
-    // Revalora as ENTRADAs da devolução ao custo ATUAL (melhor estimativa —
-    // estavam a preço de venda) para o retorno reverter CPV/CMV pelo custo.
-    const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
-      where: { devolucaoId: dev.id, tipo: "ENTRADA" },
-      select: { id: true, itemId: true },
-    });
-    if (movs.length) {
-      const valores = await valoresEstoqueDaEmpresa(dev.empresaId, movs.map((m) => m.itemId));
-      for (const m of movs) {
-        const v = valores.get(m.itemId)?.valorUnitario ?? 0;
-        if (v > 0) await prismaSemEscopo.movimentacaoEstoque.update({ where: { id: m.id }, data: { valorUnitario: v } });
-      }
-    }
-    // Vincula estornos em dinheiro antigos (sem devolucaoId) pela descrição.
-    await prismaSemEscopo.lancamentoFinanceiro.updateMany({
-      where: { empresaId: dev.empresaId, tipo: "DESPESA", devolucaoId: null, descricao: { contains: dev.numero } },
-      data: { devolucaoId: dev.id },
-    });
-    await contabilizarDevolucao(dev.id).catch(guardar(`Devolução ${dev.numero}`));
-  }
-}
-
-async function passo5_recomputos() {
-  const pvs = await prismaSemEscopo.pedidoVenda.findMany({ select: { id: true } });
-  const pcs = await prismaSemEscopo.pedidoCompra.findMany({ select: { id: true } });
-  log(`  ${pvs.length} pedido(s) de venda + ${pcs.length} de compra${DRY ? " [dry — pulado]" : ""}`);
-  if (DRY) return;
-  for (const p of pvs) await recomputarStatusPedido(prismaSemEscopo, p.id).catch(guardar(`recompute PV ${p.id}`));
-  for (const p of pcs) await recomputarStatusFinanceiroCompra(prismaSemEscopo, p.id).catch(guardar(`recompute PC ${p.id}`));
-}
-
-async function passo6_freteDescontoCompras() {
-  // Conferências CONCLUIDAS cujo documento tem frete/desconto (no DE ou no
-  // pedido): re-sincroniza a entrada (o crédito do fornecedor passa a ser o
-  // LÍQUIDO, com pernas de Fretes sobre Compras / Descontos Obtidos) e ajusta as
-  // CPs ABERTAS sem baixa do pedido para o líquido (proporcional por parcela).
-  // CPs com baixa não são tocadas (reportadas p/ ajuste manual).
-  const confs = await prismaSemEscopo.conferenciaCompra.findMany({
-    where: {
-      status: "CONCLUIDA",
-      OR: [
-        { frete: { gt: 0 } }, { desconto: { gt: 0 } },
-        { pedido: { OR: [{ frete: { gt: 0 } }, { seguro: { gt: 0 } }, { despesas: { gt: 0 } }, { vrDesconto: { gt: 0 } }] } },
-      ],
-    },
-    select: { id: true, numero: true, pedidoId: true },
-  });
-  log(`  ${confs.length} conferência(s) com frete/desconto${DRY ? " [dry — pulado]" : ""}`);
-  if (DRY) return;
-  const pedidosAjustar = new Set<string>();
-  for (const c of confs) {
-    await recontabilizarConferencia(c.id).catch(guardar(`Conferência ${c.numero}`));
-    if (c.pedidoId) pedidosAjustar.add(c.pedidoId);
-  }
-  for (const pedidoId of Array.from(pedidosAjustar)) {
-    const cps = await prismaSemEscopo.contaPagar.findMany({
-      where: { pedidoCompraId: pedidoId, status: { not: "CANCELADA" }, antecipado: false },
-      select: { id: true, numero: true, valorOriginal: true, valorPago: true, status: true },
-      orderBy: { numero: "asc" },
-    });
-    if (!cps.length) continue;
-    if (cps.some((c) => decimalToNumber(c.valorPago) > 0)) {
-      erros.push(`Pedido ${pedidoId}: CP com baixa — ajustar frete/desconto manualmente`);
-      continue;
-    }
-    const confsPedido = await prismaSemEscopo.conferenciaCompra.findMany({
-      where: { pedidoId, status: "CONCLUIDA" }, select: { id: true },
-    });
-    let liquido = 0;
-    for (const cf of confsPedido) liquido += (await encargosConferencia(prismaSemEscopo, cf.id)).liquido;
-    liquido = Math.round(liquido * 100) / 100;
-    const atual = cps.reduce((s, c) => s + decimalToNumber(c.valorOriginal), 0);
-    if (liquido <= 0 || Math.abs(liquido - atual) <= 0.01) continue;
-    let acc = 0;
-    for (let i = 0; i < cps.length; i++) {
-      const v = i === cps.length - 1
-        ? Math.round((liquido - acc) * 100) / 100
-        : Math.round((decimalToNumber(cps[i].valorOriginal) / atual) * liquido * 100) / 100;
-      acc = Math.round((acc + v) * 100) / 100;
-      await prismaSemEscopo.contaPagar.update({ where: { id: cps[i].id }, data: { valorOriginal: v } });
-      await contabilizarTituloPagar(cps[i].id).catch(guardar(`CP ${cps[i].numero}`));
-    }
-    log(`  Pedido ${pedidoId}: CP(s) ajustada(s) ${atual.toFixed(2)} → ${liquido.toFixed(2)}`);
-  }
-}
+import { executarBackfillConsistencia } from "../src/lib/backfill-consistencia";
 
 async function main() {
-  log(`Backfill de consistência ${DRY ? "(DRY RUN)" : ""} — banco: ${process.env.DATABASE_URL?.replace(/:[^:@/]+@/, ":***@")}`);
-  log("1) Repontando partidas da 3.3.9004 (colisão de código)…");
-  await passo1_repontar9004();
-  log("2) Re-sincronizando títulos (juros/multa em resultado)…");
-  await passo2_titulos();
-  log("3) Re-sincronizando perna de venda dos pedidos…");
-  await passo3_pedidosVenda();
-  log("4) Contabilizando devoluções existentes…");
-  await passo4_devolucoes();
-  log("5) Recomputando status de pedidos…");
-  await passo5_recomputos();
-  log("6) Frete/desconto nas entradas de compra (crédito líquido + CPs)…");
-  await passo6_freteDescontoCompras();
+  const dry = process.argv.includes("--dry");
+  console.log(`Backfill de consistência ${dry ? "(DRY RUN)" : ""} — banco: ${process.env.DATABASE_URL?.replace(/:[^:@/]+@/, ":***@")}`);
+  const { log, erros } = await executarBackfillConsistencia({ dry });
+  for (const l of log) console.log(l);
   if (erros.length) {
-    log(`\n⚠ ${erros.length} erro(s) — itens pulados (rodar de novo após corrigir):`);
-    for (const e of erros) log(`  - ${e}`);
+    console.log(`\n⚠ ${erros.length} erro(s) — itens pulados (rodar de novo após corrigir):`);
+    for (const e of erros) console.log(`  - ${e}`);
   } else {
-    log("\n✓ Backfill concluído sem erros.");
+    console.log("\n✓ Backfill concluído sem erros.");
   }
   await prismaSemEscopo.$disconnect();
 }

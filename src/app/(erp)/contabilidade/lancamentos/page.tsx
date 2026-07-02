@@ -35,6 +35,7 @@ export default function LancamentosContabeisPage() {
   const [lancs, setLancs] = useState<Lancamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [gerando, setGerando] = useState(false);
+  const [consistencia, setConsistencia] = useState(false);
   const [progresso, setProgresso] = useState<{ pct: number; fase: string } | null>(null);
   const [aviso, setAviso] = useState("");
   // Reprocesso em andamento em QUALQUER sessão. Como o % é persistido (Configuracao),
@@ -157,6 +158,33 @@ export default function LancamentosContabeisPage() {
     }
   }
 
+  // Backfill de consistência (jul/2026): motor idempotente que reponta a
+  // 3.3.9004, re-sincroniza títulos/pedidos/devoluções e o frete/desconto das
+  // entradas de compra. Roda no servidor (onde o DATABASE_URL vive); só ADMIN.
+  async function backfillConsistencia() {
+    if (!window.confirm("Rodar o backfill de consistência? É idempotente (re-rodar não duplica) e pode levar alguns minutos.")) return;
+    setConsistencia(true);
+    setAviso("");
+    try {
+      const res = await fetch("/api/contabilidade/backfill-consistencia", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) {
+        setAviso(json.error ?? "Falha no backfill de consistência.");
+      } else {
+        const { log = [], erros = [] } = json.data ?? {};
+        console.log("[backfill-consistencia]", log, erros);
+        setAviso(erros.length
+          ? `Backfill concluído com ${erros.length} pendência(s) — detalhe no console: ${erros.slice(0, 2).join("; ")}…`
+          : "Backfill de consistência concluído sem erros.");
+        await load();
+      }
+    } catch {
+      setAviso("Erro de conexão no backfill de consistência.");
+    } finally {
+      setConsistencia(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -164,6 +192,10 @@ export default function LancamentosContabeisPage() {
         breadcrumbs={[{ label: "Contabilidade" }, { label: "Diário" }]}
         actions={
           <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={backfillConsistencia} disabled={consistencia || gerando || reprocessoAtivo}>
+              {consistencia ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
+              {consistencia ? "Consistência…" : "Backfill de consistência"}
+            </Button>
             <Button size="sm" variant="outline" onClick={gerarRetroativos} disabled={gerando || reprocessoAtivo}>
               {gerando || reprocessoAtivo ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
               {gerando ? `Gerando… ${progresso?.pct ?? 0}%`
