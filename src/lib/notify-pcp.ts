@@ -17,20 +17,25 @@ const ehEmbalagem = (nome: string) => /embalag|embalar|paletiza/i.test(nome);
 
 type ItemUnidadeConv = { fatorConversao: unknown; isPrincipal: boolean; unidade: { sigla: string; nome: string } };
 /**
- * Converte uma quantidade da unidade DA OP para UN (base) e PLT (palete), usando o
- * cadastro de unidades DO PRÓPRIO PRODUTO (os fatores variam por produto). Retorna
- * null quando não dá pra converter (unidade da OP sem correspondência). PLT null
- * quando o produto não tem palete cadastrado.
+ * Unidade de exibição = unidade PRINCIPAL do item (a mesma que a tela da OP mostra).
+ * O campo `op.unidade` é texto livre e hoje o backend grava sempre "milheiro" (default
+ * na criação), então NÃO é confiável — a fonte da verdade é o cadastro do item.
+ * Cai para o fallback (op.unidade) só quando o item não tem unidade cadastrada.
  */
-function converterUnPlt(qtd: number, unidadeOp: string | null | undefined, uns: ItemUnidadeConv[]): { un: number; plt: number | null } | null {
-  if (!unidadeOp || !uns?.length) return null;
-  const norm = (s: string) => (s ?? "").trim().toLowerCase();
-  const alvo = norm(unidadeOp);
-  const uOp = uns.find((u) => norm(u.unidade.sigla) === alvo || norm(u.unidade.nome) === alvo);
-  if (!uOp) return null;
-  const fatorOp = uOp.isPrincipal ? 1 : decimalToNumber(uOp.fatorConversao);
-  if (!(fatorOp > 0)) return null;
-  const un = qtd * fatorOp; // base do item (UN)
+function unidadeItem(uns: ItemUnidadeConv[], fallback?: string | null): string {
+  const p = uns?.find((u) => u.isPrincipal) ?? uns?.[0];
+  return p?.unidade?.sigla || (fallback ?? "");
+}
+/**
+ * Converte a quantidade produzida (na unidade PRINCIPAL do item) para UN (base) e PLT
+ * (palete), usando o cadastro de unidades DO PRÓPRIO PRODUTO. PLT fica null quando o
+ * produto não tem palete cadastrado.
+ */
+function converterUnPlt(qtd: number, uns: ItemUnidadeConv[]): { un: number; plt: number | null } | null {
+  if (!uns?.length) return null;
+  const p = uns.find((u) => u.isPrincipal) ?? uns[0];
+  const fatorP = decimalToNumber(p?.fatorConversao) || 1; // principal costuma ser a base (fator 1)
+  const un = qtd * fatorP; // base do item (UN)
   const uPlt = uns.find((u) => /plt|palete/i.test(u.unidade.sigla) || /palete/i.test(u.unidade.nome));
   const fatorPlt = uPlt ? decimalToNumber(uPlt.fatorConversao) : 0;
   return { un, plt: fatorPlt > 0 ? un / fatorPlt : null };
@@ -50,15 +55,16 @@ export async function notifyOpCriada(ordemId: string): Promise<void> {
     const op = await prisma.ordemProducao.findUnique({
       where: { id: ordemId },
       select: { numero: true, quantidadePlanejada: true, unidade: true, criadoPor: true,
-        item: { select: { descricao: true } }, _count: { select: { etapas: true } } },
+        item: { select: { descricao: true, itemUnidades: selItemUnidades } }, _count: { select: { etapas: true } } },
     });
     if (!op) return;
     const produto = op.item?.descricao ?? "—";
+    const un = unidadeItem(op.item?.itemUnidades ?? [], op.unidade);
     const qtd = fmtNum(decimalToNumber(op.quantidadePlanejada));
     const linhas = [
       `🏭 *Nova OP* — ${escMD(op.numero)}`,
       `📦 ${escMD(produto)}`,
-      `🎯 Planejado: *${escMD(qtd)}* ${escMD(op.unidade ?? "")}`.trimEnd(),
+      `🎯 Planejado: *${escMD(qtd)}* ${escMD(un)}`.trimEnd(),
       `🔧 ${op._count.etapas} etapa${op._count.etapas === 1 ? "" : "s"}`,
       op.criadoPor ? `👤 ${escMD(op.criadoPor)}` : null,
     ].filter(Boolean) as string[];
@@ -80,9 +86,9 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
     const perda = decimalToNumber(et.qtdPerda);
     const concl = et.status === "CONCLUIDA";
     const emb = ehEmbalagem(et.nome); // na Embalagem, a perda é "quebra" + UN/PLT
-    const un = op.unidade ?? "";
+    const un = unidadeItem(op.item?.itemUnidades ?? [], op.unidade); // unidade principal do item
     // Na Embalagem, converte o produzido para UN e PLT pelo cadastro do produto.
-    const conv = emb ? converterUnPlt(saida, op.unidade, op.item?.itemUnidades ?? []) : null;
+    const conv = emb ? converterUnPlt(saida, op.item?.itemUnidades ?? []) : null;
     const linhaProd = saida > 0
       ? `📤 Produzido: *${escMD(fmtNum(saida))}* ${escMD(un)}`.trimEnd() +
         (conv ? ` \\(${escMD(fmtNum(conv.un))} UN${conv.plt != null ? ` · ${escMD(fmtNum(conv.plt))} PLT` : ""}\\)` : "")
@@ -134,10 +140,10 @@ export async function enviarResumoPcpDia(): Promise<{ ok: boolean; apontamentos:
       for (const e of itens) {
         const op = e.ordemProducao;
         const prod = decimalToNumber(e.qtdSaida);
-        const un = op.unidade ?? "";
+        const un = unidadeItem(op.item?.itemUnidades ?? [], op.unidade); // unidade principal do item
         let linha = `  • ${escMD(op.numero)} — ${escMD(op.item?.descricao ?? "—")}: *${escMD(fmtNum(prod))}* ${escMD(un)}`.trimEnd();
         if (ehEmbalagem(etapaNome)) {
-          const conv = converterUnPlt(prod, op.unidade, op.item?.itemUnidades ?? []);
+          const conv = converterUnPlt(prod, op.item?.itemUnidades ?? []);
           if (conv) linha += ` \\= ${escMD(fmtNum(conv.un))} UN${conv.plt != null ? ` · ${escMD(fmtNum(conv.plt))} PLT` : ""}`;
           const quebra = decimalToNumber(e.qtdPerda);
           if (quebra > 0) linha += ` · 🧱 quebra ${escMD(fmtNum(quebra))}`;
