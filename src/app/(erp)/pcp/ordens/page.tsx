@@ -73,7 +73,8 @@ export default function OrdensBoardPage() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [areaNodeId, setAreaNodeId] = usePersistedState("pcp-area-node", "");
-  const [data, setData] = usePersistedState("pcp-dia", hoje());
+  // Dia NÃO persiste de propósito: a tela sempre abre em hoje (pedido do Ellyan).
+  const [data, setData] = useState(hoje());
   // Popover do calendário de produção usado como filtro de dia.
   const [calAberto, setCalAberto] = useState(false);
   const calRef = useRef<HTMLDivElement>(null);
