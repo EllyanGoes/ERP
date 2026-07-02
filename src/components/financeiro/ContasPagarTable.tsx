@@ -36,7 +36,7 @@ type ContaRow = {
     id: string; numero: string; conferencia?: { id: string; numero: string } | null;
     itens?: { tes?: { codigo: string; nome: string } | null; centroCusto?: { codigo: string; nome: string } | null }[];
   } | null;
-  centroCusto?: { codigo: string; nome: string } | null;
+  centroCusto?: { codigo: string; nome: string } | null; centroCustoId?: string | null;
   folhaId?: string | null; recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
   naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
 };
@@ -538,10 +538,12 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         </DialogContent>
       </Dialog>
 
-      {/* Edição do título em pop-up (mesma tela) */}
+      {/* Edição do título em pop-up (mesma tela). Título AVULSO (sem material/folha)
+          pode editar o centro de custo; título de material não. */}
       <EditarTituloDialog
         tipo="pagar"
         titulo={editar ? { ...editar, fornecedorId: editar.fornecedor?.id ?? null } : null}
+        permiteCentro={!!editar && !editar.pedidoCompra && !editar.folhaId}
         onOpenChange={(o) => !o && setEditar(null)}
         onSaved={() => router.refresh()}
       />

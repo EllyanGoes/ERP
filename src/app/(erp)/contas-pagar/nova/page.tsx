@@ -8,7 +8,7 @@ export default async function NovaContaPagarPage() {
   const [fornecedores, colaboradores, naturezas] = await Promise.all([
     prisma.fornecedor.findMany({ where: { ativo: true }, orderBy: { razaoSocial: "asc" }, select: { id: true, razaoSocial: true } }),
     prisma.colaborador.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
-    prisma.naturezaFinanceira.findMany({ where: { ativo: true, tipo: "SAIDA" }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.naturezaFinanceira.findMany({ where: { ativo: true, tipo: "SAIDA" }, orderBy: { nome: "asc" }, select: { id: true, nome: true, grupo: true, cif: true } }),
   ]);
   return (
     <div>

@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { centroExigidoPelaNatureza } from "@/lib/natureza-centro";
 import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { contaPagarSchema, type ContaPagarFormData } from "@/lib/validations/financeiro";
@@ -17,7 +18,8 @@ import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 
 type FornecedorOption = { id: string; razaoSocial: string };
 type ColaboradorOption = { id: string; nome: string };
-type NaturezaOption = { id: string; nome: string };
+type NaturezaOption = { id: string; nome: string; grupo?: string | null; cif?: boolean | null };
+type CentroOption = { id: string; codigo: string; nome: string };
 type ContaPagarEdit = { id: string } & Partial<ContaPagarFormData>;
 type BenTipo = "FORNECEDOR" | "COLABORADOR" | "SEM_VINCULO";
 
@@ -43,6 +45,18 @@ export default function ContaPagarForm({ fornecedores, colaboradores, naturezas,
   const [benTipo, setBenTipo] = useState<BenTipo>(tipoInicial);
   const [benId, setBenId] = useState<string>(editing?.fornecedorId || editing?.beneficiarioId || "");
   const [natureza, setNatureza] = useState<string>(editing?.naturezaFinanceiraId ?? "");
+  const [centroCustoId, setCentroCustoId] = useState<string>(editing?.centroCustoId ?? "");
+  const [centros, setCentros] = useState<CentroOption[]>([]);
+
+  // Centro é exigido conforme o destino da natureza (despesa/CIF); oculto p/ natureza
+  // patrimonial (imposto/empréstimo). É gerencial no título; o razão segue pela natureza.
+  const natSel = naturezas.find((n) => n.id === natureza) ?? null;
+  const exigeCentro = centroExigidoPelaNatureza(natSel);
+
+  useEffect(() => {
+    fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
+      .then((j) => setCentros(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+  }, []);
 
   const [serverError, setServerError] = useState<string | null>(null);
   const [parcelas, setParcelas] = useState("1");
@@ -59,9 +73,12 @@ export default function ContaPagarForm({ fornecedores, colaboradores, naturezas,
     if (!natureza) { setServerError("Selecione a natureza financeira."); return; }
     if (benTipo === "FORNECEDOR" && !benId) { setServerError("Selecione o fornecedor."); return; }
     if (benTipo === "COLABORADOR" && !benId) { setServerError("Selecione o colaborador."); return; }
+    if (exigeCentro && !centroCustoId) { setServerError("Centro de custo é obrigatório para esta natureza (despesa/CIF)."); return; }
     const payload = {
       ...data,
       naturezaFinanceiraId: natureza,
+      // Centro só quando o destino é de custo (despesa/CIF); patrimonial não carrega.
+      centroCustoId: exigeCentro ? (centroCustoId || null) : null,
       fornecedorId: benTipo === "FORNECEDOR" ? benId : null,
       beneficiarioTipo: benTipo === "SEM_VINCULO" ? null : benTipo,
       beneficiarioId: benTipo === "SEM_VINCULO" ? null : (benId || null),
@@ -113,6 +130,21 @@ export default function ContaPagarForm({ fornecedores, colaboradores, naturezas,
               />
               <p className="text-[11px] text-muted-foreground">As contas contábeis (despesa e a pagar) são derivadas automaticamente da natureza.</p>
             </FormItem>
+
+            {/* Centro de custo — só quando o destino é de custo (despesa/CIF). Natureza
+                patrimonial (imposto/empréstimo) não exige e o campo fica oculto. */}
+            {exigeCentro && (
+              <FormItem className="col-span-2">
+                <FormLabel>Centro de custo *</FormLabel>
+                <ComboboxWithCreate
+                  options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+                  value={centroCustoId}
+                  onChange={setCentroCustoId}
+                  placeholder="Selecionar centro de custo..."
+                />
+                <p className="text-[11px] text-muted-foreground">Obrigatório para despesa/CIF — é a classificação gerencial do débito.</p>
+              </FormItem>
+            )}
 
             <FormItem className="col-span-2">
               <FormLabel>Beneficiário</FormLabel>

@@ -27,7 +27,7 @@ type ContaRow = {
   cliente: { id: string; razaoSocial: string };
   contasContrapartida?: { id: string; nome: string }[];
   pedidoVenda?: { id: string; numero: string } | null;
-  centroCusto?: { codigo: string; nome: string } | null;
+  centroCusto?: { codigo: string; nome: string } | null; centroCustoId?: string | null;
   recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
   naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
 };
