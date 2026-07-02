@@ -69,7 +69,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "O fluxo publicado não tem etapas de produção." }, { status: 400 });
   }
 
-  const unidade = typeof body.unidade === "string" && body.unidade.trim() ? body.unidade.trim() : "milheiro";
+  // Unidade da OP: usa a enviada; senão a unidade PRINCIPAL do item (a que a tela
+  // exibe). Nunca mais o default fixo "milheiro" — ele não refletia o produto.
+  let unidade = typeof body.unidade === "string" && body.unidade.trim() ? body.unidade.trim() : null;
+  if (!unidade && fluxo.itemId) {
+    const un = await prisma.itemUnidade.findFirst({
+      where: { itemId: fluxo.itemId, isPrincipal: true },
+      select: { unidade: { select: { sigla: true } } },
+    });
+    unidade = un?.unidade?.sigla ?? null;
+  }
   const observacao = typeof body.observacao === "string" && body.observacao.trim() ? body.observacao.trim() : null;
   const criadoPor = typeof body.criadoPor === "string" && body.criadoPor.trim() ? body.criadoPor.trim() : null;
 
