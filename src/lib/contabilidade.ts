@@ -2,7 +2,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import type { EstadoWIP } from "@prisma/client";
 import { decimalToNumber, generateDocNumber } from "@/lib/utils";
-import { detalheItens } from "@/lib/detalhe-itens";
+import { detalheItens, detalheComodato } from "@/lib/detalhe-itens";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
@@ -381,8 +381,17 @@ export async function contabilizarTituloReceber(crId: string) {
   if (!cr || cr.status === "CANCELADA") return;
   const cliNome = cr.cliente?.razaoSocial ?? "";
   const refPedido = cr.pedidoVenda?.numero ? ` · Pedido ${cr.pedidoVenda.numero}` : "";
-  // Itens do pedido (qtd× produto × R$ unit) p/ detalhar a descrição do recebimento.
-  const detPedido = cr.pedidoVenda?.itens?.length ? detalheItens(cr.pedidoVenda.itens) : "";
+  // Itens do pedido (qtd× produto × R$ unit) + comodato p/ detalhar o recebimento.
+  const comodatosCr = cr.pedidoVendaId
+    ? await prismaSemEscopo.movimentacaoComodato.findMany({
+        where: { pedidoVendaId: cr.pedidoVendaId },
+        select: { tipo: true, quantidade: true, valorUnitario: true, item: { select: { descricao: true } } },
+      })
+    : [];
+  const detPedido = [
+    cr.pedidoVenda?.itens?.length ? detalheItens(cr.pedidoVenda.itens) : "",
+    detalheComodato(comodatosCr),
+  ].filter(Boolean).join("; ");
   // Histórico contábil usa a descrição do próprio título (mais claro do que só o
   // número); cai no número quando o título não tem descrição.
   const descCr = cr.descricao?.trim();
@@ -791,8 +800,14 @@ export async function contabilizarVendaPedido(pedidoVendaId: string) {
   // Modelo clássico "venda a entregar": na confirmação reconhece o direito a
   // receber e a obrigação de entregar — D Clientes a Receber / C Material a
   // Entregar, pelo valor total. Receita só na entrega (contabilizarReceitaMinuta).
-  // Histórico no padrão do razão: pedido · cliente · itens (qtd × produto × preço).
-  const detalhe = detalheItens(pedido.itens);
+  // Histórico no padrão do razão: pedido · cliente · itens (qtd × produto ×
+  // preço) · comodato — o comodato compõe o valorTotal lançado, então precisa
+  // aparecer para a descrição bater com o valor.
+  const comodatos = await prismaSemEscopo.movimentacaoComodato.findMany({
+    where: { pedidoVendaId: pedido.id },
+    select: { tipo: true, quantidade: true, valorUnitario: true, item: { select: { descricao: true } } },
+  });
+  const detalhe = [detalheItens(pedido.itens), detalheComodato(comodatos)].filter(Boolean).join("; ");
   const cli = pedido.cliente?.razaoSocial ?? "";
   const historico = `Venda (a entregar) — Pedido ${pedido.numero}${cli ? ` · ${cli}` : ""}${detalhe ? ` · ${detalhe}` : ""}`;
   await registrarLancamento({

@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { generateDocNumber, decimalToNumber } from "@/lib/utils";
-import { detalheItens } from "@/lib/detalhe-itens";
+import { detalheItens, detalheComodato } from "@/lib/detalhe-itens";
 import { calcularParcelas, type CondicaoParcelas } from "@/lib/parcelas";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 
@@ -21,12 +21,19 @@ export async function gerarContasReceberDoPedido(
   },
   condicao: CondicaoParcelas,
 ): Promise<number> {
-  // Detalhe dos itens do pedido na descrição (como no razão).
-  const itensPv = await tx.pedidoVendaItem.findMany({
-    where: { pedidoVendaId: pedido.id },
-    select: { quantidade: true, precoUnitario: true, item: { select: { descricao: true } } },
-  });
-  const det = detalheItens(itensPv);
+  // Detalhe dos itens do pedido na descrição (como no razão), incluindo o
+  // comodato — que compõe o valor do título.
+  const [itensPv, comodatos] = await Promise.all([
+    tx.pedidoVendaItem.findMany({
+      where: { pedidoVendaId: pedido.id },
+      select: { quantidade: true, precoUnitario: true, item: { select: { descricao: true } } },
+    }),
+    tx.movimentacaoComodato.findMany({
+      where: { pedidoVendaId: pedido.id },
+      select: { tipo: true, quantidade: true, valorUnitario: true, item: { select: { descricao: true } } },
+    }),
+  ]);
+  const det = [detalheItens(itensPv), detalheComodato(comodatos)].filter(Boolean).join("; ");
   const baseDesc = `Faturamento pedido ${pedido.numero}${det ? ` — ${det}` : ""}`;
 
   const parcelas = calcularParcelas(condicao, pedido.valorTotal, pedido.dataEmissao);
