@@ -84,6 +84,48 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// Assinatura do conteúdo da minuta (itens+quantidades) p/ detectar duplicata exata.
+function assinaturaItens(itens: { pedidoVendaItemId: string; quantidade: unknown }[]): string {
+  return itens.map((i) => `${i.pedidoVendaItemId}:${Number(i.quantidade)}`).sort().join("|");
+}
+
+// Valida sobre-entrega: qtd de cada item ≤ pendente do pedido (pedida − em minutas
+// ativas). Usada duas vezes: pre-check (resposta rápida, sem queimar numeração) e
+// DENTRO da transação com o pedido travado (autoritativa — duas requisições
+// simultâneas não passam juntas).
+function erroSobreEntrega(
+  itensPedido: { id: string; quantidade: unknown; item: { descricao: string }; minutaItens: { quantidade: unknown }[] }[],
+  itensReq: { pedidoVendaItemId: string; quantidade: unknown }[],
+): { status: number; error: string } | null {
+  const EPS = 1e-6;
+  const porPvi = new Map(itensPedido.map((i) => [i.id, {
+    descricao: i.item.descricao,
+    pendente: Number(i.quantidade) - i.minutaItens.reduce((s, mi) => s + Number(mi.quantidade), 0),
+  }]));
+  const pedidaPorPvi = new Map<string, number>();
+  for (const it of itensReq) {
+    pedidaPorPvi.set(it.pedidoVendaItemId, (pedidaPorPvi.get(it.pedidoVendaItemId) ?? 0) + Number(it.quantidade));
+  }
+  const excessos: string[] = [];
+  for (const [pviId, qtd] of Array.from(pedidaPorPvi)) {
+    const alvo = porPvi.get(pviId);
+    if (!alvo) return { status: 422, error: "Item não pertence ao pedido de venda." };
+    if (qtd > alvo.pendente + EPS) excessos.push(`${alvo.descricao} (pendente ${alvo.pendente}, minuta ${qtd})`);
+  }
+  if (excessos.length > 0) {
+    return { status: 422, error: `Quantidade maior que o saldo pendente de entrega: ${excessos.join("; ")}.` };
+  }
+  return null;
+}
+
+// Erros de negócio lançados de dentro da transação (rollback + resposta tipada).
+class MinutaDuplicadaError extends Error {
+  constructor(public numero: string, public criadaEm: Date) { super("Minuta idêntica recém-criada"); }
+}
+class SobreEntregaError extends Error {
+  constructor(public payload: { status: number; error: string }) { super(payload.error); }
+}
+
 // ── POST /api/comercial/minutas ───────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("comercial");
@@ -138,33 +180,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Sobre-entrega: a quantidade de cada item não pode exceder o PENDENTE do
-    // pedido (pedida − já em minutas ativas). Validação SERVER-SIDE — a tela já
-    // limita, mas requisições diretas/duas abas não podem furar.
+    // Sobre-entrega (pre-check): resposta rápida sem queimar numeração. A checagem
+    // AUTORITATIVA roda de novo dentro da transação, com o pedido travado.
     {
-      const EPS = 1e-6;
-      const porPvi = new Map(pedidoOrigem.itens.map((i) => [i.id, {
-        descricao: i.item.descricao,
-        pendente: Number(i.quantidade) - i.minutaItens.reduce((s, mi) => s + Number(mi.quantidade), 0),
-      }]));
-      const pedidaPorPvi = new Map<string, number>();
-      for (const it of itens) {
-        pedidaPorPvi.set(it.pedidoVendaItemId, (pedidaPorPvi.get(it.pedidoVendaItemId) ?? 0) + Number(it.quantidade));
-      }
-      const excessos: string[] = [];
-      for (const [pviId, qtd] of Array.from(pedidaPorPvi)) {
-        const alvo = porPvi.get(pviId);
-        if (!alvo) return NextResponse.json({ error: "Item não pertence ao pedido de venda." }, { status: 422 });
-        if (qtd > alvo.pendente + EPS) {
-          excessos.push(`${alvo.descricao} (pendente ${alvo.pendente}, minuta ${qtd})`);
-        }
-      }
-      if (excessos.length > 0) {
-        return NextResponse.json(
-          { error: `Quantidade maior que o saldo pendente de entrega: ${excessos.join("; ")}.` },
-          { status: 422 },
-        );
-      }
+      const erro = erroSobreEntrega(pedidoOrigem.itens, itens);
+      if (erro) return NextResponse.json({ error: erro.error }, { status: erro.status });
     }
     const numeroMin = generateSimpleDocNumber(
       "MIN",
@@ -172,6 +192,38 @@ export async function POST(req: NextRequest) {
     );
 
     const minuta = await prisma.$transaction(async (tx) => {
+      // Serializa criações concorrentes do MESMO pedido: quem chegar segundo espera
+      // o commit do primeiro e revalida contra o estado já atualizado. É esta trava
+      // que impede duas requisições simultâneas (duplo envio, duas abas, dois
+      // usuários) de passarem juntas pela validação de pendente.
+      await tx.$queryRaw`SELECT id FROM "PedidoVenda" WHERE id = ${pedidoVendaId} FOR UPDATE`;
+
+      // Duplicata exata: mesma composição de itens/quantidades em minuta ativa
+      // criada nos últimos 10 minutos → bloqueia (o front pode reenviar com
+      // ignorarDuplicidade quando for entrega repetida de verdade, ex. 2 caminhões).
+      if (body.ignorarDuplicidade !== true) {
+        const desde = new Date(Date.now() - 10 * 60 * 1000);
+        const recentes = await tx.minuta.findMany({
+          where: { pedidoVendaId, status: { not: "CANCELADA" }, createdAt: { gte: desde } },
+          select: { numero: true, createdAt: true, itens: { select: { pedidoVendaItemId: true, quantidade: true } } },
+        });
+        const nova = assinaturaItens(itens);
+        const igual = recentes.find((m) => assinaturaItens(m.itens) === nova);
+        if (igual) throw new MinutaDuplicadaError(igual.numero, igual.createdAt);
+      }
+
+      // Revalidação de sobre-entrega SOB O LOCK (autoritativa).
+      const itensAtuais = await tx.pedidoVendaItem.findMany({
+        where: { pedidoVendaId },
+        select: {
+          id: true, quantidade: true,
+          item: { select: { descricao: true } },
+          minutaItens: { where: { minuta: { status: { not: "CANCELADA" } } }, select: { quantidade: true } },
+        },
+      });
+      const erro = erroSobreEntrega(itensAtuais, itens);
+      if (erro) throw new SobreEntregaError(erro);
+
       const created = await tx.minuta.create({
         data: {
           numero: numeroMin,
@@ -232,6 +284,20 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ data: minuta }, { status: 201 });
   } catch (err: unknown) {
+    if (err instanceof MinutaDuplicadaError) {
+      const min = Math.max(1, Math.round((Date.now() - err.criadaEm.getTime()) / 60000));
+      return NextResponse.json(
+        {
+          error: `Já existe a minuta ${err.numero}, idêntica (mesmos itens e quantidades), criada há ${min} min. Se for mesmo uma segunda entrega igual, confirme a criação.`,
+          duplicada: true,
+          minutaNumero: err.numero,
+        },
+        { status: 409 },
+      );
+    }
+    if (err instanceof SobreEntregaError) {
+      return NextResponse.json({ error: err.payload.error }, { status: err.payload.status });
+    }
     const msg = err instanceof Error ? err.message : "Erro interno";
     console.error("[POST /api/comercial/minutas]", err);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -266,23 +266,33 @@ export default function MinutaCreateForm() {
         };
       });
 
-      const res = await fetch("/api/comercial/minutas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pedidoVendaId,
-          numeroFisico:   numeroFisico.trim() || null,
-          tipo,
-          localEstoqueId: null,
-          motoristaId:    motoristaId || null,
-          dataEntrega:    dataEntrega || null,
-          placa:          placa || null,
-          observacoes:    observacoes || null,
-          itens,
-        }),
-      });
+      const criar = (ignorarDuplicidade: boolean) =>
+        fetch("/api/comercial/minutas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pedidoVendaId,
+            numeroFisico:   numeroFisico.trim() || null,
+            tipo,
+            localEstoqueId: null,
+            motoristaId:    motoristaId || null,
+            dataEntrega:    dataEntrega || null,
+            placa:          placa || null,
+            observacoes:    observacoes || null,
+            itens,
+            ignorarDuplicidade,
+          }),
+        });
 
-      const json = await res.json();
+      let res = await criar(false);
+      let json = await res.json();
+      // Servidor detectou minuta idêntica recém-criada: só recria se o usuário
+      // confirmar que é mesmo uma segunda entrega igual (ex.: dois caminhões).
+      if (res.status === 409 && json.duplicada) {
+        if (!confirm(`${json.error}\n\nCriar mesmo assim?`)) { setError(""); return; }
+        res = await criar(true);
+        json = await res.json();
+      }
       if (!res.ok) { setError(json.error ?? "Erro ao criar minuta"); return; }
       sessionStorage.removeItem(SESSION_KEY);
       confirmCreated(json.data.id);
