@@ -8,31 +8,40 @@ import { geocodificarEndereco } from "@/lib/geocode";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
-  const categoria = searchParams.get("categoria") || undefined; // fornecedor | revendedor | parceiro
+  const categoria = searchParams.get("categoria") || undefined; // fornecedor | revendedor | construtora | consumidor-final | parceiro | sem-canais
   const ativo = searchParams.get("ativo");
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
 
-  const where: any = {
-    AND: [
-      q
-        ? {
-            OR: [
-              { razaoSocial: { contains: q, mode: "insensitive" } },
-              { nomeFantasia: { contains: q, mode: "insensitive" } },
-              { cidade: { contains: q, mode: "insensitive" } },
-            ],
-          }
-        : {},
-      categoria === "fornecedor" ? { ehFornecedor: true } : {},
-      categoria === "revendedor" ? { ehRevendedor: true } : {},
-      // Parceiro = está na nossa base de clientes (atendido por empresa do grupo).
-      categoria === "parceiro" ? { clienteId: { not: null } } : {},
-      ativo === "false" ? {} : { ativo: true },
-    ],
+  // Recorte de cada filtro de categoria. Parceiro = está na nossa base de
+  // clientes (atendido por empresa do grupo); sem-canais = nenhum canal cadastrado.
+  const porCategoria: Record<string, object> = {
+    fornecedor: { ehFornecedor: true },
+    revendedor: { ehRevendedor: true },
+    construtora: { ehConstrutora: true },
+    "consumidor-final": { ehConsumidorFinal: true },
+    parceiro: { clienteId: { not: null } },
+    "sem-canais": { canais: { none: {} } },
   };
 
-  const [data, total] = await Promise.all([
+  // Base = busca + ativo, sem o recorte de categoria — é sobre ela que os
+  // contadores dos chips são calculados.
+  const baseAnd: object[] = [
+    q
+      ? {
+          OR: [
+            { razaoSocial: { contains: q, mode: "insensitive" } },
+            { nomeFantasia: { contains: q, mode: "insensitive" } },
+            { cidade: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : {},
+    ativo === "false" ? {} : { ativo: true },
+  ];
+  const where: any = { AND: [...baseAnd, (categoria && porCategoria[categoria]) || {}] };
+
+  const chaves = Object.keys(porCategoria);
+  const [data, total, totalBase, ...porChave] = await Promise.all([
     prisma.concorrente.findMany({
       where,
       orderBy: { razaoSocial: "asc" },
@@ -41,9 +50,13 @@ export async function GET(req: NextRequest) {
       include: { _count: { select: { precos: true, canais: true } } },
     }),
     prisma.concorrente.count({ where }),
+    prisma.concorrente.count({ where: { AND: baseAnd } }),
+    ...chaves.map((c) => prisma.concorrente.count({ where: { AND: [...baseAnd, porCategoria[c]] } })),
   ]);
+  const contadores: Record<string, number> = { "": totalBase };
+  chaves.forEach((c, i) => { contadores[c] = porChave[i]; });
 
-  return NextResponse.json({ data, total, page, limit });
+  return NextResponse.json({ data, total, page, limit, contadores });
 }
 
 export async function POST(req: NextRequest) {

@@ -9,8 +9,9 @@ import ConcorrenteForm from "@/components/marketing/ConcorrenteForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
-import { Plus, Search, MapPin, Map as MapIcon, Building2, Store, HardHat, User, Tag, Loader2, ChevronRight, Crosshair, BarChart3, Handshake } from "lucide-react";
+import { Plus, Search, MapPin, Map as MapIcon, Building2, Store, HardHat, User, Tag, Loader2, ChevronRight, Crosshair, BarChart3, Handshake, MegaphoneOff, type LucideIcon } from "lucide-react";
 
 type Concorrente = {
   id: string;
@@ -29,20 +30,25 @@ type Concorrente = {
   _count: { precos: number; canais: number };
 };
 
-const FILTROS = [
+// Mesmas categorias das tags da lista (+ "Sem canais" para achar cadastros incompletos).
+const FILTROS: { value: string; label: string; Icon?: LucideIcon }[] = [
   { value: "", label: "Todos" },
-  { value: "fornecedor", label: "Fornecedores" },
-  { value: "revendedor", label: "Revendedores" },
-  { value: "parceiro", label: "Parceiros" },
+  { value: "fornecedor", label: "Fornecedores", Icon: Building2 },
+  { value: "revendedor", label: "Revendedores", Icon: Store },
+  { value: "construtora", label: "Construtoras", Icon: HardHat },
+  { value: "consumidor-final", label: "Consumidor final", Icon: User },
+  { value: "parceiro", label: "Parceiros", Icon: Handshake },
+  { value: "sem-canais", label: "Sem canais", Icon: MegaphoneOff },
 ];
 
 export default function InteligenciaComercialPage() {
   useTabTitle("Inteligência Comercial");
   const router = useRouter();
   const [lista, setLista] = useState<Concorrente[]>([]);
+  const [contadores, setContadores] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [categoria, setCategoria] = useState("");
+  const [categoria, setCategoria] = usePersistedState("ic-filtro-categoria", "");
   const [openDrawer, setOpenDrawer] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
@@ -55,6 +61,7 @@ export default function InteligenciaComercialPage() {
     const res = await fetch(`/api/marketing/concorrentes?${params.toString()}`);
     const json = await res.json();
     setLista(json.data ?? []);
+    setContadores(json.contadores ?? {});
     setLoading(false);
   }, [q, categoria]);
 
@@ -146,15 +153,24 @@ export default function InteligenciaComercialPage() {
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome ou cidade..." className="pl-9 h-10 border-border" />
           </div>
           <div className="flex gap-1 rounded-lg border border-border p-1">
-            {FILTROS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setCategoria(f.value)}
-                className={cn("px-3 py-1.5 text-sm rounded-md transition-colors", categoria === f.value ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-muted")}
-              >
-                {f.label}
-              </button>
-            ))}
+            {FILTROS.map((f) => {
+              const ativo = categoria === f.value;
+              return (
+                <button
+                  key={f.value}
+                  onClick={() => setCategoria(f.value)}
+                  className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors", ativo ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-muted")}
+                >
+                  {f.Icon && <f.Icon className="h-3.5 w-3.5" />}
+                  {f.label}
+                  {contadores[f.value] != null && (
+                    <span className={cn("text-[11px] font-semibold tabular-nums px-1.5 py-px rounded-full", ativo ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground")}>
+                      {contadores[f.value]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 

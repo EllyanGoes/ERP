@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, useMap } from "react-leaflet";
-import { Building2, Store, HardHat, User, Handshake, Loader2 } from "lucide-react";
+import { Building2, Store, HardHat, User, Handshake, Loader2, type LucideIcon } from "lucide-react";
+import { usePersistedState } from "@/lib/use-persisted-state";
+import { cn } from "@/lib/utils";
 import "leaflet/dist/leaflet.css";
 
 type Ponto = {
@@ -46,6 +48,19 @@ function categoriaDe(p: Ponto): Categoria {
 }
 function corDe(p: Ponto): string { return COR[categoriaDe(p)]; }
 
+// Linhas da legenda/filtro de visibilidade (mesma ordem de antes).
+const LEGENDA: { cat: Categoria; label: string; Icon?: LucideIcon }[] = [
+  { cat: "fornecedor", label: "Fornecedor", Icon: Building2 },
+  { cat: "revendedor", label: "Revendedor", Icon: Store },
+  { cat: "parceiro", label: "Revendedor parceiro", Icon: Handshake },
+  { cat: "ambos", label: "Ambos" },
+  { cat: "construtora", label: "Construtora", Icon: HardHat },
+  { cat: "consumidor", label: "Consumidor final", Icon: User },
+];
+const TODAS_VISIVEIS: Record<Categoria, boolean> = {
+  construtora: true, consumidor: true, fornecedor: true, revendedor: true, parceiro: true, ambos: true,
+};
+
 const CENTRO_BRASIL: [number, number] = [-15.78, -47.93];
 
 // Enquadra o mapa nos marcadores (aproxima ao máximo, com folga) sempre que os
@@ -63,6 +78,12 @@ function FitBounds({ pontos }: { pontos: Ponto[] }) {
 export default function ConcorrentesMap() {
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [loading, setLoading] = useState(true);
+  // Visibilidade por categoria (persistida por usuário). Merge sobre o default
+  // p/ categorias novas não sumirem quando o valor salvo for antigo.
+  const [visiveisSalvo, setVisiveis] = usePersistedState<Partial<Record<Categoria, boolean>>>("geomkt-visibilidade", TODAS_VISIVEIS);
+  const visiveis = useMemo(() => ({ ...TODAS_VISIVEIS, ...visiveisSalvo }), [visiveisSalvo]);
+  const visiveisPontos = useMemo(() => pontos.filter((p) => visiveis[categoriaDe(p)]), [pontos, visiveis]);
+  const algumaOculta = LEGENDA.some((l) => !visiveis[l.cat]);
 
   useEffect(() => {
     fetch("/api/marketing/concorrentes/geo")
@@ -73,11 +94,12 @@ export default function ConcorrentesMap() {
   }, []);
 
   const centro = useMemo<[number, number]>(() => {
-    if (pontos.length === 0) return CENTRO_BRASIL;
-    const lat = pontos.reduce((s, p) => s + p.latitude, 0) / pontos.length;
-    const lng = pontos.reduce((s, p) => s + p.longitude, 0) / pontos.length;
+    const base = visiveisPontos.length ? visiveisPontos : pontos;
+    if (base.length === 0) return CENTRO_BRASIL;
+    const lat = base.reduce((s, p) => s + p.latitude, 0) / base.length;
+    const lng = base.reduce((s, p) => s + p.longitude, 0) / base.length;
     return [lat, lng];
-  }, [pontos]);
+  }, [pontos, visiveisPontos]);
 
   // Contagem de concorrentes por categoria (mesma classificação das cores).
   const contagem = useMemo(() => {
@@ -97,8 +119,8 @@ export default function ConcorrentesMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds pontos={pontos} />
-        {pontos.map((p) => {
+        <FitBounds pontos={visiveisPontos} />
+        {visiveisPontos.map((p) => {
           const nome = p.nomeFantasia || p.razaoSocial;
           // Só mostra o nome do local quando agrega informação (≠ do nome e ≠ "Matriz").
           const localExtra = p.localNome && p.localNome !== "Matriz" && p.localNome.trim().toLowerCase() !== nome.trim().toLowerCase() ? p.localNome : null;
@@ -132,18 +154,32 @@ export default function ConcorrentesMap() {
         })}
       </MapContainer>
 
-      {/* Legenda */}
-      <div className="absolute bottom-4 right-4 z-[400] bg-card/95 backdrop-blur border border-border rounded-lg shadow-lg px-3 py-2 text-xs space-y-1 min-w-[190px]">
+      {/* Legenda + filtro de visibilidade: clicar numa categoria oculta/mostra os pinos dela. */}
+      <div className="absolute bottom-4 right-4 z-[400] bg-card/95 backdrop-blur border border-border rounded-lg shadow-lg px-3 py-2 text-xs space-y-0.5 min-w-[200px]">
         <div className="flex items-center justify-between mb-1">
-          <p className="font-semibold text-foreground">Legenda</p>
-          <span className="text-muted-foreground tabular-nums">{pontos.length} no total</span>
+          <p className="font-semibold text-foreground">Visibilidade</p>
+          {algumaOculta ? (
+            <button onClick={() => setVisiveis(TODAS_VISIVEIS)} className="text-primary font-medium hover:underline">mostrar tudo</button>
+          ) : (
+            <span className="text-muted-foreground tabular-nums">{pontos.length} no total</span>
+          )}
         </div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.fornecedor }} /> <Building2 className="h-3 w-3 shrink-0" /> Fornecedor <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.fornecedor}</span></div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.revendedor }} /> <Store className="h-3 w-3 shrink-0" /> Revendedor <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.revendedor}</span></div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.parceiro }} /> <Handshake className="h-3 w-3 shrink-0" /> Revendedor parceiro <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.parceiro}</span></div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.ambos }} /> Ambos <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.ambos}</span></div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.construtora }} /> <HardHat className="h-3 w-3 shrink-0" /> Construtora <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.construtora}</span></div>
-        <div className="flex items-center gap-2 text-muted-foreground"><span className="inline-block h-3 w-3 rounded-full" style={{ background: COR.consumidor }} /> <User className="h-3 w-3 shrink-0" /> Consumidor final <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem.consumidor}</span></div>
+        {LEGENDA.map(({ cat, label, Icon }) => {
+          const ligada = visiveis[cat];
+          return (
+            <button
+              key={cat}
+              onClick={() => setVisiveis((v) => ({ ...TODAS_VISIVEIS, ...v, [cat]: !ligada }))}
+              title={ligada ? "Clique para ocultar no mapa" : "Clique para mostrar no mapa"}
+              className={cn("flex w-full items-center gap-2 rounded px-1 py-0.5 -mx-1 text-left text-muted-foreground hover:bg-muted transition-colors", !ligada && "opacity-40")}
+            >
+              <span className={cn("inline-block h-3 w-3 rounded-full shrink-0", !ligada && "border-2")} style={{ background: ligada ? COR[cat] : "transparent", borderColor: COR[cat] }} />
+              {Icon && <Icon className="h-3 w-3 shrink-0" />}
+              <span className={cn(!ligada && "line-through")}>{label}</span>
+              <span className="ml-auto pl-3 tabular-nums font-semibold text-foreground">{contagem[cat]}</span>
+            </button>
+          );
+        })}
       </div>
 
       {pontos.length === 0 && (
