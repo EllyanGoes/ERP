@@ -3,7 +3,9 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import type { StatusOrdemProducao } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sanitizarPlanoTransporte } from "@/lib/pcp/plano-transporte";
 
 const STATUS: StatusOrdemProducao[] = ["RASCUNHO", "LIBERADA", "EM_PRODUCAO", "CONCLUIDA", "CANCELADA"];
 
@@ -63,6 +65,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ("dataPrevistaInicio" in body) data.dataPrevistaInicio = parseDt(body.dataPrevistaInicio);
   if ("dataPrevistaFim" in body) data.dataPrevistaFim = parseDt(body.dataPrevistaFim);
   if ("responsavelColaboradorId" in body) data.responsavelColaboradorId = typeof body.responsavelColaboradorId === "string" && body.responsavelColaboradorId ? body.responsavelColaboradorId : null;
+  // Config do "Planejar por transporte" (vagões): persiste/limpa junto com a edição.
+  if ("planoTransporte" in body) data.planoTransporte = sanitizarPlanoTransporte(body.planoTransporte) ?? Prisma.DbNull;
 
   // Edição dos produtos (substitui as linhas). Só permitida enquanto a OP não foi apontada/concluída.
   const editaProdutos = Array.isArray(body.produtos);

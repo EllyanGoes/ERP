@@ -2729,6 +2729,10 @@ model OrdemProducao {
   dataPrevistaFim          DateTime?
   responsavelColaboradorId String?
   observacao               String?
+  // Planejamento por transporte (vagões/vagonetas): linhas {veiculo, nVagoes,
+  // cargas:[{itemId, pecas}]} do dialog "Planejar por transporte". Persistido p/
+  // reabrir a OP com a configuração e imprimir o apontamento por vagão.
+  planoTransporte          Json?
   criadoPor                String?
   createdAt                DateTime                   @default(now())
   updatedAt                DateTime                   @updatedAt

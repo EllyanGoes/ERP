@@ -8,6 +8,7 @@ import { generateDocNumber } from "@/lib/utils";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { sanitizarPlanoTransporte } from "@/lib/pcp/plano-transporte";
 
 // POST /api/pcp/ordens/area — cria uma OP de UMA ÁREA (board de chão de fábrica).
 // A OP nasce com só a etapa da área escolhida e o PRODUTO informado; consome o WIP
@@ -60,6 +61,8 @@ export async function POST(req: NextRequest) {
   const dataPrevistaInicio = parseDt(body.dataPrevistaInicio);
   const dataPrevistaFim = parseDt(body.dataPrevistaFim);
   const responsavelColaboradorId = typeof body.responsavelColaboradorId === "string" && body.responsavelColaboradorId ? body.responsavelColaboradorId : null;
+  // Config do "Planejar por transporte" (vagões) — persiste p/ reabrir/imprimir.
+  const planoTransporte = sanitizarPlanoTransporte(body.planoTransporte);
 
   const ordem = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
@@ -81,6 +84,7 @@ export async function POST(req: NextRequest) {
         dataPrevistaInicio,
         dataPrevistaFim,
         responsavelColaboradorId,
+        planoTransporte: planoTransporte === null ? undefined : (planoTransporte as unknown as Prisma.InputJsonValue),
         estadoAtual: fromEstado ?? toEstado ?? undefined,
         produtoItens: {
           create: produtos.map((p) => ({ itemId: p.itemId, quantidadePlanejada: p.quantidade, unidadeId: p.unidadeId })),

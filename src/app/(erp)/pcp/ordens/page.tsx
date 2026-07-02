@@ -7,6 +7,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import PageHeader from "@/components/shared/PageHeader";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
@@ -17,9 +18,11 @@ type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: s
 type Unidade = { id: string; sigla: string; isPrincipal?: boolean; fator?: number };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
-type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
+type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number };
-type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+// Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
+type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
 type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
@@ -64,11 +67,13 @@ export default function OrdensBoardPage() {
   const { user } = useSession();
 
   const [fluxos, setFluxos] = useState<FluxoOpt[]>([]);
-  const [fluxoId, setFluxoId] = useState("");
+  // Filtros persistidos por usuário: sobrevivem à troca de aba do app (o
+  // componente remonta) e à volta na sessão seguinte.
+  const [fluxoId, setFluxoId] = usePersistedState("pcp-fluxo-id", "");
   const [areas, setAreas] = useState<Area[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [areaNodeId, setAreaNodeId] = useState("");
-  const [data, setData] = useState(hoje());
+  const [areaNodeId, setAreaNodeId] = usePersistedState("pcp-area-node", "");
+  const [data, setData] = usePersistedState("pcp-dia", hoje());
   // Popover do calendário de produção usado como filtro de dia.
   const [calAberto, setCalAberto] = useState(false);
   const calRef = useRef<HTMLDivElement>(null);
@@ -80,9 +85,9 @@ export default function OrdensBoardPage() {
   }, [calAberto]);
   const [ops, setOps] = useState<BoardOP[]>([]);
   // Visão: board (kanban do dia) × lista (OPs da área agrupadas por dia, no mês).
-  const [vista, setVista] = useState<"board" | "lista">("board");
-  const [escopoLista, setEscopoLista] = useState<"area" | "todas">("area");
-  const [soAbertas, setSoAbertas] = useState(false);
+  const [vista, setVista] = usePersistedState<"board" | "lista">("pcp-vista", "board");
+  const [escopoLista, setEscopoLista] = usePersistedState<"area" | "todas">("pcp-escopo-lista", "area");
+  const [soAbertas, setSoAbertas] = usePersistedState("pcp-so-abertas", false);
   const [opsLista, setOpsLista] = useState<BoardOP[]>([]);
   const [carregandoLista, setCarregandoLista] = useState(false);
   const [materiais, setMateriais] = useState<EstoqueLinha[] | null>(null);
@@ -128,7 +133,8 @@ export default function OrdensBoardPage() {
     fetch("/api/pcp/fluxos").then((r) => r.json()).then((j) => {
       const pub = (j.data ?? []).filter((f: FluxoOpt) => f.versaoAtivaId);
       setFluxos(pub);
-      if (pub[0]) setFluxoId(pub[0].id);
+      // Mantém o fluxo persistido se ainda existir; senão cai no primeiro.
+      setFluxoId((prev) => (pub.some((f: FluxoOpt) => f.id === prev) ? prev : (pub[0]?.id ?? "")));
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -278,6 +284,7 @@ export default function OrdensBoardPage() {
               produtos,
               dataPrevistaInicio: localInputToIso(novo.inicio), dataPrevistaFim: localInputToIso(novo.fim),
               responsavelColaboradorId: novo.responsavelId || null, observacao: novo.observacao || null,
+              planoTransporte: novo.planoTransporte ?? null,
             }),
           })
         : await fetch("/api/pcp/ordens/area", {
@@ -286,6 +293,7 @@ export default function OrdensBoardPage() {
               fluxoId, areaNodeId, data, produtos,
               dataPrevistaInicio: localInputToIso(novo.inicio) ?? undefined, dataPrevistaFim: localInputToIso(novo.fim) ?? undefined,
               responsavelColaboradorId: novo.responsavelId || undefined, observacao: novo.observacao || undefined,
+              planoTransporte: novo.planoTransporte ?? undefined,
             }),
           });
       const j = await r.json();
@@ -305,6 +313,10 @@ export default function OrdensBoardPage() {
         : [{ itemId: area?.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area?.produtos[0]) }],
       inicio: toLocalInput(o.inicioPrevisto), fim: toLocalInput(o.fimPrevisto),
       responsavelId: o.responsavelColaboradorId ?? "", observacao: o.observacao ?? "",
+      // Plano de transporte salvo (números do banco) → linhas do dialog (strings).
+      planoTransporte: o.planoTransporte?.length
+        ? o.planoTransporte.map((r) => ({ veiculo: r.veiculo, nVagoes: String(r.nVagoes), cargas: r.cargas.map((c) => ({ itemId: c.itemId, pecas: String(c.pecas) })) }))
+        : null,
       editCriadoPor: o.criadoPor, editResponsavelNome: o.responsavel,
     });
     setErro(null);
@@ -414,6 +426,11 @@ export default function OrdensBoardPage() {
   // produto da área), com a capacidade cadastrada como peças/vagão.
   function abrirCalcPlan() {
     if (!novo || !area) return;
+    // Plano já salvo na OP (ou aplicado nesta edição): reabre com a configuração.
+    if (novo.planoTransporte?.length) {
+      setCalcPlan({ rows: novo.planoTransporte.map((r) => ({ ...r, cargas: r.cargas.map((c) => ({ ...c })) })) });
+      return;
+    }
     const itemIds = Array.from(new Set(novo.linhas.map((l) => l.itemId).filter(Boolean)));
     const base = itemIds.length ? itemIds : (area.produtos[0] ? [area.produtos[0].id] : []);
     const rows: CargaVagaoRow[] = base.map((id) => ({
@@ -439,7 +456,9 @@ export default function OrdensBoardPage() {
       if (idx >= 0) linhas[idx] = { ...linhas[idx], quantidade: String(qtd) };
       else linhas.push({ itemId, quantidade: String(qtd), unidadeId });
     }
-    setNovo({ ...novo, linhas });
+    // Guarda a configuração na OP (persistida no salvar) — só linhas completas.
+    const plano = calcPlan.rows.filter((r) => Number(r.nVagoes) > 0 && r.cargas.some((c) => c.itemId && Number(c.pecas) > 0));
+    setNovo({ ...novo, linhas, planoTransporte: plano.length ? plano : null });
     setCalcPlan(null);
   }
 

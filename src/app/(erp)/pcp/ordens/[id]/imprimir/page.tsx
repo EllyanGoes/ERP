@@ -11,6 +11,7 @@ import { useSession } from "@/lib/session-context";
 type ProdutoItem = { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; unidadeId: string | null; item: { codigo: string; descricao: string; unidade: { sigla: string } | null }; unidade: { sigla: string } | null };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean };
 type MovLinha = { itemId: string; descricao: string; veiculo: string; nVeiculos: number; capacidade: number; pecas: number };
+type PlanoVagao = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
 type Ordem = {
   id: string; numero: string; status: string; createdAt: string;
   dataPrevistaInicio: string | null; dataPrevistaFim: string | null;
@@ -21,7 +22,12 @@ type Ordem = {
   produtoItens: ProdutoItem[];
   etapas: { nodeId: string; nome: string; centroTrabalho: string | null; estadoSaida: string | null }[];
   observacao: string | null;
+  planoTransporte: PlanoVagao[] | null;
 };
+
+const VEIC_LABEL: Record<string, [string, string]> = { VAGAO: ["Vagão", "vagões"], VAGONETA: ["Vagoneta", "vagonetas"], "Vagão": ["Vagão", "vagões"], "Vagoneta": ["Vagoneta", "vagonetas"] };
+const veicSing = (v: string) => VEIC_LABEL[v]?.[0] ?? v;
+const veicPlural = (v: string) => VEIC_LABEL[v]?.[1] ?? `${v.toLowerCase()}s`;
 
 const STATUS_LABEL: Record<string, string> = { RASCUNHO: "Rascunho", LIBERADA: "Liberada", EM_PRODUCAO: "Em produção", CONCLUIDA: "Concluída", CANCELADA: "Cancelada" };
 const dt = (s: string | null) => (s ? new Date(s).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -198,31 +204,81 @@ export default function ImprimirOrdemPage() {
           </>
         )}
 
-        {movimentacao && movimentacao.length > 0 && (
+        {(() => {
+          // Linhas de transporte: usa o plano SALVO na OP ("Planejar por transporte");
+          // sem plano salvo, cai no cálculo automático (capacidade cadastrada).
+          const descDe = new Map(ordem.produtoItens.map((pi) => [pi.itemId, pi.item.descricao]));
+          type TranspRow = { veiculo: string; nVagoes: number; cargas: { descricao: string; pecas: number }[] };
+          const linhas: TranspRow[] = ordem.planoTransporte?.length
+            ? ordem.planoTransporte.map((r) => ({
+                veiculo: veicSing(r.veiculo), nVagoes: r.nVagoes,
+                cargas: r.cargas.map((c) => ({ descricao: descDe.get(c.itemId) ?? c.itemId, pecas: c.pecas })),
+              }))
+            : (movimentacao ?? []).map((m) => ({ veiculo: m.veiculo, nVagoes: m.nVeiculos, cargas: [{ descricao: m.descricao, pecas: m.capacidade }] }));
+          if (!linhas.length) return null;
+          return (
           <>
-            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Movimentação prevista</p>
+            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">
+              Movimentação prevista{ordem.planoTransporte?.length ? " (planejada por transporte)" : ""}
+            </p>
             <table className="w-full text-sm border border-gray-300 mb-5">
               <thead className="bg-gray-100 text-xs text-gray-600">
                 <tr>
-                  <th className="text-left px-3 py-1.5 font-semibold">Produto</th>
+                  <th className="text-left px-3 py-1.5 font-semibold">Carga por veículo</th>
                   <th className="text-left px-3 py-1.5 font-semibold w-28">Veículo</th>
                   <th className="text-right px-3 py-1.5 font-semibold w-24">Nº veículos</th>
                   <th className="text-right px-3 py-1.5 font-semibold w-28">Capacidade</th>
                 </tr>
               </thead>
               <tbody>
-                {movimentacao.map((m, i) => (
+                {linhas.map((m, i) => (
                   <tr key={i} className="border-t border-gray-200">
-                    <td className="px-3 py-1.5">{m.descricao}</td>
+                    <td className="px-3 py-1.5">{m.cargas.map((c) => `${n(c.pecas)} ${c.descricao}`).join(" + ")}</td>
                     <td className="px-3 py-1.5">{m.veiculo}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums font-medium">{n(m.nVeiculos)}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">{n(m.capacidade)} pç</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums font-medium">{n(m.nVagoes)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">{n(m.cargas.reduce((s, c) => s + c.pecas, 0))} pç</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            {/* Apontamento por veículo: um quadro por vagão p/ o chão de fábrica
+                marcar cada descarga — a meta do dia é em vagões descarregados. */}
+            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Apontamento por veículo (marque cada {veicSing(linhas[0].veiculo).toLowerCase()} descarregado)</p>
+            <div className="mb-5 space-y-3">
+              {linhas.map((m, i) => {
+                const capVagao = m.cargas.reduce((s, c) => s + c.pecas, 0);
+                return (
+                  <div key={i} style={{ breakInside: "avoid" }}>
+                    <p className="text-xs font-semibold text-gray-800 mb-1">
+                      {m.cargas.map((c) => `${c.descricao} (${n(c.pecas)} pç)`).join(" + ")}
+                      <span className="font-normal text-gray-500"> — meta {n(m.nVagoes)} {veicPlural(m.veiculo)} × {n(capVagao)} pç</span>
+                    </p>
+                    <div className="grid grid-cols-8 gap-1">
+                      {Array.from({ length: m.nVagoes }, (_, k) => (
+                        <div key={k} className="border border-gray-400 rounded h-11 px-1 pt-0.5">
+                          <div className="flex justify-between text-[9px] leading-none">
+                            <span className="font-bold text-gray-700">{k + 1}</span>
+                            <span className="text-gray-400 tabular-nums">{n(capVagao)}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {[0, 1].map((k) => (
+                        <div key={`x${k}`} className="border border-dashed border-gray-300 rounded h-11 px-1 pt-0.5">
+                          <span className="text-[9px] text-gray-400">extra</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1.5">
+                      {veicPlural(m.veiculo).replace(/^./, (ch) => ch.toUpperCase())} descarregados: __________&nbsp;&nbsp;·&nbsp;&nbsp;Peças: __________&nbsp;&nbsp;·&nbsp;&nbsp;Quebra/perda: __________
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
           </>
-        )}
+          );
+        })()}
 
         {ordem.observacao && (
           <div className="mb-5"><p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Observação</p><p className="text-sm">{ordem.observacao}</p></div>

@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     orderBy: [{ dataPrevistaInicio: "asc" }, { createdAt: "asc" }],
     select: {
       id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true, criadoPor: true, createdAt: true,
-      dataPrevistaInicio: true, dataPrevistaFim: true, observacao: true, responsavelColaboradorId: true,
+      dataPrevistaInicio: true, dataPrevistaFim: true, observacao: true, responsavelColaboradorId: true, planoTransporte: true,
       responsavelColaborador: { select: { nome: true } },
       item: { select: { codigo: true, descricao: true } },
       produtoItens: {
@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
     responsavel: o.responsavelColaborador?.nome ?? null,
     responsavelColaboradorId: o.responsavelColaboradorId ?? null,
     observacao: o.observacao ?? null,
+    planoTransporte: o.planoTransporte ?? null,
     inicioPrevisto: o.dataPrevistaInicio,
     fimPrevisto: o.dataPrevistaFim,
     produtos: o.produtoItens.map((pi) => {
