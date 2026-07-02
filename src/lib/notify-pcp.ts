@@ -11,9 +11,19 @@ async function sendPcp(msg: TGMessage): Promise<void> {
 }
 
 const fmtNum = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+const fmtPct = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 // Detecta a etapa de Embalagem pelo nome (Embalar/Embalagem/Paletização).
 const ehEmbalagem = (nome: string) => /embalag|embalar|paletiza/i.test(nome);
+
+// Ordem canônica das etapas no resumo (fluxo produtivo, do começo ao fim). Etapas
+// fora dessa lista vão para o final, em ordem alfabética.
+const ORDEM_ETAPAS = ["mistura", "prepar", "conform", "secagem", "queima", "embal", "paletiz"];
+const ordemEtapa = (nome: string): number => {
+  const n = nome.toLowerCase();
+  const i = ORDEM_ETAPAS.findIndex((k) => n.includes(k));
+  return i === -1 ? ORDEM_ETAPAS.length : i;
+};
 
 type ItemUnidadeConv = { fatorConversao: unknown; isPrincipal: boolean; unidade: { sigla: string; nome: string } };
 /**
@@ -77,7 +87,7 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
   try {
     const et = await prisma.itemOrdemProducao.findUnique({
       where: { id: etapaId },
-      select: { nome: true, status: true, qtdEntrada: true, qtdSaida: true, qtdPerda: true, apontadoPor: true,
+      select: { nome: true, status: true, qtdEntrada: true, qtdSaida: true, qtdPerda: true, vagoes: true, vagonetas: true, apontadoPor: true,
         ordemProducao: { select: { numero: true, unidade: true, item: { select: { descricao: true, itemUnidades: selItemUnidades } } } } },
     });
     if (!et) return;
@@ -93,12 +103,20 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
       ? `📤 Produzido: *${escMD(fmtNum(saida))}* ${escMD(un)}`.trimEnd() +
         (conv ? ` \\(${escMD(fmtNum(conv.un))} UN${conv.plt != null ? ` · ${escMD(fmtNum(conv.plt))} PLT` : ""}\\)` : "")
       : null;
+    // Na Embalagem: quebra com % (perda/descarregado) e vagões descarregados.
+    const desc = saida + perda; // descarregado = apontado + quebra
+    const linhaQuebra = perda > 0 || emb
+      ? (emb
+          ? `🧱 Quebra: ${escMD(fmtNum(perda))} un${desc > 0 ? ` \\(${escMD(fmtPct((perda / desc) * 100))}%\\)` : ""}`
+          : (perda > 0 ? `♻️ Perda: ${escMD(fmtNum(perda))}` : null))
+      : null;
     const linhas = [
       `${concl ? "✅" : "📝"} *Apontamento* — ${escMD(op.numero)}`,
       `📦 ${escMD(op.item?.descricao ?? "—")}`,
       `🔧 Etapa: *${escMD(et.nome)}*${concl ? " \\(concluída\\)" : ""}`,
       linhaProd,
-      perda > 0 ? `${emb ? "🧱 Quebra" : "♻️ Perda"}: ${escMD(fmtNum(perda))}` : null,
+      emb && et.vagoes != null ? `🚃 Vagões descarregados: ${escMD(String(et.vagoes))}` : null,
+      linhaQuebra,
       et.apontadoPor ? `👤 ${escMD(et.apontadoPor)}` : null,
     ].filter(Boolean) as string[];
     await sendPcp({ text: linhas.join("\n") });
@@ -115,7 +133,7 @@ export async function enviarResumoPcpDia(): Promise<{ ok: boolean; apontamentos:
   const etapas = await prisma.itemOrdemProducao.findMany({
     where: { status: "CONCLUIDA", fimReal: { gte: ini, lte: fim } },
     select: {
-      nome: true, sequencia: true, qtdSaida: true, qtdPerda: true,
+      nome: true, sequencia: true, qtdSaida: true, qtdPerda: true, vagoes: true, vagonetas: true,
       ordemProducao: { select: { numero: true, unidade: true, item: { select: { descricao: true, itemUnidades: selItemUnidades } } } },
     },
     orderBy: [{ nome: "asc" }, { ordemProducao: { numero: "asc" } }],
@@ -128,27 +146,38 @@ export async function enviarResumoPcpDia(): Promise<{ ok: boolean; apontamentos:
   if (etapas.length === 0) {
     linhas.push("", "_Nenhum apontamento concluído hoje\\._");
   } else {
-    // Agrupa por LOCAL DE OPERAÇÃO (a etapa: Preparação, Conformação, Secagem,
-    // Queima, Embalar…). Unidade lida da OP; Embalagem também em UN e PLT.
+    // Agrupa por LOCAL DE OPERAÇÃO (a etapa) e ordena pelo fluxo produtivo:
+    // Mistura de insumos → Preparação → Conformação → Secagem → Queima → Embalagem.
     const grupos = new Map<string, typeof etapas>();
     for (const e of etapas) {
       const arr = grupos.get(e.nome) ?? [];
       arr.push(e); grupos.set(e.nome, arr);
     }
-    for (const [etapaNome, itens] of Array.from(grupos.entries())) {
+    const ordenados = Array.from(grupos.entries()).sort(
+      (a, b) => ordemEtapa(a[0]) - ordemEtapa(b[0]) || a[0].localeCompare(b[0])
+    );
+    for (const [etapaNome, itens] of ordenados) {
       linhas.push("", `📍 *${escMD(etapaNome)}*`);
       for (const e of itens) {
         const op = e.ordemProducao;
         const prod = decimalToNumber(e.qtdSaida);
-        const un = unidadeItem(op.item?.itemUnidades ?? [], op.unidade); // unidade principal do item
-        let linha = `  • ${escMD(op.numero)} — ${escMD(op.item?.descricao ?? "—")}: *${escMD(fmtNum(prod))}* ${escMD(un)}`.trimEnd();
+        const produto = op.item?.descricao ?? "—";
         if (ehEmbalagem(etapaNome)) {
+          // Embalagem: paletes produzidos, vagões descarregados, quebra unitária e %.
           const conv = converterUnPlt(prod, op.item?.itemUnidades ?? []);
-          if (conv) linha += ` \\= ${escMD(fmtNum(conv.un))} UN${conv.plt != null ? ` · ${escMD(fmtNum(conv.plt))} PLT` : ""}`;
+          const cab = conv?.plt != null
+            ? `*${escMD(fmtNum(conv.plt))} PLT* \\(${escMD(fmtNum(conv.un))} UN\\)`
+            : `*${escMD(fmtNum(prod))}* ${escMD(unidadeItem(op.item?.itemUnidades ?? [], op.unidade))}`;
+          linhas.push(`  • ${escMD(op.numero)} — ${escMD(produto)}: ${cab}`.trimEnd());
+          if (e.vagoes != null) linhas.push(`      🚃 vagões descarregados: ${escMD(String(e.vagoes))}`);
           const quebra = decimalToNumber(e.qtdPerda);
-          if (quebra > 0) linha += ` · 🧱 quebra ${escMD(fmtNum(quebra))}`;
+          const desc = prod + quebra; // descarregado = apontado + quebra
+          const pct = desc > 0 ? (quebra / desc) * 100 : 0;
+          linhas.push(`      🧱 quebra: ${escMD(fmtNum(quebra))} un${desc > 0 ? ` \\(${escMD(fmtPct(pct))}%\\)` : ""}`);
+        } else {
+          const un = unidadeItem(op.item?.itemUnidades ?? [], op.unidade); // unidade principal do item
+          linhas.push(`  • ${escMD(op.numero)} — ${escMD(produto)}: *${escMD(fmtNum(prod))}* ${escMD(un)}`.trimEnd());
         }
-        linhas.push(linha);
       }
     }
   }

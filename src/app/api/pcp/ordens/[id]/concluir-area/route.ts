@@ -42,6 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const somaPerdas = Array.from(perdaMap.values()).reduce((s, v) => s + v, 0);
   const qtdPerda = numOrNull(body?.qtdPerda) ?? (perdaMap.size ? somaPerdas : null);
   const biomassaKg = numOrNull(body?.biomassaKg);
+  // Vagões/vagonetas descarregados (Embalar): nº total vindo da calculadora de perda.
+  const vagoes = numOrNull(body?.vagoes);
+  const vagonetas = numOrNull(body?.vagonetas);
   const apontadoPor = typeof body?.apontadoPor === "string" && body.apontadoPor.trim() ? body.apontadoPor.trim() : null;
 
   const ordem = await prisma.ordemProducao.findUnique({
@@ -141,6 +144,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         inicioReal: agora, fimReal: agora,
         ...(apontadoPor ? { apontadoPor } : {}),
         ...(qtdPerda != null ? { qtdPerda } : {}),
+        ...(vagoes != null ? { vagoes: Math.round(vagoes) } : {}),
+        ...(vagonetas != null ? { vagonetas: Math.round(vagonetas) } : {}),
       };
       await apontarEtapaProducao(tx, {
         ordemId: params.id,

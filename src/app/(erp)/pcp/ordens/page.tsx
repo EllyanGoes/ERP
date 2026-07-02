@@ -105,7 +105,7 @@ export default function OrdensBoardPage() {
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
-  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; perda: string; biomassa: string }>({ reais: {}, perdas: {}, perda: "", biomassa: "" });
+  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; perda: string; biomassa: string; vagoes: string; vagonetas: string }>({ reais: {}, perdas: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" });
   // Calculadora de perda (Embalar): linhas de vagão descarregado → descarregado por produto.
   const [calcPerda, setCalcPerda] = useState<{ rows: CargaVagaoRow[] } | null>(null);
   // Planejamento por transporte (Nova OP): mesma calculadora de vagões, mas o total
@@ -351,7 +351,7 @@ export default function OrdensBoardPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         // qtdPerda (etapa) fica a cargo do servidor (soma das perdas por produto); mantém
         // apForm.perda como fallback p/ etapas sem calculadora (1 produto).
-        body: JSON.stringify({ itens, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined }),
+        body: JSON.stringify({ itens, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined, vagoes: apForm.vagoes || undefined, vagonetas: apForm.vagonetas || undefined }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error ?? "Erro ao apontar");
@@ -400,7 +400,12 @@ export default function OrdensBoardPage() {
       const perda = Math.max(0, Math.round((d - apontadoPecas(p)) * 1000) / 1000);
       perdas[p.itemId] = String(perda);
     }
-    setApForm((f) => ({ ...f, perdas }));
+    // Total de vagões/vagonetas descarregados (soma o nº de cada linha por tipo).
+    const somaVeic = (v: CargaVagaoRow["veiculo"]) =>
+      calcPerda.rows.filter((r) => r.veiculo === v).reduce((s, r) => s + (Number(r.nVagoes) || 0), 0);
+    const vagoes = somaVeic("VAGAO");
+    const vagonetas = somaVeic("VAGONETA");
+    setApForm((f) => ({ ...f, perdas, vagoes: vagoes ? String(vagoes) : "", vagonetas: vagonetas ? String(vagonetas) : "" }));
     setCalcPerda(null);
   }
 
@@ -557,7 +562,7 @@ export default function OrdensBoardPage() {
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                 onEditar={(o) => abrirEdicao(o)}
                 onExcluir={(o) => excluirOP(o)}
-                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, perda: "", biomassa: "" }); setErro(null); }}
+                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
               />
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
@@ -629,7 +634,7 @@ export default function OrdensBoardPage() {
                         )}
                         {o.criadoPor && <p className="text-[10px] text-muted-foreground/70 truncate">Programado: {o.criadoPor}</p>}
                         {!concl && (
-                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, perda: "", biomassa: "" }); setErro(null); }}
+                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
                             className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
                           </button>
