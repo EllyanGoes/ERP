@@ -27,6 +27,9 @@ type DayEntry = {
   despesas: number;
   recebido: number;
   pago: number;
+  // Repasses de administradoras de cartão previstos p/ o dia (informativo — a
+  // receita da venda já entrou no vencimento; este é o dia em que vira CAIXA).
+  repasseCartao?: number;
   saldo: number;
 };
 
@@ -278,7 +281,14 @@ export default function FluxoCaixaPage() {
                       }`}
                       onClick={() => handleBarClick({ fullDate: d.data })}
                     >
-                      <td className="py-2.5">{formatDate(d.data)}</td>
+                      <td className="py-2.5">
+                        {formatDate(d.data)}
+                        {(d.repasseCartao ?? 0) > 0.005 && (
+                          <span className="ml-2 text-[11px] text-info" title="Repasse de administradoras de cartão previsto para este dia">
+                            💳 repasse {formatBRL(d.repasseCartao!)}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2.5 text-right text-success">{formatBRL(d.receitas)}</td>
                       <td className="py-2.5 text-right text-red-500">{formatBRL(d.despesas)}</td>
                       <td className={`py-2.5 text-right font-semibold ${d.saldo >= 0 ? "text-info" : "text-orange-600"}`}>

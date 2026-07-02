@@ -6,8 +6,11 @@ import {
   contabilizarVendaPedido,
   contabilizarDevolucao,
   recontabilizarConferencia,
+  contabilizarTransferencia,
+  recontabilizarTituloReceber,
   apagarLancamentosContabeis,
 } from "@/lib/contabilidade";
+import { naturezaSistema } from "@/lib/natureza-sistema";
 import { garantirContaJurosMultasPassivos, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
 import { recomputarStatusPedido, recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
@@ -23,7 +26,9 @@ import { encargosConferencia } from "@/lib/pedido-compra-de";
 // (3) re-sincroniza a perna de venda dos pedidos; (4) contabiliza devoluções
 // antigas (revalora a ENTRADA ao custo e vincula estornos em dinheiro);
 // (5) recomputa status de pedidos; (6) re-sincroniza entradas de compra com
-// frete/desconto (crédito do fornecedor vira o LÍQUIDO) e ajusta CPs abertas.
+// frete/desconto (crédito do fornecedor vira o LÍQUIDO) e ajusta CPs abertas;
+// (7) espelha transferências históricas e migra CRs legadas de cartão ao modelo
+// de administradoras (cliente zerado, adquirente devedora do líquido).
 //
 // NÃO faz (deliberado): re-sync de minutas antigas (revaloraria CMV histórico ao
 // custo de hoje) e re-execução de absorções passadas (CMPM dobraria).
@@ -33,7 +38,7 @@ export type ResultadoBackfill = { log: string[]; erros: string[] };
 // Faixas de % por passo (para a barra de progresso da UI). O peso reflete o
 // volume típico: títulos e recomputos dominam o tempo.
 const FAIXAS: Record<number, [number, number]> = {
-  0: [0, 1], 1: [1, 2], 2: [2, 45], 3: [45, 55], 4: [55, 58], 5: [58, 82], 6: [82, 99],
+  0: [0, 1], 1: [1, 2], 2: [2, 45], 3: [45, 55], 4: [55, 58], 5: [58, 80], 6: [80, 92], 7: [92, 99],
 };
 
 export async function executarBackfillConsistencia(
@@ -230,6 +235,79 @@ export async function executarBackfillConsistencia(
         await contabilizarTituloPagar(cpsPed[i].id).catch(guardar(`CP ${cpsPed[i].numero}`));
       }
       log.push(`  Pedido ${pedidoId}: CP(s) ajustada(s) ${atual.toFixed(2)} → ${liquido.toFixed(2)}`);
+    }
+  }
+
+  // 7) Cartões e transferências (jul/2026):
+  //  a) transferências históricas sem espelho contábil → contabilizarTransferencia;
+  //  b) CRs LEGADAS de cartão (ABERTAS contra o CLIENTE com vencimento +N dias, do
+  //     modelo antigo) → migradas ao modelo novo (cliente zerado, administradora
+  //     devedora do líquido, taxa reconhecida) QUANDO a empresa tem exatamente uma
+  //     maquineta ativa com taxa cadastrada; senão reporta pendência (re-rodar
+  //     depois de cadastrar em Financeiro → Cartões).
+  const pernasOrigem = await prismaSemEscopo.lancamentoFinanceiro.findMany({
+    where: { tipo: "TRANSFERENCIA", valor: { lt: 0 }, transferenciaParId: { not: null } },
+    select: { id: true },
+  });
+  const semEspelho: string[] = [];
+  for (const lf of pernasOrigem) {
+    const tem = await prismaSemEscopo.lancamentoContabil.count({ where: { origemTipo: "TRANSFERENCIA_CAIXA", origemId: lf.id } });
+    if (tem === 0) semEspelho.push(lf.id);
+  }
+  log.push(`7) Transferências sem espelho contábil: ${semEspelho.length}${DRY ? " [dry]" : ""}`);
+  if (!DRY) {
+    let iTr = 0;
+    for (const id of semEspelho) {
+      await contabilizarTransferencia(id).catch(guardar(`transferência ${id}`));
+      tick(7, "Transferências", ++iTr, semEspelho.length + 1);
+    }
+  }
+
+  const crsCartao = await prismaSemEscopo.contaReceber.findMany({
+    where: {
+      status: "ABERTA", valorPago: 0, intragrupo: false,
+      formaPagamento: { contains: "cart", mode: "insensitive" },
+    },
+    select: { id: true, empresaId: true, numero: true, valorOriginal: true, formaPagamento: true, createdAt: true, pedidoVendaId: true },
+  });
+  log.push(`7) CRs legadas de cartão (abertas): ${crsCartao.length}${DRY ? " [dry]" : ""}`);
+  if (!DRY && crsCartao.length > 0) {
+    for (const cr of crsCartao) {
+      const maquinetas = await prismaSemEscopo.maquineta.findMany({
+        where: { empresaId: cr.empresaId, ativo: true },
+        select: { id: true, taxas: true, administradora: { select: { contaBancariaId: true, ativo: true } } },
+      });
+      const candidatas = maquinetas.filter((m) => m.administradora?.ativo && m.taxas.length > 0);
+      if (candidatas.length !== 1) {
+        erros.push(`CR ${cr.numero}: ${candidatas.length === 0 ? "nenhuma" : "mais de uma"} maquineta ativa com taxa — migrar manualmente ou cadastrar/ajustar em Financeiro → Cartões`);
+        continue;
+      }
+      const maq = candidatas[0];
+      const ehDebito = /d[eé]bito/i.test(cr.formaPagamento ?? "");
+      const taxaCfg = maq.taxas.find((t) => t.tipoForma === (ehDebito ? "CARTAO_DEBITO" : "CARTAO_CREDITO")) ?? maq.taxas[0];
+      const natTaxa = await naturezaSistema(null, cr.empresaId, "taxa-cartao");
+      if (!natTaxa) { erros.push(`CR ${cr.numero}: natureza taxa-cartao não semeada`); continue; }
+      const bruto = decimalToNumber(cr.valorOriginal);
+      const taxa = Math.max(0, Math.round(bruto * decimalToNumber(taxaCfg.taxaPct)) / 100); // bruto × pct%, em centavos
+      const liquido = Math.round((bruto - taxa) * 100) / 100;
+      await prismaSemEscopo.$transaction(async (tx) => {
+        const aplicado = await tx.contaReceber.updateMany({
+          where: { id: cr.id, status: "ABERTA", valorPago: 0 },
+          data: { status: "PAGA", valorPago: bruto, valorTaxa: taxa, taxaNaturezaId: natTaxa.id, dataPagamento: cr.createdAt },
+        });
+        if (aplicado.count === 0) return;
+        await tx.lancamentoFinanceiro.create({
+          data: {
+            empresaId: cr.empresaId, tipo: "RECEITA",
+            descricao: `Recebimento ${cr.numero} (cartão — migração p/ administradora)`,
+            valor: liquido, dataLancamento: cr.createdAt,
+            contaReceberId: cr.id, contaBancariaId: maq.administradora!.contaBancariaId, maquinetaId: maq.id,
+          },
+        });
+        if (cr.pedidoVendaId) await recomputarStatusPedido(tx, cr.pedidoVendaId);
+      });
+      await recontabilizarTituloReceber(cr.id).catch(guardar(`CR ${cr.numero}`));
+      log.push(`  ${cr.numero}: migrada (bruto ${bruto.toFixed(2)}, taxa ${taxa.toFixed(2)})`);
     }
   }
 
