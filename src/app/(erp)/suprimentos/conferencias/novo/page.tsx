@@ -90,6 +90,9 @@ type ItemRow = {
   unidadeMedida: string;
   unidadeId: string;
   localEstoqueId: string;
+  centroCustoId: string;
+  tesId: string;
+  compoeCusto: boolean | null;
   quantidadePedida: string;
   quantidadeRecebida: string;
   vlrUnitario: string;
@@ -120,6 +123,9 @@ function emptyRow(): ItemRow {
     unidadeMedida: "",
     unidadeId: "",
     localEstoqueId: "",
+    centroCustoId: "",
+    tesId: "",
+    compoeCusto: null,
     quantidadePedida: "",
     quantidadeRecebida: "",
     vlrUnitario: "",
@@ -278,6 +284,8 @@ export default function NovoDocumentoEntradaPage() {
   const [itens, setItens]                       = useState<ItemRow[]>([emptyRow()]);
   const [produtos, setProdutos]                 = useState<Produto[]>([]);
   const [locaisEstoque, setLocaisEstoque]       = useState<LocalEstoque[]>([]);
+  const [centrosCusto, setCentrosCusto]         = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [tesList, setTesList]                   = useState<{ id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean }[]>([]);
   const [prodSearchMap, setProdSearchMap]       = useState<Record<string, string>>({});
   // Unidades de compra por item (busca sob demanda quando o item entra na grade).
   const [unidadesMap, setUnidadesMap]           = useState<Record<string, UnidadeItemOpt[]>>({});
@@ -349,7 +357,30 @@ export default function NovoDocumentoEntradaPage() {
       .then((r) => r.json())
       .then((j) => setLocaisEstoque(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
+    fetch("/api/empresa/centros-custo?ativo=true")
+      .then((r) => r.json())
+      .then((j) => setCentrosCusto(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    fetch("/api/suprimentos/tipos-operacao")
+      .then((r) => r.json())
+      .then((j) => setTesList((Array.isArray(j) ? j : (j.data ?? [])).filter((t: { ativo?: boolean; sentido?: string }) => t.ativo !== false && t.sentido !== "SAIDA")))
+      .catch(() => {});
   }, []);
+
+  // Escolher o TES preenche as flags da linha (editáveis). NÃO decide destino.
+  function applyTes(key: string, tesId: string) {
+    const tes = tesList.find((t) => t.id === tesId);
+    setItens((prev) => prev.map((r) => {
+      if (r._key !== key) return r;
+      const next = { ...r, tesId };
+      if (tes) {
+        next.compoeCusto = tes.compoeCusto;
+        if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
+        if (tes.centroCustoSugeridoId) next.centroCustoId = tes.centroCustoSugeridoId;
+      } else { next.compoeCusto = null; }
+      return next;
+    }));
+  }
 
   // Busca PCs para vincular. Sem termo → lista os PCs "em aberto" (sem DE);
   // com termo → filtra por número/fornecedor. Sempre semDE=1 (só dá para
@@ -544,6 +575,10 @@ export default function NovoDocumentoEntradaPage() {
         unidadeMedida: pi.item.unidadeMedida,
         unidadeId: pi.unidadeId ?? "",
         localEstoqueId: modoLocalEstoque === "GLOBAL" ? localEstoqueGlobalId : "",
+        // Herda TES/centro do pedido quando disponível (senão o usuário preenche).
+        centroCustoId: (pi as { centroCustoId?: string | null }).centroCustoId ?? "",
+        tesId: (pi as { tesId?: string | null }).tesId ?? "",
+        compoeCusto: (pi as { compoeCusto?: boolean | null }).compoeCusto ?? null,
         quantidadePedida: decimalToNumber(pi.quantidade).toString(),
         quantidadeRecebida: "0",
         vlrUnitario: "",
@@ -645,6 +680,9 @@ export default function NovoDocumentoEntradaPage() {
         return;
       }
     }
+    // TES e centro de custo são obrigatórios por item.
+    if (validItens.some((r) => !r.tesId)) { setError("Selecione o TES em cada item."); return; }
+    if (validItens.some((r) => !r.centroCustoId)) { setError("Informe o centro de custo em cada item."); return; }
 
     // Anti-duplicidade: se há PC compatível e o usuário não vinculou nem confirmou avulso
     if (!vinculadoPedido && !avulsoConfirmed && pcMatches.length > 0) {
@@ -683,6 +721,9 @@ export default function NovoDocumentoEntradaPage() {
           vlrIPI: parseFloat(r.vlrIPI) || null,
           vlrICMS: parseFloat(r.vlrICMS) || null,
           localEstoqueId: r.localEstoqueId || null,
+          centroCustoId: r.centroCustoId || null,
+          tesId: r.tesId || null,
+          compoeCusto: r.compoeCusto,
           tipoEntrada: r.tipoEntrada || null,
           codFiscal: r.codFiscal || null,
           itemNF: idx + 1,
@@ -1129,6 +1170,8 @@ export default function NovoDocumentoEntradaPage() {
                         Local Estoque <span className="text-red-500">*</span>
                       </th>
                     )}
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs min-w-[150px]" title="TES: preset de comportamento. Não decide destino.">TES <span className="text-red-500">*</span></th>
+                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs min-w-[140px]" title="Centro de custo (herança/orçamento). Não classifica destino de custo.">Centro de custo <span className="text-red-500">*</span></th>
                     <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-14">U.M.</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Qtd. Pedida</th>
                     <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Qtd. Recebida</th>
@@ -1191,6 +1234,26 @@ export default function NovoDocumentoEntradaPage() {
                             />
                           </td>
                         )}
+
+                        {/* TES — preset de comportamento; preenche as flags da linha */}
+                        <td className="px-3 py-2">
+                          <select value={row.tesId} onChange={(e) => applyTes(row._key, e.target.value)}
+                            className={cn("h-7 rounded text-xs w-full border bg-card px-1", !row.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
+                            <option value="">— TES —</option>
+                            {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                          </select>
+                        </td>
+
+                        {/* Centro de custo — obrigatório; não classifica destino */}
+                        <td className="px-3 py-2">
+                          <ComboboxWithCreate
+                            value={row.centroCustoId}
+                            onChange={(v) => updateItem(row._key, "centroCustoId", v)}
+                            noneLabel="—"
+                            triggerClassName={cn("h-7 rounded text-xs min-w-[9rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
+                            options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                          />
+                        </td>
 
                         {/* U.M. — unidade de compra (base ou alternativa). A conversão
                             p/ a unidade de estoque é feita na conclusão da conferência. */}
