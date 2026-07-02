@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEscToClose } from "@/lib/use-esc-to-close";
 
 type Local = { id: string; nome: string };
 type Centro = { id: string; codigo: string; nome: string };
@@ -73,6 +74,7 @@ export default function TiposOperacaoPage() {
     setEditingId(r.id); setError(null);
   };
   const cancel = () => { setEditingId(null); setError(null); };
+  useEscToClose(cancel, editingId !== null);
 
   const save = async () => {
     setSaving(true); setError(null);
@@ -104,8 +106,6 @@ export default function TiposOperacaoPage() {
           <p className="text-sm text-muted-foreground">{rows.length} TES cadastrado(s)</p>
           <Button size="sm" onClick={startNew} disabled={editingId !== null}><Plus className="w-4 h-4 mr-1" /> Novo TES</Button>
         </div>
-
-        {editingId === "new" && <TesForm form={form} setForm={setForm} saving={saving} error={error} onSave={save} onCancel={cancel} locais={locais} centros={centros} isNew />}
 
         <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
           <table className="w-full text-sm">
@@ -155,19 +155,21 @@ export default function TiposOperacaoPage() {
                       </div>
                     </td>
                   </tr>
-                  {editingId === r.id && (
-                    <tr key={`${r.id}-edit`} className="bg-info/10 border-b">
-                      <td colSpan={5} className="px-4 py-4">
-                        <TesForm form={form} setForm={setForm} saving={saving} error={error} onSave={save} onCancel={cancel} locais={locais} centros={centros} />
-                      </td>
-                    </tr>
-                  )}
                 </>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Pop-up de cadastro/edição do TES */}
+      {editingId !== null && (
+        <div className="fixed inset-0 z-[9000] flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-10" onClick={cancel}>
+          <div className="w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
+            <TesForm form={form} setForm={setForm} saving={saving} error={error} onSave={save} onCancel={cancel} locais={locais} centros={centros} isNew={editingId === "new"} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
