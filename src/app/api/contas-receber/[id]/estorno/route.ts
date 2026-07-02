@@ -32,7 +32,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     // Título volta para ABERTA, zera o recebido (e multa/juros aplicados na baixa).
     await tx.contaReceber.update({
       where: { id: params.id },
-      data: { valorPago: 0, valorMulta: 0, valorJuros: 0, dataPagamento: null, formaPagamento: null, status: "ABERTA" },
+      data: { valorPago: 0, valorMulta: 0, valorJuros: 0, valorTaxa: 0, taxaNaturezaId: null, dataPagamento: null, formaPagamento: null, status: "ABERTA" },
     });
     if (conta.pedidoVendaId) await recomputarStatusPedido(tx, conta.pedidoVendaId);
     // Desfaz a contabilização do recebimento DENTRO da transação (atômico: se

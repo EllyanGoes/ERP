@@ -89,6 +89,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       dataPagamento,
       valorMulta,
       valorJuros,
+      valorTaxa: parsed.data.valorTaxa,
+      taxaNaturezaId: parsed.data.taxaNaturezaId ?? null,
       naturezas: parsed.data.naturezas,
     }),
   );

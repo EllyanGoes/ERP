@@ -43,6 +43,11 @@ export const pagamentoSchema = z.object({
   formaPagamento: z.string().optional().nullable(),
   valorMulta: z.coerce.number().min(0).default(0),
   valorJuros: z.coerce.number().min(0).default(0),
+  // Taxa/tarifa RETIDA no ato (recebe/paga MENOS que o baixado — ex.: taxa de
+  // cartão, tarifa bancária). O título é quitado pelo original; a taxa vira
+  // despesa com natureza TRAVADA do sistema (taxaNaturezaId; default por lado).
+  valorTaxa: z.coerce.number().min(0).default(0),
+  taxaNaturezaId: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
   pagamentos: z.array(z.object({
     forma: z.string().optional().nullable(),

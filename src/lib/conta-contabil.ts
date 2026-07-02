@@ -57,10 +57,14 @@ export function chaveOrdenacaoConta(codigo: string, ordemPorCodigo: Map<string, 
 }
 
 function montarProximo(paiCodigo: string, codigos: string[]): string {
+  // A faixa .9000+ é RESERVADA às contas de sistema com código fixo (Sobras
+  // 3.1.9001, Juros 3.3.9005, Fretes 3.3.9007…). A alocação sequencial ignora
+  // essa faixa — senão um filho .9004 existente faria o próximo cair em .9005 e
+  // colidir com um código fixo (aconteceu com a conta da natureza Taxa de Cartão).
   let max = 0;
   for (const c of codigos) {
     const n = parseInt(c.split(".").pop() ?? "", 10);
-    if (!Number.isNaN(n) && n > max) max = n;
+    if (!Number.isNaN(n) && n < 9000 && n > max) max = n;
   }
   return `${paiCodigo}.${String(max + 1).padStart(4, "0")}`;
 }
@@ -295,9 +299,15 @@ export async function garantirContaAdiantamentoFornecedor(empresaId: string, for
 export async function garantirContaContabilBanco(contaBancariaId: string) {
   const cb = await prismaSemEscopo.contaBancaria.findUnique({
     where: { id: contaBancariaId },
-    select: { empresaId: true, nome: true, ehTerceiro: true, terceiroNome: true, banco: { select: { nome: true } } },
+    select: { empresaId: true, nome: true, tipo: true, ehTerceiro: true, terceiroNome: true, banco: { select: { nome: true } } },
   });
   if (!cb) return null;
+  // Conta de ADMINISTRADORA de cartões (tipo CARTAO): valores a receber da
+  // adquirente — razão sob 1.1.8 "Cartões a Receber". Precede ehTerceiro.
+  if (cb.tipo === "CARTAO") {
+    await garantirContaCartoesReceber(cb.empresaId);
+    return garantirAnaliticaSobPai(cb.empresaId, "1.1.8", cb.nome, { contaBancariaId });
+  }
   if (cb.ehTerceiro) {
     await garantirContaTerceiros(cb.empresaId);
     const nome = `${cb.terceiroNome?.trim() || "Terceiro"} — ${cb.nome}`;
@@ -307,22 +317,47 @@ export async function garantirContaContabilBanco(contaBancariaId: string) {
   return garantirAnaliticaSobPai(cb.empresaId, "1.1.1", nome, { contaBancariaId });
 }
 
+/** Garante (idempotente) a sintética "Cartões a Receber" (1.1.8, ATIVO) — valores
+ *  a receber de administradoras de cartão (a venda no cartão troca o credor: o
+ *  cliente é baixado e a adquirente passa a dever o líquido). 1.1.5 já era
+ *  "Outros a Receber" — por isso 1.1.8. Analítica por administradora (conta
+ *  bancária tipo CARTAO). */
+export async function garantirContaCartoesReceber(empresaId: string) {
+  const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.8" }, select: { id: true } });
+  if (ex) return ex;
+  const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1" } });
+  if (!pai) return null;
+  return prismaSemEscopo.contaContabil.create({
+    data: {
+      empresaId, codigo: "1.1.8", nome: "Cartões a Receber",
+      grupo: "ATIVO", natureza: "DEVEDORA", tipo: "SINTETICA",
+      nivel: pai.nivel + 1, aceitaLancamento: false, paiId: pai.id, ativo: true, ordem: 3,
+    },
+    select: { id: true },
+  });
+}
+
 /**
- * Sincroniza a conta contábil de uma conta bancária ao seu tipo (empresa/terceiro):
- * cria se faltar; se já existe mas está no pai errado, MOVE (1.1.1 ↔ 1.1.6)
- * renumerando o código; e atualiza o nome. Usar na edição da conta.
+ * Sincroniza a conta contábil de uma conta bancária ao seu tipo
+ * (empresa/terceiro/cartão): cria se faltar; se já existe mas está no pai errado,
+ * MOVE (1.1.1 ↔ 1.1.6 ↔ 1.1.8) renumerando o código; e atualiza o nome. Usar na
+ * edição da conta.
  */
 export async function sincronizarContaContabilBanco(contaBancariaId: string) {
   const cb = await prismaSemEscopo.contaBancaria.findUnique({
     where: { id: contaBancariaId },
-    select: { empresaId: true, nome: true, ehTerceiro: true, terceiroNome: true, banco: { select: { nome: true } } },
+    select: { empresaId: true, nome: true, tipo: true, ehTerceiro: true, terceiroNome: true, banco: { select: { nome: true } } },
   });
   if (!cb) return null;
-  const paiCodigo = cb.ehTerceiro ? "1.1.6" : "1.1.1";
-  const nome = cb.ehTerceiro
+  const ehCartao = cb.tipo === "CARTAO"; // administradora — precede ehTerceiro
+  const paiCodigo = ehCartao ? "1.1.8" : cb.ehTerceiro ? "1.1.6" : "1.1.1";
+  const nome = ehCartao
+    ? cb.nome
+    : cb.ehTerceiro
     ? `${cb.terceiroNome?.trim() || "Terceiro"} — ${cb.nome}`
     : (cb.banco?.nome ? `${cb.banco.nome} — ${cb.nome}` : cb.nome);
-  if (cb.ehTerceiro) await garantirContaTerceiros(cb.empresaId);
+  if (ehCartao) await garantirContaCartoesReceber(cb.empresaId);
+  else if (cb.ehTerceiro) await garantirContaTerceiros(cb.empresaId);
 
   const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId: cb.empresaId, contaBancariaId }, select: { id: true, paiId: true } });
   if (!existente) return garantirContaContabilBanco(contaBancariaId);

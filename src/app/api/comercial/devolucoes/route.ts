@@ -198,19 +198,26 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 2) DINHEIRO só do que foi efetivamente pago: (valor da devolução −
-        //    abatido) não pode exceder o pago do pedido menos o que devoluções
-        //    anteriores já devolveram em dinheiro.
+        // 2) DINHEIRO só do que ENTROU DE FATO no caixa (Σ LancamentoFinanceiro):
+        //    com taxa retida (cartão), valorPago é BRUTO mas o caixa só recebeu o
+        //    líquido — devolver pelo valorPago devolveria dinheiro que está na
+        //    administradora. Teto = Σ caixa recebido − devoluções anteriores.
         const dinheiro = r2(valorTotal - valorAbatidoCr);
         if (dinheiro > 0.001) {
           const [crsTodas, devsPedido] = await Promise.all([
             tx.contaReceber.findMany({
               where: { pedidoVendaId: pedido.id, status: { not: "CANCELADA" } },
-              select: { valorPago: true },
+              select: { id: true },
             }),
             tx.devolucao.findMany({ where: { pedidoVendaId: pedido.id, status: "CONCLUIDA" }, select: { id: true } }),
           ]);
-          const totalPago = r2(crsTodas.reduce((s, c) => s + Number(c.valorPago), 0));
+          const lfsRecebidos = crsTodas.length
+            ? await tx.lancamentoFinanceiro.findMany({
+                where: { contaReceberId: { in: crsTodas.map((c) => c.id) }, tipo: "RECEITA" },
+                select: { valor: true },
+              })
+            : [];
+          const totalPago = r2(lfsRecebidos.reduce((s, lf) => s + Number(lf.valor), 0));
           const devIds = devsPedido.map((d) => d.id);
           const estornosAnteriores = devIds.length
             ? await tx.lancamentoFinanceiro.findMany({

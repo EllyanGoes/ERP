@@ -31,7 +31,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     await tx.lancamentoFinanceiro.deleteMany({ where: { contaPagarId: params.id } });
     await tx.contaPagar.update({
       where: { id: params.id },
-      data: { valorPago: 0, valorMulta: 0, valorJuros: 0, dataPagamento: null, formaPagamento: null, status: "ABERTA" },
+      data: { valorPago: 0, valorMulta: 0, valorJuros: 0, valorTaxa: 0, taxaNaturezaId: null, dataPagamento: null, formaPagamento: null, status: "ABERTA" },
     });
     // Mudou o financeiro do pedido de compra → recomputa o status (espelho do que
     // o estorno de contas a receber faz com recomputarStatusPedido).

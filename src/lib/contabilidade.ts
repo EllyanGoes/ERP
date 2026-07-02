@@ -8,7 +8,7 @@ import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
 import { DIAS_TRABALHADOS_DEFAULT } from "@/lib/pcp/custeio-cif";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaFretesSobreCompras, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaContabilNatureza, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaFretesSobreCompras, garantirContaContabilBanco, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
 import { encargosConferencia } from "@/lib/pedido-compra-de";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
@@ -21,7 +21,7 @@ export type OrigemIn =
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
   | "DEPRECIACAO" | "ENCERRAMENTO" | "RECEITA_ENTREGA"
   | "FOLHA_PAGAMENTO" | "COMPENSACAO_AJUSTE" | "BAIXA_IMOBILIZADO"
-  | "DEVOLUCAO" | "MANUAL" | "ESTORNO";
+  | "DEVOLUCAO" | "TRANSFERENCIA_CAIXA" | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
   contaId: string;
@@ -374,7 +374,7 @@ export async function registrarLancamento(input: LancamentoIn, db?: Prisma.Trans
 export async function contabilizarTituloReceber(crId: string) {
   const cr = await prismaSemEscopo.contaReceber.findUnique({
     where: { id: crId },
-    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true,
+    select: { id: true, empresaId: true, clienteId: true, naturezaFinanceiraId: true, contaBancariaId: true, intragrupo: true, pedidoVendaId: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, valorTaxa: true, taxaNaturezaId: true, dataCompetencia: true, dataPagamento: true, createdAt: true,
       cliente: { select: { razaoSocial: true } },
       pedidoVenda: { select: { numero: true, itens: { select: { quantidade: true, precoUnitario: true, item: { select: { descricao: true } } } } } } },
   });
@@ -476,9 +476,12 @@ export async function contabilizarTituloReceber(crId: string) {
     const pagtos = await prismaSemEscopo.lancamentoFinanceiro.findMany({
       where: { contaReceberId: cr.id, tipo: "RECEITA" }, select: { contaBancariaId: true, valor: true },
     });
+    // Taxa retida vem da COLUNA do título (nunca inferida do delta caixa−pago: a
+    // compensação incrementa valorPago sem caixa e quebraria a inferência).
+    const taxa = r2(decimalToNumber(cr.valorTaxa ?? 0));
     const porBanco = new Map<string, number>();
     for (const lf of pagtos) porBanco.set(lf.contaBancariaId, (porBanco.get(lf.contaBancariaId) ?? 0) + decimalToNumber(lf.valor));
-    if (porBanco.size === 0) porBanco.set(caixaCbId, pago); // legado sem baixa detalhada
+    if (porBanco.size === 0 && r2(pago - taxa) > 0.005) porBanco.set(caixaCbId, r2(pago - taxa)); // legado sem baixa detalhada
     const partidas: PartidaIn[] = [];
     let total = 0;
     for (const [cbId, v] of Array.from(porBanco.entries())) {
@@ -489,15 +492,26 @@ export async function contabilizarTituloReceber(crId: string) {
       total += v;
     }
     total = Math.round(total * 100) / 100;
-    if (total > 0 && partidas.length) {
-      // Juros/multa cobrados na baixa entram no caixa ALÉM do valor baixado do
-      // título — são receita financeira (Juros e Multas Ativos), não crédito do
-      // cliente (senão o razonete do cliente fica credor pelo excedente).
-      const extra = r2(total - pago);
-      const contaJm = extra > 0.005 ? await garantirContaJurosMultasAtivos(cr.empresaId) : null;
-      const credTitulo = contaJm ? r2(total - extra) : total;
+    if (total + taxa > 0.005 && partidas.length + (taxa > 0.005 ? 1 : 0) > 0) {
+      // Taxa/tarifa retida: despesa com a natureza TRAVADA do título (conta de
+      // resultado da natureza; fallback Despesas Gerais), como dimensão na partida.
+      if (taxa > 0.005) {
+        const contaTaxa = (cr.taxaNaturezaId
+          ? (await contaDaNatureza(cr.empresaId, cr.taxaNaturezaId))
+            ?? (await garantirContaContabilNatureza(cr.taxaNaturezaId))
+          : null) ?? (await garantirContaDespesaFallback(cr.empresaId));
+        if (contaTaxa) partidas.push({ contaId: contaTaxa.id, tipo: "DEBITO", valor: taxa, naturezaId: cr.taxaNaturezaId ?? undefined });
+      }
+      // Juros/multa em caixa = Σ caixa + taxa − baixado (fórmula por colunas):
+      // receita financeira, não crédito do cliente. O crédito do cliente fecha o
+      // lançamento (≈ valorPago) — balanceia em qualquer mistura (taxa + juros +
+      // compensação, que baixa sem caixa aqui).
+      const somaDeb = r2(partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + p.valor, 0));
+      const jm = r2(somaDeb - pago);
+      const contaJm = jm > 0.005 ? await garantirContaJurosMultasAtivos(cr.empresaId) : null;
+      const credTitulo = contaJm ? r2(somaDeb - jm) : somaDeb;
       if (credTitulo > 0.005) partidas.push({ contaId: contaAtivo.id, tipo: "CREDITO", valor: credTitulo, clienteId: cli });
-      if (contaJm && extra > 0.005) partidas.push({ contaId: contaJm.id, tipo: "CREDITO", valor: extra });
+      if (contaJm && jm > 0.005) partidas.push({ contaId: contaJm.id, tipo: "CREDITO", valor: jm });
       await registrarLancamento({
         empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
         historico: `Recebimento — ${refCr}${cliNome ? ` · ${cliNome}` : ""}${detPedido ? ` · ${detPedido}` : ""}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
@@ -513,7 +527,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, antecipado: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, antecipado: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, valorTaxa: true, taxaNaturezaId: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
 
@@ -545,6 +559,10 @@ export async function contabilizarTituloPagar(cpId: string) {
   const ehCif = cp.naturezaFinanceira?.cif === true;
   const contaCifAprop = ehCif ? await contaPorCodigo(cp.empresaId, "1.1.4.0001") : null;
 
+  // Taxa/tarifa retida acumulada no título (coluna — nunca inferida do delta;
+  // ver contabilizarTituloReceber). Pago MENOS que o baixado, título quitado.
+  const taxaCp = r2(decimalToNumber(cp.valorTaxa ?? 0));
+
   // Pernas de crédito de caixa/banco a partir das baixas (LancamentoFinanceiro),
   // por banco real; fallback no caixa da empresa. Retorna partidas CREDITO + total.
   const pernasDeBanco = async (valorBaixa: number) => {
@@ -553,7 +571,7 @@ export async function contabilizarTituloPagar(cpId: string) {
     });
     const porBanco = new Map<string, number>();
     for (const lf of pagtos) porBanco.set(lf.contaBancariaId, (porBanco.get(lf.contaBancariaId) ?? 0) + decimalToNumber(lf.valor));
-    if (porBanco.size === 0) porBanco.set(caixaCbId, valorBaixa); // legado sem baixa detalhada
+    if (porBanco.size === 0 && r2(valorBaixa - taxaCp) > 0.005) porBanco.set(caixaCbId, r2(valorBaixa - taxaCp)); // legado sem baixa detalhada
     const partidas: PartidaIn[] = [];
     let total = 0;
     for (const [cbId, v] of Array.from(porBanco.entries())) {
@@ -616,12 +634,19 @@ export async function contabilizarTituloPagar(cpId: string) {
       }
       if (pago > 0) {
         const { partidas, total } = await pernasDeBanco(pago);
-        if (total > 0 && partidas.length) {
-          // Juros/multa pagos além do título são despesa financeira, não passivo.
-          const extra = r2(total - pago);
-          const contaJm = extra > 0.005 ? await garantirContaJurosMultasPassivos(cp.empresaId) : null;
-          if (contaJm && extra > 0.005) partidas.unshift({ contaId: contaJm.id, tipo: "DEBITO", valor: extra });
-          partidas.unshift({ contaId: contaPassivo.id, tipo: "DEBITO", valor: contaJm ? r2(total - extra) : total });
+        if (total + taxaCp > 0.005 && partidas.length + (taxaCp > 0.005 ? 1 : 0) > 0) {
+          // Taxa retida no pagar: pagou MENOS e quitou — economicamente é desconto
+          // obtido (crédito em resultado), com a natureza travada como dimensão.
+          if (taxaCp > 0.005) {
+            const contaDescObt = await garantirContaDescontosObtidos(cp.empresaId);
+            if (contaDescObt) partidas.push({ contaId: contaDescObt.id, tipo: "CREDITO", valor: taxaCp, naturezaId: cp.taxaNaturezaId ?? undefined });
+          }
+          // Juros/multa em caixa = Σ créditos − baixado (fórmula por colunas).
+          const somaCred = r2(partidas.filter((x) => x.tipo === "CREDITO").reduce((s2, x) => s2 + x.valor, 0));
+          const jm = r2(somaCred - pago);
+          const contaJm = jm > 0.005 ? await garantirContaJurosMultasPassivos(cp.empresaId) : null;
+          if (contaJm && jm > 0.005) partidas.unshift({ contaId: contaJm.id, tipo: "DEBITO", valor: jm });
+          partidas.unshift({ contaId: contaPassivo.id, tipo: "DEBITO", valor: contaJm ? r2(somaCred - jm) : somaCred });
           await registrarLancamento({
             empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
             historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
@@ -731,13 +756,20 @@ export async function contabilizarTituloPagar(cpId: string) {
           }
         }
       } else {
+        // Taxa retida (pagou menos, quitou): desconto obtido, natureza como dimensão.
+        if (taxaCp > 0.005) {
+          const contaDescObt = await garantirContaDescontosObtidos(cp.empresaId);
+          if (contaDescObt) partidas.push({ contaId: contaDescObt.id, tipo: "CREDITO", valor: taxaCp, naturezaId: cp.taxaNaturezaId ?? undefined });
+        }
         // Juros/multa pagos além do título: despesa financeira (Juros e Multas
         // Passivos) — o débito do Fornecedor fica só no valor baixado do título
         // (senão o razonete do fornecedor fica devedor pelo excedente).
-        const extra = r2(total - pago);
-        const contaJm = extra > 0.005 ? await garantirContaJurosMultasPassivos(cp.empresaId) : null;
-        const principal = contaJm ? r2(total - extra) : total;
-        if (contaJm && extra > 0.005) partidas.unshift({ contaId: contaJm.id, tipo: "DEBITO", valor: extra });
+        // Fórmula por colunas: jm = Σ créditos − baixado.
+        const somaCred = r2(partidas.filter((x) => x.tipo === "CREDITO").reduce((s2, x) => s2 + x.valor, 0));
+        const jm = r2(somaCred - pago);
+        const contaJm = jm > 0.005 ? await garantirContaJurosMultasPassivos(cp.empresaId) : null;
+        const principal = contaJm ? r2(somaCred - jm) : somaCred;
+        if (contaJm && jm > 0.005) partidas.unshift({ contaId: contaJm.id, tipo: "DEBITO", valor: jm });
         // Com rateio: o débito do Fornecedor é dividido por natureza (dimensão), somando
         // o total. Sem rateio: um débito único. O saldo do Fornecedor é o mesmo.
         const fornSplit = dividirPorNatureza(principal);
@@ -1213,6 +1245,49 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
     empresaId: minuta.empresaId, data: minuta.dataEntrega ?? minuta.dataEmissao ?? minuta.createdAt,
     historico: hist, origemTipo: "RECEITA_ENTREGA", origemId: minuta.id,
     partidas,
+  });
+}
+
+/**
+ * Espelho contábil de uma TRANSFERÊNCIA entre contas (par de LancamentoFinanceiro
+ * tipo TRANSFERENCIA, pernas cruzadas por transferenciaParId; origem negativa,
+ * destino positiva): D conta destino / C conta origem, pelo valor. Cobre também o
+ * repasse de cartão (conta da administradora 1.1.8 → banco 1.1.1). Idempotente
+ * por (empresa, TRANSFERENCIA_CAIXA, id da perna de ORIGEM) — aceita qualquer
+ * perna como argumento. Best-effort: pula par incompleto/cross-empresa/conta sem
+ * analítica.
+ */
+export async function contabilizarTransferencia(lancamentoId: string) {
+  const lf = await prismaSemEscopo.lancamentoFinanceiro.findUnique({
+    where: { id: lancamentoId },
+    select: { id: true, empresaId: true, tipo: true, valor: true, dataLancamento: true, descricao: true, contaBancariaId: true, transferenciaParId: true },
+  });
+  if (!lf || lf.tipo !== "TRANSFERENCIA" || !lf.transferenciaParId) return;
+  const par = await prismaSemEscopo.lancamentoFinanceiro.findUnique({
+    where: { id: lf.transferenciaParId },
+    select: { id: true, empresaId: true, valor: true, contaBancariaId: true },
+  });
+  if (!par || par.empresaId !== lf.empresaId) return;
+  const vLf = decimalToNumber(lf.valor);
+  const vPar = decimalToNumber(par.valor);
+  if (vLf === 0 || vPar === 0 || Math.sign(vLf) === Math.sign(vPar)) return; // par inválido
+  const origem = vLf < 0 ? lf : par;
+  const destino = vLf < 0 ? par : lf;
+  const valor = r2(Math.abs(vLf));
+  if (valor <= 0.005) return;
+  const [cOri, cDest] = await Promise.all([
+    garantirContaContabilBanco(origem.contaBancariaId),
+    garantirContaContabilBanco(destino.contaBancariaId),
+  ]);
+  if (!cOri || !cDest || cOri.id === cDest.id) return;
+  await registrarLancamento({
+    empresaId: lf.empresaId, data: lf.dataLancamento,
+    historico: (lf.descricao?.trim() ? `Transferência — ${lf.descricao.trim()}` : "Transferência entre contas"),
+    origemTipo: "TRANSFERENCIA_CAIXA", origemId: origem.id,
+    partidas: [
+      { contaId: cDest.id, tipo: "DEBITO", valor },
+      { contaId: cOri.id, tipo: "CREDITO", valor },
+    ],
   });
 }
 

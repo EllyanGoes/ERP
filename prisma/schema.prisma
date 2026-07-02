@@ -119,30 +119,30 @@ model CentroCusto {
 // conta contábil — o destino sai da precedência do material lendo o centro (e o
 // bem, quando capitaliza). O TES é a ENTRADA da precedência, não o substituto dela.
 model TipoOperacao {
-  id                    String        @id @default(cuid())
-  empresaId             String        @default("emp_tramontin")
+  id                    String                   @id @default(cuid())
+  empresaId             String                   @default("emp_tramontin")
   codigo                String
   nome                  String
   // Em que linha se aplica: ENTRADA (documento de entrada) ou SAIDA (RM/consumo).
-  sentido               String        @default("ENTRADA")
+  sentido               String                   @default("ENTRADA")
   // Comportamento operacional (Passo 0 e presets editáveis da linha):
-  estocavel             Boolean       @default(true) // movimenta estoque (senão consumo/serviço direto)
+  estocavel             Boolean                  @default(true) // movimenta estoque (senão consumo/serviço direto)
   almoxarifadoDefaultId String? // p/ qual estoque quando estocável
-  compoeCusto           Boolean       @default(false) // candidato a material direto (PEP_MD)
-  permiteCapitalizar    Boolean       @default(false) // HABILITA o degrau capitaliza (não obriga)
-  geraFinanceiro        Boolean       @default(true)
-  geraFiscal            Boolean       @default(true)
+  compoeCusto           Boolean                  @default(false) // candidato a material direto (PEP_MD)
+  permiteCapitalizar    Boolean                  @default(false) // HABILITA o degrau capitaliza (não obriga)
+  geraFinanceiro        Boolean                  @default(true)
+  geraFiscal            Boolean                  @default(true)
   // Eixo fiscal (segue o Protheus à vontade — não conflita com o eixo de custo).
   cfop                  String?
   naturezaFiscal        String?
   // Centro sugerido (default sobrescrivível na linha) — NÃO é classificação vinculante.
   centroCustoSugeridoId String?
-  ativo                 Boolean       @default(true)
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  almoxarifadoDefault   LocalEstoque? @relation("TesAlmoxarifado", fields: [almoxarifadoDefaultId], references: [id])
-  centroCustoSugerido   CentroCusto?  @relation("TesCentroSugerido", fields: [centroCustoSugeridoId], references: [id])
-  empresa               Empresa       @relation(fields: [empresaId], references: [id])
+  ativo                 Boolean                  @default(true)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  almoxarifadoDefault   LocalEstoque?            @relation("TesAlmoxarifado", fields: [almoxarifadoDefaultId], references: [id])
+  centroCustoSugerido   CentroCusto?             @relation("TesCentroSugerido", fields: [centroCustoSugeridoId], references: [id])
+  empresa               Empresa                  @relation(fields: [empresaId], references: [id])
   conferenciaItens      ConferenciaCompraItem[]
   requisicaoItens       RequisicaoMaterialItem[]
   pedidoItens           PedidoCompraItem[]
@@ -446,50 +446,50 @@ model ConferenciaCompra {
 }
 
 model ConferenciaCompraItem {
-  id                 String                @id @default(cuid())
-  empresaId          String                @default("emp_tramontin")
-  conferenciaId      String
-  itemId             String
+  id                      String                @id @default(cuid())
+  empresaId               String                @default("emp_tramontin")
+  conferenciaId           String
+  itemId                  String
   // Unidade da COMPRA (herdada do pedido; null = base). quantidadeRecebida e
   // vlrUnitario ficam nesta unidade; conversão p/ base ao concluir.
-  unidadeId          String?
-  quantidadePedida   Decimal               @db.Decimal(15, 3)
-  quantidadeRecebida Decimal               @default(0) @db.Decimal(15, 3)
-  divergencia        Boolean               @default(false)
-  observacao         String?
+  unidadeId               String?
+  quantidadePedida        Decimal               @db.Decimal(15, 3)
+  quantidadeRecebida      Decimal               @default(0) @db.Decimal(15, 3)
+  divergencia             Boolean               @default(false)
+  observacao              String?
   // Campos NF item
-  localEstoqueId     String?
-  vlrUnitario        Decimal?              @db.Decimal(15, 2)
-  vlrTotal           Decimal?              @db.Decimal(15, 2)
-  vlrIPI             Decimal?              @db.Decimal(15, 2)
-  vlrICMS            Decimal?              @db.Decimal(15, 2)
-  tipoEntrada        String?
-  codFiscal          String?
-  tpOper             String?
-  desconto           Decimal?              @db.Decimal(15, 4)
+  localEstoqueId          String?
+  vlrUnitario             Decimal?              @db.Decimal(15, 2)
+  vlrTotal                Decimal?              @db.Decimal(15, 2)
+  vlrIPI                  Decimal?              @db.Decimal(15, 2)
+  vlrICMS                 Decimal?              @db.Decimal(15, 2)
+  tipoEntrada             String?
+  codFiscal               String?
+  tpOper                  String?
+  desconto                Decimal?              @db.Decimal(15, 4)
   // Centro herdado do pedido (default editável). NÃO classifica destino de custo:
   // a precedência do material (compoe_custo → capitaliza → centro) decide PEP_MD/
   // IMOBILIZADO/CIF/DESPESA na entrada ou na RM, partindo deste centro herdado.
-  centroCustoId      String?
-  centroCusto        CentroCusto?          @relation(fields: [centroCustoId], references: [id])
+  centroCustoId           String?
+  centroCusto             CentroCusto?          @relation(fields: [centroCustoId], references: [id])
   // Capitaliza / bem / componente substituído — mesmos atributos da linha da RM
   // (herança/orçamento na entrada; a precedência do material lê a flag). null =
   // herda item.capitaliza. Ver src/lib/pcp/rotear-requisicao.ts.
   capitaliza              Boolean?
   imobilizadoId           String?
-  imobilizado             Imobilizado?     @relation("ConfItemImobilizado", fields: [imobilizadoId], references: [id])
+  imobilizado             Imobilizado?          @relation("ConfItemImobilizado", fields: [imobilizadoId], references: [id])
   componenteSubstituidoId String?
-  componenteSubstituido   Imobilizado?     @relation("ConfItemComponente", fields: [componenteSubstituidoId], references: [id])
+  componenteSubstituido   Imobilizado?          @relation("ConfItemComponente", fields: [componenteSubstituidoId], references: [id])
   // TES da linha + compoeCusto da linha (null = herda item.compoeCusto). O TES
   // preenche as flags; a precedência lê a linha. O TES não decide destino.
   tesId                   String?
-  tes                     TipoOperacao?    @relation(fields: [tesId], references: [id])
+  tes                     TipoOperacao?         @relation(fields: [tesId], references: [id])
   compoeCusto             Boolean?
-  conferencia        ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
-  item               Item                  @relation(fields: [itemId], references: [id])
-  localEstoque       LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
-  movimentacoes      MovimentacaoEstoque[]
-  empresa            Empresa               @relation(fields: [empresaId], references: [id])
+  conferencia             ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
+  item                    Item                  @relation(fields: [itemId], references: [id])
+  localEstoque            LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
+  movimentacoes           MovimentacaoEstoque[]
+  empresa                 Empresa               @relation(fields: [empresaId], references: [id])
 
   @@index([empresaId])
   @@index([centroCustoId])
@@ -545,6 +545,11 @@ model ContaPagar {
   valorPago             Decimal                @default(0) @db.Decimal(15, 2)
   valorMulta            Decimal                @default(0) @db.Decimal(15, 2)
   valorJuros            Decimal                @default(0) @db.Decimal(15, 2)
+  // Taxa/tarifa RETIDA na baixa (paga/recebe MENOS que o baixado): acumulada aqui;
+  // a natureza travada (sistema) do encargo fica em taxaNaturezaId. O título é
+  // sempre quitado pelo valorOriginal — a taxa nunca contamina o principal.
+  valorTaxa             Decimal                @default(0) @db.Decimal(15, 2)
+  taxaNaturezaId        String?
   dataVencimento        DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento         DateTime?
   dataCompetencia       DateTime?
@@ -636,6 +641,11 @@ model ContaReceber {
   valorPago            Decimal                @default(0) @db.Decimal(15, 2)
   valorMulta           Decimal                @default(0) @db.Decimal(15, 2)
   valorJuros           Decimal                @default(0) @db.Decimal(15, 2)
+  // Taxa/tarifa RETIDA na baixa (recebe MENOS que o baixado — ex.: taxa de cartão):
+  // acumulada aqui; natureza travada em taxaNaturezaId. O título é sempre quitado
+  // pelo valorOriginal — a taxa nunca contamina o principal.
+  valorTaxa            Decimal                @default(0) @db.Decimal(15, 2)
+  taxaNaturezaId       String?
   dataVencimento       DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento        DateTime?
   dataCompetencia      DateTime?
@@ -810,6 +820,59 @@ model ContaBancaria {
   @@index([empresaId])
 }
 
+// ── Cartões (adquirência) ─────────────────────────────────────────────────────
+// A venda no cartão é TROCA DE CREDOR: o cliente é baixado no ato e a
+// ADMINISTRADORA passa a dever o líquido (valor − taxa). Cada administradora tem
+// uma ContaBancaria tipo CARTAO (auto-criada) cujo razão vive sob 1.1.8 "Cartões
+// a Receber". A maquineta (terminal) vincula a venda à administradora e carrega
+// as taxas/prazos por tipo de cartão.
+model AdministradoraCartao {
+  id              String      @id @default(cuid())
+  empresaId       String      @default("emp_tramontin")
+  nome            String
+  cnpj            String?
+  // Conta "banco" da administradora (tipo CARTAO), criada junto com o cadastro —
+  // recebe o líquido das vendas e é zerada pelos repasses/antecipações.
+  contaBancariaId String
+  ativo           Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  maquinetas      Maquineta[]
+  empresa         Empresa     @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, nome])
+  @@index([empresaId])
+}
+
+model Maquineta {
+  id               String               @id @default(cuid())
+  empresaId        String               @default("emp_tramontin")
+  administradoraId String
+  nome             String // identificador do terminal (ex.: "Stone Loja 1")
+  ativo            Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  taxas            TaxaMaquineta[]
+  administradora   AdministradoraCartao @relation(fields: [administradoraId], references: [id])
+  empresa          Empresa              @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, nome])
+  @@index([administradoraId])
+  @@index([empresaId])
+}
+
+// Taxa e prazo de compensação por tipo de cartão da maquineta (crédito/débito).
+model TaxaMaquineta {
+  id              String             @id @default(cuid())
+  maquinetaId     String
+  tipoForma       TipoFormaPagamento // CARTAO_CREDITO | CARTAO_DEBITO
+  taxaPct         Decimal            @db.Decimal(5, 2)
+  diasCompensacao Int                @default(0)
+  maquineta       Maquineta          @relation(fields: [maquinetaId], references: [id], onDelete: Cascade)
+
+  @@unique([maquinetaId, tipoForma])
+}
+
 // Natureza financeira (estrutura de fluxo de caixa / DRE): classifica os títulos
 // e lançamentos por tipo (entrada/saída) e grupo. É a única classificação
 // gerencial — o plano de contas contábil vive em ContaContabil. Subgrupo é um
@@ -845,6 +908,11 @@ model NaturezaFinanceira {
   // Aparece no seletor da Requisição de Material (consumo de estoque). Naturezas de
   // tesouraria/compra/investimento ficam false e não poluem a RM. Não apaga nada.
   aplicavelRequisicao  Boolean                  @default(false)
+  // Natureza TRAVADA do sistema (encargos da baixa: juros, multa, tarifa, taxa de
+  // cartão, deságio). Não pode ser excluída nem mudar de tipo/grupo; o motor a
+  // referencia por `sistemaChave` (estável — renomear o nome não quebra nada).
+  sistema              Boolean                  @default(false)
+  sistemaChave         String?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
   subgrupo             NaturezaSubgrupo?        @relation(fields: [subgrupoId], references: [id])
@@ -871,6 +939,7 @@ model NaturezaFinanceira {
   contaContrapartidaId String?
   contaContrapartida   ContaContabil?           @relation("NaturezaContrapartida", fields: [contaContrapartidaId], references: [id])
 
+  @@unique([empresaId, sistemaChave])
   @@index([empresaId])
   @@index([tipo])
   @@index([subgrupoId])
@@ -971,6 +1040,7 @@ enum OrigemLancamento {
   COMPENSACAO_AJUSTE // ajuste (juros/multa/desconto) por título no Encontro de Contas
   BAIXA_IMOBILIZADO // baixa do componente velho numa troca (CPC 27): D Deprec.Acum + Perda / C Imobilizado
   DEVOLUCAO // devolução de venda: estorno de receita + retorno do estoque ao custo
+  TRANSFERENCIA_CAIXA // transferência entre contas (D conta destino / C conta origem)
   MANUAL
   ESTORNO
 }
@@ -1081,22 +1151,22 @@ enum StatusImobilizado {
 // depreciação (3.3.9003) são contas compartilhadas. Sem FK no banco (padrão do
 // projeto) — as contas são referenciadas por id em campos String.
 model Imobilizado {
-  id                          String                  @id @default(cuid())
-  empresaId                   String                  @default("emp_tramontin")
+  id                          String                   @id @default(cuid())
+  empresaId                   String                   @default("emp_tramontin")
   descricao                   String
   dataAquisicao               DateTime
-  valorAquisicao              Decimal                 @db.Decimal(15, 2)
-  valorResidual               Decimal                 @default(0) @db.Decimal(15, 2)
+  valorAquisicao              Decimal                  @db.Decimal(15, 2)
+  valorResidual               Decimal                  @default(0) @db.Decimal(15, 2)
   vidaUtilMeses               Int
-  deprecia                    Boolean                 @default(true) // terrenos e bens não depreciáveis = false
-  metodo                      MetodoDepreciacao       @default(LINEAR)
-  status                      StatusImobilizado       @default(ATIVO)
+  deprecia                    Boolean                  @default(true) // terrenos e bens não depreciáveis = false
+  metodo                      MetodoDepreciacao        @default(LINEAR)
+  status                      StatusImobilizado        @default(ATIVO)
   contaAtivoId                String? // analítica do bem (1.2.1.NNNN)
   contaDepreciacaoAcumuladaId String? // 1.2.2 (compartilhada)
   contaDespesaId              String? // 3.3.9003 (compartilhada)
   observacoes                 String?
-  createdAt                   DateTime                @default(now())
-  updatedAt                   DateTime                @updatedAt
+  createdAt                   DateTime                 @default(now())
+  updatedAt                   DateTime                 @updatedAt
   depreciacoes                DepreciacaoLancamento[]
   confItensImobilizado        ConferenciaCompraItem[]  @relation("ConfItemImobilizado")
   confItensComponente         ConferenciaCompraItem[]  @relation("ConfItemComponente")
@@ -1284,6 +1354,8 @@ model Empresa {
   naturezasFinanceiras      NaturezaFinanceira[]
   naturezaSubgrupos         NaturezaSubgrupo[]
   contaBancarias            ContaBancaria[]
+  administradorasCartao     AdministradoraCartao[]
+  maquinetas                Maquineta[]
   compensacoes              Compensacao[]
   recorrencias              Recorrencia[]
   cotacaoCompras            CotacaoCompra[]
@@ -1606,6 +1678,7 @@ model LancamentoFinanceiro {
   contaReceberId       String?
   contaPagarId         String?
   devolucaoId          String? // devolução de venda que gerou o estorno em dinheiro (sem FK — origem)
+  maquinetaId          String? // venda no cartão: maquineta usada (rastro venda→repasse; sem FK — origem)
   conciliado           Boolean               @default(false)
   transferenciaParId   String?               @unique
   favorecido           String?
@@ -1892,32 +1965,32 @@ model PedidoCompra {
 }
 
 model PedidoCompraItem {
-  id            String       @id @default(cuid())
+  id            String        @id @default(cuid())
   pedidoId      String
   itemId        String
   // Unidade da COMPRA (null = unidade base do item). quantidade/precoUnitario
   // ficam nesta unidade; a conversão p/ base (× / ÷ fatorConversao do ItemUnidade)
   // é aplicada ao dar entrada (concluir conferência).
   unidadeId     String?
-  quantidade    Decimal      @db.Decimal(15, 3)
-  precoUnitario Decimal      @db.Decimal(15, 2)
-  valorTotal    Decimal      @db.Decimal(15, 2)
-  situacao      String?      @default("CONSIDERA")
-  desconto      Decimal?     @db.Decimal(15, 4)
+  quantidade    Decimal       @db.Decimal(15, 3)
+  precoUnitario Decimal       @db.Decimal(15, 2)
+  valorTotal    Decimal       @db.Decimal(15, 2)
+  situacao      String?       @default("CONSIDERA")
+  desconto      Decimal?      @db.Decimal(15, 4)
   // Centro de custo é HERANÇA/ORÇAMENTO, não classificação de custo. Serve para o
   // controle de compromisso orçamentário por centro na compra e para pré-preencher
   // a entrada e a RM. NÃO decide CIF×Despesa×Imobilizado — isso continua na
   // precedência do material (compoe_custo → capitaliza → centro) na entrada/RM.
   // O pedido propõe; o destino de custo é decidido no material.
   centroCustoId String?
-  centroCusto   CentroCusto? @relation(fields: [centroCustoId], references: [id])
+  centroCusto   CentroCusto?  @relation(fields: [centroCustoId], references: [id])
   // TES da linha (comportamento/operação) + compoeCusto preenchido pelo TES
   // (null = herda item). Herdam para a entrada; NÃO decidem destino de custo.
   tesId         String?
   tes           TipoOperacao? @relation(fields: [tesId], references: [id])
   compoeCusto   Boolean?
-  item          Item         @relation(fields: [itemId], references: [id])
-  pedido        PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  item          Item          @relation(fields: [itemId], references: [id])
+  pedido        PedidoCompra  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   @@index([centroCustoId])
 }
@@ -3054,6 +3127,7 @@ enum TipoContaBancaria {
   CORRENTE
   POUPANCA
   CAIXA
+  CARTAO // "conta" da administradora de cartões — valores a receber (razão sob 1.1.8)
 }
 
 enum NaturezaTipo {
@@ -3149,40 +3223,40 @@ model RequisicaoMaterial {
 }
 
 model RequisicaoMaterialItem {
-  id                   String              @id @default(cuid())
-  requisicaoId         String
-  itemId               String
-  quantidade           Decimal             @db.Decimal(15, 3)
-  unidade              String?
-  localizacao          String?
-  centroCustoId        String?
+  id                      String              @id @default(cuid())
+  requisicaoId            String
+  itemId                  String
+  quantidade              Decimal             @db.Decimal(15, 3)
+  unidade                 String?
+  localizacao             String?
+  centroCustoId           String?
   // Natureza financeira POR ITEM (gaveta gerencial; vence a do cabeçalho).
-  naturezaFinanceiraId String?
+  naturezaFinanceiraId    String?
   // Destino contábil MANUAL (escape explícito, independente da natureza): força o
   // destino da linha. Vence as flags do item (exceto material direto). null = automático.
-  destinoManual        DestinoConsumo?
-  contaContabil        String?
-  os                   String?
-  requisicaoRef        String?
+  destinoManual           DestinoConsumo?
+  contaContabil           String?
+  os                      String?
+  requisicaoRef           String?
   // Capitaliza (degrau do meio da precedência): null = herda item.capitaliza; true/
   // false = decisão da LINHA (a mesma peça é capex numa melhoria e opex numa
   // restauração). NÃO é natureza. Quando true, exige imobilizadoId (o bem que recebe
   // o valor). Ver src/lib/pcp/rotear-requisicao.ts.
   capitaliza              Boolean?
   imobilizadoId           String?
-  imobilizado             Imobilizado?    @relation("RmItemImobilizado", fields: [imobilizadoId], references: [id])
+  imobilizado             Imobilizado?        @relation("RmItemImobilizado", fields: [imobilizadoId], references: [id])
   // Componente velho a dar baixa (abordagem por componente, CPC 27) quando a
   // capitalização é uma TROCA.
   componenteSubstituidoId String?
-  componenteSubstituido   Imobilizado?    @relation("RmItemComponente", fields: [componenteSubstituidoId], references: [id])
+  componenteSubstituido   Imobilizado?        @relation("RmItemComponente", fields: [componenteSubstituidoId], references: [id])
   // TES da linha + compoeCusto da linha (null = herda item.compoeCusto).
   tesId                   String?
-  tes                     TipoOperacao?   @relation(fields: [tesId], references: [id])
+  tes                     TipoOperacao?       @relation(fields: [tesId], references: [id])
   compoeCusto             Boolean?
-  requisicao           RequisicaoMaterial  @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
-  item                 Item                @relation(fields: [itemId], references: [id])
-  centroCusto          CentroCusto?        @relation(fields: [centroCustoId], references: [id])
-  naturezaFinanceira   NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
+  requisicao              RequisicaoMaterial  @relation(fields: [requisicaoId], references: [id], onDelete: Cascade)
+  item                    Item                @relation(fields: [itemId], references: [id])
+  centroCusto             CentroCusto?        @relation(fields: [centroCustoId], references: [id])
+  naturezaFinanceira      NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
 
   @@index([requisicaoId])
   @@index([imobilizadoId])

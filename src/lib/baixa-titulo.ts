@@ -25,6 +25,7 @@ import type { Prisma, ContaPagar, ContaReceber } from "@prisma/client";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 import { recomputarStatusPedido, recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
+import { naturezaSistema } from "@/lib/natureza-sistema";
 import type { PagamentoFormData } from "@/lib/validations/financeiro";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -59,6 +60,14 @@ export async function baixarTitulo(
     dataPagamento: string | Date;
     valorMulta?: number;
     valorJuros?: number;
+    /**
+     * Taxa/tarifa RETIDA no ato (recebe/paga MENOS que o baixado — taxa de
+     * cartão, tarifa bancária): o título é quitado pela soma linhas+taxa, mas o
+     * caixa só recebe as linhas. A taxa nunca contamina o principal — vira
+     * despesa com natureza TRAVADA (taxaNaturezaId; default por lado).
+     */
+    valorTaxa?: number;
+    taxaNaturezaId?: string | null;
     /** Rateio gerencial por natureza (só PAGAR) — substitui o rateio anterior. */
     naturezas?: NaturezaRateio[];
   },
@@ -67,8 +76,9 @@ export async function baixarTitulo(
   const isReceber = tipo === "RECEBER";
   const valorMulta = opts.valorMulta ?? 0;
   const valorJuros = opts.valorJuros ?? 0;
+  const valorTaxa = r2(opts.valorTaxa ?? 0);
   const dataPag = new Date(opts.dataPagamento);
-  const valorPagoTotal = r2(linhas.reduce((s, l) => s + l.valor, 0));
+  const valorPagoTotal = r2(linhas.reduce((s, l) => s + l.valor, 0) + valorTaxa);
   const formaResumo = Array.from(new Set(linhas.map((l) => l.forma).filter(Boolean))).join(" + ") || null;
 
   const conta = isReceber
@@ -83,6 +93,32 @@ export async function baixarTitulo(
   const jaPago = parseFloat(conta.valorPago.toString());
   const totalPago = r2(jaPago + valorPagoTotal);
   const newStatus = totalPago >= totalOriginal ? "PAGA" : "PARCIAL";
+
+  // Taxa retida: valida a natureza travada (sistema=true, mesma empresa; default
+  // por lado) e rejeita em título intragrupo — o motor pula caixa intragrupo e a
+  // taxa sumiria silenciosamente do razão.
+  let taxaNaturezaId: string | null = null;
+  if (valorTaxa > 0.005) {
+    if (conta.intragrupo) {
+      return { erro: { msg: "Título intragrupo não aceita taxa/tarifa retida.", status: 422 }, conta: null };
+    }
+    if (opts.taxaNaturezaId) {
+      const nat = await tx.naturezaFinanceira.findFirst({
+        where: { id: opts.taxaNaturezaId, empresaId: conta.empresaId, sistema: true },
+        select: { id: true },
+      });
+      if (!nat) {
+        return { erro: { msg: "Natureza da taxa inválida — use uma natureza travada do sistema.", status: 422 }, conta: null };
+      }
+      taxaNaturezaId = nat.id;
+    } else {
+      const padrao = await naturezaSistema(tx, conta.empresaId, isReceber ? "taxa-cartao" : "tarifa-bancaria");
+      if (!padrao) {
+        return { erro: { msg: "Naturezas de encargo do sistema não semeadas nesta empresa.", status: 422 }, conta: null };
+      }
+      taxaNaturezaId = padrao.id;
+    }
+  }
 
   // Teto anti-overpay: o que ainda cabe no título = valorOriginal + juros +
   // multa (acumulados, incluindo os desta baixa) − o que já foi pago.
@@ -131,6 +167,9 @@ export async function baixarTitulo(
     valorPago: totalPago,
     valorMulta: r2(parseFloat(conta.valorMulta.toString()) + valorMulta),
     valorJuros: r2(parseFloat(conta.valorJuros.toString()) + valorJuros),
+    ...(valorTaxa > 0.005
+      ? { valorTaxa: r2(parseFloat(conta.valorTaxa.toString()) + valorTaxa), taxaNaturezaId }
+      : {}),
     dataPagamento: newStatus === "PAGA" ? dataPag : null,
     formaPagamento: formaResumo ?? conta.formaPagamento,
     status: newStatus as "PAGA" | "PARCIAL",
