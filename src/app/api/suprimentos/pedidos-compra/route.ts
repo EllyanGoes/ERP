@@ -148,12 +148,15 @@ export async function POST(req: NextRequest) {
   const pedido = await prisma.$transaction(async (tx) => {
     const numero = numeroPC;
 
-    const parsedItens = itens.map((i: { itemId: string; quantidade: number; precoUnitario: number; unidadeId?: string | null; centroCustoId?: string | null }) => ({
+    const parsedItens = itens.map((i: { itemId: string; quantidade: number; precoUnitario: number; unidadeId?: string | null; centroCustoId?: string | null; tesId?: string | null; compoeCusto?: boolean | null }) => ({
       itemId:       i.itemId,
       // Unidade da compra (null = base). Conversão p/ base é feita na entrada.
       unidadeId:    i.unidadeId || null,
       // Centro herdável/orçamentário (default p/ entrada e RM); não classifica custo.
       centroCustoId: i.centroCustoId || null,
+      // TES da operação + compoeCusto preenchido pelo TES; herdam para a entrada.
+      tesId:        i.tesId || null,
+      compoeCusto:  i.compoeCusto ?? null,
       quantidade:   parseFloat(String(i.quantidade)),
       precoUnitario: parseFloat(String(i.precoUnitario)),
       valorTotal:   parseFloat(String(i.quantidade)) * parseFloat(String(i.precoUnitario)),

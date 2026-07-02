@@ -227,7 +227,7 @@ export default function DocumentoEntradaDetailPage() {
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<{ id: string; codigo: string; nome: string }[]>([]);
   const [imobilizados, setImobilizados] = useState<{ id: string; descricao: string }[]>([]);
-  const [tesList, setTesList] = useState<{ id: string; codigo: string; nome: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean }[]>([]);
+  const [tesList, setTesList] = useState<{ id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean }[]>([]);
 
   // Add item inline
   const [produtos, setProdutos] = useState<ProdutoOption[]>([]);
@@ -327,7 +327,7 @@ export default function DocumentoEntradaDetailPage() {
       .then((j) => setImobilizados(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
     fetch("/api/suprimentos/tipos-operacao").then((r) => r.json())
-      .then((j) => setTesList((Array.isArray(j) ? j : (j.data ?? [])).filter((t: { ativo?: boolean }) => t.ativo !== false)))
+      .then((j) => setTesList((Array.isArray(j) ? j : (j.data ?? [])).filter((t: { ativo?: boolean; sentido?: string }) => t.ativo !== false && t.sentido !== "SAIDA")))
       .catch(() => {});
   }, []);
 

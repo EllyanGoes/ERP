@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const pedido = await prisma.pedidoCompra.findUnique({
       where: { id: pedidoId },
-      include: { itens: true },
+      include: { itens: { include: { tes: { select: { almoxarifadoDefaultId: true } } } } },
     });
 
     if (!pedido) {
@@ -73,6 +73,11 @@ export async function POST(req: NextRequest) {
               // Herda o centro de custo do pedido (default editável na entrada). Não
               // classifica destino de custo — a precedência do material decide isso.
               centroCustoId: i.centroCustoId ?? null,
+              // Herda o TES e compõe-custo; materializa o almoxarifado default do TES
+              // no local da entrada (editável). O usuário confirma/ajusta na conferência.
+              tesId: i.tesId ?? null,
+              compoeCusto: i.compoeCusto ?? null,
+              localEstoqueId: i.tes?.almoxarifadoDefaultId ?? null,
               quantidadePedida: parseFloat(String(i.quantidade)),
               quantidadeRecebida: 0,
             })),

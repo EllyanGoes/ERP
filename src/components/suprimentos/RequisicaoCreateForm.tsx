@@ -694,7 +694,7 @@ export default function RequisicaoCreateForm() {
     const imData = await safeFetch("/api/contabilidade/imobilizado");
     if (imData != null) setImobilizados(Array.isArray(imData) ? imData : imData.data ?? []);
     const tData = await safeFetch("/api/suprimentos/tipos-operacao");
-    if (tData != null) setTesList((Array.isArray(tData) ? tData : tData.data ?? []).filter((t: TesOpt) => t.ativo !== false));
+    if (tData != null) setTesList((Array.isArray(tData) ? tData : tData.data ?? []).filter((t: TesOpt) => t.ativo !== false && t.sentido !== "ENTRADA"));
 
     if (lData  != null) setLocais(       Array.isArray(lData)  ? lData  : lData.data  ?? []);
     if (cData  != null) setColaboradores(Array.isArray(cData)  ? cData  : cData.data  ?? []);

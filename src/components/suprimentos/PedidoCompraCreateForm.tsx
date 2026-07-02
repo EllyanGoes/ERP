@@ -40,10 +40,13 @@ type ItemRow = {
   situacao: "CONSIDERA" | "NAO_CONSIDERA";
   unidadeId?: string;   // unidade de compra ("" = base do item)
   centroCustoId?: string; // herança/orçamento (default p/ entrada e RM); não classifica custo
+  tesId?: string;         // TES da operação (preset); herda para a entrada
+  compoeCusto?: boolean | null; // preenchido pelo TES (null = herda item)
 };
 
 type CentroCustoOpt = { id: string; codigo: string; nome: string };
 type CondicaoOpt = { id: string; nome: string; pagamentoAntecipado?: boolean };
+type TesOpt = { id: string; codigo: string; nome: string; sentido: string; compoeCusto: boolean; centroCustoSugeridoId: string | null; ativo: boolean };
 
 // Opções de unidade de um item (base + alternativas) com o fator de conversão.
 function unidadesDoItem(opt: ItemOption | undefined): { unidadeId: string; sigla: string; fator: number; base: boolean }[] {
@@ -142,6 +145,7 @@ export default function PedidoCompraCreateForm() {
   const [itemOptions, setItemOptions]     = useState<ItemOption[]>([]);
   const [condicoesList, setCondicoesList] = useState<CondicaoOpt[]>([]);
   const [centrosList, setCentrosList]     = useState<CentroCustoOpt[]>([]);
+  const [tesList, setTesList]             = useState<TesOpt[]>([]);
 
   // Fornecedor section
   const [fornecedorId, setFornecedorIdState] = useState("");
@@ -323,7 +327,26 @@ export default function PedidoCompraCreateForm() {
       .then((r) => r.json())
       .then((j) => setCentrosList(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
+    fetch("/api/suprimentos/tipos-operacao")
+      .then((r) => r.json())
+      .then((j) => setTesList((Array.isArray(j) ? j : (j.data ?? [])).filter((t: TesOpt) => t.ativo !== false && t.sentido !== "SAIDA")))
+      .catch(() => {});
   }, []);
+
+  // Escolher o TES preenche as flags da linha (editáveis) e grava o tesId p/ herdar
+  // à entrada. NÃO decide destino — só carrega comportamento (centro, compõe custo).
+  function applyTesRow(i: number, tesId: string) {
+    const tes = tesList.find((t) => t.id === tesId);
+    setItens((prev) => prev.map((row, idx) => {
+      if (idx !== i) return row;
+      const next = { ...row, tesId };
+      if (tes) {
+        next.compoeCusto = tes.compoeCusto;
+        if (tes.centroCustoSugeridoId) next.centroCustoId = tes.centroCustoSugeridoId;
+      } else { next.compoeCusto = null; }
+      return next;
+    }));
+  }
 
   // Condição selecionada é PA? (mostra o aviso de que o título nasce no pedido)
   const condicaoSelecionada = condicoesList.find((c) => c.id === condicaoPagamentoId);
@@ -400,7 +423,7 @@ export default function PedidoCompraCreateForm() {
     await doSubmit(validItens);
   }
 
-  async function doSubmit(validItens?: { itemId: string; quantidade: string; precoUnitario: string; situacao: string; unidadeId?: string; centroCustoId?: string }[]) {
+  async function doSubmit(validItens?: { itemId: string; quantidade: string; precoUnitario: string; situacao: string; unidadeId?: string; centroCustoId?: string; tesId?: string; compoeCusto?: boolean | null }[]) {
     setVinculoPopup(null);
     if (!validItens) {
       validItens = itens.filter((row) => row.itemId && parseDecimal(row.quantidade) > 0);
@@ -431,6 +454,8 @@ export default function PedidoCompraCreateForm() {
             itemId:       row.itemId,
             unidadeId:    row.unidadeId || null,
             centroCustoId: row.centroCustoId || null,
+            tesId:        row.tesId || null,
+            compoeCusto:  row.compoeCusto ?? null,
             quantidade:   parseDecimal(row.quantidade),
             precoUnitario: parseDecimal(row.precoUnitario) || 0,
           })),
@@ -767,6 +792,7 @@ export default function PedidoCompraCreateForm() {
                 <tr>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground min-w-[320px]">Produto</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-40" title="TES: preset de comportamento que herda para a entrada. Não decide destino.">TES</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground w-44" title="Centro de custo herdado pela entrada e pela requisição (default editável). Não classifica destino de custo.">Centro de custo</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Quantidade</th>
@@ -821,6 +847,13 @@ export default function PedidoCompraCreateForm() {
                             </div>
                           );
                         })()}
+                      </td>
+                      <td className="px-4 py-2">
+                        <select value={row.tesId ?? ""} onChange={(e) => applyTesRow(i, e.target.value)}
+                          className="h-8 text-xs w-full rounded-md border border-border bg-card px-1" title="Tipo de operação (preset)">
+                          <option value="">— TES —</option>
+                          {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                        </select>
                       </td>
                       <td className="px-4 py-2">
                         <ComboboxWithCreate
@@ -883,7 +916,7 @@ export default function PedidoCompraCreateForm() {
               </tbody>
               <tfoot className="border-t-2 border-border bg-muted">
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
+                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
                     Total da cotação
                   </td>
                   <td />

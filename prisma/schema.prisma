@@ -145,6 +145,7 @@ model TipoOperacao {
   empresa               Empresa       @relation(fields: [empresaId], references: [id])
   conferenciaItens      ConferenciaCompraItem[]
   requisicaoItens       RequisicaoMaterialItem[]
+  pedidoItens           PedidoCompraItem[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId])
@@ -1907,6 +1908,11 @@ model PedidoCompraItem {
   // O pedido propõe; o destino de custo é decidido no material.
   centroCustoId String?
   centroCusto   CentroCusto? @relation(fields: [centroCustoId], references: [id])
+  // TES da linha (comportamento/operação) + compoeCusto preenchido pelo TES
+  // (null = herda item). Herdam para a entrada; NÃO decidem destino de custo.
+  tesId         String?
+  tes           TipoOperacao? @relation(fields: [tesId], references: [id])
+  compoeCusto   Boolean?
   item          Item         @relation(fields: [itemId], references: [id])
   pedido        PedidoCompra @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
