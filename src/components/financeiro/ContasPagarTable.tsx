@@ -17,6 +17,7 @@ import PagamentosInput, {
   novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
 } from "@/components/pedidos-venda/PagamentosInput";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
+import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
 import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ type ContaRow = {
   } | null;
   centroCusto?: { codigo: string; nome: string } | null;
   folhaId?: string | null; recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
+  naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
 };
 
 // TES e Centro de custo do documento de material que originou o título — SOMENTE
@@ -117,6 +119,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   );
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
+  const [editar, setEditar] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
   const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
   const [formas, setFormas] = useState<FormaOpt[]>([]);
@@ -173,7 +176,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     return (
       <div className="flex items-center justify-end gap-2">
         {isAdmin && (
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); router.push(`/contas-pagar/${c.id}/editar`); }} className="gap-1 text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditar(c); }} className="gap-1 text-muted-foreground">
             <Pencil className="w-3.5 h-3.5" /> Editar
           </Button>
         )}
@@ -236,7 +239,6 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         </span>
       );
     } },
-    { accessorKey: "categoria", header: "Categoria", cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.categoria ?? "—"}</span> },
     {
       accessorKey: "dataVencimento",
       header: "Vencimento",
@@ -415,11 +417,22 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         const vp = decimalToNumber(detalhe.valorPago);
         const contas = detalhe.contasContrapartida ?? [];
         const org = origemPagar(detalhe);
+        const conf = detalhe.pedidoCompra?.conferencia;
         const campos: TituloCampo[] = [
           { label: "Fornecedor", valor: detalhe.fornecedor?.razaoSocial ?? "—", full: true },
-          { label: "Origem", full: true, valor: org.ref ? `${org.label} · ${org.ref}` : org.label },
+          { label: "Origem", full: true, valor: org.label },
+          // Documento de entrada clicável (igual ao pedido) — abre a conferência.
+          ...(conf ? [{
+            label: "Documento de Entrada", full: true,
+            valor: (
+              <button type="button" onClick={() => router.push(`/suprimentos/conferencias/${conf.id}`)}
+                className="inline-flex items-center gap-1 text-info hover:underline font-medium">
+                <ExternalLink className="w-3.5 h-3.5" /> {conf.numero}
+              </button>
+            ),
+          }] : []),
           ...(detalhe.pedidoCompra ? [{
-            label: "Pedido de origem", full: true,
+            label: "Pedido de compra", full: true,
             valor: (
               <button
                 type="button"
@@ -434,7 +447,6 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
           // TES e Centro de custo — SOMENTE LEITURA (definidos no material, não aqui).
           { label: "TES (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).tes}</span> },
           { label: "Centro de custo (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).centro}</span> },
-          { label: "Categoria", valor: detalhe.categoria ?? "—" },
           { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{formatDate(detalhe.dataVencimento)}</span> },
           { label: "Valor", valor: formatBRL(vo) },
           { label: "Pago", valor: formatBRL(vp) },
@@ -446,7 +458,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         const acoes: TituloAcao[] = [
           ...(podePagar ? [{ label: "Pagar", tone: "primary" as const, icon: <Wallet className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); abrir(r); } }] : []),
           ...(podeEstornar ? [{ label: "Reabrir", tone: "danger" as const, icon: <RotateCcw className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); estornar(r); } }] : []),
-          ...(isAdmin ? [{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: () => router.push(`/contas-pagar/${detalhe.id}/editar`) }] : []),
+          ...(isAdmin ? [{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setEditar(r); } }] : []),
         ];
         return (
           <TituloDetalhesDialog
@@ -515,6 +527,14 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edição do título em pop-up (mesma tela) */}
+      <EditarTituloDialog
+        tipo="pagar"
+        titulo={editar ? { ...editar, fornecedorId: editar.fornecedor?.id ?? null } : null}
+        onOpenChange={(o) => !o && setEditar(null)}
+        onSaved={() => router.refresh()}
+      />
     </>
   );
 }

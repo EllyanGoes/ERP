@@ -19,7 +19,6 @@ type FornecedorOption = { id: string; razaoSocial: string };
 type ColaboradorOption = { id: string; nome: string };
 type NaturezaOption = { id: string; nome: string };
 type ContaPagarEdit = { id: string } & Partial<ContaPagarFormData>;
-const CATEGORIAS = ["Aluguel","Energia","Água","Internet","Folha de Pagamento","Impostos","Fornecedores","Marketing","Outros"];
 type BenTipo = "FORNECEDOR" | "COLABORADOR" | "SEM_VINCULO";
 
 export default function ContaPagarForm({ fornecedores, colaboradores, naturezas, editing }: {
@@ -146,16 +145,6 @@ export default function ContaPagarForm({ fornecedores, colaboradores, naturezas,
             </FormItem>
             <FormField control={form.control} name="descricao" render={({ field }) => (
               <FormItem className="col-span-2"><FormLabel>Descrição *</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <FormField control={form.control} name="categoria" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Categoria</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value ?? ""}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger></FormControl>
-                  <SelectContent>{CATEGORIAS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
             )} />
             <FormField control={form.control} name="valorOriginal" render={({ field }) => (
               <FormItem><FormLabel>Valor (R$) *</FormLabel><FormControl><Input type="number" step="0.01" min="0" {...field} /></FormControl><FormMessage /></FormItem>

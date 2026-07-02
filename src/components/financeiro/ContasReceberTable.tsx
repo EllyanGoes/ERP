@@ -9,9 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida, cn } from "@/lib/utils";
-import { CalendarClock, Building2, Wallet, RotateCcw } from "lucide-react";
+import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
+import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
+import { useSession } from "@/lib/session-context";
 import DatePicker from "@/components/shared/DatePicker";
 import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
@@ -27,6 +29,7 @@ type ContaRow = {
   pedidoVenda?: { id: string; numero: string } | null;
   centroCusto?: { codigo: string; nome: string } | null;
   recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
+  naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
 };
 
 // Documento de ORIGEM do título a receber: pedido de venda, encontro de contas,
@@ -63,6 +66,9 @@ const FILTROS_RECEBER: { key: StatusFiltro; label: string }[] = [
 
 export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   const router = useRouter();
+  const { user } = useSession();
+  const isAdmin = user?.perfil === "ADMIN";
+  const [editar, setEditar] = useState<ContaRow | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("ABERTA");
   const [contaFiltro, setContaFiltro] = useState<string>("");
   // Contas de contrapartida distintas presentes na lista (para o filtro).
@@ -351,7 +357,17 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
         const org = origemReceber(detalhe);
         const campos: TituloCampo[] = [
           { label: "Cliente", valor: detalhe.cliente?.razaoSocial ?? "—", full: true },
-          { label: "Origem", full: true, valor: org.ref ? `${org.label} · ${org.ref}` : org.label },
+          { label: "Origem", full: true, valor: org.label },
+          // Pedido de venda clicável — abre o pedido de origem.
+          ...(detalhe.pedidoVenda ? [{
+            label: "Pedido de venda", full: true,
+            valor: (
+              <button type="button" onClick={() => router.push(`/pedidos-venda/${detalhe.pedidoVenda!.id}`)}
+                className="inline-flex items-center gap-1 text-info hover:underline font-medium">
+                <ExternalLink className="w-3.5 h-3.5" /> {detalhe.pedidoVenda.numero}
+              </button>
+            ),
+          }] : []),
           { label: "Descrição", valor: detalhe.descricao || "—", full: true },
           // Centro de custo — SOMENTE LEITURA (definido no material/título, não aqui).
           { label: "Centro de custo", valor: <span className="text-muted-foreground">{detalhe.centroCusto ? `${detalhe.centroCusto.codigo} - ${detalhe.centroCusto.nome}` : "—"}</span> },
@@ -364,6 +380,7 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
         ];
         const acoes: TituloAcao[] = [
           ...(podeReceber ? [{ label: "Receber", tone: "primary" as const, icon: <Wallet className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); abrir(r); } }] : []),
+          ...(isAdmin ? [{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setEditar(r); } }] : []),
           ...(podeEstornar ? [{ label: "Estornar", tone: "danger" as const, icon: <RotateCcw className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); estornar(r); } }] : []),
         ];
         return (
@@ -405,6 +422,14 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edição do título em pop-up (mesma tela) */}
+      <EditarTituloDialog
+        tipo="receber"
+        titulo={editar ? { ...editar, clienteId: editar.cliente?.id ?? null } : null}
+        onOpenChange={(o) => !o && setEditar(null)}
+        onSaved={() => router.refresh()}
+      />
     </>
   );
 }
