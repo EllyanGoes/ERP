@@ -120,6 +120,19 @@ export default function ImprimirOrdemPage() {
 
   return (
     <div className="px-8 py-6">
+      {/* Compactação SÓ na impressão: a meta é a OP caber em 1 folha A4 retrato. */}
+      <style>{`@media print {
+        .print-area { border: none !important; border-radius: 0 !important; padding: 0 !important; max-width: 100% !important; font-size: 12px; }
+        .print-area table { font-size: 11px; }
+        .print-area th, .print-area td { padding-top: 2px !important; padding-bottom: 2px !important; }
+        .print-area .mb-5, .print-area .mb-6 { margin-bottom: 0.55rem !important; }
+        .print-area .mb-4 { margin-bottom: 0.5rem !important; }
+        .print-area .space-y-3 > * + * { margin-top: 0.45rem !important; }
+        .print-area .grid-cols-3 { gap: 0.4rem 1rem !important; }
+        .print-area .vagao-box { height: 2.1rem !important; }
+        .print-area .obs-dia { height: 4.2rem !important; }
+        .print-area .mt-8 { margin-top: 0.8rem !important; }
+      }`}</style>
       <div className="no-print mb-4 flex items-center justify-between gap-2">
         <Link href="/pcp/ordens" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="w-4 h-4" /> Voltar</Link>
         <PrintButton />
@@ -234,7 +247,7 @@ export default function ImprimirOrdemPage() {
                 {linhas.map((m, i) => (
                   <tr key={i} className="border-t border-gray-200">
                     <td className="px-3 py-1.5">{m.cargas.map((c) => `${n(c.pecas)} ${c.descricao}`).join(" + ")}</td>
-                    <td className="px-3 py-1.5">{m.veiculo}</td>
+                    <td className="px-3 py-1.5">{m.veiculo}{m.cargas.length > 1 ? " (meiado)" : ""}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums font-medium">{n(m.nVagoes)}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">{n(m.cargas.reduce((s, c) => s + c.pecas, 0))} pç</td>
                   </tr>
@@ -248,23 +261,27 @@ export default function ImprimirOrdemPage() {
             <div className="mb-5 space-y-3">
               {linhas.map((m, i) => {
                 const capVagao = m.cargas.reduce((s, c) => s + c.pecas, 0);
+                const meiado = m.cargas.length > 1;
+                // Meiado: cada quadro mostra a composição ("300+200"), na mesma
+                // ordem dos produtos do título; cheio mostra só a capacidade.
+                const rotuloBox = meiado ? m.cargas.map((c) => n(c.pecas)).join("+") : n(capVagao);
                 return (
                   <div key={i} style={{ breakInside: "avoid" }}>
                     <p className="text-xs font-semibold text-gray-800 mb-1">
                       {m.cargas.map((c) => `${c.descricao} (${n(c.pecas)} pç)`).join(" + ")}
-                      <span className="font-normal text-gray-500"> — meta {n(m.nVagoes)} {veicPlural(m.veiculo)} × {n(capVagao)} pç</span>
+                      <span className="font-normal text-gray-500"> — meta {n(m.nVagoes)} {veicPlural(m.veiculo)}{meiado ? " meiados" : ""} × {n(capVagao)} pç</span>
                     </p>
                     <div className="grid grid-cols-8 gap-1">
                       {Array.from({ length: m.nVagoes }, (_, k) => (
-                        <div key={k} className="border border-gray-400 rounded h-11 px-1 pt-0.5">
+                        <div key={k} className="vagao-box border border-gray-400 rounded h-11 px-1 pt-0.5">
                           <div className="flex justify-between text-[9px] leading-none">
                             <span className="font-bold text-gray-700">{k + 1}</span>
-                            <span className="text-gray-400 tabular-nums">{n(capVagao)}</span>
+                            <span className="text-gray-400 tabular-nums">{rotuloBox}</span>
                           </div>
                         </div>
                       ))}
                       {[0, 1].map((k) => (
-                        <div key={`x${k}`} className="border border-dashed border-gray-300 rounded h-11 px-1 pt-0.5">
+                        <div key={`x${k}`} className="vagao-box border border-dashed border-gray-300 rounded h-11 px-1 pt-0.5">
                           <span className="text-[9px] text-gray-400">extra</span>
                         </div>
                       ))}
@@ -286,7 +303,7 @@ export default function ImprimirOrdemPage() {
 
         <div className="mb-6">
           <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Observações do dia (preenchimento manual)</p>
-          <div className="border border-gray-300 rounded-lg h-32" style={{ backgroundImage: "repeating-linear-gradient(transparent, transparent 27px, #e5e7eb 28px)" }} />
+          <div className="obs-dia border border-gray-300 rounded-lg h-32" style={{ backgroundImage: "repeating-linear-gradient(transparent, transparent 27px, #e5e7eb 28px)" }} />
         </div>
 
         <div className="grid grid-cols-2 gap-8 mt-8 pt-2 text-center text-xs text-gray-500">
