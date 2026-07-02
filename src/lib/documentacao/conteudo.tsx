@@ -354,6 +354,50 @@ const variaveisFluxo: BpmnGrafo = {
   ],
 };
 
+// ── CPV / Custeio por absorção ─────────────────────────────────────────────────
+// 1) Taxa predeterminada — custear MOD/CIF em tempo real.
+const cpvTaxaFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a", tipo: "inicio", x: 0,   y: 110, label: "Parâmetros da competência", sub: "biomassa, energia, combustível, MOD, MOI, depreciação" },
+    { id: "b", tipo: "tarefa", x: 250, y: 30,  label: "Taxa CIF / milheiro", sub: "custo indireto ÷ volume produzido", cor: "violeta" },
+    { id: "c", tipo: "tarefa", x: 250, y: 170, label: "Taxa MOD / milheiro", sub: "mão de obra ÷ volume produzido", cor: "verde" },
+    { id: "d", tipo: "tarefa", x: 500, y: 100, label: "Custo por produto", sub: "Material (BOM × CMPM) + MOD + CIF", cor: "ambar" },
+    { id: "e", tipo: "tarefa", x: 730, y: 100, label: "Aplicar ao estoque de PA", sub: "valora o produto acabado", cor: "verde" },
+    { id: "z", tipo: "fim",    x: 960, y: 116, label: "Cada milheiro já absorve MOD + CIF" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "a", to: "c" }, { from: "b", to: "d" }, { from: "c", to: "d" }, { from: "d", to: "e" }, { from: "e", to: "z" },
+  ],
+};
+
+// 2) Fechamento do mês — do custo real ao produto acabado.
+const cpvFechamentoFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a",  tipo: "inicio", x: 0,   y: 90,  label: "Fechamento do mês" },
+    { id: "fo", tipo: "tarefa", x: 170, y: 74,  label: "Folha apropriada", sub: "MOD → PEP-MOD · MOI → CIF a Apropriar", cor: "verde" },
+    { id: "ci", tipo: "tarefa", x: 420, y: 0,   label: "Apropriar CIF", sub: "CIF a Apropriar (1.1.4.0001) → PEP-CIF (…0003)", cor: "violeta" },
+    { id: "ab", tipo: "tarefa", x: 700, y: 74,  label: "Absorver MOD + CIF", sub: "D Produto Acabado / C PEP, rateio por volume", cor: "ambar" },
+    { id: "z",  tipo: "fim",    x: 960, y: 90,  label: "PA custeado por absorção" },
+  ],
+  edges: [
+    { from: "a", to: "fo" }, { from: "fo", to: "ci", label: "MOI" }, { from: "fo", to: "ab", label: "MOD" }, { from: "ci", to: "ab" }, { from: "ab", to: "z" },
+  ],
+};
+
+// 3) Custo absorvido (produzido) × CPV efetivo (vendido).
+const cpvAbsorvidoEfetivoFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a", tipo: "inicio", x: 0,   y: 110, label: "Custo do produto" },
+    { id: "g", tipo: "gateway",x: 180, y: 114, label: "Produzido ou vendido?" },
+    { id: "ab",tipo: "tarefa", x: 360, y: 20,  label: "Custo absorvido", sub: "o que foi FABRICADO no mês (material + MOD + CIF)", cor: "ambar" },
+    { id: "ef",tipo: "tarefa", x: 360, y: 210, label: "CPV efetivo", sub: "o que foi VENDIDO — baixa do PA (razão 3.2.2)", cor: "verde" },
+    { id: "z", tipo: "fim",    x: 640, y: 126, label: "Relatórios mês a mês" },
+  ],
+  edges: [
+    { from: "a", to: "g" }, { from: "g", to: "ab", label: "fabricado" }, { from: "g", to: "ef", label: "vendido" }, { from: "ab", to: "z" }, { from: "ef", to: "z" },
+  ],
+};
+
 export const MODULOS: ModuloDoc[] = [
   {
     id: "visao-geral", label: "Visão geral", icon: Network,
@@ -609,6 +653,49 @@ export const MODULOS: ModuloDoc[] = [
           "Custo unitário: o valor da partida de estoque usa o custo médio por empresa (CMPM / ItemCustoEmpresa); acabado de revenda custeia pelo custo de compra.",
           "Conta de destino da baixa: no recebimento/pagamento, usa sempre a conta real (Caixa em Dinheiro por empresa, ou o banco) onde o dinheiro entrou/saiu.",
           "Destino manual (requisição): quando informado, vence a regra automática de roteamento.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "cpv", label: "Custeio do Produto (CPV)", icon: Calculator,
+    resumo: "O produto acabado é custeado por ABSORÇÃO: carrega Material Direto + Mão de Obra Direta (MOD) + Custo Indireto de Fabricação (CIF). A tela CPV tem quatro abas: 'Definição de taxa pré-definida' (deriva as taxas de MOD/CIF por milheiro e valora o acabado em tempo real), 'Fechamentos' (apropria o CIF real e absorve MOD/CIF ao estoque), 'Custo absorvido' (o que foi fabricado no mês) e 'CPV efetivo' (o que foi vendido, pelo razão). O custo só vira resultado (CPV) quando o produto é vendido.",
+    telas: [
+      { label: "CPV — Custo dos Produtos", href: "/contabilidade/cpv", descricao: "Taxa predeterminada, fechamentos e os relatórios de custo." },
+      { label: "RH — Folhas", href: "/rh/folhas", descricao: "Fecha a folha: MOD → PEP-MOD, MOI → CIF." },
+      { label: "Diário Contábil", href: "/contabilidade/lancamentos", descricao: "Onde apropriação, absorção e CPV aparecem." },
+    ],
+    processos: [
+      {
+        titulo: "1. Taxa predeterminada: custear em tempo real",
+        texto: "Sem esperar o fechamento, cada milheiro produzido já absorve MOD e CIF por uma taxa predeterminada — derivada do custo do período dividido pelo volume produzido. Informa-se os parâmetros da competência (biomassa, energia, combustível, MOD, MOI, depreciação); o sistema calcula CIF/milheiro e MOD/milheiro e monta o custo por produto (Material da engenharia BOM × CMPM + MOD + CIF). O botão 'Aplicar ao estoque de PA' grava esse custo no produto acabado.",
+        grafo: cpvTaxaFluxo,
+        detalhes: [
+          "Custo Total por milheiro = Material Direto + MOD + CIF (as três parcelas).",
+          "Material Direto: consumo da engenharia (BOM) × custo médio por empresa (CMPM), média ponderada pelo volume de cada produto.",
+          "MOD e CIF são as TAXAS predeterminadas (custo do mês ÷ volume de milheiros) — permitem valorar o acabado antes do fechamento.",
+          "'Aplicar ao estoque de PA' passa a valorar o Produto Acabado e o CPV por esse custo.",
+        ],
+      },
+      {
+        titulo: "2. Fechamento do mês: do custo real ao produto",
+        texto: "No fechamento leva-se o custo REAL ao produto. A folha, ao ser fechada, aloca MOD no PEP-MOD e MOI no CIF a Apropriar. 'Apropriar CIF' move o saldo de CIF a Apropriar (1.1.4.0001) para o PEP-CIF (1.1.3.0005.0003). 'Absorver' transfere o PEP (Material + MOD + CIF) para o Produto Acabado, rateando pela produção do período. Assim o acabado passa a carregar o custo real de conversão.",
+        grafo: cpvFechamentoFluxo,
+        detalhes: [
+          "Apropriar CIF: D PEP-CIF (1.1.3.0005.0003) / C CIF a Apropriar (1.1.4.0001) — zera o staging e leva o CIF real ao custo de produção.",
+          "MOD/MOI vêm da folha (RH → Folhas): MOD → PEP-MOD (…0002), MOI → CIF a Apropriar.",
+          "Absorver: D Produto Acabado (1.1.3.0003) / C PEP (MD + MOD + CIF), pela produção finalizada — o que sobra fica como PEP (produtos em elaboração).",
+          "Custeio por absorção (CPC 16): MOD/CIF ficam no Ativo (PEP/PA) durante o processo e só entram no resultado como CPV na venda.",
+        ],
+      },
+      {
+        titulo: "3. Custo absorvido × CPV efetivo",
+        texto: "São dois olhares diferentes, em abas separadas. 'Custo absorvido' mostra o que foi FABRICADO no mês — material (BOM × CMPM) + MOD + CIF reais, absorvidos pelo volume produzido. 'CPV efetivo' mostra o que foi VENDIDO — o CPV real lançado no razão (3.2.2), a baixa do produto acabado na venda. Produzir não é vender: um produto fabricado num mês pode ser vendido em outro, por isso os dois relatórios divergem.",
+        grafo: cpvAbsorvidoEfetivoFluxo,
+        detalhes: [
+          "Custo absorvido: visão de PRODUÇÃO (entra no estoque de acabado). Não é o que foi vendido.",
+          "CPV efetivo: visão de VENDA (sai do estoque como custo na DRE), conta 3.2.2.0001.",
+          "A quebra do CPV por componente (material/MOD/CIF) é estimada pela composição do custo; o total é o real do razão.",
         ],
       },
     ],
