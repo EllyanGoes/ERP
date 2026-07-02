@@ -71,7 +71,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     },
   });
   // Sincroniza a conta contábil (cria/move entre Disponibilidades ↔ Terceiros + nome).
-  await sincronizarContaContabilBanco(conta.id).catch(() => {});
+  await sincronizarContaContabilBanco(conta.id).catch((e) => console.error("[financeiro/contas] contabilizar:", e));
   return NextResponse.json({ data: conta });
 }
 

@@ -3,9 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
-import { calcularCusteio } from "@/lib/pcp/custeio-cif";
+import { calcularCusteio, parseCompetencia } from "@/lib/pcp/custeio-cif";
 import { definirCustoEmpresa } from "@/lib/custo-empresa";
-import { parseCompetencia } from "../route";
 
 // Aplica o custo calculado (material + MOD + CIF) ao estoque de produto acabado:
 // grava ItemCustoEmpresa.precoCusto de cada produto produzido → a contabilidade
@@ -15,7 +14,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const comp = parseCompetencia(typeof body.competencia === "string" ? body.competencia : null);
-  const data = await calcularCusteio(EMPRESA_PADRAO_ID, comp);
+  const data = await calcularCusteio(EMPRESA_PADRAO_ID, comp, { volumeDoMes: true });
   if (data.volumeTotalMilheiros <= 0) {
     return NextResponse.json({ error: "Sem volume de produção (entradas no PA) para ratear." }, { status: 400 });
   }

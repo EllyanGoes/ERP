@@ -70,6 +70,39 @@ export async function custosComFallback(db: DbCusto, empresaId: string, itemIds:
   return m;
 }
 
+/**
+ * Custos para APROPRIAÇÃO (consumo que vai ao razão): mesmo fallback de
+ * custosComFallback (CMPM global quando a empresa não tem custo próprio), mas
+ * AVISA no log cada item que caiu no fallback — o custo global é de exibição,
+ * então uma apropriação valorada por ele merece investigação (item sem
+ * entrada/custo registrado na empresa).
+ */
+export async function custosParaApropriacao(
+  db: DbCusto,
+  empresaId: string,
+  itemIds: string[],
+  contexto: string,
+): Promise<Map<string, number>> {
+  const m = new Map<string, number>();
+  if (itemIds.length === 0) return m;
+  const proprios = await custosDaEmpresa(db, empresaId, itemIds);
+  for (const [k, v] of Array.from(proprios.entries())) if (v != null && v > 0) m.set(k, v);
+  const faltam = itemIds.filter((id) => !m.has(id));
+  if (faltam.length) {
+    const itens = await db.item.findMany({ where: { id: { in: faltam } }, select: { id: true, precoCusto: true } });
+    for (const it of itens) {
+      const v = num(it.precoCusto);
+      if (v != null && v > 0) {
+        m.set(it.id, v);
+        console.warn(
+          `[custo-empresa] ${contexto}: item ${it.id} sem custo próprio na empresa ${empresaId} — apropriação valorada pelo CMPM global (fallback de exibição).`,
+        );
+      }
+    }
+  }
+  return m;
+}
+
 /** Chave do mapa de custos por (empresa, item). */
 export const chaveCustoEmpresa = (empresaId: string, itemId: string) => `${empresaId}|${itemId}`;
 

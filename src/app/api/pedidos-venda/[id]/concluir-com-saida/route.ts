@@ -10,6 +10,10 @@ import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
+import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
+import { faturarPedidoSeEntregue } from "@/lib/contas-receber";
+import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import { z } from "zod";
 
 const schema = z.object({
@@ -69,6 +73,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { id: params.id },
       data: { status: "CONCLUIDO", dataConclusao: hoje },
     });
+    // Faturamento na ENTREGA (rede de segurança) + contabilização.
+    await faturarPedidoSeEntregue(params.id).catch((e) =>
+      console.error(`[concluir-com-saida] faturarPedidoSeEntregue(${params.id}) falhou:`, e));
+    await contabilizarPedidoVenda(params.id).catch(() => {});
     return NextResponse.json({ data: { pedidoId: updated.id, minutaNumero: null } }, { status: 200 });
   }
 
@@ -117,44 +125,41 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
       });
 
-      for (const p of pendentes) {
-        let estoque = await tx.estoqueItem.findFirst({
-          where: { empresaId: pedido.empresaId, itemId: p.itemId, localEstoqueId, clienteDonoId: null },
-        });
-        if (!estoque) {
-          estoque = await tx.estoqueItem.create({
-            data: { empresaId: pedido.empresaId, itemId: p.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
-          });
-        }
-        const atualizado = await tx.estoqueItem.update({
-          where: { id: estoque.id },
-          data: { quantidadeAtual: { decrement: p.pendente } },
-        });
-        const saldoDepois = num(atualizado.quantidadeAtual);
-
-        await tx.movimentacaoEstoque.create({
-          data: {
-            empresaId: pedido.empresaId,
-            itemId: p.itemId,
-            localEstoqueId,
-            loteId: lote.id,
-            pedidoVendaItemId: p.pedidoVendaItemId,
-            tipo: "SAIDA",
-            quantidade: p.pendente,
-            saldoAntes: saldoDepois + p.pendente,
-            saldoDepois,
-            documento: minuta.numero,
-            observacoes: `Saída saldo pendente — minuta ${minuta.numero}`,
-          },
-        });
-      }
+      // Baixa UNIFICADA (src/lib/baixa-estoque.ts): cada item pendente sai do
+      // SEU local (categoria/saldo — o local informado é só fallback; antes
+      // baixava TUDO no local único, um bug) com hard block de saldo negativo.
+      const descrs = await tx.item.findMany({
+        where: { id: { in: pendentes.map((p) => p.itemId) } },
+        select: { id: true, descricao: true },
+      });
+      const descrDe = new Map(descrs.map((d) => [d.id, d.descricao]));
+      await baixarEstoqueVenda(tx, {
+        empresaId: pedido.empresaId,
+        itens: pendentes.map((p) => ({
+          itemId: p.itemId,
+          quantidade: p.pendente,
+          pedidoVendaItemId: p.pedidoVendaItemId,
+          descricao: descrDe.get(p.itemId) ?? null,
+        })),
+        fallbackLocalId: localEstoqueId,
+        documento: minuta.numero,
+        observacoes: `Saída saldo pendente — minuta ${minuta.numero}`,
+        loteId: lote.id,
+      });
 
       await recomputarStatusPedido(tx, pedido.id);
       return { minuta };
     });
 
+    // Faturamento na ENTREGA: a entrega total acabou de se completar — gera o
+    // contas a receber (idempotente) e contabiliza o pedido.
+    await faturarPedidoSeEntregue(params.id).catch((e) =>
+      console.error(`[concluir-com-saida] faturarPedidoSeEntregue(${params.id}) falhou:`, e));
+    await contabilizarPedidoVenda(params.id).catch(() => {});
+
     return NextResponse.json({ data: { pedidoId: params.id, minutaNumero: resultado.minuta.numero } }, { status: 201 });
   } catch (err) {
+    if (err instanceof SaldoNegativoError) return respostaSaldoNegativo(err);
     const msg = err instanceof Error ? err.message : "Erro ao concluir com saída do saldo";
     if (msg.startsWith("CONFLITO:")) return NextResponse.json({ error: msg.replace("CONFLITO: ", "") }, { status: 409 });
     console.error("[POST /api/pedidos-venda/[id]/concluir-com-saida]", err);

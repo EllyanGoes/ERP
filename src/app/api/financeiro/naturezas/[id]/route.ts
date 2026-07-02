@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       ...(contaContrapartidaId !== undefined ? { contaContrapartidaId: contaContrapartidaId || null } : {}),
     },
   });
-  if (contaContabilId) await vincularNaturezaConta(data.empresaId, data.id, contaContabilId).catch(() => null);
+  if (contaContabilId) await vincularNaturezaConta(data.empresaId, data.id, contaContabilId).catch((e) => console.error("[financeiro/naturezas] contabilizar:", e));
   return NextResponse.json({ data });
 }
 

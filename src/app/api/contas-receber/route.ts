@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     });
     // Intragrupo: cliente do grupo → espelha como conta a pagar na compradora
     await espelharContaReceber(conta.id);
-    await contabilizarTituloReceber(conta.id).catch(() => {});
+    await contabilizarTituloReceber(conta.id).catch((e) => console.error("[contas-receber] contabilizar:", e));
     if (pedidoVendaId) await recomputarStatusPedido(prisma, pedidoVendaId);
     return NextResponse.json({ data: conta }, { status: 201 });
   }
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
 
   // Intragrupo: cliente do grupo → espelha cada parcela como conta a pagar
   for (const conta of contas) await espelharContaReceber(conta.id);
-  for (const conta of contas) await contabilizarTituloReceber(conta.id).catch(() => {});
+  for (const conta of contas) await contabilizarTituloReceber(conta.id).catch((e) => console.error("[contas-receber] contabilizar:", e));
   if (pedidoVendaId) await recomputarStatusPedido(prisma, pedidoVendaId);
 
   return NextResponse.json({ data: contas, grupoParcelamentoId }, { status: 201 });

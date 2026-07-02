@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { generateSimpleDocNumber } from "@/lib/utils";
-import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { criarConferenciaDePedido } from "@/lib/pedido-compra-de";
 
 const TRANSITIONS: Record<string, string[]> = {
   AGUARDANDO_PAGAMENTO: ["EM_TRANSITO", "CANCELADO"],
@@ -61,36 +60,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     }
 
-    // Create conferencia + update PC status in a single transaction
-    const pedido = await prisma.pedidoCompra.findUnique({
-      where: { id: pedidoId },
-      include: { itens: true },
-    });
-
+    const pedido = await prisma.pedidoCompra.findUnique({ where: { id: pedidoId }, select: { id: true } });
     if (!pedido) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
 
-    // Multiempresa: a conferência herda a empresa do pedido; numeração dela.
-    const numeroDE = generateSimpleDocNumber("DE", await proximaSequenciaDaEmpresa(pedido.empresaId, "DE"));
-
+    // Create conferencia + update PC status in a single transaction.
+    // Criação unificada do DE (mesma função do POST /conferencias): copia TODOS
+    // os campos da linha do pedido — unidade, TES, centro, compõe-custo, local
+    // default e valores — senão a conversão de unidade e o custo saem errados
+    // na conclusão.
     const conferencia = await prisma.$transaction(async (tx) => {
-      const record = await tx.conferenciaCompra.create({
-        data: {
-          numero: numeroDE,
-          empresaId: pedido.empresaId,
-          pedidoId,
-          fornecedorId: pedido.fornecedorId ?? null,
-          itens: {
-            create: pedido.itens.map((i) => ({
-              itemId:             i.itemId,
-              quantidadePedida:   parseFloat(String(i.quantidade)),
-              quantidadeRecebida: 0,
-              vlrUnitario:        i.precoUnitario != null ? parseFloat(String(i.precoUnitario)) : null,
-              vlrTotal:           i.valorTotal    != null ? parseFloat(String(i.valorTotal))    : null,
-            })),
-          },
-        },
-        select: { id: true, numero: true },
-      });
+      const record = await criarConferenciaDePedido(tx, pedidoId);
 
       await tx.pedidoCompra.update({ where: { id: pedidoId }, data: { status } });
 

@@ -489,10 +489,11 @@ export async function garantirContasImobilizado(empresaId: string) {
   return { deprAcumId: deprAcum?.id ?? null, despesaId: despesa?.id ?? null };
 }
 
-/** Conta de resultado "Perda na Baixa de Imobilizado" (3.3.9004) — resíduo (valor
- *  contábil líquido) do componente velho dado baixa numa troca (CPC 27). */
+/** Conta de resultado "Perda na Baixa de Imobilizado" (3.3.9006) — resíduo (valor
+ *  contábil líquido) do componente velho dado baixa numa troca (CPC 27).
+ *  (Era 3.3.9004, que colidia com Despesas Gerais e Juros Passivos — renumerada.) */
 export async function garantirContaPerdaBaixaImobilizado(empresaId: string) {
-  return garantirContaPorCodigo(empresaId, { codigo: "3.3.9004", nome: "Perda na Baixa de Imobilizado", pai: "3.3", grupo: "RESULTADO", natureza: "DEVEDORA" });
+  return garantirContaPorCodigo(empresaId, { codigo: "3.3.9006", nome: "Perda na Baixa de Imobilizado", pai: "3.3", grupo: "RESULTADO", natureza: "DEVEDORA" });
 }
 
 /**
@@ -622,13 +623,24 @@ async function garantirResultadoSobPai(empresaId: string, codigo: string, nome: 
 export async function garantirContaJurosMultasAtivos(empresaId: string) {
   return garantirResultadoSobPai(empresaId, "3.1.9004", "Juros e Multas Ativos", "3.1", "CREDORA");
 }
-/** Despesa: juros e multas passivos (pagos), DEVEDORA sob 3.3. */
+/** Despesa: juros e multas passivos (pagos), DEVEDORA sob 3.3.
+ *  (Era 3.3.9004, que colidia com Despesas Gerais — renumerada p/ 3.3.9005.) */
 export async function garantirContaJurosMultasPassivos(empresaId: string) {
-  return garantirResultadoSobPai(empresaId, "3.3.9004", "Juros e Multas Passivos", "3.3", "DEVEDORA");
+  return garantirResultadoSobPai(empresaId, "3.3.9005", "Juros e Multas Passivos", "3.3", "DEVEDORA");
 }
 /** Receita: descontos obtidos (em contas a pagar), CREDORA sob 3.1. */
 export async function garantirContaDescontosObtidos(empresaId: string) {
   return garantirResultadoSobPai(empresaId, "3.1.9005", "Descontos Obtidos", "3.1", "CREDORA");
+}
+/** Redutora de receita "(-) Devoluções de Vendas" (3.1.9006), DEVEDORA sob 3.1 —
+ *  estorno da receita na devolução de venda (contabilizarDevolucao). */
+export async function garantirContaDevolucaoVendas(empresaId: string) {
+  return garantirResultadoSobPai(empresaId, "3.1.9006", "(-) Devoluções de Vendas", "3.1", "DEVEDORA");
+}
+/** Passivo "Créditos de Clientes a Utilizar" (sob 2.1) — vale gerado por devolução
+ *  com resolução CRÉDITO/TROCA, consumido como pagamento em vendas futuras. */
+export async function garantirContaCreditosClientes(empresaId: string) {
+  return garantirAnaliticaPorNome(empresaId, "2.1", "Créditos de Clientes a Utilizar", "PASSIVO", "CREDORA");
 }
 /**
  * Sintética "Material a Entregar" (2.1.2) — receita diferida até a entrega.
@@ -681,11 +693,10 @@ export async function garantirContaClienteReceber(empresaId: string, clienteId: 
 }
 
 /**
- * Garante (idempotente) a sintética "Bens a Entregar" (1.1.4, ATIVO). Espelho
- * ATIVO do "Material a Entregar" (passivo 2.1.2): o backlog de pedidos
- * confirmados-não-entregues fica visível no balanço sem inflar "Clientes a
- * Receber" — o recebível só nasce com o título. Analítica por cliente (1.1.4.x)
- * via garantirContaBensEntregarCliente. Best-effort.
+ * Garante (idempotente) a sintética 1.1.4 (ATIVO). O modelo "Bens a Entregar"
+ * foi DESCARTADO (venda usa o modelo clássico: D Clientes / C Material a
+ * Entregar na confirmação) — a sintética sobrevive apenas como PAI da conta
+ * "CIF a Apropriar" (1.1.4.0001). Best-effort.
  */
 export async function garantirContaBensEntregar(empresaId: string) {
   const ex = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true } });
@@ -721,34 +732,6 @@ export async function garantirContaCifApropriar(empresaId: string) {
       empresaId, codigo: "1.1.4.0001", nome: "CIF a Apropriar",
       grupo: "ATIVO", natureza: "DEVEDORA", tipo: "ANALITICA",
       nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id,
-    },
-    select: { id: true },
-  });
-}
-
-/**
- * Garante (idempotente) a analítica de Bens a Entregar de um cliente, sob a
- * sintética 1.1.4. Keyed por (empresa, pai 1.1.4, cliente) — o mesmo clienteId
- * também tem a analítica de Clientes a Receber (1.1.2.x), por isso a unicidade é
- * por pai e não por grupo. Espelho ativo do Material a Entregar do cliente.
- */
-export async function garantirContaBensEntregarCliente(empresaId: string, clienteId: string) {
-  let pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true, codigo: true, nivel: true } });
-  if (!pai) {
-    await garantirContaBensEntregar(empresaId);
-    pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "1.1.4" }, select: { id: true, codigo: true, nivel: true } });
-  }
-  if (!pai) return null;
-  const existente = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, paiId: pai.id, clienteId }, select: { id: true } });
-  if (existente) return existente;
-  const cliente = await prismaSemEscopo.cliente.findUnique({ where: { id: clienteId }, select: { razaoSocial: true } });
-  const filhos = await prismaSemEscopo.contaContabil.findMany({ where: { empresaId, paiId: pai.id }, select: { codigo: true } });
-  const codigo = montarProximo(pai.codigo, filhos.map((f) => f.codigo));
-  return prismaSemEscopo.contaContabil.create({
-    data: {
-      empresaId, codigo, nome: cliente?.razaoSocial ?? "Cliente",
-      grupo: "ATIVO", natureza: "DEVEDORA", tipo: "ANALITICA",
-      nivel: pai.nivel + 1, aceitaLancamento: true, paiId: pai.id, clienteId,
     },
     select: { id: true },
   });

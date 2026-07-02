@@ -5,13 +5,16 @@ import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { pedidoVendaSchema } from "@/lib/validations/pedido-venda";
-import { recalcPedidoValorTotal, getItensPendentesEntrega, recomputarStatusPedido } from "@/lib/pedido-totais";
-import { espelharConfirmacaoVenda, cancelarEspelhoVenda } from "@/lib/intragrupo";
+import { recalcPedidoValorTotal, recomputarStatusPedido } from "@/lib/pedido-totais";
+import { mudarStatusPedidoVenda, STATUS_PEDIDO_VENDA, type StatusPedidoVenda } from "@/lib/pedido-venda-status";
 import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 import { recontabilizarClientePedido, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const pedido = await prisma.pedidoVenda.findUnique({
     where: { id: params.id },
     include: {
@@ -73,8 +76,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const { itens, pagamentos, pagamentoData, ...pedidoData } = parsed.data;
-  const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
-  const valorTotal = valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0);
+
+  // Totais SERVER-SIDE: o valorTotal de cada linha é recomputado de
+  // qtd × preço − desconto (R$) — o total enviado pelo client é ignorado
+  // (um client adulterado não pode vender abaixo do preço das linhas).
+  const round2srv = (n: number) => Math.round(n * 100) / 100;
+  const totalLinha = (i: { quantidade: number; precoUnitario: number; valorDesconto?: number | null }) =>
+    Math.max(0, round2srv(i.quantidade * i.precoUnitario - (i.valorDesconto ?? 0)));
+  const valorProdutos = round2srv(itens.reduce((sum, i) => sum + totalLinha(i), 0));
+  const valorTotal = round2srv(valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0));
 
   // Comodato (saída) editado como rascunho: linhas com `id` já existem (update),
   // sem `id` são novas (create), e as que sumiram são removidas. Lido do corpo
@@ -185,7 +195,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     descontoPct:   item.descontoPct   ?? 0,
     valorDesconto: item.valorDesconto ?? 0,
     desconto:      item.desconto      ?? 0,
-    valorTotal: item.valorTotal,
+    // Recomputado no server (qtd × preço − desconto) — nunca o total do client.
+    valorTotal: totalLinha(item),
   });
 
   try {
@@ -413,141 +424,35 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
+// Mudança de status — mesma máquina do PATCH /api/pedidos-venda/[id]/status
+// (src/lib/pedido-venda-status.ts): transições validadas (override só ADMIN),
+// cancelamento reverte estoque/caixa/contábil/espelhos nos dois caminhos e o
+// faturamento (CR) nasce na ENTREGA, não aqui.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("comercial");
   if (!auth.ok) return auth.response;
 
   const body = await req.json();
-  const { status } = body as { status?: string };
+  const { status, override, dataConclusao } = body as { status?: string; override?: boolean; dataConclusao?: string | null };
   if (!status) return NextResponse.json({ error: "status é obrigatório" }, { status: 400 });
-
-  const valid = ["ORCAMENTO", "CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO", "CANCELADO"];
-  if (!valid.includes(status)) return NextResponse.json({ error: "Status inválido" }, { status: 400 });
-
-  // Não permite concluir enquanto houver material pendente de entrega
-  // (qtd pedida ainda não totalmente coberta por minutas ENTREGUE).
-  if (status === "CONCLUIDO") {
-    const pendentes = await getItensPendentesEntrega(params.id);
-    if (pendentes.length > 0) {
-      return NextResponse.json(
-        {
-          error: "Há material pendente de entrega. Conclua as entregas (minutas marcadas como Entregue) antes de finalizar o pedido.",
-          pendentes,
-        },
-        { status: 422 },
-      );
-    }
+  if (!STATUS_PEDIDO_VENDA.includes(status as StatusPedidoVenda)) {
+    return NextResponse.json({ error: "Status inválido" }, { status: 400 });
   }
 
-  // Cancelamento em cadeia: cancela as necessidades de ENTREGA (minutas) e de
-  // PAGAMENTO (contas a receber) do pedido, reverte o estoque das entregas e o
-  // caixa dos recebimentos, e reflete no CONTÁBIL apagando os lançamentos do
-  // pedido/minutas/títulos (coerente com o reprocesso: contabilizar* pula
-  // cancelados). Tudo numa transação.
-  if (status === "CANCELADO") {
-    await prismaSemEscopo.$transaction(async (tx) => {
-      const ped = await tx.pedidoVenda.findUnique({
-        where: { id: params.id },
-        select: {
-          id: true, numero: true, empresaId: true,
-          itens: { select: { id: true } },
-          minutas: { select: { id: true, numero: true } },
-          contasReceber: { select: { id: true } },
-        },
-      });
-      if (!ped) return;
-      const itemIds = ped.itens.map((i) => i.id);
-      const minutaNumeros = ped.minutas.map((m) => m.numero);
-      const minutaIds = ped.minutas.map((m) => m.id);
-      const crIds = ped.contasReceber.map((c) => c.id);
-
-      // 1) Reverte o estoque das minutas (devolve o saldo) e apaga as movimentações.
-      const movs = await tx.movimentacaoEstoque.findMany({
-        where: {
-          OR: [
-            ...(minutaNumeros.length ? [{ documento: { in: minutaNumeros } }] : []),
-            ...(itemIds.length ? [{ pedidoVendaItemId: { in: itemIds } }] : []),
-          ],
-        },
-        select: { id: true, itemId: true, localEstoqueId: true, clienteDonoId: true, tipo: true, quantidade: true, loteId: true },
-      });
-      const afetados = new Set<string>();
-      const loteIds = new Set<string>();
-      for (const mv of movs) {
-        if (mv.loteId) loteIds.add(mv.loteId);
-        if (!mv.localEstoqueId) continue;
-        const qtd = Number(mv.quantidade);
-        const efeito = mv.tipo === "ENTRADA" ? qtd : mv.tipo === "SAIDA" ? -qtd : 0;
-        if (efeito !== 0) {
-          await tx.estoqueItem.updateMany({
-            where: { itemId: mv.itemId, localEstoqueId: mv.localEstoqueId, clienteDonoId: mv.clienteDonoId ?? null },
-            data: { quantidadeAtual: { decrement: efeito } },
-          });
-        }
-        afetados.add(`${mv.itemId}|${mv.localEstoqueId}|${mv.clienteDonoId ?? ""}`);
-      }
-      if (movs.length) await tx.movimentacaoEstoque.deleteMany({ where: { id: { in: movs.map((m) => m.id) } } });
-      for (const chave of Array.from(afetados)) {
-        const [itemId, localEstoqueId, dono] = chave.split("|");
-        await recalcularSaldos(tx, itemId, localEstoqueId, dono || null);
-      }
-      for (const loteId of Array.from(loteIds)) {
-        const restantes = await tx.movimentacaoEstoque.count({ where: { loteId } });
-        if (restantes === 0) await tx.loteMovimentacao.delete({ where: { id: loteId } }).catch(() => {});
-      }
-
-      // 2) Necessidades de ENTREGA: minutas → CANCELADA.
-      if (minutaIds.length) {
-        await tx.minuta.updateMany({ where: { id: { in: minutaIds }, status: { not: "CANCELADA" } }, data: { status: "CANCELADA" } });
-      }
-      // 3) Necessidades de PAGAMENTO: contas a receber → CANCELADA (reverte o caixa).
-      if (crIds.length) {
-        await tx.lancamentoFinanceiro.deleteMany({ where: { contaReceberId: { in: crIds } } });
-        await tx.contaReceber.updateMany({
-          where: { id: { in: crIds }, status: { not: "CANCELADA" } },
-          data: { status: "CANCELADA", valorPago: 0, dataPagamento: null },
-        });
-      }
-
-      // 4) CONTÁBIL: apaga os lançamentos gerados pelo pedido, minutas e títulos.
-      //    PartidaContabil NÃO cascateia no banco → apaga as partidas ANTES do
-      //    lançamento (senão ficam órfãs corrompendo o balanço). Cancelados não
-      //    são recontabilizados.
-      const lancsCancelar = await tx.lancamentoContabil.findMany({
-        where: {
-          empresaId: ped.empresaId,
-          OR: [
-            { origemTipo: "VENDA", origemId: ped.id },
-            ...(crIds.length ? [{ origemTipo: { in: ["VENDA", "RECEBIMENTO"] as ("VENDA" | "RECEBIMENTO")[] }, origemId: { in: crIds } }] : []),
-            ...(minutaIds.length ? [{ origemTipo: { in: ["RECEITA_ENTREGA", "ESTOQUE_SAIDA"] as ("RECEITA_ENTREGA" | "ESTOQUE_SAIDA")[] }, origemId: { in: minutaIds } }] : []),
-          ],
-        },
-        select: { id: true },
-      });
-      if (lancsCancelar.length) {
-        const lancIds = lancsCancelar.map((l) => l.id);
-        await tx.partidaContabil.deleteMany({ where: { lancamentoId: { in: lancIds } } });
-        await tx.lancamentoContabil.deleteMany({ where: { id: { in: lancIds } } });
-      }
-
-      // 5) Status do pedido.
-      await tx.pedidoVenda.update({ where: { id: ped.id }, data: { status: "CANCELADO" } });
-    });
-    // Intragrupo: cancela a compra espelhada na empresa do grupo.
-    await cancelarEspelhoVenda(params.id);
-    return NextResponse.json({ data: { id: params.id, status: "CANCELADO" } });
-  }
-
-  const pedido = await prisma.pedidoVenda.update({
-    where: { id: params.id },
-    data: { status: status as never },
-    select: { id: true, status: true },
+  const r = await mudarStatusPedidoVenda({
+    pedidoVendaId: params.id,
+    novoStatus: status as StatusPedidoVenda,
+    perfil: auth.session.perfil,
+    override: override === true,
+    dataConclusao: typeof dataConclusao === "string" ? dataConclusao : null,
   });
-
-  // Intragrupo: venda para empresa do grupo gera/cancela a compra espelhada
-  if (status === "CONFIRMADO") await espelharConfirmacaoVenda(params.id);
-
-  return NextResponse.json({ data: pedido });
+  if (!r.ok) {
+    return NextResponse.json(
+      { error: r.error, ...(r.pendentes ? { pendentes: r.pendentes } : {}) },
+      { status: r.status },
+    );
+  }
+  return NextResponse.json({ data: r.data });
 }
 
 // Exclusão DEFINITIVA do pedido — restrita ao perfil ADMIN. Diferente de
@@ -564,7 +469,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   const pedido = await prisma.pedidoVenda.findUnique({
     where: { id: params.id },
-    select: { id: true, numero: true, estoqueOrigemEmpresaId: true },
+    select: { id: true, numero: true, empresaId: true, estoqueOrigemEmpresaId: true },
   });
   if (!pedido) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
 
@@ -583,23 +488,28 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       });
       const pedidoIds = [pedido.id, ...entregas.map((e) => e.id)];
 
-      // Itens e minutas desses pedidos — usados para achar os movimentos a estornar.
-      const [itens, minutas] = await Promise.all([
+      // Itens, minutas e devoluções desses pedidos — usados para achar os
+      // movimentos a estornar (a devolução gera ENTRADAs com devolucaoId).
+      const [itens, minutas, devolucoes] = await Promise.all([
         tx.pedidoVendaItem.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { id: true } }),
         tx.minuta.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { id: true, numero: true } }),
+        tx.devolucao.findMany({ where: { pedidoVendaId: { in: pedidoIds } }, select: { id: true } }),
       ]);
       const itemIds = itens.map((i) => i.id);
       const minutaNumeros = minutas.map((m) => m.numero);
       const minutaIds = minutas.map((m) => m.id);
+      const devIds = devolucoes.map((d) => d.id);
 
-      // Movimentos de estoque: tag de venda à ordem, ou documentados pelas minutas,
-      // ou amarrados a um item do pedido. Estorna o saldo de cada um antes de apagar.
+      // Movimentos de estoque: tag de venda à ordem, documentados pelas minutas,
+      // amarrados a um item do pedido OU gerados por devolução do pedido.
+      // Estorna o saldo de cada um antes de apagar.
       const movs = await tx.movimentacaoEstoque.findMany({
         where: {
           OR: [
             { vendaOrdemId: pedido.id },
             ...(minutaNumeros.length ? [{ documento: { in: minutaNumeros } }] : []),
             ...(itemIds.length ? [{ pedidoVendaItemId: { in: itemIds } }] : []),
+            ...(devIds.length ? [{ devolucaoId: { in: devIds } }] : []),
           ],
         },
         select: { id: true, itemId: true, localEstoqueId: true, clienteDonoId: true, tipo: true, quantidade: true, loteId: true },
@@ -651,6 +561,19 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       if (crIds.length) await tx.contaReceber.deleteMany({ where: { id: { in: crIds } } });
       if (cpIds.length) await tx.contaPagar.deleteMany({ where: { id: { in: cpIds } } });
 
+      // Devoluções do pedido: cancela os vales (CreditoCliente) que elas geraram,
+      // apaga os estornos em dinheiro (LancamentoFinanceiro com devolucaoId) e
+      // remove as devoluções (itens caem em cascata) — nada pode ficar apontando
+      // para um pedido que deixou de existir.
+      if (devIds.length) {
+        await tx.creditoCliente.updateMany({
+          where: { origemDevolucaoId: { in: devIds }, status: { not: "CANCELADO" } },
+          data: { status: "CANCELADO" },
+        });
+        await tx.lancamentoFinanceiro.deleteMany({ where: { devolucaoId: { in: devIds } } });
+        await tx.devolucao.deleteMany({ where: { id: { in: devIds } } });
+      }
+
       // Movimentos de comodato amarrados aos pedidos (sem FK; remove p/ não orfanar).
       await tx.movimentacaoComodato.deleteMany({ where: { pedidoVendaId: { in: pedidoIds } } });
 
@@ -661,29 +584,42 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       // Por fim, a venda (itens e pagamentos caem em cascata).
       await tx.pedidoVenda.delete({ where: { id: pedido.id } });
 
+      // Ids de origem dos lançamentos contábeis da cadeia (VENDA por pedido/CR,
+      // RECEBIMENTO por CR, CMV/RECEITA por minuta, DEVOLUCAO por devolução e
+      // o lançamento de custo `<devId>#custo`).
+      const origemIds = [...pedidoIds, ...crIds, ...minutaIds, ...devIds, ...devIds.map((d) => `${d}#custo`)];
+
+      // CONTÁBIL da empresa da venda DENTRO da transação (atômico): se falhar
+      // (ex.: exercício fechado), a exclusão inteira faz rollback — sem órfão.
+      if (origemIds.length) {
+        await apagarLancamentosContabeis({ empresaId: pedido.empresaId, origemId: { in: origemIds } }, tx);
+      }
+
       return {
         movimentos: movs.length,
         contasReceber: crIds.length,
         contasPagar: cpIds.length,
         minutas: minutaNumeros.length,
         pedidosEntrega: entregas.length,
-        // Ids de origem p/ apagar os lançamentos contábeis fora da transação.
-        origemIds: [...pedidoIds, ...crIds, ...minutaIds],
+        devolucoes: devIds.length,
+        origemIds,
       };
     });
 
-    // Contabilidade: apaga os lançamentos gerados pela venda/entrega/recebimento
-    // (VENDA por pedido/CR, RECEBIMENTO por CR, CMV/RECEITA por minuta) — senão
-    // ficam órfãos no razão. Sem filtro de empresa: a cadeia cruza o grupo, então
-    // roda pós-commit com prismaSemEscopo (um tx escopado não alcançaria a outra
-    // empresa). Não engole o erro: loga p/ um eventual órfão ser detectável.
+    // Contabilidade das OUTRAS empresas do grupo (a cadeia da venda à ordem cruza
+    // empresas): roda pós-commit com prismaSemEscopo. Não engole o erro: loga p/
+    // um eventual órfão ser detectável.
     if (resumo.origemIds.length) {
-      await apagarLancamentosContabeis({ origemId: { in: resumo.origemIds } }).catch((e) => {
-        console.error("[DELETE /pedidos-venda] falha ao apagar lançamentos contábeis (possível órfão):", resumo.origemIds, e);
+      await apagarLancamentosContabeis({
+        empresaId: { not: pedido.empresaId },
+        origemId: { in: resumo.origemIds },
+      }).catch((e) => {
+        console.error("[DELETE /pedidos-venda] falha ao apagar lançamentos contábeis de outra empresa (possível órfão):", resumo.origemIds, e);
       });
     }
 
-    const { origemIds: _omit, ...resp } = resumo;
+    const { origemIds, ...resp } = resumo;
+    void origemIds; // não expor os ids internos na resposta
     return NextResponse.json({ data: { ok: true, ...resp } });
   } catch (err) {
     console.error("[DELETE /api/pedidos-venda/[id]]", err);

@@ -4,6 +4,7 @@
 
 import type { Prisma, EstadoWIP, TipoMovimentacaoEstoque, CategoriaEstoque } from "@prisma/client";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { assertSaldoNaoNegativo } from "@/lib/estoque-guard";
 // Estoque de embalagem da PRODUÇÃO: o que o almoxarife libera p/ a produção. O
 // apontamento que consome embalagem (palete/fita/grampo) baixa DAQUI — então a
 // produção só consome o que foi liberado (saldo zero barra o apontamento). Constante
@@ -90,30 +91,41 @@ export async function getOrCreateLocalEmbalagemProducao(tx: Prisma.TransactionCl
 }
 
 /**
- * Local de onde um insumo é consumido: o local próprio com maior saldo.
- * Sem estoque em local nenhum, cai no local genérico de produção.
+ * Local de onde um insumo é consumido, alinhado à regra de saída de local-saida.ts:
+ * prefere o local cujas `categoriasAceitas` batem com a categoria do item (maior
+ * saldo como desempate); sem local compatível, cai em qualquer local com estoque
+ * (maior saldo); sem estoque em local nenhum, no local genérico de produção.
  */
 export async function resolveLocalInsumo(tx: Prisma.TransactionClient, itemId: string): Promise<string> {
-  const linhas = await tx.estoqueItem.findMany({
-    where: { itemId, clienteDonoId: null, localEstoqueId: { not: null } },
-    select: { localEstoqueId: true, quantidadeAtual: true },
-  });
-  if (linhas.length) {
-    linhas.sort((a, b) => parseFloat(b.quantidadeAtual.toString()) - parseFloat(a.quantidadeAtual.toString()));
-    return linhas[0].localEstoqueId as string;
-  }
+  const [item, linhas] = await Promise.all([
+    tx.item.findUnique({ where: { id: itemId }, select: { categoriaEstoque: true } }),
+    tx.estoqueItem.findMany({
+      where: { itemId, clienteDonoId: null, localEstoqueId: { not: null } },
+      select: { localEstoqueId: true, quantidadeAtual: true, localEstoque: { select: { categoriasAceitas: true } } },
+    }),
+  ]);
+  const categoria = (item?.categoriaEstoque ?? null) as CategoriaEstoque | null;
+  const aceita = (cats: CategoriaEstoque[]) => cats.length === 0 || (!!categoria && cats.includes(categoria));
+  const ordenadas = linhas
+    .slice()
+    .sort((a, b) => parseFloat(b.quantidadeAtual.toString()) - parseFloat(a.quantidadeAtual.toString()));
+  const naCategoria = ordenadas.filter((l) => aceita(l.localEstoque?.categoriasAceitas ?? []));
+  if (naCategoria.length) return naCategoria[0].localEstoqueId as string;
+  if (ordenadas.length) return ordenadas[0].localEstoqueId as string;
   return getOrCreateLocalProducao(tx);
 }
 
-/** Cria um lote de movimentação (agrupa a saída + entrada de uma transição). */
+/** Cria um lote de movimentação (agrupa a saída + entrada de uma transição).
+ *  `empresaId`: empresa da ORDEM (numeração da sequência); ausente → empresa padrão. */
 export async function getOrCreateLoteProducao(
   tx: Prisma.TransactionClient,
   documento: string,
   observacoes: string,
+  empresaId?: string | null,
 ): Promise<string> {
   const year = new Date().getFullYear();
   const seq = await tx.sequencia.upsert({
-    where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "MOV" } },
+    where: { empresaId_prefixo: { empresaId: empresaId || EMPRESA_PADRAO_ID, prefixo: "MOV" } },
     create: { prefixo: "MOV", ultimo: 1 },
     update: { ultimo: { increment: 1 } },
   });
@@ -142,16 +154,29 @@ export async function postMovimento(
 ): Promise<void> {
   let estoque = await tx.estoqueItem.findFirst({
     where: { itemId: args.itemId, localEstoqueId: args.localEstoqueId, clienteDonoId: null },
+    select: { id: true },
   });
   if (!estoque) {
     estoque = await tx.estoqueItem.create({
       data: { itemId: args.itemId, localEstoqueId: args.localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
+      select: { id: true },
     });
   }
-  const saldoAntes = parseFloat(estoque.quantidadeAtual.toString());
   const delta = args.tipo === "SAIDA" ? -args.quantidade : args.quantidade;
-  const saldoDepois = saldoAntes + delta;
-  await tx.estoqueItem.update({ where: { id: estoque.id }, data: { quantidadeAtual: saldoDepois } });
+  // increment/decrement ATÔMICO (sem read-then-write): concorrência não perde saldo.
+  const atualizado = await tx.estoqueItem.update({
+    where: { id: estoque.id },
+    data: { quantidadeAtual: { increment: delta } },
+    select: { quantidadeAtual: true },
+  });
+  const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
+  const saldoAntes = saldoDepois - delta;
+  // Guard de saldo: SAÍDA não pode deixar o saldo negativo. Lançar aqui (dentro da
+  // transação) desfaz o increment junto com o resto do apontamento (rollback).
+  if (args.tipo === "SAIDA" && saldoDepois < -1e-9) {
+    const item = await tx.item.findUnique({ where: { id: args.itemId }, select: { descricao: true } });
+    assertSaldoNaoNegativo([{ itemId: args.itemId, descricao: item?.descricao ?? null, saldoAtual: saldoAntes, saldoDepois }]);
+  }
   await tx.movimentacaoEstoque.create({
     data: {
       itemId: args.itemId,

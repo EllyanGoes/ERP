@@ -11,6 +11,10 @@ import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
+import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
+import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
+import { faturarPedidoSeEntregue } from "@/lib/contas-receber";
+import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import { z } from "zod";
 
 const schema = z.object({
@@ -112,44 +116,38 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           },
         });
 
-        for (const item of pedido.itens) {
-          const quantidade = parseFloat(item.quantidade.toString());
-
-          let estoque = await tx.estoqueItem.findFirst({
-            where: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId, clienteDonoId: null },
-          });
-          if (!estoque) {
-            estoque = await tx.estoqueItem.create({
-              data: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
-            });
-          }
-
-          const atualizado = await tx.estoqueItem.update({
-            where: { id: estoque.id },
-            data: { quantidadeAtual: { decrement: quantidade } },
-          });
-          const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
-
-          await tx.movimentacaoEstoque.create({
-            data: {
-              empresaId: pedido.empresaId,
-              itemId: item.itemId,
-              localEstoqueId,
-              loteId: lote.id,
-              pedidoVendaItemId: item.id,
-              tipo: "SAIDA",
-              quantidade,
-              saldoAntes: saldoDepois + quantidade,
-              saldoDepois,
-              documento: minuta.numero,
-              observacoes: `Saída balcão — minuta ${minuta.numero}`,
-            },
-          });
-        }
+        // Baixa UNIFICADA (src/lib/baixa-estoque.ts): cada item sai do SEU local
+        // (categoria/saldo — o local informado é só fallback; antes baixava TUDO
+        // no local único, um bug) com hard block de saldo negativo.
+        const descrs = await tx.item.findMany({
+          where: { id: { in: pedido.itens.map((i) => i.itemId) } },
+          select: { id: true, descricao: true },
+        });
+        const descrDe = new Map(descrs.map((d) => [d.id, d.descricao]));
+        await baixarEstoqueVenda(tx, {
+          empresaId: pedido.empresaId,
+          itens: pedido.itens.map((item) => ({
+            itemId: item.itemId,
+            quantidade: parseFloat(item.quantidade.toString()),
+            pedidoVendaItemId: item.id,
+            descricao: descrDe.get(item.itemId) ?? null,
+          })),
+          fallbackLocalId: localEstoqueId,
+          documento: minuta.numero,
+          observacoes: `Saída balcão — minuta ${minuta.numero}`,
+          loteId: lote.id,
+        });
       }
 
       return { minuta };
     });
+
+    // Faturamento na ENTREGA: a retirada total acabou de se completar — gera o
+    // contas a receber (idempotente; pula se o recebimento já criou o título) e
+    // contabiliza o pedido.
+    await faturarPedidoSeEntregue(params.id).catch((e) =>
+      console.error(`[entregar-balcao] faturarPedidoSeEntregue(${params.id}) falhou:`, e));
+    await contabilizarPedidoVenda(params.id).catch(() => {});
 
     const pedidoImpresso = await prisma.pedidoVenda.findUnique({
       where: { id: params.id },
@@ -169,6 +167,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     }, { status: 201 });
   } catch (err) {
+    if (err instanceof SaldoNegativoError) return respostaSaldoNegativo(err);
     const msg = err instanceof Error ? err.message : "Erro ao registrar saída do material";
     if (msg.startsWith("CONFLITO:")) return NextResponse.json({ error: msg.replace("CONFLITO: ", "") }, { status: 409 });
     console.error("[POST /api/pedidos-venda/[id]/entregar-balcao]", err);

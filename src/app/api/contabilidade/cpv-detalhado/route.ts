@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
 
   for (let m = 0; m < 12; m++) {
     if (Math.abs(cpvMes[m]) < 0.005) continue;
-    const comp = await calcularCusteio(empresaId, new Date(Date.UTC(ano, m, 1)));
+    const comp = await calcularCusteio(empresaId, new Date(Date.UTC(ano, m, 1)), { volumeDoMes: true });
     const tot = comp.composicao.custoTotalMilheiro;
     if (!tot || tot <= 0) continue; // sem composição → fallback depois
     // CIF = Gastos Gerais (biomassa/energia/combustível/MOI) + Depreciação (linha à parte).
@@ -88,7 +88,8 @@ export async function GET(req: NextRequest) {
       depr: deprMi / tot,
     };
   }
-  // Fallback: meses com CPV mas sem composição usam o ratio do mês válido mais próximo.
+  // Fallback: meses com CPV mas sem composição usam o ratio do ÚLTIMO mês válido
+  // do ano (o mais recente com composição), não o mais próximo de cada mês.
   const ultimoValido = () => { for (let m = 11; m >= 0; m--) if (ratios[m]) return ratios[m]!; return null; };
   const fallback = ultimoValido();
   for (let m = 0; m < 12; m++) if (!ratios[m] && Math.abs(cpvMes[m]) >= 0.005) ratios[m] = fallback ?? ratioVazio;

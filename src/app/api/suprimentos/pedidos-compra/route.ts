@@ -8,8 +8,12 @@ import { findMatchingCotacoes } from "@/lib/cotacao-match";
 import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { getSession } from "@/lib/auth";
 import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
+import { aprovadorPedidoCompras } from "@/lib/aprovacao-cotacao";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const search = (searchParams.get("search") || "").trim();
   const semDE = searchParams.get("semDE") === "1" || searchParams.get("semDE") === "true";
@@ -85,6 +89,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("compras");
   if (!auth.ok) return auth.response;
+
+  // ── Gate: criação DIRETA de PC só pelo aprovador do fluxo / ADMIN ──────────
+  // O caminho normal é cotação aprovada → PC (gerarPedidoDeCotacao). Criar o
+  // pedido direto por aqui pularia a aprovação — então só quem PODE aprovar
+  // (aprovador configurado em PEDIDO_COMPRAS) ou ADMIN cria direto.
+  if (auth.session.perfil !== "ADMIN") {
+    const aprovador = await aprovadorPedidoCompras();
+    if (!aprovador || aprovador.aprovadorId !== auth.session.sub) {
+      return NextResponse.json(
+        { error: "Pedido de compra nasce de cotação aprovada; criação direta só pelo aprovador/admin" },
+        { status: 403 },
+      );
+    }
+  }
 
   const body = await req.json();
   const {
@@ -257,7 +275,9 @@ export async function POST(req: NextRequest) {
   // PA: se a condição de pagamento do pedido gera pagamento antecipado, o título a
   // pagar (adiantamento a fornecedor) nasce JÁ AQUI, antes da entrada. Best-effort,
   // no-op quando a condição não é PA. Pós-commit.
-  await gerarContasPagarAntecipadoDoPedido(pedido.id).catch(() => {});
+  await gerarContasPagarAntecipadoDoPedido(pedido.id).catch((e) => {
+    console.error("[POST pedidos-compra] gerarContasPagarAntecipadoDoPedido falhou:", e);
+  });
 
   return NextResponse.json({ data: pedido }, { status: 201 });
 }

@@ -43,7 +43,6 @@ export default function NecessidadeDetailPage() {
   const [actioning, setActioning] = useState(false);
 
   // Approval fields
-  const [aprovadoPor, setAprovadoPor] = useState("");
   const [motivoReprovacao, setMotivoReprovacao] = useState("");
   const [showApproveForm, setShowApproveForm] = useState(false);
   const [showRejectForm, setShowRejectForm] = useState(false);
@@ -291,19 +290,14 @@ export default function NecessidadeDetailPage() {
               {showApproveForm && (
                 <Card className="border-success/30">
                   <CardContent className="pt-4 space-y-3">
-                    <div className="space-y-1.5">
-                      <Label>Aprovado por</Label>
-                      <Input
-                        value={aprovadoPor}
-                        onChange={(e) => setAprovadoPor(e.target.value)}
-                        placeholder="Nome do aprovador"
-                      />
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      A aprovação será registrada em nome do usuário logado.
+                    </p>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700"
-                        onClick={() => changeStatus("APROVADA", { aprovadoPor })}
+                        onClick={() => changeStatus("APROVADA")}
                         disabled={actioning}
                       >
                         {actioning ? "Aprovando..." : "Confirmar Aprovação"}

@@ -1,10 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { gerarContasPagarDoDocumento } from "@/lib/contas-pagar";
+import { calcularParcelas } from "@/lib/parcelas";
+import { generateDocNumber } from "@/lib/utils";
 import { contabilizarPedidoCompra, contabilizarEntradaEstoque } from "@/lib/contabilidade";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
@@ -18,32 +21,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const body = await req.json().catch(() => ({}));
   const responsavel = body.responsavel || null;
 
-  // ── Trava de categoria do local (antes da transação, para 422 limpo) ────────
-  // O recebimento dá ENTRADA no local de destino de cada item — produto só entra
-  // em local que aceite sua categoria. Local sem categorias configuradas aceita
-  // tudo (legado).
-  {
-    const conf = await prisma.conferenciaCompra.findUnique({
-      where: { id: params.id },
-      select: {
-        localEstoqueId: true,
-        itens: { select: { itemId: true, localEstoqueId: true, quantidadeRecebida: true } },
-      },
+  // Corpo da conclusão — roda inteiro DENTRO de uma única transação.
+  const executar = async (tx: Prisma.TransactionClient) => {
+    // ── Claim atômico contra reconclusão dupla (1º statement da transação) ────
+    // Só a requisição que virar o status para CONCLUIDA processa; a concorrente
+    // vê count 0 e aborta. O status final real (CONCLUIDA/DIVERGENCIA) é gravado
+    // no fim da transação.
+    const claim = await tx.conferenciaCompra.updateMany({
+      where: { id: params.id, status: { in: ["PENDENTE", "EM_CONFERENCIA", "DIVERGENCIA"] } },
+      data: { status: "CONCLUIDA" },
     });
-    if (conf) {
-      const pares = conf.itens
-        .filter((it) => num(it.quantidadeRecebida) > 0)
-        .map((it) => ({ itemId: it.itemId, localEstoqueId: it.localEstoqueId ?? conf.localEstoqueId ?? null }));
-      try {
-        await assertItensPermitidosNosLocais(prisma, pares);
-      } catch (e) {
-        if (e instanceof CategoriaLocalInvalidaError) return respostaCategoriaInvalida(e);
-        throw e;
-      }
-    }
-  }
+    if (claim.count === 0) throw new Error("Conferência já concluída");
 
-  const result = await prisma.$transaction(async (tx) => {
     const conferencia = await tx.conferenciaCompra.findUnique({
       where: { id: params.id },
       include: {
@@ -53,9 +42,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
       },
     });
-
     if (!conferencia) throw new Error("Conferência não encontrada");
-    if (conferencia.status === "CONCLUIDA") throw new Error("Conferência já concluída");
+
+    // ── Trava de categoria do local (DENTRO da transação) ─────────────────────
+    // O recebimento dá ENTRADA no local de destino de cada item — produto só
+    // entra em local que aceite sua categoria. Local sem categorias configuradas
+    // aceita tudo (legado). Erro → rollback de tudo (inclusive o claim).
+    {
+      const pares = conferencia.itens
+        .filter((it) => num(it.quantidadeRecebida) > 0)
+        .map((it) => ({ itemId: it.itemId, localEstoqueId: it.localEstoqueId ?? conferencia.localEstoqueId ?? null }));
+      await assertItensPermitidosNosLocais(tx, pares);
+    }
 
     let hasDivergencia = false;
     const movimentacoesCriadas: string[] = [];
@@ -270,10 +268,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         ...pedidosDeCotacao.map((p) => p.id),
       ];
 
-      // Collect received quantities from concluded conferências
+      // Collect received quantities from concluded conferências.
+      // A PRÓPRIA conferência é EXCLUÍDA da query (id != params.id): o claim já
+      // marcou ela como CONCLUIDA, então ela entraria aqui E no loop explícito
+      // abaixo — contando o recebido EM DOBRO e marcando a SC como atendida
+      // antes da hora.
       const confsConcluidas = todosPedidoIds.length > 0
         ? await tx.conferenciaCompra.findMany({
             where: {
+              id: { not: params.id },
               pedidoId: { in: todosPedidoIds },
               status: { in: ["CONCLUIDA", "DIVERGENCIA"] },
             },
@@ -319,6 +322,51 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           data: { status: novoStatus },
         });
         scAtualizadas.push({ numero: necessidade.numero, status: novoStatus });
+      }
+    }
+
+    // ── DE AVULSA com fornecedor: gera a ContaPagar da entrada ────────────────
+    // A entrada credita o Fornecedor no razão (contabilizarEntradaEstoque) mesmo
+    // sem pedido — a dívida existe e precisa do título (invariante "CP de compra
+    // = crédito da entrada"). Valor = Σ itens (qtd recebida × vlr unitário) — o
+    // MESMO valor do crédito ao fornecedor; nunca vrTotal da NF nem total de
+    // pedido. semProvisao: a provisão contábil É a própria entrada (D Estoque /
+    // C Fornecedor) — o título não deve reprovisionar.
+    if (!conferencia.pedidoId && conferencia.fornecedorId) {
+      const valorEntrada = conferencia.itens.reduce(
+        (s, it) => s + num(it.quantidadeRecebida) * num(it.vlrUnitario), 0,
+      );
+      if (valorEntrada > 0) {
+        const condicao = conferencia.condicaoPagamentoId
+          ? await tx.condicaoPagamento.findUnique({ where: { id: conferencia.condicaoPagamentoId } })
+          : null;
+        const parcelas = calcularParcelas(condicao, valorEntrada, conferencia.dtEmissao ?? hojeUTC);
+        for (const p of parcelas) {
+          const seqCp = await tx.sequencia.upsert({
+            where: { empresaId_prefixo: { empresaId: conferencia.empresaId, prefixo: "CP" } },
+            create: { empresaId: conferencia.empresaId, prefixo: "CP", ultimo: 1 },
+            update: { ultimo: { increment: 1 } },
+          });
+          const baseDesc = `Compra ${conferencia.numero} (entrada avulsa)`;
+          await tx.contaPagar.create({
+            data: {
+              empresaId: conferencia.empresaId,
+              numero: generateDocNumber("CP", seqCp.ultimo),
+              fornecedorId: conferencia.fornecedorId,
+              naturezaFinanceiraId: conferencia.naturezaFinanceiraId ?? null,
+              descricao: p.parcelaTotal ? `${baseDesc} (${p.parcelaNumero}/${p.parcelaTotal})` : baseDesc,
+              valorOriginal: p.valor,
+              dataVencimento: p.dataVencimento,
+              dataCompetencia: conferencia.dtEmissao ?? hojeUTC,
+              status: "ABERTA",
+              semProvisao: true,
+              notaFiscal: conferencia.numeroNF ?? null,
+              ...(p.grupoParcelamentoId
+                ? { grupoParcelamentoId: p.grupoParcelamentoId, parcelaNumero: p.parcelaNumero, parcelaTotal: p.parcelaTotal }
+                : {}),
+            },
+          });
+        }
       }
     }
 
@@ -426,7 +474,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
 
     return { conferencia: updatedConferencia, movimentacoesCriadas, autoVinculos, scAtualizadas };
-  });
+  };
+
+  let result: Awaited<ReturnType<typeof executar>>;
+  try {
+    result = await prisma.$transaction(executar);
+  } catch (e) {
+    // Trava de categoria mapeia para 422; reconclusão dupla para 409.
+    if (e instanceof CategoriaLocalInvalidaError) return respostaCategoriaInvalida(e);
+    if (e instanceof Error && e.message === "Conferência já concluída") {
+      return NextResponse.json({ error: e.message }, { status: 409 });
+    }
+    throw e;
+  }
 
   // Notify Telegram for each received item (best-effort, outside transaction)
   for (const item of result.conferencia.itens) {

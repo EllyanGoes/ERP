@@ -12,7 +12,7 @@ async function localDeConsumoInsumo(
   if (categoriaEstoque === "EMBALAGEM") return getOrCreateLocalEmbalagemProducao(tx);
   return resolveLocalInsumo(tx, itemId);
 }
-import { custosDaEmpresa, aplicarCmpmEmpresa } from "@/lib/custo-empresa";
+import { custosDaEmpresa, custosParaApropriacao, aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { registrarLancamento, contaPorCodigo, type PartidaIn } from "@/lib/contabilidade";
 import { garantirContaLocalNaEmpresa } from "@/lib/conta-contabil";
@@ -79,12 +79,14 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
   const ordem = await tx.ordemProducao.findUnique({
     where: { id: ordemId },
     select: {
-      status: true, numero: true, itemId: true,
+      status: true, numero: true, itemId: true, empresaId: true,
       item: { select: { codigo: true, descricao: true } },
       fluxoVersao: { select: { fluxo: { select: { nome: true } } } },
     },
   });
   if (!ordem || ordem.status === "CANCELADA") return;
+  // Empresa da ORDEM (custeio/CMPM/numeração por empresa); padrão só como fallback.
+  const empresaId = ordem.empresaId || EMPRESA_PADRAO_ID;
 
   const etapas = await tx.itemOrdemProducao.findMany({
     where: { ordemProducaoId: ordemId },
@@ -109,7 +111,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
     const fromEstado = p.fromEstadoOverride !== undefined
       ? p.fromEstadoOverride
       : (anteriores.length ? anteriores[anteriores.length - 1].estadoSaida : null);
-    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero} — ${etapa.nome}`);
+    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero} — ${etapa.nome}`, empresaId);
     const localDest = await getOrCreateLocalEstado(tx, toEstado);
 
     const qtdProduzida = p.qtdSaidaNum;
@@ -148,7 +150,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
     const insumosDaFase = (eng?.insumos ?? []).filter((i) => (i.estadoConsumo ?? firstEstado) === toEstado);
     if (insumosDaFase.length) {
       const ids = Array.from(new Set(insumosDaFase.map((i) => i.insumoItemId)));
-      const custos = await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, ids);
+      const custos = await custosParaApropriacao(tx, empresaId, ids, `apontamento ${ordem.numero} — ${etapa.nome}`);
       for (const ins of insumosDaFase) {
         const meta = ins.insumoItem;
         if (!meta || meta.compoeCusto === false) continue; // água: não compõe custo nem saldo
@@ -163,7 +165,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
         const baseFator = baseFatorConsumo(ins.base, ppp);
         const consumo = Number(ins.quantidade) * fatorUnidade * baseFator * qtdProduzida;
         if (consumo <= 0) continue;
-        const custoUnit = custos.get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
+        const custoUnit = custos.get(ins.insumoItemId) ?? 0;
         const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
         await postMovimento(tx, {
           itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo,
@@ -179,7 +181,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
     if (fromEstado) {
       const srcItemId = await getOrCreateWipItem(tx, base, fromEstado);
       const localFrom = await getOrCreateLocalEstado(tx, fromEstado);
-      const custoWipFrom = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [srcItemId])).get(srcItemId) ?? 0;
+      const custoWipFrom = (await custosDaEmpresa(tx, empresaId, [srcItemId])).get(srcItemId) ?? 0;
       await postMovimento(tx, {
         itemId: srcItemId, localEstoqueId: localFrom, tipo: "SAIDA", quantidade: qtdConsumidaWip,
         ordemProducaoId: ordemId, documento: ordem.numero, observacoes: `Consumo WIP ${fromEstado} — ${etapa.nome}`,
@@ -197,14 +199,14 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
       loteId, valorUnitario: custoUnitDest,
     });
     if (custoUnitDest > 0) {
-      await aplicarCmpmEmpresa(tx, EMPRESA_PADRAO_ID, destItemId, qtdProduzida, custoUnitDest, { incluirAcabado: true });
+      await aplicarCmpmEmpresa(tx, empresaId, destItemId, qtdProduzida, custoUnitDest, { incluirAcabado: true });
     }
   }
 
   // ── Subproduto/resíduo da etapa → entrada no estoque ──
   if (p.concluindoAgora && etapa.subprodutoItemId && p.subprodutoQtd != null && p.subprodutoQtd > 0) {
     const localId = await getOrCreateLocalProducao(tx);
-    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Subproduto ${etapa.nome} — ${ordem.numero}`);
+    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Subproduto ${etapa.nome} — ${ordem.numero}`, empresaId);
     await postMovimento(tx, {
       itemId: etapa.subprodutoItemId, localEstoqueId: localId, tipo: "ENTRADA", quantidade: p.subprodutoQtd,
       ordemProducaoId: ordemId, documento: ordem.numero, observacoes: `Subproduto/resíduo de ${etapa.nome}`, loteId,
@@ -239,17 +241,21 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
     data: { status: "CONCLUIDA", qtdEntrada: p.qtd, qtdSaida: p.qtd, inicioReal: agora, fimReal: agora, ...(p.apontadoPor ? { apontadoPor: p.apontadoPor } : {}) },
   });
 
-  const ordem = await tx.ordemProducao.findUnique({ where: { id: p.ordemId }, select: { numero: true, itemId: true } });
+  const ordem = await tx.ordemProducao.findUnique({ where: { id: p.ordemId }, select: { numero: true, itemId: true, empresaId: true } });
   if (!ordem?.itemId) return;
+  const empresaId = ordem.empresaId || EMPRESA_PADRAO_ID;
 
   const eng = await tx.engenhariaProduto.findUnique({
     where: { itemId: ordem.itemId },
     include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, categoriaEstoque: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
   });
-  const cifAprop = await contaPorCodigo(EMPRESA_PADRAO_ID, "1.1.4.0001");
+  const cifAprop = await contaPorCodigo(empresaId, "1.1.4.0001");
   if (eng && cifAprop) {
-    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Insumos de queima (CIF) ${ordem.numero}`);
+    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Insumos de queima (CIF) ${ordem.numero}`, empresaId);
     const ppp = pecasPorPalete((await tx.item.findUnique({ where: { id: ordem.itemId }, select: { itemUnidades: { select: { fatorConversao: true, unidade: { select: { sigla: true } } } } } }))?.itemUnidades ?? []);
+    // Custos em LOTE (antes do loop — sem N+1), com aviso quando cair no CMPM global.
+    const idsInsumos = Array.from(new Set(eng.insumos.filter((i) => i.insumoItem?.compoeCusto !== false).map((i) => i.insumoItemId)));
+    const custos = await custosParaApropriacao(tx, empresaId, idsInsumos, `mistura CIF ${ordem.numero}`);
     const custoPorConta = new Map<string, number>();
     for (const ins of eng.insumos) {
       const meta = ins.insumoItem;
@@ -262,10 +268,10 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
       const baseFator = baseFatorConsumo(ins.base, ppp);
       const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
       if (consumo <= 0) continue;
-      const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
+      const custoUnit = custos.get(ins.insumoItemId) ?? 0;
       const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
       await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} (CIF queima) — ${ordem.numero}`, loteId, valorUnitario: custoUnit });
-      const cl = await garantirContaLocalNaEmpresa(EMPRESA_PADRAO_ID, localIns);
+      const cl = await garantirContaLocalNaEmpresa(empresaId, localIns);
       if (cl) custoPorConta.set(cl.id, Math.round(((custoPorConta.get(cl.id) ?? 0) + consumo * custoUnit) * 100) / 100);
     }
     // D CIF a Apropriar (total) / C conta de cada local do insumo. Débito = soma dos créditos (fecha).
@@ -274,11 +280,12 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
     if (total > 0.005) {
       const partidas: PartidaIn[] = [{ contaId: cifAprop.id, tipo: "DEBITO", valor: total }];
       for (const [contaId, v] of creditos) partidas.push({ contaId, tipo: "CREDITO", valor: v });
+      // Lançamento DENTRO da tx: não sobrevive a rollback do apontamento.
       await registrarLancamento({
-        empresaId: EMPRESA_PADRAO_ID, data: agora,
+        empresaId, data: agora,
         historico: `Consumo de insumos de queima (CIF) — ${ordem.numero}`,
         origemTipo: "ESTOQUE_CONSUMO", origemId: `CIF-MISTURA-${p.ordemId}`, partidas,
-      });
+      }, tx);
     }
   }
 
@@ -299,14 +306,18 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
     data: { status: "CONCLUIDA", qtdEntrada: p.qtd, qtdSaida: p.qtd, inicioReal: agora, fimReal: agora, ...(p.apontadoPor ? { apontadoPor: p.apontadoPor } : {}) },
   });
 
-  const ordem = await tx.ordemProducao.findUnique({ where: { id: p.ordemId }, select: { numero: true, itemId: true } });
+  const ordem = await tx.ordemProducao.findUnique({ where: { id: p.ordemId }, select: { numero: true, itemId: true, empresaId: true } });
   if (ordem?.itemId) {
+    const empresaId = ordem.empresaId || EMPRESA_PADRAO_ID;
     const eng = await tx.engenhariaProduto.findUnique({
       where: { itemId: ordem.itemId },
       include: { insumos: { include: { insumoItem: { select: { id: true, descricao: true, compoeCusto: true, precoCusto: true, categoriaEstoque: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
     });
-    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero}`);
+    const loteId = await getOrCreateLoteProducao(tx, ordem.numero, `Produção ${ordem.numero}`, empresaId);
     const ppp = pecasPorPalete((await tx.item.findUnique({ where: { id: ordem.itemId }, select: { itemUnidades: { select: { fatorConversao: true, unidade: { select: { sigla: true } } } } } }))?.itemUnidades ?? []);
+    // Custos em LOTE (antes do loop — sem N+1), com aviso quando cair no CMPM global.
+    const idsInsumos = Array.from(new Set((eng?.insumos ?? []).filter((i) => i.insumoItem?.compoeCusto !== false).map((i) => i.insumoItemId)));
+    const custos = await custosParaApropriacao(tx, empresaId, idsInsumos, `produção ${ordem.numero}`);
     let custoTotal = 0;
     for (const ins of eng?.insumos ?? []) {
       const meta = ins.insumoItem;
@@ -319,7 +330,7 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
       const baseFator = baseFatorConsumo(ins.base, ppp);
       const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
       if (consumo <= 0) continue;
-      const custoUnit = (await custosDaEmpresa(tx, EMPRESA_PADRAO_ID, [ins.insumoItemId])).get(ins.insumoItemId) ?? (meta.precoCusto != null ? Number(meta.precoCusto) : 0);
+      const custoUnit = custos.get(ins.insumoItemId) ?? 0;
       const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
       await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} — ${ordem.numero}`, loteId, valorUnitario: custoUnit });
       custoTotal += consumo * custoUnit;
@@ -328,7 +339,7 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
     const localDest = await getOrCreateLocalProducao(tx);
     const custoUnitDest = p.qtd > 0 ? custoTotal / p.qtd : 0;
     await postMovimento(tx, { itemId: ordem.itemId, localEstoqueId: localDest, tipo: "ENTRADA", quantidade: p.qtd, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Produção ${ordem.numero}`, loteId, valorUnitario: custoUnitDest });
-    if (custoUnitDest > 0) await aplicarCmpmEmpresa(tx, EMPRESA_PADRAO_ID, ordem.itemId, p.qtd, custoUnitDest, { incluirAcabado: true });
+    if (custoUnitDest > 0) await aplicarCmpmEmpresa(tx, empresaId, ordem.itemId, p.qtd, custoUnitDest, { incluirAcabado: true });
   }
 
   await tx.ordemProducao.update({ where: { id: p.ordemId }, data: { status: "CONCLUIDA" } });

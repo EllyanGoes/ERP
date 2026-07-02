@@ -2,8 +2,8 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, prismaSemEscopo } from "@/lib/prisma";
-import { answerCallbackQuery, editTelegramMessage, escMD, sendTelegramDM, sendTelegramDocument } from "@/lib/telegram";
+import { prisma } from "@/lib/prisma";
+import { answerCallbackQuery, escMD, sendTelegramDM, sendTelegramDocument } from "@/lib/telegram";
 import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoque";
 import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
 import { buildRelatorioSolicitacoes } from "@/lib/relatorio-solicitacoes";
@@ -212,17 +212,6 @@ export async function POST(req: NextRequest) {
       where: { id: aprovacaoId },
       include: {
         aprovador: true,
-        necessidade: {
-          include: {
-            filial: true,
-            itens: {
-              include: {
-                item: { select: { descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },
-              },
-            },
-          },
-        },
-        fluxo: true,
         cotacao: { select: { id: true } },
       },
     });
@@ -240,13 +229,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const novoStatus = acao === "APROVAR" ? "APROVADO" : "REPROVADO";
+    // ── Autorização: só o APROVADOR designado pode clicar ─────────────────────
+    // O secret do webhook autentica o TELEGRAM, não o usuário — qualquer pessoa
+    // com acesso à mensagem (grupo/encaminhada) conseguiria clicar. Valida que o
+    // `from.id` do clique é o chat do aprovador: o registrado na pendência
+    // (DM enviada) ou o Colaborador.telegramChatId vinculado ao usuário aprovador.
+    // Fail-closed: sem chat configurado, o clique é recusado (aprove pela web).
+    {
+      const colabAprovador = await prisma.colaborador.findFirst({
+        where: { usuarioId: aprovacao.aprovadorId },
+        select: { telegramChatId: true },
+      });
+      const chatsPermitidos = [
+        aprovacao.telegramChatId,
+        colabAprovador?.telegramChatId,
+      ].filter((c): c is string => Boolean(c));
+      if (!chatsPermitidos.includes(String(cq.from.id))) {
+        await answerCallbackQuery(cq.id, "Sem permissão");
+        return NextResponse.json({ ok: true });
+      }
+    }
 
-    // Update approval
-    await prisma.aprovacaoSC.update({
-      where: { id: aprovacaoId },
-      data: { status: novoStatus, respondidoEm: new Date() },
-    });
+    const novoStatus = acao === "APROVAR" ? "APROVADO" : "REPROVADO";
 
     // ── Aprovação de COTAÇÃO → gera o Pedido de Compras ───────────────────────
     if (aprovacao.cotacaoId) {
@@ -254,18 +258,38 @@ export async function POST(req: NextRequest) {
       let novoPedidoNumero: string | null = null;
       try {
         if (novoStatus === "REPROVADO") {
-          await prisma.cotacaoCompra.update({
-            where: { id: cotacaoId },
-            data: { status: "EM_ANALISE", motivoReprovacao: `Reprovado por ${aprovacao.aprovador.nome} via Telegram` },
+          // Claim atômico: só quem virar a pendência PENDENTE→REPROVADO processa
+          // (cliques duplos/concorrentes não reprovam duas vezes).
+          await prisma.$transaction(async (tx) => {
+            const claim = await tx.aprovacaoSC.updateMany({
+              where: { id: aprovacaoId, status: "PENDENTE" },
+              data: { status: "REPROVADO", respondidoEm: new Date() },
+            });
+            if (claim.count === 0) throw new Error("Esta aprovação já foi respondida");
+            await tx.cotacaoCompra.update({
+              where: { id: cotacaoId },
+              data: { status: "EM_ANALISE", motivoReprovacao: `Reprovado por ${aprovacao.aprovador.nome} via Telegram` },
+            });
           });
         } else {
-          const out = await prisma.$transaction((tx) => gerarPedidoDeCotacao(tx, cotacaoId));
+          // Claim atômico como 1º statement DENTRO da mesma transação que gera o
+          // pedido: dois cliques concorrentes não geram dois PCs — o segundo vê
+          // a pendência já baixada (count 0) e aborta com rollback.
+          const out = await prisma.$transaction(async (tx) => {
+            const claim = await tx.aprovacaoSC.updateMany({
+              where: { id: aprovacaoId, status: "PENDENTE" },
+              data: { status: "APROVADO", respondidoEm: new Date() },
+            });
+            if (claim.count === 0) throw new Error("Esta aprovação já foi respondida");
+            return gerarPedidoDeCotacao(tx, cotacaoId);
+          });
           novoPedidoNumero = out.pedidoCompra.numero;
           // PA: título antecipado nasce já no pedido (best-effort, no-op se não for PA).
-          await gerarContasPagarAntecipadoDoPedido(out.pedidoCompra.id).catch(() => {});
+          await gerarContasPagarAntecipadoDoPedido(out.pedidoCompra.id).catch((e) => {
+            console.error("[telegram webhook] gerarContasPagarAntecipadoDoPedido falhou:", e);
+          });
         }
       } catch (e) {
-        await prisma.aprovacaoSC.update({ where: { id: aprovacaoId }, data: { status: "PENDENTE", respondidoEm: null } });
         await answerCallbackQuery(cq.id, e instanceof Error ? e.message.slice(0, 180) : "Erro ao aprovar cotação");
         return NextResponse.json({ ok: true });
       }
@@ -298,75 +322,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const sc = aprovacao.necessidade;
-    // Só Solicitação de Compras passa por aqui; cotação tem fluxo próprio.
-    if (!sc) { await answerCallbackQuery(cq.id, "Aprovação sem solicitação"); return NextResponse.json({ ok: true }); }
-
-    if (novoStatus === "REPROVADO") {
-      await prismaSemEscopo.necessidadeCompra.update({
-        where: { id: sc.id },
-        data: {
-          status: "REJEITADA",
-          motivoReprovacao: `Reprovado por ${aprovacao.aprovador.nome} via Telegram`,
-        },
-      });
-    } else {
-      // Check next stage
-      const proxEtapa = await prisma.aprovacaoEtapa.findFirst({
-        where: {
-          ordem: { gt: aprovacao.etapaOrdem },
-          ...(aprovacao.fluxoId ? { fluxoId: aprovacao.fluxoId } : { fluxo: { ativo: true } }),
-        },
-        include: { aprovador: true, colaborador: true },
-        orderBy: { ordem: "asc" },
-      });
-
-      if (proxEtapa) {
-        const proxColaborador = proxEtapa.colaborador;
-        const proxAprovadorId = proxColaborador?.usuarioId ?? proxEtapa.aprovadorId ?? null;
-
-        if (proxAprovadorId) {
-          await prisma.aprovacaoSC.deleteMany({
-            where: { necessidadeId: sc.id, aprovadorId: proxAprovadorId, status: "PENDENTE" },
-          });
-          await prisma.aprovacaoSC.create({
-            data: {
-              necessidadeId: sc.id,
-              fluxoId:       aprovacao.fluxoId,
-              etapaOrdem:    proxEtapa.ordem,
-              etapaNome:     proxEtapa.nome ?? null,
-              aprovadorId:   proxAprovadorId,
-              status:        "PENDENTE",
-            },
-          });
-        }
-      } else {
-        await prismaSemEscopo.necessidadeCompra.update({
-          where: { id: sc.id },
-          data: {
-            status: "APROVADA",
-            aprovadoPor:   aprovacao.aprovador.nome,
-            dataAprovacao: new Date().toISOString(),
-          },
-        });
-      }
-    }
-
-    // Answer the callback and edit the original message
-    const icon = novoStatus === "APROVADO" ? "✅" : "❌";
-    const verb = novoStatus === "APROVADO" ? "Aprovada" : "Reprovada";
-    await answerCallbackQuery(cq.id, `${icon} SC ${verb}`);
-
-    if (cq.message) {
-      const updatedText = [
-        `${icon} *SC Nº ${escMD(sc.numero)} — ${verb}*`,
-        ``,
-        `Decisão de: ${escMD(aprovacao.aprovador.nome)}`,
-      ].join("\n");
-
-      await editTelegramMessage(cq.message.chat.id, cq.message.message_id, updatedText);
-    }
-
+    // ── Aprovação legada de SC (descontinuada) ────────────────────────────────
+    // A aprovação de compras migrou da Solicitação para a COTAÇÃO (cotacaoId).
+    // Pendências antigas de SC não são mais processadas por aqui.
+    await answerCallbackQuery(cq.id, "Aprovação de SC foi descontinuada — a aprovação agora é na cotação.");
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[POST /api/webhooks/telegram]", err);

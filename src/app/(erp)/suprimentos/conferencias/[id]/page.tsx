@@ -176,7 +176,6 @@ export default function DocumentoEntradaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
-  const [adminStatus, setAdminStatus] = useState("");
   const [actioning, setActioning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -242,7 +241,6 @@ export default function DocumentoEntradaDetailPage() {
       const json = await res.json();
       const conf: Conferencia = json.data;
       setConferencia(conf);
-      setAdminStatus(conf.status);
       // Auto-fill responsavel with current user if not yet set
       const respoNome = conf.responsavel ?? user?.nome ?? "";
       setResponsavel(respoNome);
@@ -532,8 +530,6 @@ export default function DocumentoEntradaDetailPage() {
           desconto: desconto ? parseFloat(desconto) : null,
           condicaoPagamentoId: condicaoPagamentoId || null,
           naturezaFinanceiraId: naturezaFinanceiraId || null,
-          // Admin can change status at any state
-          ...(isAdmin ? { status: adminStatus } : {}),
           itens: [
             ...editItems.map((i) => ({
               id: i.id,
@@ -967,25 +963,6 @@ export default function DocumentoEntradaDetailPage() {
             <ShieldAlert className="w-4 h-4 text-warning shrink-0" />
             <span className="font-medium">Modo edição administrativa</span>
             <span className="text-warning">— alterações salvas substituirão os dados do documento concluído.</span>
-          </div>
-        )}
-
-        {/* ── Admin: Alterar Status (sempre visível para ADMIN) ────────────── */}
-        {isAdmin && (
-          <div className="bg-muted border border-border rounded-xl px-4 py-3 flex items-center gap-4">
-            <ShieldAlert className="w-4 h-4 text-muted-foreground shrink-0" />
-            <span className="text-sm font-medium text-foreground shrink-0">Alterar status:</span>
-            <select
-              value={adminStatus}
-              onChange={(e) => setAdminStatus(e.target.value)}
-              className="h-8 px-3 border border-border rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-              <option value="PENDENTE">Pendente</option>
-              <option value="EM_CONFERENCIA">Em Conferência</option>
-              <option value="CONCLUIDA">Concluída</option>
-              <option value="DIVERGENCIA">Divergência</option>
-            </select>
-            <span className="text-xs text-muted-foreground">Salve para aplicar</span>
           </div>
         )}
 

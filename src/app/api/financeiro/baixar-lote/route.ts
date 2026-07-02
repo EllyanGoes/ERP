@@ -3,8 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { baixaLoteSchema } from "@/lib/validations/financeiro";
+import { baixarTitulo } from "@/lib/baixa-titulo";
+import { recontabilizarTituloReceber, recontabilizarTituloPagar } from "@/lib/contabilidade";
 
-// Quita vários títulos de uma vez, gerando um lançamento por título na conta escolhida.
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+// Quita vários títulos de uma vez, gerando um lançamento por título na conta
+// escolhida. Cada título passa pelo mesmo núcleo da baixa individual
+// (baixarTitulo): guard otimista, teto anti-overpay, trava de roteamento e
+// recomputo do status do pedido vinculado — títulos não baixáveis são pulados.
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("financeiro");
   if (!auth.ok) return auth.response;
@@ -16,57 +23,38 @@ export async function POST(req: NextRequest) {
   const { tipo, ids, contaBancariaId, dataPagamento } = parsed.data;
   const data = new Date(dataPagamento);
 
-  const result = await prisma.$transaction(async (tx) => {
-    let baixados = 0;
+  const baixados = await prisma.$transaction(async (tx) => {
+    const ok: string[] = [];
     for (const id of ids) {
-      if (tipo === "RECEBER") {
-        const c = await tx.contaReceber.findUnique({ where: { id } });
-        if (!c || c.status === "PAGA" || c.status === "CANCELADA") continue;
-        const restante = Number(c.valorOriginal) - Number(c.valorPago);
-        if (restante <= 0) continue;
-        await tx.contaReceber.update({
-          where: { id },
-          data: { valorPago: c.valorOriginal, status: "PAGA", dataPagamento: data },
-        });
-        await tx.lancamentoFinanceiro.create({
-          data: {
-            tipo: "RECEITA",
-            descricao: `Recebimento ${c.numero}`,
-            valor: restante,
-            dataLancamento: data,
-            contaReceberId: id,
-            contaBancariaId,
-            naturezaFinanceiraId: c.naturezaFinanceiraId ?? undefined,
-            centroCustoId: c.centroCustoId ?? undefined,
-          },
-        });
-        baixados++;
-      } else {
-        const c = await tx.contaPagar.findUnique({ where: { id } });
-        if (!c || c.status === "PAGA" || c.status === "CANCELADA") continue;
-        const restante = Number(c.valorOriginal) - Number(c.valorPago);
-        if (restante <= 0) continue;
-        await tx.contaPagar.update({
-          where: { id },
-          data: { valorPago: c.valorOriginal, status: "PAGA", dataPagamento: data },
-        });
-        await tx.lancamentoFinanceiro.create({
-          data: {
-            tipo: "DESPESA",
-            descricao: `Pagamento ${c.numero}`,
-            valor: restante,
-            dataLancamento: data,
-            contaPagarId: id,
-            contaBancariaId,
-            naturezaFinanceiraId: c.naturezaFinanceiraId ?? undefined,
-            centroCustoId: c.centroCustoId ?? undefined,
-          },
-        });
-        baixados++;
-      }
+      // Saldo restante lido na mesma transação; o baixarTitulo revalida com o
+      // guard otimista (status + valorPago) antes de escrever.
+      const c = tipo === "RECEBER"
+        ? await tx.contaReceber.findUnique({ where: { id }, select: { status: true, valorOriginal: true, valorPago: true } })
+        : await tx.contaPagar.findUnique({ where: { id }, select: { status: true, valorOriginal: true, valorPago: true } });
+      if (!c || c.status === "PAGA" || c.status === "CANCELADA") continue;
+      const restante = r2(Number(c.valorOriginal) - Number(c.valorPago));
+      if (restante <= 0) continue;
+
+      const r = await baixarTitulo(tx, {
+        tipo,
+        tituloId: id,
+        linhas: [{ forma: null, contaBancariaId, valor: restante }],
+        dataPagamento: data,
+      });
+      // Título que não pôde ser baixado (corrida/trava) é pulado — o baixarTitulo
+      // não escreve nada antes de validar, então pular é seguro.
+      if (r.erro) continue;
+      ok.push(id);
     }
-    return baixados;
+    return ok;
   });
 
-  return NextResponse.json({ data: { baixados: result } });
+  // Contabiliza cada baixa (best-effort, pós-commit). O recomputo do status dos
+  // pedidos vinculados já aconteceu dentro da transação, via baixarTitulo.
+  for (const id of baixados) {
+    if (tipo === "RECEBER") await recontabilizarTituloReceber(id).catch((e) => console.error("[financeiro/baixar-lote] contabilizar:", e));
+    else await recontabilizarTituloPagar(id).catch((e) => console.error("[financeiro/baixar-lote] contabilizar:", e));
+  }
+
+  return NextResponse.json({ data: { baixados: baixados.length } });
 }

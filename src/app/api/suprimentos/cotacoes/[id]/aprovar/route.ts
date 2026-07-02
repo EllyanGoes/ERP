@@ -53,7 +53,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // PA: se a condição do pedido gera pagamento antecipado, o título nasce já aqui
     // (adiantamento a fornecedor), antes da entrada. Best-effort, no-op se não for PA.
-    if (result?.pedidoCompra?.id) await gerarContasPagarAntecipadoDoPedido(result.pedidoCompra.id).catch(() => {});
+    if (result?.pedidoCompra?.id) {
+      await gerarContasPagarAntecipadoDoPedido(result.pedidoCompra.id).catch((e) => {
+        console.error("[aprovar cotação] gerarContasPagarAntecipadoDoPedido falhou:", e);
+      });
+    }
 
     // Atualiza a mensagem do aprovador (novo status, sem botões) — best-effort.
     if (pendencia) {

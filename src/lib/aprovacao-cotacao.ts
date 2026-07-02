@@ -68,6 +68,18 @@ export async function gerarPedidoDeCotacao(
         `Já existe o Pedido de Compra ${existingPC.numero} ativo para esta Solicitação. Cancele-o antes de aprovar uma nova cotação.`,
       );
     }
+  } else {
+    // Cotação AVULSA (sem SC): impede um 2º PC ativo gerado da MESMA cotação
+    // (corrida de aprovação dupla — dois canais aprovando ao mesmo tempo).
+    const existingPC = await tx.pedidoCompra.findFirst({
+      where: { cotacaoId, status: { not: "CANCELADO" } },
+      select: { numero: true },
+    });
+    if (existingPC) {
+      throw new Error(
+        `Já existe o Pedido de Compra ${existingPC.numero} ativo para esta cotação. Cancele-o antes de aprovar novamente.`,
+      );
+    }
   }
 
   // Fornecedor vencedor: cfId explícito → melhorOpcao → menor total respondido.

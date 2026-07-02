@@ -12,6 +12,18 @@ const num = (v: unknown): number => {
   const n = parseFloat(String(v));
   return Number.isFinite(n) ? n : 0;
 };
+
+/** Dias trabalhados default do mês (usado quando o ParametroCusteio não informa). */
+export const DIAS_TRABALHADOS_DEFAULT = 26;
+
+/** "2026-05" → 1º dia do mês (UTC). Sem parâmetro/formato inválido: mês corrente. */
+export function parseCompetencia(s: string | null | undefined): Date {
+  const m = (s ?? "").match(/^(\d{4})-(\d{2})/);
+  const now = new Date();
+  const y = m ? Number(m[1]) : now.getUTCFullYear();
+  const mo = m ? Number(m[2]) - 1 : now.getUTCMonth();
+  return new Date(Date.UTC(y, mo, 1));
+}
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const r4 = (n: number) => Math.round(n * 10000) / 10000;
 
@@ -183,7 +195,7 @@ export async function calcularCusteio(
     where: { empresaId_competencia: { empresaId, competencia } },
   });
 
-  const dias = params?.diasTrabalhados ?? 26;
+  const dias = params?.diasTrabalhados ?? DIAS_TRABALHADOS_DEFAULT;
   const biomassaMes = num(params?.biomassaDia) * dias;
   const combustivelMes = num(params?.combustivelDia) * dias;
   const energiaMes = num(params?.energiaMes);
@@ -220,6 +232,29 @@ export async function calcularCusteio(
       })
     : [];
   const volPorItem = new Map(entradas.map((e) => [e.itemId, num(e._sum.quantidade)]));
+
+  // Produção por OP: uma OP gera ENTRADA em CADA estágio (úmido→seco→queimado→acabado);
+  // contar todas multiplicaria a mesma peça por estágio. Conta SÓ a entrada do estágio
+  // MAIS AVANÇADO que cada OP atingiu no período — mesmo padrão do
+  // absorverConversaoAoEstoque (contabilidade.ts). Sem isto o volume ficava cego às
+  // OPs (só entradas manuais), inflando as taxas CIF/MOD por milheiro.
+  const entradasOp = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { empresaId, tipo: "ENTRADA", ordemProducaoId: { not: null }, clienteDonoId: null, ...filtroMes },
+    select: { itemId: true, quantidade: true, ordemProducaoId: true, item: { select: { codigo: true, categoriaEstoque: true } } },
+  });
+  // Estágio da entrada: acabado(3) > queimado(2) > seco(1) > úmido/outros(0).
+  const estagioDe = (cod: string, acabado: boolean) =>
+    acabado ? 3 : /-QUEIMADO$/i.test(cod) ? 2 : /-SECO$/i.test(cod) ? 1 : 0;
+  const maxEstagioPorOp = new Map<string, number>();
+  for (const m of entradasOp) {
+    const e = estagioDe(m.item?.codigo ?? "", m.item?.categoriaEstoque === "PRODUTO_ACABADO");
+    maxEstagioPorOp.set(m.ordemProducaoId as string, Math.max(maxEstagioPorOp.get(m.ordemProducaoId as string) ?? 0, e));
+  }
+  for (const m of entradasOp) {
+    const e = estagioDe(m.item?.codigo ?? "", m.item?.categoriaEstoque === "PRODUTO_ACABADO");
+    if (e !== (maxEstagioPorOp.get(m.ordemProducaoId as string) ?? 0)) continue;
+    volPorItem.set(m.itemId, (volPorItem.get(m.itemId) ?? 0) + num(m.quantidade));
+  }
   const itemIds = Array.from(volPorItem.keys());
 
   const volumeTotalUn = Array.from(volPorItem.values()).reduce((s, v) => s + v, 0);

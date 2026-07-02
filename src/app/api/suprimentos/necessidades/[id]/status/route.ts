@@ -133,7 +133,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!auth.ok) return auth.response;
 
   const body = await req.json();
-  const { status, aprovadoPor, motivoReprovacao, motivoCancelamento } = body;
+  const { status, motivoReprovacao, motivoCancelamento } = body;
 
   const current = await prisma.necessidadeCompra.findUnique({
     where: { id: params.id },
@@ -154,7 +154,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (status === "AGUARDANDO_APROVACAO") {
     // No extra fields
   } else if (status === "APROVADA") {
-    updateData.aprovadoPor = aprovadoPor || null;
+    // Quem "aprova" (confirma/libera p/ cotação) é o USUÁRIO DA SESSÃO — o body
+    // não pode nomear um aprovador arbitrário (a aprovação real é na cotação).
+    updateData.aprovadoPor = auth.session.nome ?? null;
     updateData.dataAprovacao = new Date();
   } else if (status === "REJEITADA") {
     updateData.motivoReprovacao = motivoReprovacao || null;
@@ -175,7 +177,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (status === "APROVADA" || status === "REJEITADA") {
     try {
       await notifyAprovacoesResolvidas(params.id, status, {
-        quemAprovou: aprovadoPor || null,
+        quemAprovou: auth.session.nome ?? null,
         motivoReprovacao: motivoReprovacao || null,
       });
     } catch (e) {

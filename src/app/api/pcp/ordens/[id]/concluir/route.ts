@@ -6,6 +6,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { contabilizarProducaoOrdem } from "@/lib/contabilidade";
 import { apontarEtapaProducao } from "@/lib/pcp/apontamento";
+import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
 
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -52,32 +53,37 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const ultima = pendentes[pendentes.length - 1];
   const agora = new Date();
 
-  await prisma.$transaction(async (tx) => {
-    for (const etapa of pendentes) {
-      const upd: Prisma.ItemOrdemProducaoUpdateInput = {
-        status: "CONCLUIDA",
-        qtdEntrada: quantidadeProduzida,
-        qtdSaida: quantidadeProduzida,
-        inicioReal: agora,
-        fimReal: agora,
-        ...(apontadoPor ? { apontadoPor } : {}),
-        ...(qtdPerda != null && etapa.id === ultima.id ? { qtdPerda } : {}),
-      };
-      await apontarEtapaProducao(tx, {
-        ordemId: params.id,
-        etapa,
-        upd,
-        concluindoAgora: true,
-        qtdEntradaNum: quantidadeProduzida,
-        qtdSaidaNum: quantidadeProduzida,
-        biomassaKg: etapaQueima && etapa.id === etapaQueima.id ? biomassaKg : null,
-        biomassaDescricao: null,
-        milheiros: quantidadeProduzida,
-        subprodutoQtd: null,
-        apontadoPor,
-      });
-    }
-  }, { timeout: 30000 });
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const etapa of pendentes) {
+        const upd: Prisma.ItemOrdemProducaoUpdateInput = {
+          status: "CONCLUIDA",
+          qtdEntrada: quantidadeProduzida,
+          qtdSaida: quantidadeProduzida,
+          inicioReal: agora,
+          fimReal: agora,
+          ...(apontadoPor ? { apontadoPor } : {}),
+          ...(qtdPerda != null && etapa.id === ultima.id ? { qtdPerda } : {}),
+        };
+        await apontarEtapaProducao(tx, {
+          ordemId: params.id,
+          etapa,
+          upd,
+          concluindoAgora: true,
+          qtdEntradaNum: quantidadeProduzida,
+          qtdSaidaNum: quantidadeProduzida,
+          biomassaKg: etapaQueima && etapa.id === etapaQueima.id ? biomassaKg : null,
+          biomassaDescricao: null,
+          milheiros: quantidadeProduzida,
+          subprodutoQtd: null,
+          apontadoPor,
+        });
+      }
+    }, { timeout: 30000 });
+  } catch (e) {
+    if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
+    throw e;
+  }
 
   // Contabiliza a produção (D Estoque / C Custo via PEP) ao concluir. Best-effort.
   await contabilizarProducaoOrdem(params.id).catch(() => {});

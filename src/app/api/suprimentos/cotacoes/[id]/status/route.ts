@@ -3,9 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
+// CONCLUIDA NÃO entra aqui: a conclusão da cotação acontece SOMENTE pelo fluxo
+// de aprovação (submeter-aprovacao → aprovar/gerarPedidoDeCotacao), que gera o
+// Pedido de Compras. Permitir EM_ANALISE→CONCLUIDA manual pulava a aprovação.
 const TRANSITIONS: Record<string, string[]> = {
   PENDENTE:   ["EM_ANALISE"],
-  EM_ANALISE: ["CONCLUIDA", "PENDENTE"],
+  EM_ANALISE: ["PENDENTE"],
   CONCLUIDA:  [],
 };
 
@@ -18,13 +21,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const current = await prisma.cotacaoCompra.findUnique({
     where: { id: params.id },
-    include: {
-      fornecedores: {
-        where: { status: "RESPONDIDA" },
-        select: { id: true, totalCalculado: true },
-        orderBy: { totalCalculado: "asc" },
-      },
-    },
+    select: { status: true },
   });
 
   if (!current) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
@@ -37,30 +34,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     );
   }
 
-  const updateData: Record<string, unknown> = { status };
-
-  // When concluding, auto-set melhorOpcao on the cheapest respondida supplier
-  if (status === "CONCLUIDA") {
-    const respondidas = current.fornecedores;
-    if (respondidas.length > 0) {
-      const winner = respondidas[0]; // ordered by totalCalculado asc
-      await prisma.$transaction([
-        prisma.cotacaoFornecedor.updateMany({
-          where: { cotacaoId: params.id },
-          data: { melhorOpcao: false },
-        }),
-        prisma.cotacaoFornecedor.update({
-          where: { id: winner.id },
-          data: { melhorOpcao: true },
-        }),
-      ]);
-    }
-    updateData.dataAprovacao = new Date();
-  }
-
   const record = await prisma.cotacaoCompra.update({
     where: { id: params.id },
-    data: updateData,
+    data: { status },
   });
 
   return NextResponse.json({ data: record });

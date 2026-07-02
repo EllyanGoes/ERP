@@ -7,7 +7,8 @@ import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaBensEntregar, garantirContaBensEntregarCliente, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
+import { DIAS_TRABALHADOS_DEFAULT } from "@/lib/pcp/custeio-cif";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -19,7 +20,7 @@ export type OrigemIn =
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
   | "DEPRECIACAO" | "ENCERRAMENTO" | "RECEITA_ENTREGA"
   | "FOLHA_PAGAMENTO" | "COMPENSACAO_AJUSTE" | "BAIXA_IMOBILIZADO"
-  | "MANUAL" | "ESTORNO";
+  | "DEVOLUCAO" | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
   contaId: string;
@@ -43,6 +44,7 @@ export type LancamentoIn = {
 };
 
 const EPS = 0.005; // tolerância de centavos no balanceamento
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Lançamento recusado por cair em exercício já encerrado. */
 export class PeriodoFechadoError extends Error {
@@ -221,18 +223,53 @@ function mesmasPartidas(
   return a.every((x, i) => x === b[i]);
 }
 
+// Divide `total` proporcionalmente às linhas (ajuste de centavos na última linha
+// para fechar exato) — rateios por natureza do receber/pagar e afins.
+function ratearProporcional<T>(total: number, linhas: T[], valorDe: (l: T) => number): { linha: T; valor: number }[] {
+  const soma = linhas.reduce((s, l) => s + valorDe(l), 0);
+  if (linhas.length === 0 || soma <= 0) return [];
+  let acc = 0;
+  return linhas
+    .map((l, i) => {
+      const v = i === linhas.length - 1 ? r2(total - acc) : r2(total * valorDe(l) / soma);
+      acc += v;
+      return { linha: l, valor: v };
+    })
+    .filter((x) => x.valor > 0.005);
+}
+
 /**
  * Registra um lançamento contábil balanceado (débito = crédito). Por
  * (empresaId, origemTipo, origemId): se já existir e estiver igual, retorna o
  * existente; se o fato de origem mudou, RE-SINCRONIZA as partidas no mesmo
  * lançamento (mantém número). Lança erro se as partidas não fecharem.
+ *
+ * `db` (opcional) permite gravar DENTRO de uma transação do caller (passe o tx):
+ * sem isso, um lançamento gravado no meio de uma transação alheia sobreviveria a
+ * um rollback dela (órfão sem o fato físico).
  */
-export async function registrarLancamento(input: LancamentoIn) {
+export async function registrarLancamento(input: LancamentoIn, db?: Prisma.TransactionClient) {
   const { empresaId, data, historico, origemTipo, origemId = null, criadoPor = null, partidas } = input;
+  const dbc = db ?? prismaSemEscopo;
 
   if (partidas.length < 2) throw new Error("Lançamento exige ao menos 2 partidas");
-  const totalD = partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + p.valor, 0);
-  const totalC = partidas.filter((p) => p.tipo === "CREDITO").reduce((s, p) => s + p.valor, 0);
+  // Grava centavos exatos: o Postgres arredonda cada partida para Decimal(15,2) de
+  // forma independente — um conjunto que fecha em float pode desbalancear por
+  // centavos no banco. Arredonda cada partida e fecha o resíduo de arredondamento
+  // (até 1 centavo por partida) na maior partida do lado deficitário.
+  for (const p of partidas) p.valor = r2(p.valor);
+  let totalD = partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + p.valor, 0);
+  let totalC = partidas.filter((p) => p.tipo === "CREDITO").reduce((s, p) => s + p.valor, 0);
+  const resid = r2(totalC - totalD); // >0: falta débito; <0: falta crédito
+  if (resid !== 0 && Math.abs(resid) <= 0.01 * partidas.length) {
+    const lado = resid > 0 ? "DEBITO" : "CREDITO";
+    const maior = partidas.filter((p) => p.tipo === lado).sort((a, b) => b.valor - a.valor)[0];
+    if (maior) {
+      maior.valor = r2(maior.valor + Math.abs(resid));
+      totalD = partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + p.valor, 0);
+      totalC = partidas.filter((p) => p.tipo === "CREDITO").reduce((s, p) => s + p.valor, 0);
+    }
+  }
   if (Math.abs(totalD - totalC) > EPS) {
     throw new Error(`Lançamento desbalanceado: débito ${totalD.toFixed(2)} ≠ crédito ${totalC.toFixed(2)}`);
   }
@@ -252,7 +289,7 @@ export async function registrarLancamento(input: LancamentoIn) {
   // as partidas no MESMO lançamento, mantendo o número. Assim a contabilidade nunca
   // fica desatualizada quando o fato de origem muda.
   if (origemId) {
-    const existente = await prismaSemEscopo.lancamentoContabil.findFirst({
+    const existente = await dbc.lancamentoContabil.findFirst({
       where: { empresaId, origemTipo, origemId },
       select: {
         id: true, data: true, historico: true,
@@ -267,36 +304,43 @@ export async function registrarLancamento(input: LancamentoIn) {
       ) {
         return { id: existente.id };
       }
-      await prismaSemEscopo.$transaction([
-        prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: existente.id } }),
-        prismaSemEscopo.lancamentoContabil.update({
-          where: { id: existente.id },
-          data: {
-            data, historico,
-            partidas: {
-              create: partidas.map((p) => ({
-                empresaId, contaId: p.contaId, tipo: p.tipo, valor: p.valor,
-                clienteId: p.clienteId ?? null, fornecedorId: p.fornecedorId ?? null,
-                estagio: p.estagio ?? null, naturezaFinanceiraId: p.naturezaId ?? null,
-              })),
-            },
+      const resync = {
+        where: { id: existente.id },
+        data: {
+          data, historico,
+          partidas: {
+            create: partidas.map((p) => ({
+              empresaId, contaId: p.contaId, tipo: p.tipo, valor: p.valor,
+              clienteId: p.clienteId ?? null, fornecedorId: p.fornecedorId ?? null,
+              estagio: p.estagio ?? null, naturezaFinanceiraId: p.naturezaId ?? null,
+            })),
           },
-        }),
-      ]);
+        },
+      };
+      if (db) {
+        // já dentro da transação do caller — sequencial é atômico
+        await db.partidaContabil.deleteMany({ where: { lancamentoId: existente.id } });
+        await db.lancamentoContabil.update(resync);
+      } else {
+        await prismaSemEscopo.$transaction([
+          prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: existente.id } }),
+          prismaSemEscopo.lancamentoContabil.update(resync),
+        ]);
+      }
       return { id: existente.id };
     }
   }
 
   // Código sequencial do lançamento (LC-AAAA-NNNN), por empresa — identifica o
   // lançamento no razão sem percorrer a rastreabilidade.
-  const seq = await prismaSemEscopo.sequencia.upsert({
+  const seq = await dbc.sequencia.upsert({
     where: { empresaId_prefixo: { empresaId, prefixo: "LC" } },
     update: { ultimo: { increment: 1 } },
     create: { empresaId, prefixo: "LC", ultimo: 1 },
   });
   const numero = generateDocNumber("LC", seq.ultimo);
 
-  return prismaSemEscopo.lancamentoContabil.create({
+  return dbc.lancamentoContabil.create({
     data: {
       empresaId,
       numero,
@@ -374,20 +418,9 @@ export async function contabilizarTituloReceber(crId: string) {
     where: { contaReceberId: cr.id },
     select: { naturezaFinanceiraId: true, valor: true },
   });
-  const somaRateioR = rateioR.reduce((s, r) => s + decimalToNumber(r.valor), 0);
-  const dividirReceita = (tot: number) => {
-    if (rateioR.length === 0 || somaRateioR <= 0) return [] as { natId: string; valor: number }[];
-    let acc = 0;
-    return rateioR
-      .map((r, i) => {
-        const v = i === rateioR.length - 1
-          ? Math.round((tot - acc) * 100) / 100
-          : Math.round((tot * decimalToNumber(r.valor) / somaRateioR) * 100) / 100;
-        acc += v;
-        return { natId: r.naturezaFinanceiraId, valor: v };
-      })
-      .filter((x) => x.valor > 0.005);
-  };
+  const dividirReceita = (tot: number) =>
+    ratearProporcional(tot, rateioR, (r) => decimalToNumber(r.valor))
+      .map((x) => ({ natId: x.linha.naturezaFinanceiraId, valor: x.valor }));
 
   // Venda de PEDIDO: o recebível já nasceu na CONFIRMAÇÃO (D Clientes a Receber /
   // C Material a Entregar, em contabilizarVendaPedido) e a receita na ENTREGA —
@@ -447,7 +480,14 @@ export async function contabilizarTituloReceber(crId: string) {
     }
     total = Math.round(total * 100) / 100;
     if (total > 0 && partidas.length) {
-      partidas.push({ contaId: contaAtivo.id, tipo: "CREDITO", valor: total, clienteId: cli });
+      // Juros/multa cobrados na baixa entram no caixa ALÉM do valor baixado do
+      // título — são receita financeira (Juros e Multas Ativos), não crédito do
+      // cliente (senão o razonete do cliente fica credor pelo excedente).
+      const extra = r2(total - pago);
+      const contaJm = extra > 0.005 ? await garantirContaJurosMultasAtivos(cr.empresaId) : null;
+      const credTitulo = contaJm ? r2(total - extra) : total;
+      if (credTitulo > 0.005) partidas.push({ contaId: contaAtivo.id, tipo: "CREDITO", valor: credTitulo, clienteId: cli });
+      if (contaJm && extra > 0.005) partidas.push({ contaId: contaJm.id, tipo: "CREDITO", valor: extra });
       await registrarLancamento({
         empresaId: cr.empresaId, data: cr.dataPagamento ?? cr.createdAt,
         historico: `Recebimento — ${refCr}${cliNome ? ` · ${cliNome}` : ""}${detPedido ? ` · ${detPedido}` : ""}`, origemTipo: "RECEBIMENTO", origemId: cr.id,
@@ -526,21 +566,10 @@ export async function contabilizarTituloPagar(cpId: string) {
     where: { contaPagarId: cp.id },
     select: { naturezaFinanceiraId: true, valor: true, naturezaFinanceira: { select: { cif: true } } },
   });
-  const somaRateio = rateio.reduce((s, r) => s + decimalToNumber(r.valor), 0);
   // Divide `total` proporcional ao rateio (ajusta centavos na última linha).
-  const dividirPorNatureza = (total: number) => {
-    if (rateio.length === 0 || somaRateio <= 0) return [] as { r: (typeof rateio)[number]; valor: number }[];
-    let acc = 0;
-    return rateio
-      .map((r, i) => {
-        const v = i === rateio.length - 1
-          ? Math.round((total - acc) * 100) / 100
-          : Math.round((total * decimalToNumber(r.valor) / somaRateio) * 100) / 100;
-        acc += v;
-        return { r, valor: v };
-      })
-      .filter((x) => x.valor > 0.005);
-  };
+  const dividirPorNatureza = (total: number) =>
+    ratearProporcional(total, rateio, (r) => decimalToNumber(r.valor))
+      .map((x) => ({ r: x.linha, valor: x.valor }));
 
   // SAÍDA SEM fornecedor (vale, combustível, encargos como INSS patronal/FGTS…).
   if (!cp.fornecedorId) {
@@ -578,7 +607,11 @@ export async function contabilizarTituloPagar(cpId: string) {
       if (pago > 0) {
         const { partidas, total } = await pernasDeBanco(pago);
         if (total > 0 && partidas.length) {
-          partidas.unshift({ contaId: contaPassivo.id, tipo: "DEBITO", valor: total });
+          // Juros/multa pagos além do título são despesa financeira, não passivo.
+          const extra = r2(total - pago);
+          const contaJm = extra > 0.005 ? await garantirContaJurosMultasPassivos(cp.empresaId) : null;
+          if (contaJm && extra > 0.005) partidas.unshift({ contaId: contaJm.id, tipo: "DEBITO", valor: extra });
+          partidas.unshift({ contaId: contaPassivo.id, tipo: "DEBITO", valor: contaJm ? r2(total - extra) : total });
           await registrarLancamento({
             empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
             historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
@@ -630,7 +663,9 @@ export async function contabilizarTituloPagar(cpId: string) {
         ],
       });
     }
-  } else if (!ehCompraEstoque && valor > 0) {
+  } else if (!ehCompraEstoque && valor > 0 && !cp.semProvisao) {
+    // semProvisao=true: a "provisão" já existe em outro fato (ex.: CP de DE avulsa —
+    // a entrada D Estoque / C Fornecedor é o próprio crédito). Só o pagamento entra.
     const compraSplit = dividirPorNatureza(valor);
     if (compraSplit.length > 0) {
       // Rateio: um débito por natureza (CIF→1.1.4.0001; senão a conta da natureza),
@@ -686,13 +721,20 @@ export async function contabilizarTituloPagar(cpId: string) {
           }
         }
       } else {
+        // Juros/multa pagos além do título: despesa financeira (Juros e Multas
+        // Passivos) — o débito do Fornecedor fica só no valor baixado do título
+        // (senão o razonete do fornecedor fica devedor pelo excedente).
+        const extra = r2(total - pago);
+        const contaJm = extra > 0.005 ? await garantirContaJurosMultasPassivos(cp.empresaId) : null;
+        const principal = contaJm ? r2(total - extra) : total;
+        if (contaJm && extra > 0.005) partidas.unshift({ contaId: contaJm.id, tipo: "DEBITO", valor: extra });
         // Com rateio: o débito do Fornecedor é dividido por natureza (dimensão), somando
         // o total. Sem rateio: um débito único. O saldo do Fornecedor é o mesmo.
-        const fornSplit = dividirPorNatureza(total);
+        const fornSplit = dividirPorNatureza(principal);
         if (fornSplit.length > 0) {
           for (const s of fornSplit) partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: s.valor, fornecedorId: cp.fornecedorId, naturezaId: s.r.naturezaFinanceiraId });
         } else {
-          partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: total, fornecedorId: cp.fornecedorId });
+          partidas.unshift({ contaId: contaForn.id, tipo: "DEBITO", valor: principal, fornecedorId: cp.fornecedorId });
         }
         await registrarLancamento({
           empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
@@ -718,12 +760,12 @@ export async function contabilizarPedidoVenda(pedidoVendaId: string) {
 }
 
 /**
- * Venda pelo PEDIDO: na confirmação (faturado ou não) reconhece a obrigação de
- * entregar e o controle do backlog — D Bens a Entregar (ativo controle) / C
- * Material a Entregar (passivo), pelo valor total do pedido. O recebível
- * (Clientes a Receber) e a receita só nascem na ENTREGA (com o título), para o
- * contábil convergir com o financeiro. Idempotente por (empresa, VENDA,
- * pedidoId). Pula orçamento/cancelado/intragrupo.
+ * Venda pelo PEDIDO — modelo CLÁSSICO "venda a entregar" (decisão final; o modelo
+ * "Bens a Entregar" foi descartado): na confirmação reconhece o direito a receber
+ * e a obrigação de entregar — D Clientes a Receber (1.1.2.x) / C Material a
+ * Entregar (2.1.2.x por cliente), pelo valor total. A RECEITA só nasce na entrega
+ * (contabilizarReceitaMinuta). Idempotente por (empresa, VENDA, pedidoId). Pula
+ * orçamento/cancelado/intragrupo.
  */
 export async function contabilizarVendaPedido(pedidoVendaId: string) {
   const pedido = await prismaSemEscopo.pedidoVenda.findUnique({
@@ -839,13 +881,35 @@ export async function recontabilizarLoteMovimentacao(loteId: string) {
  */
 export async function apagarLancamentosContabeis(
   where: Prisma.LancamentoContabilWhereInput,
-  db: Pick<Prisma.TransactionClient, "lancamentoContabil" | "partidaContabil"> = prismaSemEscopo,
+  db?: Pick<Prisma.TransactionClient, "lancamentoContabil" | "partidaContabil">,
 ): Promise<number> {
-  const lancs = await db.lancamentoContabil.findMany({ where, select: { id: true } });
+  const dbc = db ?? prismaSemEscopo;
+  const lancs = await dbc.lancamentoContabil.findMany({ where, select: { id: true, empresaId: true, data: true, origemTipo: true } });
   if (!lancs.length) return 0;
+
+  // Trava espelho do registrarLancamento: apagar lançamento datado em exercício
+  // FECHADO alteraria silenciosamente um balanço encerrado. Recusa (o caller
+  // best-effort pega o erro e pula; exclusões legítimas exigem reabrir o exercício).
+  for (const empresaId of Array.from(new Set(lancs.map((l) => l.empresaId)))) {
+    const fechadoAte = await exercicioFechadoAte(empresaId);
+    if (!fechadoAte) continue;
+    const violado = lancs.find((l) => l.empresaId === empresaId && l.origemTipo !== "ENCERRAMENTO" && l.origemTipo !== "ESTORNO" && l.data <= fechadoAte);
+    if (violado) throw new PeriodoFechadoError(fechadoAte);
+  }
+
   const ids = lancs.map((l) => l.id);
-  await db.partidaContabil.deleteMany({ where: { lancamentoId: { in: ids } } });
-  await db.lancamentoContabil.deleteMany({ where: { id: { in: ids } } });
+  if (db) {
+    // dentro da transação do caller — os dois deletes são atômicos com o resto
+    await db.partidaContabil.deleteMany({ where: { lancamentoId: { in: ids } } });
+    await db.lancamentoContabil.deleteMany({ where: { id: { in: ids } } });
+  } else {
+    // fora de transação: embrulha os dois deletes — crash entre eles deixaria
+    // lançamento sem partidas (cabeçalho fantasma no razão)
+    await prismaSemEscopo.$transaction([
+      prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: { in: ids } } }),
+      prismaSemEscopo.lancamentoContabil.deleteMany({ where: { id: { in: ids } } }),
+    ]);
+  }
   return ids.length;
 }
 
@@ -976,8 +1040,8 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
 /**
  * Custo da venda: baixa do estoque na minuta, separando CMV (mercadoria comprada)
  * de CPV (produto acabado fabricado). Valora pela regra de custeio
- * (`valorUnitarioEstoque`): acabado pelo preço médio de venda, demais pelo CMPM.
- * D 3.2.9002 CMV e/ou 3.2.9003 CPV / C Estoque (conta do local). Idempotente.
+ * (`valorUnitarioEstoque`): acabado pelo custo de produção quando custeado, demais
+ * pelo CMPM. D 3.2.1.0001 CMV e/ou 3.2.2.0001 CPV / C Estoque (conta do local). Idempotente.
  */
 export async function contabilizarCmvMinuta(minutaId: string) {
   const minuta = await prismaSemEscopo.minuta.findUnique({
@@ -1045,15 +1109,13 @@ export async function contabilizarCmvMinuta(minutaId: string) {
 }
 
 /**
- * Reconhecimento de receita na entrega (CPC 47): quando a minuta fica ENTREGUE,
- * nasce o recebível e a receita, e baixa-se o backlog (Bens a Entregar /
- * Material a Entregar) pela fração entregue. Por item, o valor entregue é
- * proporcional à fração entregue (qtd minuta ÷ qtd pedido):
- *   D Clientes a Receber (líquido) · D (-) Descontos Concedidos (desconto) · C Receita Bruta (bruto)
- *   D Material a Entregar (líquido) · C Bens a Entregar (líquido)   [baixa do backlog]
- * Líquido = valorTotal do item (autoritativo); desconto = valorDesconto; bruto = líquido+desconto.
- * O recebível nasce aqui (não na confirmação) para o contábil convergir com o
- * financeiro (título gerado na entrega). Idempotente por (empresa, RECEITA_ENTREGA, minutaId).
+ * Reconhecimento de receita na entrega (CPC 47, modelo clássico): quando a minuta
+ * fica ENTREGUE, baixa-se a obrigação de entregar e nasce a receita, pela fração
+ * entregue de cada item (qtd minuta ÷ qtd pedido):
+ *   D Material a Entregar (líquido) · D (-) Descontos Concedidos (desconto) · C Receita Bruta (bruto)
+ * Líquido = valorTotal do item (autoritativo); desconto = valorDesconto; bruto =
+ * líquido+desconto. O RECEBÍVEL não nasce aqui — nasceu na confirmação do pedido
+ * (contabilizarVendaPedido). Idempotente por (empresa, RECEITA_ENTREGA, minutaId).
  */
 export async function contabilizarReceitaMinuta(minutaId: string) {
   const minuta = await prismaSemEscopo.minuta.findUnique({
@@ -1122,6 +1184,117 @@ export async function contabilizarReceitaMinuta(minutaId: string) {
     historico: hist, origemTipo: "RECEITA_ENTREGA", origemId: minuta.id,
     partidas,
   });
+}
+
+/**
+ * Devolução de venda (dois lançamentos, idempotentes por origem DEVOLUCAO):
+ *  1) `devolucaoId` — estorno da RECEITA: D (-) Devoluções de Vendas (3.1.9006)
+ *     pelo valor devolvido, contra a forma de liquidação — C Clientes a Receber
+ *     (parcela abatida de CR aberta, `valorAbatidoCr`), C Caixa/Banco (estorno em
+ *     dinheiro, pelos LancamentoFinanceiro com devolucaoId) e C Créditos de
+ *     Clientes a Utilizar (resíduo — vale de CRÉDITO/TROCA).
+ *  2) `<devolucaoId>#custo` — retorno do estoque AO CUSTO: D Estoque (conta do
+ *     local) / C CPV (acabado de fábrica) e/ou CMV, revertendo o custo da venda
+ *     pelos movimentos ENTRADA da devolução (valorUnitario = custo aplicado na rota).
+ */
+export async function contabilizarDevolucao(devolucaoId: string) {
+  const dev = await prismaSemEscopo.devolucao.findUnique({
+    where: { id: devolucaoId },
+    select: {
+      id: true, empresaId: true, numero: true, clienteId: true, data: true, valorTotal: true,
+      tipoResolucao: true, status: true, valorAbatidoCr: true, createdAt: true,
+    },
+  });
+  if (!dev || dev.status === "CANCELADA") return;
+  const valor = decimalToNumber(dev.valorTotal);
+
+  // 1) Estorno da receita, contra a liquidação da devolução.
+  if (valor > 0.005) {
+    const [contaDev, contaCli, contaCred] = await Promise.all([
+      garantirContaDevolucaoVendas(dev.empresaId),
+      garantirContaClienteReceber(dev.empresaId, dev.clienteId),
+      garantirContaCreditosClientes(dev.empresaId),
+    ]);
+    if (contaDev) {
+      const partidas: PartidaIn[] = [{ contaId: contaDev.id, tipo: "DEBITO", valor, clienteId: dev.clienteId }];
+      let coberto = 0;
+      const abatido = Math.min(r2(decimalToNumber(dev.valorAbatidoCr ?? 0)), valor);
+      if (abatido > 0.005 && contaCli) {
+        partidas.push({ contaId: contaCli.id, tipo: "CREDITO", valor: abatido, clienteId: dev.clienteId });
+        coberto = abatido;
+      }
+      // Dinheiro devolvido: pelas contas bancárias reais das saídas de caixa da devolução.
+      const saidas = await prismaSemEscopo.lancamentoFinanceiro.findMany({
+        where: { devolucaoId: dev.id, tipo: "DESPESA" }, select: { contaBancariaId: true, valor: true },
+      });
+      const porBanco = new Map<string, number>();
+      for (const lf of saidas) porBanco.set(lf.contaBancariaId, (porBanco.get(lf.contaBancariaId) ?? 0) + decimalToNumber(lf.valor));
+      for (const [cbId, v] of Array.from(porBanco.entries())) {
+        const cb = await contaDoBanco(dev.empresaId, cbId);
+        if (!cb) continue;
+        const vv = Math.min(r2(v), r2(valor - coberto));
+        if (vv <= 0.005) continue;
+        partidas.push({ contaId: cb.id, tipo: "CREDITO", valor: vv });
+        coberto = r2(coberto + vv);
+      }
+      // Resíduo vira vale do cliente (resolução CRÉDITO/TROCA).
+      const residuo = r2(valor - coberto);
+      if (residuo > 0.005 && contaCred) partidas.push({ contaId: contaCred.id, tipo: "CREDITO", valor: residuo, clienteId: dev.clienteId });
+      if (partidas.length >= 2) {
+        await registrarLancamento({
+          empresaId: dev.empresaId, data: dev.data ?? dev.createdAt,
+          historico: `Devolução de venda — ${dev.numero}`,
+          origemTipo: "DEVOLUCAO", origemId: dev.id, partidas,
+        });
+      }
+    }
+  }
+
+  // 2) Retorno do estoque ao custo (reverte CPV/CMV da venda).
+  const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
+    where: { empresaId: dev.empresaId, devolucaoId: dev.id, tipo: "ENTRADA", localEstoqueId: { not: null }, clienteDonoId: null },
+    select: { itemId: true, localEstoqueId: true, quantidade: true, valorUnitario: true, item: { select: { categoriaEstoque: true } } },
+  });
+  if (movs.length === 0) return;
+  const empresa = await prismaSemEscopo.empresa.findUnique({ where: { id: dev.empresaId }, select: { industrializa: true } });
+  const usaCpv = empresa?.industrializa ?? false;
+  const debLocal = new Map<string, number>();
+  let totCmv = 0, totCpv = 0;
+  for (const m of movs) {
+    if (!m.localEstoqueId) continue;
+    const custo = m.valorUnitario != null ? decimalToNumber(m.valorUnitario) : 0;
+    const v = decimalToNumber(m.quantidade) * custo;
+    if (v <= 0) continue;
+    debLocal.set(m.localEstoqueId, (debLocal.get(m.localEstoqueId) ?? 0) + v);
+    if (usaCpv && m.item?.categoriaEstoque === "PRODUTO_ACABADO") totCpv += v; else totCmv += v;
+  }
+  if (totCmv + totCpv <= 0.005) return;
+  const partidas: PartidaIn[] = [];
+  for (const [localId, v] of Array.from(debLocal.entries())) {
+    const cl = await contaDoLocal(dev.empresaId, localId);
+    if (!cl) return; // sem conta de local → aborta (não desbalancear)
+    partidas.push({ contaId: cl.id, tipo: "DEBITO", valor: v });
+  }
+  if (totCmv > 0.005) {
+    const c = await garantirContaCmv(dev.empresaId);
+    if (!c) return;
+    partidas.push({ contaId: c.id, tipo: "CREDITO", valor: totCmv });
+  }
+  if (totCpv > 0.005) {
+    const c = await garantirContaCpv(dev.empresaId);
+    if (!c) return;
+    partidas.push({ contaId: c.id, tipo: "CREDITO", valor: totCpv });
+  }
+  await registrarLancamento({
+    empresaId: dev.empresaId, data: dev.data ?? dev.createdAt,
+    historico: `Devolução de venda (retorno ao estoque) — ${dev.numero}`,
+    origemTipo: "DEVOLUCAO", origemId: `${dev.id}#custo`, partidas,
+  });
+}
+
+export async function recontabilizarDevolucao(devolucaoId: string) {
+  await apagarLancamentosContabeis({ origemTipo: "DEVOLUCAO", origemId: { in: [devolucaoId, `${devolucaoId}#custo`] } });
+  await contabilizarDevolucao(devolucaoId).catch(() => null);
 }
 
 // ── Movimentos de estoque não-comerciais (produção/consumo/ajuste/transferência) ──
@@ -1235,7 +1408,12 @@ export async function contabilizarProducaoOrdem(ordemId: string) {
   if (!ordem || ordem.status !== "CONCLUIDA") return;
 
   const movs = await prismaSemEscopo.movimentacaoEstoque.findMany({
-    where: { ordemProducaoId: ordemId, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] } },
+    where: {
+      ordemProducaoId: ordemId, localEstoqueId: { not: null }, clienteDonoId: null, tipo: { in: ["ENTRADA", "SAIDA"] },
+      // Consumo de insumos de queima (CIF) já é contabilizado por apontarMisturaCif
+      // (D CIF a Apropriar / C local) — reconsumi-lo aqui dobraria o crédito do local.
+      NOT: { observacoes: { contains: "(CIF queima)" } },
+    },
     select: { itemId: true, localEstoqueId: true, tipo: true, quantidade: true, empresaId: true },
   });
   if (movs.length === 0) return;
@@ -1401,7 +1579,7 @@ export async function absorverConversaoAoEstoque(input: {
 
   // Fração térmica do CIF pela composição do ParametroCusteio (não inventa %).
   const params = await prismaSemEscopo.parametroCusteio.findFirst({ where: { empresaId, competencia: ini } });
-  const dias = params?.diasTrabalhados ?? 26;
+  const dias = params?.diasTrabalhados ?? DIAS_TRABALHADOS_DEFAULT;
   const termicoBase = decimalToNumber(params?.biomassaDia ?? 0) * dias + decimalToNumber(params?.combustivelDia ?? 0) * dias + decimalToNumber(params?.energiaMes ?? 0);
   const geralBase = decimalToNumber(params?.folhaMoiMes ?? 0) + decimalToNumber(params?.depreciacaoMes ?? 0);
   const cifBase = termicoBase + geralBase;
@@ -1411,8 +1589,11 @@ export async function absorverConversaoAoEstoque(input: {
 
   // Volumes produzidos na competência — considera AS DUAS formas de lançar produção:
   //  (1) manual: ENTRADA de PRODUTO_ACABADO num local de PA, sem OP;
-  //  (2) por OP: ENTRADA com ordemProducaoId (WIP por estágio + acabado).
-  // Conjuntos distintos por ordemProducaoId → sem dupla contagem.
+  //  (2) por OP: ENTRADA com ordemProducaoId — mas uma OP gera ENTRADA em CADA
+  //      estágio (úmido→seco→queimado→acabado): contar todas multiplicaria a mesma
+  //      peça física por estágio e debitaria conversão em WIP já consumido dentro
+  //      do próprio mês (resíduo permanente em PEP-MD + CMPM do WIP corrompido).
+  //      Conta SÓ a entrada do estágio MAIS AVANÇADO que cada OP atingiu no mês.
   const locaisPA = await prismaSemEscopo.localEstoque.findMany({ where: { categoriasAceitas: { has: "PRODUTO_ACABADO" } }, select: { id: true } });
   const paLocalIds = locaisPA.map((l) => l.id);
   const entradas = await prismaSemEscopo.movimentacaoEstoque.findMany({
@@ -1423,11 +1604,25 @@ export async function absorverConversaoAoEstoque(input: {
         { ordemProducaoId: null, localEstoqueId: { in: paLocalIds }, item: { categoriaEstoque: "PRODUTO_ACABADO" } },
       ],
     },
-    select: { itemId: true, quantidade: true, item: { select: { codigo: true, categoriaEstoque: true } } },
+    select: { itemId: true, quantidade: true, ordemProducaoId: true, item: { select: { codigo: true, categoriaEstoque: true } } },
+  });
+  // Estágio da entrada: acabado(3) > queimado(2) > seco(1) > úmido/outros(0).
+  const estagioDe = (cod: string, acabado: boolean) =>
+    acabado ? 3 : /-QUEIMADO$/i.test(cod) ? 2 : /-SECO$/i.test(cod) ? 1 : 0;
+  const maxEstagioPorOp = new Map<string, number>();
+  for (const m of entradas) {
+    if (!m.ordemProducaoId) continue;
+    const e = estagioDe(m.item?.codigo ?? "", m.item?.categoriaEstoque === "PRODUTO_ACABADO");
+    maxEstagioPorOp.set(m.ordemProducaoId, Math.max(maxEstagioPorOp.get(m.ordemProducaoId) ?? 0, e));
+  }
+  const consideradas = entradas.filter((m) => {
+    if (!m.ordemProducaoId) return true; // manual: entra sempre
+    const e = estagioDe(m.item?.codigo ?? "", m.item?.categoriaEstoque === "PRODUTO_ACABADO");
+    return e === (maxEstagioPorOp.get(m.ordemProducaoId) ?? 0);
   });
   type Prod = { itemId: string; qtd: number; secoQueimado: boolean; acabado: boolean };
   const porItem = new Map<string, Prod>();
-  for (const m of entradas) {
+  for (const m of consideradas) {
     const cod = m.item?.codigo ?? "";
     const acabado = m.item?.categoriaEstoque === "PRODUTO_ACABADO";
     // Acabado e WIP seco/queimado passaram pela queima → carregam térmico.
@@ -1446,10 +1641,12 @@ export async function absorverConversaoAoEstoque(input: {
   const geralRate = cifGeral / volumeTotal;
   const termicoRate = volumeSecoQueimado > 0 ? cifTermico / volumeSecoQueimado : 0;
 
-  // Aplica CMPM por item e acumula o débito por conta de estoque (WIP→PEP-MD, acabado→PA).
-  const debPorConta = new Map<string, number>();
-  let modAbs = 0, cifAbs = 0;
+  // Aplica CMPM por item e lança o contábil NA MESMA transação: se o lançamento
+  // falhar (ex.: período fechado), o CMPM não fica aplicado sem contrapartida.
+  let credMod = 0, credCif = 0;
   await prismaSemEscopo.$transaction(async (tx) => {
+    const debPorConta = new Map<string, number>();
+    let modAbs = 0, cifAbs = 0;
     for (const p of prods) {
       const modV = modRate * p.qtd;
       const cifV = geralRate * p.qtd + (p.secoQueimado ? termicoRate * p.qtd : 0);
@@ -1460,35 +1657,28 @@ export async function absorverConversaoAoEstoque(input: {
       debPorConta.set(contaId, (debPorConta.get(contaId) ?? 0) + convV);
       modAbs += modV; cifAbs += cifV;
     }
-  });
 
-  // Contábil: D estoque produzido / C PEP-MOD + C PEP-CIF. Ajuste de centavo no maior débito.
-  const partidas: PartidaIn[] = [];
-  for (const [contaId, v] of Array.from(debPorConta.entries())) {
-    const r = Math.round(v * 100) / 100;
-    if (r > 0.005) partidas.push({ contaId, tipo: "DEBITO", valor: r, estagio: contaId === contaPA.id ? "ACABADO" : undefined });
-  }
-  const credMod = Math.round(modAbs * 100) / 100;
-  const credCif = Math.round(cifAbs * 100) / 100;
-  if (credMod > 0.005) partidas.push({ contaId: pepMod.id, tipo: "CREDITO", valor: credMod });
-  if (credCif > 0.005) partidas.push({ contaId: pepCif.id, tipo: "CREDITO", valor: credCif });
-  // Fecha o arredondamento: iguala Σdébito a Σcrédito ajustando o maior débito.
-  const somaDeb = partidas.filter((x) => x.tipo === "DEBITO").reduce((s, x) => s + x.valor, 0);
-  const somaCred = credMod + credCif;
-  const resid = Math.round((somaCred - somaDeb) * 100) / 100;
-  if (Math.abs(resid) >= 0.01) {
-    const maior = partidas.filter((x) => x.tipo === "DEBITO").sort((a, b) => b.valor - a.valor)[0];
-    if (maior) maior.valor = Math.round((maior.valor + resid) * 100) / 100;
-  }
-  if (partidas.length >= 2) {
-    const compStr = ini.toISOString().slice(0, 7);
-    await registrarLancamento({
-      empresaId, data: input.data, criadoPor: input.criadoPor ?? null,
-      historico: `Absorção de MOD+CIF ao estoque produzido — ${compStr}`,
-      origemTipo: "ESTOQUE_PRODUCAO", origemId: `ABSORCAO-${compStr}`,
-      partidas,
-    });
-  }
+    // Contábil: D estoque produzido / C PEP-MOD + C PEP-CIF (o arredondamento e o
+    // fechamento do resíduo agora são do próprio registrarLancamento).
+    const partidas: PartidaIn[] = [];
+    for (const [contaId, v] of Array.from(debPorConta.entries())) {
+      const r = r2(v);
+      if (r > 0.005) partidas.push({ contaId, tipo: "DEBITO", valor: r, estagio: contaId === contaPA.id ? "ACABADO" : undefined });
+    }
+    credMod = r2(modAbs);
+    credCif = r2(cifAbs);
+    if (credMod > 0.005) partidas.push({ contaId: pepMod.id, tipo: "CREDITO", valor: credMod });
+    if (credCif > 0.005) partidas.push({ contaId: pepCif.id, tipo: "CREDITO", valor: credCif });
+    if (partidas.length >= 2) {
+      const compStr = ini.toISOString().slice(0, 7);
+      await registrarLancamento({
+        empresaId, data: input.data, criadoPor: input.criadoPor ?? null,
+        historico: `Absorção de MOD+CIF ao estoque produzido — ${compStr}`,
+        origemTipo: "ESTOQUE_PRODUCAO", origemId: `ABSORCAO-${compStr}`,
+        partidas,
+      }, tx);
+    }
+  });
   return { modAbsorvido: credMod, cifAbsorvido: credCif, volumeTotal, volumeSecoQueimado };
 }
 
@@ -2024,7 +2214,6 @@ export async function processarDepreciacaoEmpresa(empresaId: string, competencia
 // ── Encerramento do exercício (Fase G parte 2) ────────────────────────────────
 function fimDoExercicio(ano: number): Date { return new Date(Date.UTC(ano, 11, 31, 23, 59, 59, 999)); }
 function inicioDoExercicio(ano: number): Date { return new Date(Date.UTC(ano, 0, 1)); }
-const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Apura o resultado de um exercício: por analítica de Resultado (grupo RESULTADO,
@@ -2140,36 +2329,3 @@ export async function reabrirExercicio(empresaId: string, exercicio: number) {
   return { id: fechamento.id, exercicio };
 }
 
-/**
- * Estorna um lançamento: cria um novo lançamento ESTORNO com as partidas
- * invertidas (débito ↔ crédito). Idempotente (só estorna uma vez).
- */
-export async function estornarLancamento(lancamentoId: string, data?: Date) {
-  const lan = await prismaSemEscopo.lancamentoContabil.findUnique({
-    where: { id: lancamentoId },
-    include: { partidas: true, estorno: { select: { id: true } } },
-  });
-  if (!lan) throw new Error("Lançamento não encontrado");
-  if (lan.estorno) return lan.estorno; // já estornado
-
-  return prismaSemEscopo.lancamentoContabil.create({
-    data: {
-      empresaId: lan.empresaId,
-      data: data ?? new Date(),
-      historico: `Estorno — ${lan.historico}`,
-      origemTipo: "ESTORNO",
-      estornoDeId: lan.id,
-      partidas: {
-        create: lan.partidas.map((p) => ({
-          empresaId: p.empresaId,
-          contaId: p.contaId,
-          tipo: p.tipo === "DEBITO" ? "CREDITO" : "DEBITO",
-          valor: p.valor,
-          clienteId: p.clienteId,
-          fornecedorId: p.fornecedorId,
-        })),
-      },
-    },
-    select: { id: true },
-  });
-}

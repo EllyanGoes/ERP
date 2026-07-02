@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
-import { reverterEExcluirConferencias } from "@/lib/compras-cascade";
+import { reverterEExcluirConferencias, tratarContasPagarDosPedidos, ContaPagarComBaixaError } from "@/lib/compras-cascade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.necessidadeCompra.findUnique({
@@ -121,32 +121,42 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   // Exclusão em cascata (forçada): remove os pedidos de compra e as cotações
   // vinculados à SC E os documentos de entrada ligados a esses pedidos,
-  // revertendo o estoque lançado. Itens/propostas/aprovações cascateiam.
+  // revertendo o estoque lançado, os lançamentos contábeis da entrada e as
+  // Contas a Pagar ABERTAS (409 se alguma tem baixa). Itens/propostas/aprovações
+  // cascateiam.
   const cotacaoIds = sc.cotacoes.map((c) => c.id);
-  await prisma.$transaction(async (tx) => {
-    const pedidos = await tx.pedidoCompra.findMany({
-      where: {
-        OR: [
-          { necessidadeId: params.id },
-          ...(cotacaoIds.length ? [{ cotacaoId: { in: cotacaoIds } }] : []),
-        ],
-      },
-      select: { id: true },
-    });
-    const pedidoIds = pedidos.map((p) => p.id);
-
-    if (pedidoIds.length > 0) {
-      const confs = await tx.conferenciaCompra.findMany({
-        where: { pedidoId: { in: pedidoIds } },
+  try {
+    await prisma.$transaction(async (tx) => {
+      const pedidos = await tx.pedidoCompra.findMany({
+        where: {
+          OR: [
+            { necessidadeId: params.id },
+            ...(cotacaoIds.length ? [{ cotacaoId: { in: cotacaoIds } }] : []),
+          ],
+        },
         select: { id: true },
       });
-      await reverterEExcluirConferencias(tx, confs.map((c) => c.id));
-      await tx.pedidoCompra.deleteMany({ where: { id: { in: pedidoIds } } });
-    }
+      const pedidoIds = pedidos.map((p) => p.id);
 
-    await tx.cotacaoCompra.deleteMany({ where: { necessidadeId: params.id } });
-    await tx.necessidadeCompra.delete({ where: { id: params.id } });
-  });
+      if (pedidoIds.length > 0) {
+        await tratarContasPagarDosPedidos(tx, pedidoIds);
+        const confs = await tx.conferenciaCompra.findMany({
+          where: { pedidoId: { in: pedidoIds } },
+          select: { id: true },
+        });
+        await reverterEExcluirConferencias(tx, confs.map((c) => c.id));
+        await tx.pedidoCompra.deleteMany({ where: { id: { in: pedidoIds } } });
+      }
+
+      await tx.cotacaoCompra.deleteMany({ where: { necessidadeId: params.id } });
+      await tx.necessidadeCompra.delete({ where: { id: params.id } });
+    });
+  } catch (e) {
+    if (e instanceof ContaPagarComBaixaError) {
+      return NextResponse.json({ error: e.message }, { status: 409 });
+    }
+    throw e;
+  }
 
   return NextResponse.json({ ok: true });
 }

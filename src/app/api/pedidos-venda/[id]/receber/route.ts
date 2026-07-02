@@ -1,181 +1,56 @@
 export const dynamic = "force-dynamic";
-// Registrar recebimento SEM entregar: o cliente paga o pedido agora, mas a
-// entrega será agendada (minutas) depois. Cria a conta a receber PAGA e lança
-// o recebimento no caixa (uma entrada por forma, na sua conta) e grava as
-// formas no pedido — SEM baixar estoque nem criar minuta. Cobre os dois casos:
-// venda de balcão que precisa entregar, e pedido agendado já pago.
+// Recebimento manual do pedido — DESATIVADO como criador de título (decisão
+// jul/2026): o CONTAS A RECEBER nasce na CONFIRMAÇÃO DA ENTREGA/RETIRADA
+// (faturarPedidoSeEntregue), não na confirmação do pedido nem num recebimento
+// antecipado. Esta rota deixou de criar a conta PAGA "adiantada":
+//   • pedido SEM conta a receber (ainda não entregue) → 422 orientando que o
+//     título nasce na entrega (não criamos antecipação);
+//   • pedido JÁ faturado → 409 apontando para o fluxo de baixa em
+//     Financeiro → Contas a Receber (ou o balcão, que baixa o saldo).
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
-import { recomputarStatusPedido } from "@/lib/pedido-totais";
-import { generateDocNumber } from "@/lib/utils";
+import { faturarPedidoSeEntregue } from "@/lib/contas-receber";
 import { contabilizarPedidoVenda } from "@/lib/contabilidade";
-import { z } from "zod";
 
-const pagamentoSchema = z.object({
-  forma: z.string().min(1),
-  contaBancariaId: z.string().optional().nullable(),
-  valor: z.coerce.number().min(0),
-  troco: z.boolean().optional(),
-});
-
-const schema = z.object({
-  pagamentos: z.array(pagamentoSchema).min(1, "Informe ao menos uma forma de pagamento"),
-  dataRecebimento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-});
-
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("comercial");
   if (!auth.ok) return auth.response;
 
-  const parsed = schema.safeParse(await req.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
-  }
-  const { pagamentos: pagamentosIn, dataRecebimento } = parsed.data;
-
   const pedido = await prisma.pedidoVenda.findUnique({
     where: { id: params.id },
-    select: { id: true, numero: true, empresaId: true, status: true, intragrupo: true, clienteId: true, valorTotal: true, dataEntrega: true, _count: { select: { contasReceber: true } } },
+    select: { id: true, numero: true, status: true, intragrupo: true, valorTotal: true, _count: { select: { contasReceber: { where: { status: { not: "CANCELADA" } } } } } },
   });
   if (!pedido) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
-  if (["CANCELADO", "CONCLUIDO"].includes(pedido.status)) {
-    return NextResponse.json({ error: `Pedido ${pedido.status.toLowerCase()} não pode receber pagamento.` }, { status: 422 });
+  if (pedido.status === "CANCELADO") {
+    return NextResponse.json({ error: "Pedido cancelado não pode receber pagamento." }, { status: 422 });
   }
   if (pedido.intragrupo) {
     return NextResponse.json({ error: "Venda entre empresas do grupo não usa este recebimento." }, { status: 422 });
   }
-  if (pedido._count.contasReceber > 0) {
-    return NextResponse.json({ error: "Este pedido já possui conta a receber registrada." }, { status: 409 });
-  }
 
-  const valorTotal = parseFloat(pedido.valorTotal.toString());
-  if (valorTotal <= 0) return NextResponse.json({ error: "Pedido sem valor a receber." }, { status: 422 });
-
-  // Dia confirmado (ou hoje em Brasília), meia-noite UTC.
-  const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-  const hoje = new Date(`${dataRecebimento || hojeSP}T00:00:00.000Z`);
-
-  // Normaliza as formas (mesma lógica do balcão): soma cobre o total; troco só
-  // sai das linhas de dinheiro; troco abatido para a soma fechar com o total.
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  const caixaPadrao = contaCaixaIdDaEmpresa(pedido.empresaId);
-  const linhas = pagamentosIn.map((p) => ({
-    forma: p.forma,
-    contaBancariaId: p.contaBancariaId || caixaPadrao,
-    valor: round2(p.valor),
-    troco: !!p.troco,
-  }));
-
-  // Guarda de roteamento: forma eletrônica não pode cair em conta tipo CAIXA
-  // (dinheiro físico). Só vale se a empresa tem banco cadastrado — sem banco, o
-  // Caixa é a única opção possível.
-  {
-    const temBanco = await prisma.contaBancaria.findFirst({
-      where: { empresaId: pedido.empresaId, tipo: { not: "CAIXA" }, ativo: true },
-      select: { id: true },
+  // Se a entrega total já aconteceu mas o faturamento ainda não rodou (corrida
+  // entre gatilhos), fatura agora — aí o caminho certo é baixar o título.
+  if (pedido._count.contasReceber === 0) {
+    const faturou = await faturarPedidoSeEntregue(pedido.id).catch((e) => {
+      console.error(`[receber] faturarPedidoSeEntregue(${pedido.id}) falhou:`, e);
+      return false;
     });
-    if (temBanco) {
-      const contaIds = Array.from(new Set(linhas.map((l) => l.contaBancariaId)));
-      const [contasInfo, formasInfo] = await Promise.all([
-        prisma.contaBancaria.findMany({ where: { id: { in: contaIds } }, select: { id: true, tipo: true } }),
-        prisma.formaPagamento.findMany({ select: { nome: true, tipo: true } }),
-      ]);
-      const ehDinheiro = (forma: string) => {
-        const f = formasInfo.find((x) => x.nome === forma);
-        return f ? f.tipo === "DINHEIRO" : /dinheiro|esp[ée]cie/i.test(forma);
-      };
-      const contaEhCaixa = (id: string) => id === "caixa-geral" || contasInfo.some((c) => c.id === id && c.tipo === "CAIXA");
-      const ruim = linhas.find((l) => l.valor > 0 && !ehDinheiro(l.forma) && contaEhCaixa(l.contaBancariaId));
-      if (ruim) {
-        return NextResponse.json({ error: `A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.` }, { status: 422 });
-      }
+    if (faturou) await contabilizarPedidoVenda(pedido.id).catch(() => {});
+    if (!faturou) {
+      return NextResponse.json(
+        {
+          error:
+            "Pedido ainda não faturado — o título a receber nasce na confirmação da entrega/retirada. " +
+            "Conclua a entrega (minuta Entregue) e baixe o título em Financeiro → Contas a Receber.",
+        },
+        { status: 422 },
+      );
     }
   }
 
-  const somaPag = round2(linhas.reduce((s, l) => s + l.valor, 0));
-  if (somaPag < valorTotal - 0.001) {
-    return NextResponse.json({ error: `Pagamento insuficiente: faltam R$ ${round2(valorTotal - somaPag).toFixed(2)}.` }, { status: 422 });
-  }
-  const troco = round2(somaPag - valorTotal);
-  const totalTroco = round2(linhas.filter((l) => l.troco).reduce((s, l) => s + l.valor, 0));
-  if (troco > 0.001 && troco > totalTroco + 0.001) {
-    return NextResponse.json({ error: "O troco excede o valor recebido em dinheiro." }, { status: 422 });
-  }
-  let restanteTroco = troco;
-  for (const l of linhas) {
-    if (restanteTroco <= 0.001) break;
-    if (!l.troco) continue;
-    const abate = Math.min(l.valor, restanteTroco);
-    l.valor = round2(l.valor - abate);
-    restanteTroco = round2(restanteTroco - abate);
-  }
-  const linhasReais = linhas.filter((l) => l.valor > 0.001);
-  const formasResumo = Array.from(new Set(linhasReais.map((l) => l.forma))).join(" + ") || null;
-
-  const numeroCR = generateDocNumber("CR", await proximaSequenciaDaEmpresa(pedido.empresaId, "CR"));
-
-  try {
-    const conta = await prisma.$transaction(async (tx) => {
-      // Trava: só registra recebimento se ainda não há conta a receber.
-      const jaTem = await tx.contaReceber.count({ where: { pedidoVendaId: pedido.id } });
-      if (jaTem > 0) throw new Error("CONFLITO: já existe conta a receber para este pedido.");
-
-      const novaConta = await tx.contaReceber.create({
-        data: {
-          empresaId: pedido.empresaId,
-          numero: numeroCR,
-          clienteId: pedido.clienteId,
-          pedidoVendaId: pedido.id,
-          descricao: `Recebimento ${pedido.numero} (entrega a agendar)`,
-          valorOriginal: valorTotal,
-          valorPago: valorTotal,
-          dataVencimento: hoje,
-          dataPagamento: hoje,
-          status: "PAGA",
-          formaPagamento: formasResumo,
-        },
-      });
-
-      for (const l of linhasReais) {
-        await tx.lancamentoFinanceiro.create({
-          data: {
-            empresaId: pedido.empresaId,
-            tipo: "RECEITA",
-            descricao: `Recebimento ${numeroCR} — ${pedido.numero}${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
-            valor: l.valor,
-            dataLancamento: hoje,
-            contaReceberId: novaConta.id,
-            contaBancariaId: l.contaBancariaId,
-          },
-        });
-      }
-
-      // Formas reais com a conta de destino, para o detalhe mostrar.
-      await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: pedido.id } });
-      await tx.pedidoVendaPagamento.createMany({
-        data: linhasReais.map((l, i) => ({ pedidoVendaId: pedido.id, forma: l.forma, valor: l.valor, ordem: i, contaBancariaId: l.contaBancariaId })),
-      });
-
-      // Move para EM_AGENDAMENTO (pronto para agendar entregas) se ainda estava
-      // em orçamento/confirmado. NÃO baixa estoque nem cria minuta.
-      if (["ORCAMENTO", "CONFIRMADO"].includes(pedido.status)) {
-        await tx.pedidoVenda.update({ where: { id: pedido.id }, data: { status: "EM_AGENDAMENTO" } });
-      }
-
-      await recomputarStatusPedido(tx, pedido.id);
-      return novaConta;
-    });
-
-    // Contabiliza (best-effort, pós-commit) a conta a receber do pedido.
-    await contabilizarPedidoVenda(params.id).catch(() => {});
-
-    return NextResponse.json({ data: { contaNumero: conta.numero } }, { status: 201 });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Erro ao registrar recebimento";
-    if (msg.startsWith("CONFLITO:")) return NextResponse.json({ error: msg.replace("CONFLITO: ", "") }, { status: 409 });
-    console.error("[POST /api/pedidos-venda/[id]/receber]", err);
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+  return NextResponse.json(
+    { error: "Este pedido já possui conta a receber registrada — baixe o título em Financeiro → Contas a Receber." },
+    { status: 409 },
+  );
 }

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         dataVencimento: new Date(parsed.data.dataVencimento),
       },
     });
-    await contabilizarTituloPagar(conta.id).catch(() => {});
+    await contabilizarTituloPagar(conta.id).catch((e) => console.error("[contas-pagar] contabilizar:", e));
     return NextResponse.json({ data: conta }, { status: 201 });
   }
 
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     return criadas;
   });
 
-  for (const conta of contas) await contabilizarTituloPagar(conta.id).catch(() => {});
+  for (const conta of contas) await contabilizarTituloPagar(conta.id).catch((e) => console.error("[contas-pagar] contabilizar:", e));
 
   return NextResponse.json({ data: contas, grupoParcelamentoId }, { status: 201 });
 }

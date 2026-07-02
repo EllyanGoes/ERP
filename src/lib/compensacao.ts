@@ -31,7 +31,7 @@ export async function garantirContaCompensacao(empresaId: string) {
       data: { empresaId, nome: "Compensações a liquidar", compensacao: true, ativo: true },
     });
   }
-  await garantirContaContabilBanco(cb.id).catch(() => null);
+  await garantirContaContabilBanco(cb.id).catch((e) => console.error("[compensacao] contabilizar conta transitória:", e));
   return cb;
 }
 
@@ -151,27 +151,37 @@ export async function parceirosElegiveisCompensacao(empresaId: string): Promise<
 
 /**
  * Títulos em aberto (a receber e a pagar) de um parceiro na empresa, para a tela
- * de seleção. Casa por dígitos do CNPJ.
+ * de seleção. Casa por dígitos do CNPJ: como o cpfCnpj é gravado em formatos
+ * variados (com/sem pontuação), primeiro resolve os IDs de Cliente/Fornecedor
+ * com esse CNPJ (tabelas pequenas, só id + cpfCnpj) e então filtra os TÍTULOS
+ * no banco por clienteId/fornecedorId — sem carregar todos os títulos abertos.
  */
 export async function titulosAbertosDoParceiro(empresaId: string, cpfCnpjDigitos: string) {
   const dig = soDigitos(cpfCnpjDigitos);
+  const [clientes, fornecedores] = await Promise.all([
+    prismaSemEscopo.cliente.findMany({ where: { cpfCnpj: { not: null } }, select: { id: true, cpfCnpj: true } }),
+    prismaSemEscopo.fornecedor.findMany({ where: { cpfCnpj: { not: null } }, select: { id: true, cpfCnpj: true } }),
+  ]);
+  const clienteIds = clientes.filter((c) => soDigitos(c.cpfCnpj) === dig).map((c) => c.id);
+  const fornecedorIds = fornecedores.filter((f) => soDigitos(f.cpfCnpj) === dig).map((f) => f.id);
+
   const [crs, cps] = await Promise.all([
-    prismaSemEscopo.contaReceber.findMany({
-      where: { empresaId, intragrupo: false, status: { in: [...STATUS_ABERTOS] }, clienteId: { not: null } },
-      select: { id: true, numero: true, descricao: true, valorOriginal: true, valorPago: true, dataVencimento: true, cliente: { select: { cpfCnpj: true } } },
+    clienteIds.length === 0 ? [] : prismaSemEscopo.contaReceber.findMany({
+      where: { empresaId, intragrupo: false, status: { in: [...STATUS_ABERTOS] }, clienteId: { in: clienteIds } },
+      select: { id: true, numero: true, descricao: true, valorOriginal: true, valorPago: true, dataVencimento: true },
       orderBy: { dataVencimento: "asc" },
     }),
-    prismaSemEscopo.contaPagar.findMany({
-      where: { empresaId, intragrupo: false, status: { in: [...STATUS_ABERTOS] }, fornecedorId: { not: null } },
-      select: { id: true, numero: true, descricao: true, valorOriginal: true, valorPago: true, dataVencimento: true, fornecedor: { select: { cpfCnpj: true } } },
+    fornecedorIds.length === 0 ? [] : prismaSemEscopo.contaPagar.findMany({
+      where: { empresaId, intragrupo: false, status: { in: [...STATUS_ABERTOS] }, fornecedorId: { in: fornecedorIds } },
+      select: { id: true, numero: true, descricao: true, valorOriginal: true, valorPago: true, dataVencimento: true },
       orderBy: { dataVencimento: "asc" },
     }),
   ]);
   const receber = crs
-    .filter((c) => soDigitos(c.cliente?.cpfCnpj) === dig && saldoTitulo(c) > 0.005)
+    .filter((c) => saldoTitulo(c) > 0.005)
     .map((c) => ({ id: c.id, numero: c.numero, descricao: c.descricao, dataVencimento: c.dataVencimento, saldo: saldoTitulo(c) }));
   const pagar = cps
-    .filter((c) => soDigitos(c.fornecedor?.cpfCnpj) === dig && saldoTitulo(c) > 0.005)
+    .filter((c) => saldoTitulo(c) > 0.005)
     .map((c) => ({ id: c.id, numero: c.numero, descricao: c.descricao, dataVencimento: c.dataVencimento, saldo: saldoTitulo(c) }));
   return { receber, pagar };
 }

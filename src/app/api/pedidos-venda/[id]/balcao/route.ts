@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 // continuam no fluxo normal de minutas.
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa, empresasDoGrupo } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
@@ -15,7 +14,9 @@ import { saldoCreditoCliente, consumirCreditoCliente } from "@/lib/credito-clien
 import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { contabilizarPedidoVenda, contabilizarCmvMinuta, contabilizarReceitaMinuta } from "@/lib/contabilidade";
-import { resolverLocaisSaida } from "@/lib/local-saida";
+import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
+import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
+import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 import { z } from "zod";
 
 const pagamentoSchema = z.object({
@@ -103,10 +104,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // À ordem e "minutas manuais": o caixa só RECEBE e o pedido permanece
   // CONFIRMADO. Como o status não vira CONCLUIDO, a trava por status dentro da
   // transação não impede reexecução — um novo clique no caixa receberia de novo,
-  // DUPLICANDO a conta a receber. Bloqueia aqui se já há recebimento (PAGA).
+  // DUPLICANDO a conta a receber. Bloqueia aqui se já há recebimento, mesmo
+  // PARCIAL (parcial baixado de novo duplicaria o caixa da parte já paga).
   if (semBaixa && parseFloat(pedido.valorTotal.toString()) > 0) {
     const jaRecebido = await prisma.contaReceber.count({
-      where: { pedidoVendaId: pedido.id, status: "PAGA" },
+      where: { pedidoVendaId: pedido.id, status: { in: ["PAGA", "PARCIAL"] } },
     });
     if (jaRecebido > 0) {
       return NextResponse.json(
@@ -134,44 +136,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const creditoUsado = Math.max(0, round2(Number(parsed.data.creditoUsado ?? 0)));
   const alvoCash = round2(Math.max(0, valorTotal - creditoUsado));
   const caixaPadrao = contaCaixaIdDaEmpresa(pedido.empresaId);
+  // Traduz o sentinel "caixa-geral" do front para a conta Caixa em Dinheiro DA
+  // EMPRESA (nunca hardcodar caixa-geral — cada empresa tem o seu caixa).
+  const contaReal = (id: string | null | undefined) => (id && id !== "caixa-geral" ? id : caixaPadrao);
   const linhas = (pagamentosIn && pagamentosIn.length > 0)
     ? pagamentosIn.map((p) => ({
         forma: p.forma,
-        contaBancariaId: p.contaBancariaId || caixaPadrao,
+        contaBancariaId: contaReal(p.contaBancariaId),
         valor: round2(p.valor),
         troco: !!p.troco,
       }))
     : (alvoCash > 0 ? [{
         forma: (formaPagamento ?? pedido.formaPagamento ?? "À vista"),
-        contaBancariaId: contaBancariaId || caixaPadrao,
+        contaBancariaId: contaReal(contaBancariaId),
         valor: alvoCash,
         troco: false,
       }] : []);
 
   // Guarda de roteamento: forma eletrônica (Pix, cartão, transferência…) não
-  // pode cair em conta tipo CAIXA (dinheiro físico). Espelha a trava do caixa e
-  // protege contra Pix/cartão sendo lançados no Caixa em Dinheiro. Só vale se a
-  // empresa TEM banco cadastrado — sem banco, o Caixa é a única conta possível.
+  // pode cair em conta tipo CAIXA (dinheiro físico) — trava compartilhada em
+  // src/lib/roteamento-conta.ts (só vale se a empresa tem banco cadastrado).
   if (linhas.length > 0) {
-    const temBanco = await prisma.contaBancaria.findFirst({
-      where: { empresaId: pedido.empresaId, tipo: { not: "CAIXA" }, ativo: true },
-      select: { id: true },
-    });
-    if (temBanco) {
-      const contaIds = Array.from(new Set(linhas.map((l) => l.contaBancariaId)));
-      const [contasInfo, formasInfo] = await Promise.all([
-        prisma.contaBancaria.findMany({ where: { id: { in: contaIds } }, select: { id: true, tipo: true } }),
-        prisma.formaPagamento.findMany({ select: { nome: true, tipo: true } }),
-      ]);
-      const ehDinheiro = (forma: string) => {
-        const f = formasInfo.find((x) => x.nome === forma);
-        return f ? f.tipo === "DINHEIRO" : /dinheiro|esp[ée]cie/i.test(forma);
-      };
-      const contaEhCaixa = (id: string) => id === "caixa-geral" || contasInfo.some((c) => c.id === id && c.tipo === "CAIXA");
-      const ruim = linhas.find((l) => l.valor > 0 && !ehDinheiro(l.forma) && contaEhCaixa(l.contaBancariaId));
-      if (ruim) {
-        return NextResponse.json({ error: `A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.` }, { status: 422 });
-      }
+    const ruim = await formaEletronicaNoCaixa(
+      prisma, pedido.empresaId,
+      linhas.filter((l) => l.valor > 0).map((l) => ({ forma: l.forma, contaBancariaId: l.contaBancariaId })),
+    );
+    if (ruim) {
+      return NextResponse.json({ error: `A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.` }, { status: 422 });
     }
   }
 
@@ -301,49 +292,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           },
         });
 
-        // Cada item sai do SEU local (categoria/saldo); o local da retirada é
-        // só fallback. Evita baixar tudo num único local e estourar saldo (e a
-        // conta contábil) de itens que não pertencem àquele local.
-        const locaisPorItem = await resolverLocaisSaida(
-          tx, pedido.empresaId, pedido.itens.map((i) => i.itemId), localEstoqueId,
-        );
-
-        for (const item of pedido.itens) {
-          const quantidade = parseFloat(item.quantidade.toString());
-          const itemLocal = locaisPorItem.get(item.itemId) ?? localEstoqueId;
-
-          let estoque = await tx.estoqueItem.findFirst({
-            where: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId: itemLocal, clienteDonoId: null },
-          });
-          if (!estoque) {
-            estoque = await tx.estoqueItem.create({
-              data: { empresaId: pedido.empresaId, itemId: item.itemId, localEstoqueId: itemLocal, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
-            });
-          }
-
-          // decrement atômico: o saldo da linha deriva do valor pós-update.
-          const atualizado = await tx.estoqueItem.update({
-            where: { id: estoque.id },
-            data: { quantidadeAtual: { decrement: quantidade } },
-          });
-          const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
-
-          await tx.movimentacaoEstoque.create({
-            data: {
-              empresaId: pedido.empresaId,
-              itemId: item.itemId,
-              localEstoqueId: itemLocal,
-              loteId: lote.id,
-              pedidoVendaItemId: item.id,
-              tipo: "SAIDA",
-              quantidade,
-              saldoAntes: saldoDepois + quantidade,
-              saldoDepois,
-              documento: minuta!.numero,
-              observacoes: `Venda balcão — minuta ${minuta!.numero}`,
-            },
-          });
-        }
+        // Baixa UNIFICADA (src/lib/baixa-estoque.ts): cada item sai do SEU local
+        // (categoria/saldo, retirada como fallback), com hard block de saldo
+        // negativo e movimentos SAIDA de decremento atômico.
+        const descrs = await tx.item.findMany({
+          where: { id: { in: pedido.itens.map((i) => i.itemId) } },
+          select: { id: true, descricao: true },
+        });
+        const descrDe = new Map(descrs.map((d) => [d.id, d.descricao]));
+        await baixarEstoqueVenda(tx, {
+          empresaId: pedido.empresaId,
+          itens: pedido.itens.map((item) => ({
+            itemId: item.itemId,
+            quantidade: parseFloat(item.quantidade.toString()),
+            pedidoVendaItemId: item.id,
+            descricao: descrDe.get(item.itemId) ?? null,
+          })),
+          fallbackLocalId: localEstoqueId,
+          documento: minuta!.numero,
+          observacoes: `Venda balcão — minuta ${minuta!.numero}`,
+          loteId: lote.id,
+        });
       }
 
       // Recebimento à vista: o dinheiro entra na conta indicada. Se o pedido JÁ
@@ -371,25 +340,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const abertos = await tx.contaReceber.findMany({
           where: { pedidoVendaId: pedido.id, status: { in: ["ABERTA", "PARCIAL", "VENCIDA"] } },
           orderBy: [{ parcelaNumero: "asc" }, { dataVencimento: "asc" }],
-          select: { id: true, numero: true, valorOriginal: true },
+          select: { id: true, numero: true, valorOriginal: true, valorPago: true },
         });
         if (abertos.length > 0) {
-          // Títulos pré-gerados (a prazo): baixa todos e recebe no caixa.
+          // Títulos pré-gerados: baixa APENAS O SALDO de cada um (valorOriginal −
+          // valorPago). Um título PARCIAL não pode ter o valorPago sobrescrito nem
+          // o caixa distribuído pelo valor cheio — senão a parte já recebida é
+          // lançada em dobro no caixa.
+          const saldoDe = (ab: (typeof abertos)[number]) =>
+            round2(parseFloat(ab.valorOriginal.toString()) - parseFloat(ab.valorPago.toString()));
           for (const ab of abertos) {
+            const saldoAb = saldoDe(ab);
+            if (saldoAb <= 0.001) continue;
             await tx.contaReceber.update({
               where: { id: ab.id },
-              data: { valorPago: ab.valorOriginal, dataPagamento: hoje, status: "PAGA", formaPagamento: formasResumo },
+              data: { valorPago: { increment: saldoAb }, dataPagamento: hoje, status: "PAGA", formaPagamento: formasResumo },
             });
           }
           conta = { id: abertos[0].id, numero: abertos[0].numero };
           // Distribui o recebimento POR PARCELA: cada título ganha lançamento(s) de
-          // caixa pelo seu próprio valor — NUNCA concentra o total na 1ª parcela
-          // (senão o caixa e a contabilidade por título saem divergentes). Preenche
-          // cada CR com as linhas de pagamento em ordem (cobre pagamento misto).
+          // caixa pelo seu SALDO — NUNCA concentra o total na 1ª parcela (senão o
+          // caixa e a contabilidade por título saem divergentes). Preenche cada CR
+          // com as linhas de pagamento em ordem (cobre pagamento misto).
           let li = 0;
           let restanteLinha = linhasReais[0]?.valor ?? 0;
           for (const ab of abertos) {
-            let restanteCR = parseFloat(ab.valorOriginal.toString());
+            let restanteCR = saldoDe(ab);
             while (restanteCR > 0.001 && li < linhasReais.length) {
               const usar = round2(Math.min(restanteCR, restanteLinha));
               if (usar > 0.001) {
@@ -435,7 +411,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           }
         }
       }
-      if (conta) {
+      if (conta || creditoUsado > 0) {
 
         // Registra no pedido as formas REAIS recebidas, com a conta de destino
         // (ex.: PIX → Banco X), para o detalhe mostrar onde cada forma caiu.
@@ -450,8 +426,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           })),
         });
 
-        // Crédito (vale) do cliente: debita o saldo (FIFO) e registra a forma —
-        // sem lançamento de caixa (não é entrada de dinheiro). A CR fica PAGA.
+        // Crédito (vale) do cliente: debita o saldo (FIFO, claim atômico dentro
+        // da transação) e registra a forma — sem lançamento de caixa (não é
+        // entrada de dinheiro). Roda mesmo quando a venda foi 100% coberta pelo
+        // vale (sem CR de caixa): senão o cliente manteria o crédito intacto.
         if (creditoUsado > 0) {
           await consumirCreditoCliente(tx, pedido.empresaId, pedido.clienteId, creditoUsado);
           await tx.pedidoVendaPagamento.create({
@@ -497,6 +475,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     }, { status: 201 });
   } catch (err) {
+    if (err instanceof SaldoNegativoError) return respostaSaldoNegativo(err);
     const msg = err instanceof Error ? err.message : "Erro ao concluir venda balcão";
     if (msg.startsWith("CONFLITO:")) return NextResponse.json({ error: msg.replace("CONFLITO: ", "") }, { status: 409 });
     console.error("[POST /api/pedidos-venda/[id]/balcao]", err);

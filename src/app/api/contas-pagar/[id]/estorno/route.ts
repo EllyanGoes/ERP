@@ -2,10 +2,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { apagarLancamentosContabeis } from "@/lib/contabilidade";
+import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
+import { apagarLancamentosContabeis, contabilizarEntradaEstoque } from "@/lib/contabilidade";
 
 // Estorna o pagamento de um título a pagar: remove os lançamentos de caixa/banco,
-// volta o título para ABERTA (zera o pago) e desfaz a contabilização do pagamento.
+// volta o título para ABERTA (zera o pago), desfaz a contabilização do pagamento
+// e recomputa o status financeiro do pedido de compra vinculado.
 // Espelho de contas-receber/[id]/estorno.
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("financeiro");
@@ -31,11 +33,28 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       where: { id: params.id },
       data: { valorPago: 0, valorMulta: 0, valorJuros: 0, dataPagamento: null, formaPagamento: null, status: "ABERTA" },
     });
+    // Mudou o financeiro do pedido de compra → recomputa o status (espelho do que
+    // o estorno de contas a receber faz com recomputarStatusPedido).
+    if (conta.pedidoCompraId) await recomputarStatusFinanceiroCompra(tx, conta.pedidoCompraId);
     // Desfaz a contabilização do pagamento DENTRO da transação (atômico).
     await apagarLancamentosContabeis({ empresaId: conta.empresaId, origemTipo: "PAGAMENTO", origemId: params.id }, tx);
-    return { erro: null } as const;
+    return { erro: null, antecipado: conta.antecipado, pedidoCompraId: conta.pedidoCompraId } as const;
   });
 
   if (result.erro) return NextResponse.json({ error: result.erro.msg }, { status: result.erro.status });
+
+  // Título antecipado (PA) com entrada já concluída: a entrada creditou a conta de
+  // Adiantamento a Fornecedores contando com este pagamento — estornado o pagamento,
+  // re-sincroniza a contabilização da entrada (deixa de liquidar um adiantamento
+  // que não existe mais). Best-effort, pós-commit (contabilizarEntradaEstoque é
+  // idempotente e lê o estado atual dos PAs).
+  if (result.antecipado && result.pedidoCompraId) {
+    const conf = await prisma.conferenciaCompra.findFirst({
+      where: { pedidoId: result.pedidoCompraId, status: "CONCLUIDA" },
+      select: { id: true },
+    });
+    if (conf) await contabilizarEntradaEstoque(conf.id).catch((e) => console.error("[contas-pagar/estorno] contabilizar entrada:", e));
+  }
+
   return NextResponse.json({ ok: true });
 }

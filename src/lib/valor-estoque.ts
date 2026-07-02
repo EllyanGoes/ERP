@@ -1,10 +1,9 @@
 // Valoração do estoque com a regra interina de custeio:
-//  - Produto Acabado (fabricado): numa empresa de REVENDA (não industrializa)
-//    com custo de compra do item (ItemCustoEmpresa.precoCusto), valora por esse
-//    custo — é o que permite custear entrada E CMV pelo preço de compra (ex.:
-//    Cimento e Mix revende o tijolo da Tramontin). Numa empresa FABRICANTE, segue
-//    pelo PREÇO MÉDIO DE VENDA (precoVendaMedio, fallback precoVenda), pois o custo
-//    de produção só virá do PCP.
+//  - Produto Acabado: com custo da empresa registrado (ItemCustoEmpresa.precoCusto
+//    — custo de compra na revenda, ex.: Cimento e Mix revende o tijolo da
+//    Tramontin; ou custo de produção quando o PCP já custeou), valora por esse
+//    custo. Sem custo registrado, cai no PREÇO MÉDIO DE VENDA (precoVendaMedio,
+//    fallback precoVenda).
 //  - Demais categorias (mercadoria/insumo/almoxarifado): custo médio da empresa
 //    (ItemCustoEmpresa.precoCusto), fallback CMPM global (Item.precoCusto).
 
@@ -25,11 +24,12 @@ export type ItemValoravel = {
 };
 
 /**
- * Valor unitário de 1 unidade em estoque, conforme a regra de custeio.
- * `empresaRevende` = a empresa NÃO industrializa (revenda pura) — só então o
- * acabado é custeado pelo custo de compra da empresa, em vez do preço de venda.
+ * Valor unitário de 1 unidade em estoque, conforme a regra de custeio: acabado
+ * pelo custo da empresa quando existir (compra na revenda / produção via PCP),
+ * senão preço médio de venda; demais categorias pelo custo da empresa com
+ * fallback no CMPM global.
  */
-export function valorUnitarioEstoque(item: ItemValoravel, custoEmpresa?: number | null, empresaRevende = false): number {
+export function valorUnitarioEstoque(item: ItemValoravel, custoEmpresa?: number | null): number {
   if (item.categoriaEstoque === "PRODUTO_ACABADO") {
     // Custo da empresa quando existe: de compra (revenda) ou de produção (PCP já
     // custeou o acabado). Sem custo registrado, cai no preço médio de venda.
@@ -50,20 +50,17 @@ export async function valoresEstoqueDaEmpresa(empresaId: string, itemIds: string
   const out = new Map<string, ValorItem>();
   if (itemIds.length === 0) return out;
   const ids = Array.from(new Set(itemIds));
-  const [empresa, itens, custos] = await Promise.all([
-    prismaSemEscopo.empresa.findUnique({ where: { id: empresaId }, select: { industrializa: true } }),
+  const [itens, custos] = await Promise.all([
     prismaSemEscopo.item.findMany({
       where: { id: { in: ids } },
       select: { id: true, categoriaEstoque: true, precoVendaMedio: true, precoVenda: true, precoCusto: true },
     }),
     custosDaEmpresa(prismaSemEscopo, empresaId, ids),
   ]);
-  const revende = empresa?.industrializa === false;
   for (const it of itens) {
     const valor = valorUnitarioEstoque(
       { categoriaEstoque: it.categoriaEstoque, precoVendaMedio: n(it.precoVendaMedio), precoVenda: n(it.precoVenda), precoCusto: n(it.precoCusto) },
       custos.get(it.id) ?? null,
-      revende,
     );
     out.set(it.id, { valorUnitario: valor, categoria: it.categoriaEstoque ?? null });
   }

@@ -3,8 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
+import { reverterEExcluirConferencias, tratarContasPagarDosPedidos, ContaPagarComBaixaError } from "@/lib/compras-cascade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const record = await prisma.pedidoCompra.findUnique({
     where: { id: params.id },
     include: {
@@ -96,8 +100,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (body.edit === true) {
     // Full edit mode: delete all existing items, create new ones, update all fields
-    const itens: Array<{ itemId: string; quantidade: number; precoUnitario: number; desconto?: number | null; situacao?: string; unidadeId?: string | null }> =
-      body.itens ?? [];
+    const itens: Array<{
+      itemId: string; quantidade: number; precoUnitario: number; desconto?: number | null;
+      situacao?: string; unidadeId?: string | null;
+      tesId?: string | null; centroCustoId?: string | null; compoeCusto?: boolean | null;
+    }> = body.itens ?? [];
 
     const subtotal = itens.reduce((s, it) => {
       const situacao = it.situacao ?? "CONSIDERA";
@@ -115,6 +122,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const valorTotal   = subtotal - vrDescontoCalc + freteVal + despesasVal + seguroVal;
 
     const record = await prisma.$transaction(async (tx) => {
+      // Preserva os campos de classificação da linha (TES / centro de custo /
+      // compõe-custo / unidade) ao recriar os itens: o form de edição não envia
+      // todos eles — sem isso a edição APAGAVA a herança usada pela entrada.
+      const anteriores = await tx.pedidoCompraItem.findMany({
+        where: { pedidoId },
+        select: { itemId: true, unidadeId: true, tesId: true, centroCustoId: true, compoeCusto: true },
+      });
+      const anteriorPorItem = new Map(anteriores.map((a) => [a.itemId, a]));
+
       await tx.pedidoCompraItem.deleteMany({ where: { pedidoId } });
 
       await tx.pedidoCompraItem.createMany({
@@ -123,10 +139,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           const preco  = Number(it.precoUnitario) || 0;
           const pct    = Number(it.desconto) || 0;
           const bruto  = qtd * preco;
+          const prev   = anteriorPorItem.get(it.itemId);
           return {
             pedidoId,
             itemId:        it.itemId,
-            unidadeId:     it.unidadeId || null,
+            unidadeId:     it.unidadeId !== undefined ? (it.unidadeId || null) : (prev?.unidadeId ?? null),
+            tesId:         it.tesId !== undefined ? (it.tesId || null) : (prev?.tesId ?? null),
+            centroCustoId: it.centroCustoId !== undefined ? (it.centroCustoId || null) : (prev?.centroCustoId ?? null),
+            compoeCusto:   it.compoeCusto !== undefined ? (it.compoeCusto ?? null) : (prev?.compoeCusto ?? null),
             quantidade:    qtd,
             precoUnitario: preco,
             valorTotal:    bruto - (bruto * pct) / 100,
@@ -188,9 +208,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ data: record });
   }
 
-  // Default: partial update (status / dataEntregaPrevista / observacoes)
+  // Default: partial update (dataEntregaPrevista / observacoes / descricao).
+  // `status` NÃO é aceito aqui — mudanças de status passam SOMENTE pela rota
+  // /status, que valida as TRANSITIONS (aceitar status arbitrário permitia
+  // pular o fluxo, ex.: marcar RECEBIDO sem Documento de Entrada).
   const updateData: Record<string, unknown> = {};
-  if (body.status !== undefined) updateData.status = body.status;
   if (body.dataEntregaPrevista !== undefined)
     updateData.dataEntregaPrevista = body.dataEntregaPrevista ? new Date(body.dataEntregaPrevista) : null;
   if (body.observacoes !== undefined) updateData.observacoes = body.observacoes || null;
@@ -212,16 +234,45 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const session  = await getSession();
   const isAdmin  = session?.perfil === "ADMIN";
 
-  const pedido = await prisma.pedidoCompra.findUnique({ where: { id: pedidoId }, select: { status: true } });
+  const pedido = await prisma.pedidoCompra.findUnique({
+    where: { id: pedidoId },
+    select: {
+      status: true,
+      conferencia: { select: { id: true, numero: true, status: true } },
+    },
+  });
   if (!pedido) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
   if (!isAdmin && !["RASCUNHO", "ENVIADO"].includes(pedido.status)) {
     return NextResponse.json({ error: "Apenas pedidos em Rascunho ou Enviado podem ser excluídos" }, { status: 400 });
   }
 
-  await prisma.$transaction([
-    prisma.pedidoCompraItem.deleteMany({ where: { pedidoId } }),
-    prisma.pedidoCompra.delete({ where: { id: pedidoId } }),
-  ]);
+  // Recebimento concluído tem estoque/custo/razão lançados — não se exclui o
+  // pedido por cima: exclua (reverta) primeiro o Documento de Entrada.
+  if (pedido.conferencia && ["CONCLUIDA", "DIVERGENCIA"].includes(pedido.conferencia.status)) {
+    return NextResponse.json(
+      { error: `O pedido tem o Documento de Entrada ${pedido.conferencia.numero} concluído. Exclua/reverta o documento de entrada antes de excluir o pedido.` },
+      { status: 409 },
+    );
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // CPs do pedido: 409 se alguma tem baixa; senão apaga títulos + lançamentos.
+      await tratarContasPagarDosPedidos(tx, [pedidoId]);
+      // DE não concluído (PENDENTE/EM_CONFERENCIA): reverte movimentos (se houver)
+      // e apaga o documento + lançamentos, na MESMA transação.
+      if (pedido.conferencia) {
+        await reverterEExcluirConferencias(tx, [pedido.conferencia.id]);
+      }
+      await tx.pedidoCompraItem.deleteMany({ where: { pedidoId } });
+      await tx.pedidoCompra.delete({ where: { id: pedidoId } });
+    });
+  } catch (e) {
+    if (e instanceof ContaPagarComBaixaError) {
+      return NextResponse.json({ error: e.message }, { status: 409 });
+    }
+    throw e;
+  }
 
   return NextResponse.json({ ok: true });
 }

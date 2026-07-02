@@ -6,7 +6,7 @@ import { z } from "zod";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
-import { respostaSaldoNegativo, SaldoNegativoError } from "@/lib/estoque-guard";
+import { assertSaldoNaoNegativo, respostaSaldoNegativo, SaldoNegativoError, type ItemSaldoNegativo } from "@/lib/estoque-guard";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 import { contabilizarLoteMovimentacao } from "@/lib/contabilidade";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
@@ -76,33 +76,9 @@ export async function POST(req: NextRequest) {
 
   // ── Trava de saldo negativo (hard block) ───────────────────────────────────
   // Em SAÍDA (e na perna de saída da TRANSFERÊNCIA), nenhuma movimentação pode
-  // deixar o saldo negativo. Corrigir saldo é via inventário.
-  if (tipo === "SAIDA" || tipo === "TRANSFERENCIA") {
-    // soma as quantidades por (item + local) — o mesmo item pode repetir em linhas
-    const porChave = new Map<string, { itemId: string; localEstoqueId: string; qtd: number }>();
-    for (const it of itens) {
-      const k = `${it.itemId}|${it.localEstoqueId}`;
-      const cur = porChave.get(k) ?? { itemId: it.itemId, localEstoqueId: it.localEstoqueId, qtd: 0 };
-      cur.qtd += it.quantidade;
-      porChave.set(k, cur);
-    }
-    const negativos: Array<{ itemId: string; descricao: string; saldoAtual: number; saldoDepois: number }> = [];
-    for (const { itemId, localEstoqueId, qtd } of Array.from(porChave.values())) {
-      const estoque = await prisma.estoqueItem.findFirst({
-        where: { itemId, localEstoqueId, clienteDonoId },
-        select: { quantidadeAtual: true, item: { select: { descricao: true } } },
-      });
-      const atual = estoque ? parseFloat(String(estoque.quantidadeAtual)) : 0;
-      const depois = atual - qtd;
-      if (depois < 0) {
-        const it = estoque?.item ?? await prisma.item.findUnique({ where: { id: itemId }, select: { descricao: true } });
-        negativos.push({ itemId, descricao: it?.descricao ?? itemId, saldoAtual: atual, saldoDepois: depois });
-      }
-    }
-    if (negativos.length > 0) {
-      return respostaSaldoNegativo(new SaldoNegativoError(negativos));
-    }
-  }
+  // deixar o saldo negativo. A validação roda DENTRO da transação (após os
+  // increments atômicos), então movimentações concorrentes não furam a trava —
+  // ver o bloco de guard no loop de pernas abaixo.
 
   // ── Trava de categoria do local (hard block, só na ENTRADA) ─────────────────
   // Produto só entra em local que aceite sua categoria. Local sem categorias
@@ -153,6 +129,10 @@ export async function POST(req: NextRequest) {
       // (item, local) afetados — p/ recalcular a cadeia de saldos se for retroativo.
       const afetados = new Map<string, { itemId: string; localEstoqueId: string }>();
 
+      // Guard de saldo negativo (dentro da transação): coleta as pernas de SAÍDA
+      // que deixariam o saldo negativo; se houver alguma, aborta (rollback).
+      const negativos: ItemSaldoNegativo[] = [];
+
       // Pernas a movimentar: ENTRADA/SAIDA = 1 perna por item; TRANSFERENCIA = 2
       // (SAÍDA na origem + ENTRADA no destino), sem custo/CMPM (é realocação).
       const legs = tipo === "TRANSFERENCIA"
@@ -192,6 +172,13 @@ export async function POST(req: NextRequest) {
         });
         const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
         const saldoAntes  = saldoDepois - delta;
+
+        // Trava de saldo negativo: o valor pós-update é autoritativo (increment
+        // atômico) — concorrência não fura a checagem.
+        if (legTipo === "SAIDA" && saldoDepois < 0) {
+          const prod = await tx.item.findUnique({ where: { id: itemId }, select: { descricao: true } });
+          negativos.push({ itemId, descricao: prod?.descricao ?? itemId, saldoAtual: saldoAntes, saldoDepois });
+        }
 
         // ── Custo Médio Ponderado Móvel (CMPM) ───────────────────────────────
         // On ENTRADA with a unit price, recalculate and persist precoCusto on Item.
@@ -250,6 +237,9 @@ export async function POST(req: NextRequest) {
         });
         afetados.set(`${itemId}|${localEstoqueId}`, { itemId, localEstoqueId });
       }
+
+      // Alguma perna de SAÍDA deixaria saldo negativo → aborta a transação inteira.
+      assertSaldoNaoNegativo(negativos);
 
       // Movimentação RETROATIVA (dataMovimentacao no passado): o saldoAntes/Depois
       // gravado acima é o da posição de HOJE e as movs seguintes não foram
@@ -325,6 +315,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ data: lote.lote, autoVinculos: lote.autoVinculos }, { status: 201 });
   } catch (err: unknown) {
+    if (err instanceof SaldoNegativoError) return respostaSaldoNegativo(err);
     const msg = err instanceof Error ? err.message : "Erro interno";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

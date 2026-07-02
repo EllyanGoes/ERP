@@ -9,8 +9,11 @@ import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { espelharEntregaMinuta } from "@/lib/intragrupo";
 import { gerarCompraVirtualVendaOrdem } from "@/lib/venda-ordem";
-import { recontabilizarMinuta, apagarLancamentosContabeis } from "@/lib/contabilidade";
+import { recontabilizarMinuta, apagarLancamentosContabeis, contabilizarPedidoVenda } from "@/lib/contabilidade";
 import { resolverLocaisSaida } from "@/lib/local-saida";
+import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
+import { assertSaldoNaoNegativo, SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
+import { faturarPedidoSeEntregue } from "@/lib/contas-receber";
 
 // Lançado dentro das transações quando outra requisição mexeu na minuta no meio
 // do caminho (duplo clique, duas abas). Aborta a transação e vira HTTP 409.
@@ -119,6 +122,9 @@ async function checkAndConcludePedido(
 
 // ── GET /api/comercial/minutas/[id] ──────────────────────────────────────────
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   try {
     const minuta = await prisma.minuta.findUnique({
       where: { id: params.id },
@@ -234,9 +240,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           },
         });
 
-        // Cada item sai do SEU local (pela categoria/saldo); o local escolhido na
-        // minuta é só fallback. Evita baixar tudo no mesmo local e estourar saldo
-        // (e a conta contábil) de itens que não pertencem àquele local.
+        // Pré-check do local de saída (mensagem amigável): cada item sai do SEU
+        // local (categoria/saldo); o local da minuta é só fallback.
         const locaisPorItem = await resolverLocaisSaida(
           tx, minuta.empresaId, minuta.itens.map((i) => i.itemId), localEstoqueId,
         );
@@ -245,45 +250,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           throw new ConflictError("Não foi possível determinar o local de saída de algum item (sem categoria/saldo). Cadastre o local do produto e tente de novo.");
         }
 
-        for (const item of minuta.itens) {
-          const quantidade = parseFloat(item.quantidade.toString());
-          const itemLocal = locaisPorItem.get(item.itemId) ?? localEstoqueId;
-
-          let estoque = await tx.estoqueItem.findFirst({
-            where: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId: itemLocal, clienteDonoId: null },
-          });
-          if (!estoque) {
-            estoque = await tx.estoqueItem.create({
-              data: { empresaId: minuta.empresaId, itemId: item.itemId, localEstoqueId: itemLocal, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null },
-            });
-          }
-
-          // decrement atômico: movimentações concorrentes do mesmo item não
-          // perdem atualização; os saldos da linha derivam do valor pós-update.
-          const atualizado = await tx.estoqueItem.update({
-            where: { id: estoque.id },
-            data:  { quantidadeAtual: { decrement: quantidade } },
-          });
-          const saldoDepois = parseFloat(atualizado.quantidadeAtual.toString());
-          const saldoAntes  = saldoDepois + quantidade;
-
-          await tx.movimentacaoEstoque.create({
-            data: {
-              empresaId:    minuta.empresaId,
-              itemId:       item.itemId,
-              localEstoqueId: itemLocal,
-              unidadeId:    item.unidadeId ?? null,
-              loteId:       lote.id,
-              pedidoVendaItemId: item.pedidoVendaItemId,
-              tipo:         "SAIDA",
-              quantidade,
-              saldoAntes,
-              saldoDepois,
-              documento:    minuta.numero,
-              observacoes:  `Saída por minuta ${minuta.numero}`,
-            },
-          });
-        }
+        // Baixa UNIFICADA: local por item + hard block de saldo negativo +
+        // movimentos SAIDA com decremento atômico (src/lib/baixa-estoque.ts).
+        const descrs = await tx.item.findMany({
+          where: { id: { in: minuta.itens.map((i) => i.itemId) } },
+          select: { id: true, descricao: true },
+        });
+        const descrDe = new Map(descrs.map((d) => [d.id, d.descricao]));
+        await baixarEstoqueVenda(tx, {
+          empresaId: minuta.empresaId,
+          itens: minuta.itens.map((item) => ({
+            itemId: item.itemId,
+            quantidade: parseFloat(item.quantidade.toString()),
+            pedidoVendaItemId: item.pedidoVendaItemId,
+            unidadeId: item.unidadeId ?? null,
+            descricao: descrDe.get(item.itemId) ?? null,
+          })),
+          fallbackLocalId: localEstoqueId,
+          documento: minuta.numero,
+          observacoes: `Saída por minuta ${minuta.numero}`,
+          loteId: lote.id,
+        });
 
         // Update the minuta's localEstoqueId if it was provided in body
         await tx.minuta.update({
@@ -320,6 +307,44 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
       // Status efetivo depois da edição (a tela pode alterá-lo livremente).
       const effectiveStatus = newStatus ?? minuta.status;
+
+      // Sobre-entrega SERVER-SIDE: a quantidade de cada item não pode exceder o
+      // PENDENTE do pedido (pedida − comprometido nas OUTRAS minutas ativas).
+      // Cancelada não compromete saldo, então só valida quando continua ativa.
+      if (effectiveStatus !== "CANCELADA") {
+        const EPS = 1e-6;
+        const pedidoItens = await prisma.pedidoVendaItem.findMany({
+          where: { pedidoVendaId: minuta.pedidoVendaId },
+          select: {
+            id: true, quantidade: true,
+            item: { select: { descricao: true } },
+            minutaItens: {
+              where: { minuta: { status: { not: "CANCELADA" }, id: { not: params.id } } },
+              select: { quantidade: true },
+            },
+          },
+        });
+        const porPvi = new Map(pedidoItens.map((i) => [i.id, {
+          descricao: i.item.descricao,
+          pendente: Number(i.quantidade) - i.minutaItens.reduce((s, mi) => s + Number(mi.quantidade), 0),
+        }]));
+        const pedidaPorPvi = new Map<string, number>();
+        for (const it of novosItens) {
+          pedidaPorPvi.set(it.pedidoVendaItemId, (pedidaPorPvi.get(it.pedidoVendaItemId) ?? 0) + Number(it.quantidade));
+        }
+        const excessos: string[] = [];
+        for (const [pviId, qtd] of Array.from(pedidaPorPvi)) {
+          const alvo = porPvi.get(pviId);
+          if (!alvo) return NextResponse.json({ error: "Item não pertence ao pedido de venda." }, { status: 422 });
+          if (qtd > alvo.pendente + EPS) excessos.push(`${alvo.descricao} (pendente ${alvo.pendente}, minuta ${qtd})`);
+        }
+        if (excessos.length > 0) {
+          return NextResponse.json(
+            { error: `Quantidade maior que o saldo pendente de entrega: ${excessos.join("; ")}.` },
+            { status: 422 },
+          );
+        }
+      }
 
       // O estoque fica "baixado" quando a minuta está em SAIU_PARA_ENTREGA ou ENTREGUE.
       // A reconciliação abaixo reverte as movimentações atuais da minuta e reaplica
@@ -413,6 +438,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           if (semLocal.length > 0) {
             throw new ConflictError("Não foi possível determinar o local de saída de algum item (sem categoria/saldo). Cadastre o local do produto e tente de novo.");
           }
+          const descrsEd = await tx.item.findMany({
+            where: { id: { in: Array.from(desejado.keys()) } },
+            select: { id: true, descricao: true },
+          });
+          const descrPorItem = new Map(descrsEd.map((x) => [x.id, x.descricao]));
           for (const d of Array.from(desejado.values())) {
             if (!(d.qty > 0)) continue;
             const loc = locaisPorItem.get(d.itemId) ?? newLocal;
@@ -420,6 +450,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             if (!estoque) {
               estoque = await tx.estoqueItem.create({ data: { empresaId: minuta.empresaId, itemId: d.itemId, localEstoqueId: loc, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null } });
             }
+            // Hard block de saldo negativo ANTES do delta negativo: o efeito
+            // antigo da minuta já foi revertido acima, então o saldo lido aqui é
+            // a base real — a saída nova não pode deixá-lo negativo.
+            const saldoAtual = parseFloat(String(estoque.quantidadeAtual));
+            assertSaldoNaoNegativo([{
+              itemId: d.itemId,
+              descricao: descrPorItem.get(d.itemId) ?? null,
+              saldoAtual,
+              saldoDepois: saldoAtual - d.qty,
+            }]);
             await tx.estoqueItem.update({ where: { id: estoque.id }, data: { quantidadeAtual: { decrement: d.qty } } });
             marca(d.itemId, loc);
 
@@ -487,6 +527,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         await checkAndConcludePedido(prisma, minuta.pedidoVendaId);
         await espelharEntregaMinuta(params.id); // intragrupo: entrada na compradora
         if (entregaAOrdem) await gerarCompraVirtualVendaOrdem(params.id); // venda à ordem: compra virtual + financeiro na empresa da venda
+        // Faturamento na ENTREGA: gera o contas a receber quando a entrega total
+        // se completou (idempotente) e contabiliza o pedido.
+        await faturarPedidoSeEntregue(minuta.pedidoVendaId).catch((e) =>
+          console.error(`[Minutas] faturarPedidoSeEntregue(${minuta.pedidoVendaId}) falhou:`, e));
+        await contabilizarPedidoVenda(minuta.pedidoVendaId).catch(() => {});
       }
 
       await recontabilizarMinuta(params.id).catch(() => {});
@@ -494,9 +539,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     // ── All other updates (ENTREGUE, CANCELADA, metadata) ────────────────────
-    const updated = await prisma.minuta.update({
+    // ENTREGUE pela ação rápida: CLAIM atômico — só UMA requisição move a minuta
+    // para ENTREGUE. Sem isso, duplo clique/duas abas disparavam os gatilhos
+    // pós-commit (compra virtual, intragrupo, faturamento) em dobro.
+    if (newStatus === "ENTREGUE") {
+      const claimed = await prisma.minuta.updateMany({
+        where: { id: params.id, status: { not: "ENTREGUE" } },
+        data:  updateData as Prisma.MinutaUpdateManyMutationInput,
+      });
+      if (claimed.count === 0) {
+        return NextResponse.json(
+          { error: "A minuta já foi marcada como entregue (ação duplicada?) — recarregue a página." },
+          { status: 409 },
+        );
+      }
+    } else {
+      await prisma.minuta.update({ where: { id: params.id }, data: updateData });
+    }
+    const updated = await prisma.minuta.findUnique({
       where: { id: params.id },
-      data:  updateData,
       include: MINUTA_INCLUDE,
     });
 
@@ -505,6 +566,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await checkAndConcludePedido(prisma, minuta.pedidoVendaId);
       await espelharEntregaMinuta(params.id); // intragrupo: entrada na compradora
       if (entregaAOrdem) await gerarCompraVirtualVendaOrdem(params.id); // venda à ordem: compra virtual + financeiro na empresa da venda
+      // Faturamento na ENTREGA: o contas a receber nasce quando a entrega total
+      // se completa (idempotente); contabiliza o pedido em seguida.
+      await faturarPedidoSeEntregue(minuta.pedidoVendaId).catch((e) =>
+        console.error(`[Minutas] faturarPedidoSeEntregue(${minuta.pedidoVendaId}) falhou:`, e));
+      await contabilizarPedidoVenda(minuta.pedidoVendaId).catch(() => {});
     } else if (minuta.status === "ENTREGUE" && newStatus) {
       // Saiu de ENTREGUE (ex.: cancelada) → o saldo entregue mudou: reavalia o
       // pedido (pode reverter de Concluído para Em Agendamento).
@@ -513,6 +579,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     return NextResponse.json({ data: updated });
   } catch (err: unknown) {
+    if (err instanceof SaldoNegativoError) return respostaSaldoNegativo(err);
     if (err instanceof ConflictError) {
       return NextResponse.json({ error: err.message }, { status: 409 });
     }

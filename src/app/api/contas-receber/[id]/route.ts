@@ -1,13 +1,11 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { requireAdmin } from "@/lib/auth";
 import { pagamentoSchema, contaReceberSchema } from "@/lib/validations/financeiro";
-import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
-import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { recontabilizarTituloReceber } from "@/lib/contabilidade";
-import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
+import { baixarTitulo, normalizarLinhasPagamento } from "@/lib/baixa-titulo";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("financeiro");
@@ -33,6 +31,20 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const conta = await prisma.contaReceber.findUnique({ where: { id: params.id } });
   if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
 
+  // Invariante "título segue cliente do pedido": num título nascido de pedido a
+  // troca do cliente estoura o razonete por cliente — bloqueia.
+  if (conta.pedidoVendaId && (d.clienteId || null) !== conta.clienteId) {
+    return NextResponse.json({ error: "Este título nasce de um pedido de venda — o cliente segue o cliente do pedido e não pode ser trocado aqui." }, { status: 422 });
+  }
+
+  // Mudou o valorOriginal → o status precisa continuar coerente com o valorPago.
+  const pago = parseFloat(conta.valorPago.toString());
+  const status = conta.status === "CANCELADA"
+    ? conta.status
+    : pago >= d.valorOriginal - 0.005 && pago > 0 ? "PAGA"
+    : pago > 0.005 ? "PARCIAL"
+    : "ABERTA";
+
   const atualizado = await prisma.contaReceber.update({
     where: { id: params.id },
     data: {
@@ -46,19 +58,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       naturezaFinanceiraId: d.naturezaFinanceiraId || null,
       centroCustoId: d.centroCustoId || null,
       contaBancariaId: d.contaBancariaId || null,
+      status,
     },
   });
 
-  // Re-contabiliza: apaga os lançamentos de origem (VENDA/RECEBIMENTO) e regenera.
-  const lancs = await prismaSemEscopo.lancamentoContabil.findMany({
-    where: { empresaId: conta.empresaId, origemTipo: { in: ["VENDA", "RECEBIMENTO"] }, origemId: params.id },
-    select: { id: true },
-  });
-  for (const l of lancs) {
-    await prismaSemEscopo.partidaContabil.deleteMany({ where: { lancamentoId: l.id } });
-    await prismaSemEscopo.lancamentoContabil.delete({ where: { id: l.id } });
-  }
-  await recontabilizarTituloReceber(params.id).catch(() => {});
+  // Re-contabiliza com os dados novos. O recontabilizar já apaga os lançamentos
+  // antigos (VENDA/RECEBIMENTO) e regrava — nada de delete manual aqui.
+  await recontabilizarTituloReceber(params.id).catch((e) => console.error("[contas-receber] contabilizar:", e));
 
   return NextResponse.json({ data: atualizado });
 }
@@ -72,86 +78,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
 
   const { dataPagamento, valorMulta, valorJuros } = parsed.data;
+  const { linhas } = normalizarLinhasPagamento(parsed.data);
 
-  // Normaliza para uma lista de formas (1 forma = compat). Estrutura igual ao
-  // Pedido de Venda: cada forma cai na sua conta de destino e vira um lançamento.
-  const linhasPag = (parsed.data.pagamentos && parsed.data.pagamentos.length > 0)
-    ? parsed.data.pagamentos.map((p) => ({ forma: p.forma ?? null, contaBancariaId: p.contaBancariaId ?? null, valor: p.valor }))
-    : [{ forma: parsed.data.formaPagamento ?? null, contaBancariaId: parsed.data.contaBancariaId ?? null, valor: parsed.data.valorPago ?? 0 }];
-  const valorPagoTotal = Math.round(linhasPag.reduce((s, l) => s + l.valor, 0) * 100) / 100;
-  const formaResumo = Array.from(new Set(linhasPag.map((l) => l.forma).filter(Boolean))).join(" + ") || null;
-
-  // Leitura e escrita na MESMA transação, com guard otimista no update: um
-  // duplo clique no "Baixar" não pode somar o mesmo recebimento duas vezes nem
-  // criar dois lançamentos.
-  const result = await prisma.$transaction(async (tx) => {
-    const conta = await tx.contaReceber.findUnique({ where: { id: params.id } });
-    if (!conta) return { erro: { msg: "Conta não encontrada", status: 404 }, data: null };
-    if (conta.status === "PAGA" || conta.status === "CANCELADA") {
-      return { erro: { msg: `Conta já está ${conta.status === "PAGA" ? "paga" : "cancelada"}.`, status: 409 }, data: null };
-    }
-
-    const totalPago = parseFloat(conta.valorPago.toString()) + valorPagoTotal;
-    const totalOriginal = parseFloat(conta.valorOriginal.toString());
-    const newStatus = totalPago >= totalOriginal ? "PAGA" : "PARCIAL";
-
-    // Só aplica se status/valorPago não mudaram desde a leitura acima — a
-    // requisição concorrente que perder a corrida cai no count === 0.
-    const aplicado = await tx.contaReceber.updateMany({
-      where: { id: params.id, status: conta.status, valorPago: conta.valorPago },
-      data: {
-        valorPago: totalPago,
-        valorMulta: (parseFloat(conta.valorMulta.toString())) + valorMulta,
-        valorJuros: (parseFloat(conta.valorJuros.toString())) + valorJuros,
-        dataPagamento: newStatus === "PAGA" ? new Date(dataPagamento) : null,
-        formaPagamento: formaResumo ?? conta.formaPagamento,
-        status: newStatus,
-      },
-    });
-    if (aplicado.count === 0) {
-      return { erro: { msg: "A conta foi baixada por outra operação simultânea — recarregue e confira.", status: 409 }, data: null };
-    }
-
-    // Conta de destino efetiva por linha (cai no caixa da empresa se nada melhor).
-    const linhasComConta = linhasPag.map((l) => ({
-      ...l,
-      contaDest: l.contaBancariaId && l.contaBancariaId !== "caixa-geral"
-        ? l.contaBancariaId
-        : (conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId)),
-    }));
-    // Trava: forma eletrônica não pode cair no Caixa em Dinheiro (se há banco).
-    const ruim = await formaEletronicaNoCaixa(tx, conta.empresaId,
-      linhasComConta.map((l) => ({ forma: l.forma, contaBancariaId: l.contaDest })));
-    if (ruim) {
-      return { erro: { msg: `A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.`, status: 422 }, data: null };
-    }
-
-    // Um lançamento por forma (cada um na sua conta). Multa/juros entram na 1ª linha.
-    for (let i = 0; i < linhasComConta.length; i++) {
-      const l = linhasComConta[i];
-      const extra = i === 0 ? valorMulta + valorJuros : 0;
-      const contaDest = l.contaDest;
-      await tx.lancamentoFinanceiro.create({
-        data: {
-          tipo: "RECEITA",
-          descricao: `Recebimento ${conta.numero}${linhasPag.length > 1 && l.forma ? ` (${l.forma})` : ""}`,
-          valor: l.valor + extra,
-          dataLancamento: new Date(dataPagamento),
-          contaReceberId: params.id,
-          contaBancariaId: contaDest,
-          naturezaFinanceiraId: conta.naturezaFinanceiraId ?? undefined,
-          centroCustoId: conta.centroCustoId ?? undefined,
-        },
-      });
-    }
-    const updated = await tx.contaReceber.findUnique({ where: { id: params.id } });
-    // O financeiro do pedido mudou → recomputa o status do pedido.
-    if (conta.pedidoVendaId) await recomputarStatusPedido(tx, conta.pedidoVendaId);
-    return { erro: null, data: updated };
-  });
+  // Leitura e escrita na MESMA transação, com guard otimista (baixarTitulo): um
+  // duplo clique no "Baixar" não soma o mesmo recebimento duas vezes.
+  const result = await prisma.$transaction((tx) =>
+    baixarTitulo(tx, {
+      tipo: "RECEBER",
+      tituloId: params.id,
+      linhas,
+      dataPagamento,
+      valorMulta,
+      valorJuros,
+    }),
+  );
 
   if (result.erro) return NextResponse.json({ error: result.erro.msg }, { status: result.erro.status });
   // Contabiliza o recebimento (best-effort, pós-commit).
-  await recontabilizarTituloReceber(params.id).catch(() => {});
-  return NextResponse.json({ data: result.data });
+  await recontabilizarTituloReceber(params.id).catch((e) => console.error("[contas-receber] contabilizar:", e));
+  return NextResponse.json({ data: result.conta });
 }

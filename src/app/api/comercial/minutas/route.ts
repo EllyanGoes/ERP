@@ -8,6 +8,9 @@ import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 
 // ── GET /api/comercial/minutas ────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const pedidoVendaId = searchParams.get("pedidoVendaId");
@@ -104,10 +107,27 @@ export async function POST(req: NextRequest) {
     // Multiempresa: a minuta herda a empresa do pedido de venda; numeração dela.
     const pedidoOrigem = await prisma.pedidoVenda.findUnique({
       where: { id: pedidoVendaId },
-      select: { empresaId: true, estoqueOrigemEmpresaId: true },
+      select: {
+        empresaId: true, estoqueOrigemEmpresaId: true, status: true,
+        itens: {
+          select: {
+            id: true, quantidade: true,
+            item: { select: { descricao: true } },
+            // Já comprometido em minutas ativas (inclui ENTREGUE; exclui canceladas).
+            minutaItens: { where: { minuta: { status: { not: "CANCELADA" } } }, select: { quantidade: true } },
+          },
+        },
+      },
     });
     if (!pedidoOrigem) {
       return NextResponse.json({ error: "Pedido de venda não encontrado" }, { status: 404 });
+    }
+    // Pedido encerrado não recebe novas minutas (e não pode ser "ressuscitado").
+    if (pedidoOrigem.status === "CANCELADO" || pedidoOrigem.status === "CONCLUIDO") {
+      return NextResponse.json(
+        { error: `Pedido ${pedidoOrigem.status === "CANCELADO" ? "cancelado" : "concluído"} não pode receber novas minutas.` },
+        { status: 422 },
+      );
     }
     // Venda à ordem: a venda comercial NÃO gera minuta própria — a entrega e a
     // baixa são feitas no Pedido de Entrega da empresa de origem (Tramontin).
@@ -116,6 +136,35 @@ export async function POST(req: NextRequest) {
         { error: "Esta é uma venda à ordem: a entrega e a baixa de estoque são feitas no pedido de entrega da empresa de origem." },
         { status: 422 },
       );
+    }
+
+    // Sobre-entrega: a quantidade de cada item não pode exceder o PENDENTE do
+    // pedido (pedida − já em minutas ativas). Validação SERVER-SIDE — a tela já
+    // limita, mas requisições diretas/duas abas não podem furar.
+    {
+      const EPS = 1e-6;
+      const porPvi = new Map(pedidoOrigem.itens.map((i) => [i.id, {
+        descricao: i.item.descricao,
+        pendente: Number(i.quantidade) - i.minutaItens.reduce((s, mi) => s + Number(mi.quantidade), 0),
+      }]));
+      const pedidaPorPvi = new Map<string, number>();
+      for (const it of itens) {
+        pedidaPorPvi.set(it.pedidoVendaItemId, (pedidaPorPvi.get(it.pedidoVendaItemId) ?? 0) + Number(it.quantidade));
+      }
+      const excessos: string[] = [];
+      for (const [pviId, qtd] of Array.from(pedidaPorPvi)) {
+        const alvo = porPvi.get(pviId);
+        if (!alvo) return NextResponse.json({ error: "Item não pertence ao pedido de venda." }, { status: 422 });
+        if (qtd > alvo.pendente + EPS) {
+          excessos.push(`${alvo.descricao} (pendente ${alvo.pendente}, minuta ${qtd})`);
+        }
+      }
+      if (excessos.length > 0) {
+        return NextResponse.json(
+          { error: `Quantidade maior que o saldo pendente de entrega: ${excessos.join("; ")}.` },
+          { status: 422 },
+        );
+      }
     }
     const numeroMin = generateSimpleDocNumber(
       "MIN",
@@ -170,8 +219,11 @@ export async function POST(req: NextRequest) {
       // no PATCH /api/comercial/minutas/[id].
 
       // Move pedido para EM_AGENDAMENTO quando a primeira minuta é criada.
-      await tx.pedidoVenda.update({
-        where: { id: pedidoVendaId },
+      // CONDICIONAL ao estado aberto: nunca "ressuscita" um pedido CANCELADO
+      // (nem regride um CONCLUIDO) — o guard acima já barrou, mas uma corrida
+      // entre a leitura e esta transação não pode furar a regra.
+      await tx.pedidoVenda.updateMany({
+        where: { id: pedidoVendaId, status: { in: ["ORCAMENTO", "CONFIRMADO", "EM_AGENDAMENTO"] } },
         data: { status: "EM_AGENDAMENTO" },
       });
 

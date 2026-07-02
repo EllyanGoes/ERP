@@ -3,16 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
-import { calcularCusteio } from "@/lib/pcp/custeio-cif";
+import { calcularCusteio, parseCompetencia, DIAS_TRABALHADOS_DEFAULT } from "@/lib/pcp/custeio-cif";
 
-// "2026-05" → 1º dia do mês (UTC). Sem parâmetro: mês corrente.
-export function parseCompetencia(s: string | null | undefined): Date {
-  const m = (s ?? "").match(/^(\d{4})-(\d{2})/);
-  const now = new Date();
-  const y = m ? Number(m[1]) : now.getUTCFullYear();
-  const mo = m ? Number(m[2]) - 1 : now.getUTCMonth();
-  return new Date(Date.UTC(y, mo, 1));
-}
 // Aceita número ou string em formato BR ("1.035,36"), US ("1035.36") e simples.
 const num = (v: unknown): number => {
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
@@ -35,7 +27,7 @@ export async function GET(req: NextRequest) {
   const auth = await requireModulo("contabilidade");
   if (!auth.ok) return auth.response;
   const comp = parseCompetencia(new URL(req.url).searchParams.get("competencia"));
-  const data = await calcularCusteio(EMPRESA_PADRAO_ID, comp);
+  const data = await calcularCusteio(EMPRESA_PADRAO_ID, comp, { volumeDoMes: true });
   return NextResponse.json({ data });
 }
 
@@ -52,7 +44,7 @@ export async function PUT(req: NextRequest) {
     folhaMoiMes: num(body.folhaMoiMes),
     depreciacaoMes: num(body.depreciacaoMes),
     diaristasMes: num(body.diaristasMes),
-    diasTrabalhados: Math.trunc(num(body.diasTrabalhados)) || 26,
+    diasTrabalhados: Math.trunc(num(body.diasTrabalhados)) || DIAS_TRABALHADOS_DEFAULT,
     observacao: typeof body.observacao === "string" ? body.observacao.trim() || null : null,
   };
   await prismaSemEscopo.parametroCusteio.upsert({
@@ -60,6 +52,6 @@ export async function PUT(req: NextRequest) {
     create: { empresaId: EMPRESA_PADRAO_ID, competencia: comp, ...dados },
     update: dados,
   });
-  const data = await calcularCusteio(EMPRESA_PADRAO_ID, comp);
+  const data = await calcularCusteio(EMPRESA_PADRAO_ID, comp, { volumeDoMes: true });
   return NextResponse.json({ data });
 }

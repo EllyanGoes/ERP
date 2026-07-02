@@ -382,8 +382,11 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
  * Reverte os movimentos virtuais de uma DEVOLUÇÃO de venda à ordem: o material
  * volta do cliente para a origem (Tramontin). Espelha ao contrário os 3
  * movimentos: ENTRADA na empresa da venda + SAÍDA na empresa da venda + ENTRADA
- * na origem. Idempotente (checa devolucaoId+documento). Roda na própria
- * transação do endpoint (recebe o tx) para ser atômico com a Devolucao.
+ * na origem. Idempotente (checa devolucaoId+documento).
+ *
+ * Erros são LOGADOS e PROPAGADOS (não mais engolidos): o caller (rota de
+ * devoluções) roda pós-commit e decide como avisar o usuário — engolir aqui
+ * deixava a devolução "ok" com o estoque triangular sem reverter, em silêncio.
  */
 export async function reverterMovimentosTriangulares(devolucaoId: string): Promise<void> {
   try {
@@ -464,5 +467,6 @@ export async function reverterMovimentosTriangulares(devolucaoId: string): Promi
     });
   } catch (e) {
     console.error(`[venda-ordem] falha ao reverter movimentos triangulares da devolução ${devolucaoId}:`, e);
+    throw e;
   }
 }

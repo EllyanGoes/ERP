@@ -10,6 +10,9 @@ import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa, empresasDoGrupo } from "@
 import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
   const status = searchParams.get("status") || undefined;
@@ -133,11 +136,17 @@ export async function POST(req: NextRequest) {
 
   const numero = generateSimpleDocNumber("PV", await proximaSequenciaDaEmpresa(empresaAlvo, "PV"));
 
+  // Totais SERVER-SIDE: o valorTotal de cada linha é recomputado de
+  // qtd × preço − desconto (R$) — o total enviado pelo client é ignorado.
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const totalLinha = (i: { quantidade: number; precoUnitario: number; valorDesconto?: number | null }) =>
+    Math.max(0, round2(i.quantidade * i.precoUnitario - (i.valorDesconto ?? 0)));
+
   const pedido = await prisma.$transaction(async (tx) => {
 
-    // Calculate totals
-    const valorProdutos = itens.reduce((sum, i) => sum + i.valorTotal, 0);
-    const valorTotal = valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0);
+    // Calculate totals (server-side, das linhas recomputadas)
+    const valorProdutos = round2(itens.reduce((sum, i) => sum + totalLinha(i), 0));
+    const valorTotal = round2(valorProdutos - (pedidoData.valorDesconto ?? 0) + (pedidoData.valorFrete ?? 0));
 
     const novoPedido = await tx.pedidoVenda.create({
       data: {
@@ -165,7 +174,8 @@ export async function POST(req: NextRequest) {
             descontoPct:   item.descontoPct   ?? 0,
             valorDesconto: item.valorDesconto ?? 0,
             desconto:      item.desconto      ?? 0,
-            valorTotal:    item.valorTotal,
+            // Recomputado no server — nunca o total do client.
+            valorTotal:    totalLinha(item),
           })),
         },
         ...(pagamentos && pagamentos.length > 0

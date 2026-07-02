@@ -13,12 +13,9 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
-import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Send, CheckCircle2, XCircle, Clock, MessageCircle, Users, Search, Copy, ExternalLink } from "lucide-react";
+import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, CheckCircle2, XCircle, Clock, MessageCircle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
-
-// ── WA user type ──────────────────────────────────────────────────────────────
-type WAUser = { id: string; nome: string; email?: string; telefone: string | null; telegramChatId?: string | null; _type?: "colaborador" | "usuario" };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -245,25 +242,11 @@ export default function NecessidadeDetailPage() {
   const [showDelete, setShowDelete]   = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError]     = useState("");
-  const [aprovadoPor, setAprovadoPor]           = useState("");
   const [motivoReprovacao, setMotivoReprovacao]  = useState("");
   const [showApproveForm, setShowApproveForm]   = useState(false);
   const [showRejectForm, setShowRejectForm]     = useState(false);
   const [showCancelForm, setShowCancelForm]     = useState(false);
   const [motivoCancelamento, setMotivoCancelamento] = useState("");
-  const [submittingAprovacao, setSubmittingAprovacao] = useState(false);
-  const [submittingAprovacaoError, setSubmittingAprovacaoError] = useState("");
-  // Modal WhatsApp
-  const [showWAModal,       setShowWAModal]       = useState(false);
-  const [waAprovadorId,     setWAAprovadorId]     = useState("");
-  const [waUserSearch,      setWAUserSearch]      = useState("");
-  const [waDropdownOpen,    setWADropdownOpen]    = useState(false);
-  const [waUsers,           setWAUsers]           = useState<WAUser[]>([]);
-  const [waUsersLoading,    setWAUsersLoading]    = useState(false);
-  const [waCopied,          setWACopied]          = useState(false);
-  const [waModalLoading,    setWAModalLoading]    = useState(false);
-  const [waModalError,      setWAModalError]      = useState("");
-  const waDropdownRef = useRef<HTMLDivElement>(null);
 
   // ── Edit mode state ──────────────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -344,142 +327,9 @@ export default function NecessidadeDetailPage() {
     router.push(`/suprimentos/cotacoes/nova?necessidadeId=${id}`);
   }
 
-  // ── Modal WhatsApp ────────────────────────────────────────────────────────────
-
-  // Close WA approver dropdown on outside click
-  useEffect(() => {
-    if (!waDropdownOpen) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (waDropdownRef.current && !waDropdownRef.current.contains(e.target as Node)) {
-        setWADropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [waDropdownOpen]);
-
-  async function openWAModal() {
-    setShowWAModal(true);
-    setWAAprovadorId("");
-    setWAUserSearch("");
-    setWADropdownOpen(false);
-    setWACopied(false);
-    setSubmittingAprovacaoError("");
-    setWAModalError("");
-    setWAModalLoading(false);
-    setWAUsersLoading(true);
-    try {
-      const res  = await fetch("/api/empresa/aprovadores");
-      const json = await res.json();
-      const list: WAUser[] = (Array.isArray(json) ? json : []).map((c: WAUser) => ({
-        id: c.id, nome: c.nome, email: c.email,
-        telefone: c.telefone, telegramChatId: c.telegramChatId ?? null, _type: "usuario" as const,
-      }));
-      setWAUsers(list);
-      // Auto-select first approver with Telegram configured
-      const withTg = list.find((u) => u.telegramChatId);
-      if (withTg) setWAAprovadorId(withTg.id);
-    } catch { /* ignore */ }
-    finally { setWAUsersLoading(false); }
-  }
-
-  function buildWAMessage() {
-    if (!necessidade) return "";
-    const prioLabel: Record<number, string> = { 1: "Muito Baixa", 2: "Baixa", 3: "Média", 4: "Alta", 5: "🔴 Crítica" };
-    const itensLines = necessidade.itens.map((it, i) =>
-      `  ${i + 1}. ${it.item.descricao} — ${decimalToNumber(it.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} ${it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un"}`
-    );
-    const approver = waUsers.find((u) => u.id === waAprovadorId);
-    return [
-      `🛒 Solicitação de Compras Nº ${necessidade.numero}`,
-      ``,
-      `• Empresa: ${necessidade.empresa?.nomeFantasia ?? necessidade.empresa?.razaoSocial ?? "—"}`,
-      `• Filial: ${necessidade.filial?.nomeFantasia ?? necessidade.filial?.razaoSocial ?? "—"}`,
-      `• Solicitado por: ${necessidade.solicitante ?? "—"}`,
-      `• Data: ${new Date(necessidade.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
-      `• Prioridade: ${prioLabel[necessidade.prioridade] ?? necessidade.prioridade}`,
-      `• Motivo: ${necessidade.motivo ?? "—"}`,
-      `• Descrição: ${necessidade.justificativa ?? "—"}`,
-      ``,
-      `Itens (${necessidade.itens.length}):`,
-      ...itensLines,
-      ...(approver ? [``, `👤 Aprovador: ${approver.nome}`] : []),
-      ``,
-      `Selecione uma ação: ✅ Aprovar  ❌ Reprovar`,
-    ].join("\n");
-  }
-
-  async function copyWAMessage() {
-    await navigator.clipboard.writeText(buildWAMessage());
-    setWACopied(true);
-    setTimeout(() => setWACopied(false), 2500);
-  }
-
-  async function openWhatsApp() {
-    if (!necessidade) return;
-    const approver = waUsers.find((u) => u.id === waAprovadorId);
-    const msg = buildWAMessage();
-    const encoded = encodeURIComponent(msg);
-
-    // Open WhatsApp immediately (don't make user wait for DB)
-    if (approver?.telefone) {
-      const phone = approver.telefone.replace(/\D/g, "");
-      const normalized = phone.startsWith("55") ? phone : `55${phone}`;
-      window.open(`https://wa.me/${normalized}?text=${encoded}`, "_blank");
-    } else {
-      window.open(`https://web.whatsapp.com/send?text=${encoded}`, "_blank");
-    }
-
-    // Register in DB in the background — show error if it fails
-    if (waAprovadorId) {
-      setWAModalLoading(true);
-      setWAModalError("");
-      try {
-        const res = await fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ modo: "direto", aprovadorId: waAprovadorId, sendWA: false }),
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          setWAModalError(json.error || "Erro ao registrar aprovação");
-          setWAModalLoading(false);
-          return;
-        }
-        setShowWAModal(false);
-        setTimeout(() => load(), 800);
-      } catch {
-        setWAModalError("Erro de conexão ao registrar aprovação");
-        setWAModalLoading(false);
-      }
-    } else {
-      setShowWAModal(false);
-    }
-  }
-
-  async function confirmarDiretamente() {
-    if (!necessidade || !waAprovadorId) return;
-    setWAModalLoading(true);
-    setWAModalError("");
-    try {
-      const res = await fetch(`/api/compras/necessidades/${necessidade.id}/submeter-aprovacao`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modo: "direto", aprovadorId: waAprovadorId, sendWA: false }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setWAModalError(json.error || "Erro ao registrar aprovação");
-        return;
-      }
-      setShowWAModal(false);
-      setTimeout(() => load(), 800);
-    } catch {
-      setWAModalError("Erro de conexão");
-    } finally {
-      setWAModalLoading(false);
-    }
-  }
+  // (O modal "Encaminhar para Aprovação" via WhatsApp/Telegram foi removido:
+  // a aprovação de compras acontece na COTAÇÃO — a SC não passa mais por
+  // aprovação própria. O endpoint legado submeter-aprovacao foi desativado.)
 
 
   // ── Edit helpers ─────────────────────────────────────────────────────────────
@@ -1131,15 +981,14 @@ export default function NecessidadeDetailPage() {
                 <p className="text-sm text-muted-foreground">{necessidade.numero}</p>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Aprovado por</Label>
-              <Input value={aprovadoPor} onChange={(e) => setAprovadoPor(e.target.value)} placeholder="Nome do aprovador" autoFocus />
-            </div>
+            <p className="text-sm text-muted-foreground">
+              A aprovação será registrada em nome do usuário logado.
+            </p>
             {actionError && <p className="text-sm text-danger">{actionError}</p>}
             <div className="flex gap-2 justify-end">
               <Button size="sm" variant="outline" onClick={() => setShowApproveForm(false)} disabled={actioning}>Cancelar</Button>
               <Button size="sm" className="bg-green-600 hover:bg-green-700"
-                onClick={() => changeStatus("APROVADA", { aprovadoPor })} disabled={actioning}>
+                onClick={() => changeStatus("APROVADA")} disabled={actioning}>
                 {actioning ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Aprovando...</> : "Confirmar Aprovação"}
               </Button>
             </div>
@@ -1204,153 +1053,6 @@ export default function NecessidadeDetailPage() {
                 disabled={actioning || !motivoCancelamento.trim()}>
                 {actioning ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Cancelando...</> : "Confirmar Cancelamento"}
               </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Modal Encaminhar Aprovação ──────────────────────────────────────── */}
-      {showWAModal && necessidade && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-info/15 flex items-center justify-center shrink-0">
-                  <Send className="w-4 h-4 text-info" />
-                </div>
-                <div>
-                  <h2 className="font-semibold text-foreground">Encaminhar para Aprovação</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5 font-mono">{necessidade.numero}</p>
-                </div>
-              </div>
-              <button onClick={() => setShowWAModal(false)} className="text-muted-foreground hover:text-muted-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
-
-              {/* Aprovador — combobox dropdown */}
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Aprovador</Label>
-                {waUsersLoading ? (
-                  <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
-                  </div>
-                ) : (
-                  <div className="relative" ref={waDropdownRef}>
-                    {/* Trigger */}
-                    <button
-                      type="button"
-                      onClick={() => { setWADropdownOpen((p) => !p); setWAUserSearch(""); }}
-                      className={cn(
-                        "flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg border bg-card text-left transition-colors",
-                        waDropdownOpen ? "border-green-400 ring-1 ring-green-200" : "border-border hover:border-border"
-                      )}
-                    >
-                      {waAprovadorId ? (
-                        <span className="text-foreground font-medium">
-                          {waUsers.find((u) => u.id === waAprovadorId)?.nome ?? "—"}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">Selecionar aprovador...</span>
-                      )}
-                      <ChevronDown className={cn("w-4 h-4 text-muted-foreground shrink-0 transition-transform", waDropdownOpen && "rotate-180")} />
-                    </button>
-
-                    {/* Dropdown panel */}
-                    {waDropdownOpen && (
-                      <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-xl shadow-lg overflow-hidden">
-                        {/* Search input inside dropdown */}
-                        <div className="relative border-b border-border">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                          <input
-                            type="text"
-                            autoFocus
-                            value={waUserSearch}
-                            onChange={(e) => setWAUserSearch(e.target.value)}
-                            placeholder="Buscar colaborador..."
-                            className="w-full pl-8 pr-3 py-2.5 text-sm focus:outline-none bg-transparent placeholder:text-muted-foreground"
-                          />
-                        </div>
-                        {/* Results */}
-                        <div className="max-h-52 overflow-y-auto">
-                          {(() => {
-                            const q = waUserSearch.toLowerCase();
-                            const filtered = waUsers.filter((u) => !q || u.nome.toLowerCase().includes(q));
-                            if (filtered.length === 0) {
-                              return <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum resultado.</p>;
-                            }
-                            return filtered.map((u) => (
-                              <button key={u.id} type="button"
-                                onClick={() => { setWAAprovadorId(u.id); setWADropdownOpen(false); setWAUserSearch(""); }}
-                                className={cn(
-                                  "w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-muted transition-colors border-b border-gray-50 last:border-0",
-                                  waAprovadorId === u.id && "bg-info/10"
-                                )}
-                              >
-                                <span className={cn("font-medium", waAprovadorId === u.id ? "text-info" : "text-foreground")}>{u.nome}</span>
-                                {u.telegramChatId
-                                  ? <span className="text-xs text-blue-500 flex items-center gap-1">✈️ Telegram</span>
-                                  : <span className="text-xs text-red-400">sem Telegram</span>}
-                              </button>
-                            ));
-                          })()}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {/* Show phone of selected approver */}
-                {waAprovadorId && (() => {
-                  const a = waUsers.find((u) => u.id === waAprovadorId);
-                  return a ? (
-                    <p className="text-xs flex items-center gap-1">
-                      {a.telegramChatId
-                        ? <span className="text-blue-500">✈️ Telegram configurado</span>
-                        : <span className="text-red-400">⚠️ Sem Telegram cadastrado — configure em Empresa → Colaboradores</span>}
-                    </p>
-                  ) : null;
-                })()}
-              </div>
-
-              {/* Preview da mensagem */}
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Mensagem</Label>
-                <div className="bg-[#e9ffd9] border border-success/30 rounded-xl p-4 text-sm text-foreground font-mono leading-relaxed whitespace-pre-wrap select-all">
-                  {buildWAMessage()}
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-border shrink-0 bg-muted rounded-b-2xl">
-              {waModalError && (
-                <div className="flex items-center gap-2 text-xs text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-3">
-                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  {waModalError}
-                </div>
-              )}
-              <div className="flex items-center gap-2 flex-wrap justify-end">
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowWAModal(false)} disabled={waModalLoading}>
-                  Fechar
-                </Button>
-                <Button type="button" variant="outline" size="sm" onClick={copyWAMessage} disabled={waModalLoading}
-                  className={cn("gap-1.5", waCopied && "border-green-400 text-success bg-success/10")}>
-                  <Copy className="w-3.5 h-3.5" />
-                  {waCopied ? "Copiado!" : "Copiar mensagem"}
-                </Button>
-                <Button type="button" size="sm"
-                  className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={!waAprovadorId || waModalLoading}
-                  onClick={confirmarDiretamente}
-                >
-                  {waModalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  Encaminhar pelo Telegram
-                </Button>
-              </div>
             </div>
           </div>
         </div>

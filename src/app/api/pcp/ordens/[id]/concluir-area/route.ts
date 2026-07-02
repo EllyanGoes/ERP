@@ -6,6 +6,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { contabilizarProducaoOrdem } from "@/lib/contabilidade";
 import { apontarEtapaProducao, apontarMisturaCif, apontarProducaoProduto } from "@/lib/pcp/apontamento";
+import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
 
@@ -95,9 +96,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // ── CIF (sem WIP): Mistura de insumos para queima → CIF a Apropriar ──
   const ehCifSemWip = !etapa.estadoSaida && ordem.item?.naturezaPadrao?.destinoSugerido === "CIF";
   if (ehCifSemWip) {
-    await prisma.$transaction(async (tx) => {
-      await apontarMisturaCif(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor });
-    }, { timeout: 30000 });
+    try {
+      await prisma.$transaction(async (tx) => {
+        await apontarMisturaCif(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor });
+      }, { timeout: 30000 });
+    } catch (e) {
+      if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
+      throw e;
+    }
     return NextResponse.json({ ok: true, cif: true });
   }
 
@@ -111,15 +117,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // ── Produto sem WIP (ex.: Preparação → Mistura de Argila) ──
   if (!etapa.estadoSaida && produtoSaidaId) {
-    await prisma.$transaction(async (tx) => {
-      await apontarProducaoProduto(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor });
-    }, { timeout: 30000 });
+    try {
+      await prisma.$transaction(async (tx) => {
+        await apontarProducaoProduto(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor });
+      }, { timeout: 30000 });
+    } catch (e) {
+      if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
+      throw e;
+    }
     await contabilizarProducaoOrdem(params.id).catch(() => {});
     return NextResponse.json({ ok: true, produto: true });
   }
 
   // ── WIP-chain: cada produto da OP consome seu WIP/MP e produz seu WIP/PA ──
   const agora = new Date();
+  try {
   await prisma.$transaction(async (tx) => {
     let i = 0;
     for (const p of ativos) {
@@ -149,6 +161,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       i += 1;
     }
   }, { timeout: 60000 });
+  } catch (e) {
+    if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
+    throw e;
+  }
 
   await contabilizarProducaoOrdem(params.id).catch(() => {});
 

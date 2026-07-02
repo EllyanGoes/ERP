@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
   if (!produto) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
   const criadoPor = auth.session.nome ?? null;
 
+  let empresaId = EMPRESA_PADRAO_ID;
   try {
     await prisma.$transaction(async (tx) => {
       const wipItemId = await getOrCreateWipItem(tx, { codigo: produto.codigo, descricao: produto.descricao }, estado);
@@ -51,6 +52,9 @@ export async function POST(req: NextRequest) {
 
       let estoque = await tx.estoqueItem.findFirst({ where: { itemId: wipItemId, localEstoqueId: localId, clienteDonoId: null } });
       if (!estoque) estoque = await tx.estoqueItem.create({ data: { itemId: wipItemId, localEstoqueId: localId, quantidadeAtual: 0, quantidadeMin: 0, clienteDonoId: null } });
+      // Empresa DERIVADA da linha de estoque do WIP (carimbada pelo escopo da
+      // sessão) — a padrão fica só como fallback final.
+      empresaId = estoque.empresaId || EMPRESA_PADRAO_ID;
       const saldoAntes = Number(estoque.quantidadeAtual);
       const saldoDepois = saldoAntes + quantidade;
       await tx.estoqueItem.update({ where: { id: estoque.id }, data: { quantidadeAtual: saldoDepois } });
@@ -63,7 +67,7 @@ export async function POST(req: NextRequest) {
         },
       });
       // Valoriza o item WIP (CMPM) p/ o saldo de abertura e o consumo seguinte custearem certo.
-      if (custoUnitario > 0) await aplicarCmpmEmpresa(tx, EMPRESA_PADRAO_ID, wipItemId, quantidade, custoUnitario, { incluirAcabado: false });
+      if (custoUnitario > 0) await aplicarCmpmEmpresa(tx, empresaId, wipItemId, quantidade, custoUnitario, { incluirAcabado: false });
     });
   } catch (e) {
     if (e instanceof Error && e.message === "DUP") {
@@ -73,7 +77,7 @@ export async function POST(req: NextRequest) {
   }
 
   // D Estoque WIP (conta do local) / C 2.3.3 Saldos de Abertura — re-sincroniza o lançamento de abertura.
-  await contabilizarSaldoInicialEstoque(EMPRESA_PADRAO_ID).catch(() => {});
+  await contabilizarSaldoInicialEstoque(empresaId).catch(() => {});
 
   return NextResponse.json({ ok: true });
 }

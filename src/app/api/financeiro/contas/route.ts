@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   });
   // Vincula a conta ao plano de contas: empresa → Disponibilidades (1.1.1);
   // terceiros → "Contas de Terceiros" (1.1.6).
-  await garantirContaContabilBanco(conta.id).catch(() => {});
+  await garantirContaContabilBanco(conta.id).catch((e) => console.error("[financeiro/contas] contabilizar:", e));
 
   return NextResponse.json({ data: conta }, { status: 201 });
 }

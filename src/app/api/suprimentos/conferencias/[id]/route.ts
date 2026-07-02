@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { recontabilizarConferencia, apagarLancamentosContabeis } from "@/lib/contabilidade";
+import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const record = await prisma.conferenciaCompra.findUnique({
@@ -99,7 +100,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     vrTotal,
     condicaoPagamentoId,
     naturezaFinanceiraId,
-    status: requestedStatus,
   } = body;
 
   await prisma.$transaction(async (tx) => {
@@ -187,17 +187,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     // Determine new status:
-    // - Admin can explicitly set any status via requestedStatus
     // - PENDENTE auto-transitions to EM_CONFERENCIA on save
-    // - Concluded DEs keep their status unless admin changes it
-    let newStatus: string;
-    if (isAdmin && requestedStatus) {
-      newStatus = requestedStatus;
-    } else if (current.status === "PENDENTE") {
-      newStatus = "EM_CONFERENCIA";
-    } else {
-      newStatus = current.status;
-    }
+    // - Concluded DEs keep their status
+    // `status` NÃO é aceito no PATCH (nem para ADMIN): concluir passa SOMENTE
+    // pela rota /concluir (que lança estoque/CMPM/contábil) e reverter é o
+    // DELETE — marcar CONCLUIDA por aqui criava documento "concluído" sem
+    // nenhum lançamento (ou "revertia" sem desfazer nada).
+    const newStatus: string = current.status === "PENDENTE" ? "EM_CONFERENCIA" : current.status;
     const updateData: Record<string, unknown> = { status: newStatus };
     if (fornecedorId !== undefined) updateData.fornecedorId = fornecedorId || null;
     if (localEstoqueId !== undefined) updateData.localEstoqueId = localEstoqueId || null;
@@ -283,7 +279,13 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   const current = await prisma.conferenciaCompra.findUnique({
     where: { id: params.id },
-    select: { status: true, empresaId: true, itens: { select: { id: true } } },
+    select: {
+      status: true,
+      empresaId: true,
+      pedidoId: true,
+      pedido: { select: { id: true, status: true } },
+      itens: { select: { id: true } },
+    },
   });
   if (!current) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
@@ -291,6 +293,25 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const isConcluded = current.status === "CONCLUIDA" || current.status === "DIVERGENCIA";
   if (isConcluded && session.perfil !== "ADMIN") {
     return NextResponse.json({ error: "Apenas administradores podem excluir documentos concluídos" }, { status: 403 });
+  }
+
+  // Contas a Pagar geradas por esta entrada (as do pedido, exceto as ANTECIPADAS
+  // — o PA nasce no pedido, não na entrada): com baixa → 409; ABERTAS → excluir.
+  if (current.pedidoId) {
+    const cpsComBaixa = await prisma.contaPagar.findMany({
+      where: {
+        pedidoCompraId: current.pedidoId,
+        antecipado: false,
+        OR: [{ status: { in: ["PAGA", "PARCIAL"] } }, { valorPago: { gt: 0 } }],
+      },
+      select: { numero: true },
+    });
+    if (cpsComBaixa.length > 0) {
+      return NextResponse.json(
+        { error: `Não é possível excluir: ${cpsComBaixa.length === 1 ? "o título" : "os títulos"} ${cpsComBaixa.map((c) => c.numero).join(", ")} já ${cpsComBaixa.length === 1 ? "tem" : "têm"} pagamento registrado. Estorne a baixa no financeiro antes.` },
+        { status: 409 },
+      );
+    }
   }
 
   // Excluir uma conferência tem de DESFAZER tudo que a conclusão fez — senão o
@@ -325,6 +346,25 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     // DENTRO da transação — se falhar, tudo faz rollback e não sobra órfão no razão.
     // (CMPM do item não é revertido — média móvel; ajuste manual se necessário.)
     await apagarLancamentosContabeis({ empresaId: current.empresaId, origemTipo: "ESTOQUE_ENTRADA", origemId: params.id }, tx);
+
+    // 5) Pedido vinculado: exclui as CPs da entrada (ABERTAS, não antecipadas) e
+    // seus lançamentos, volta o status RECEBIDO→EM_TRANSITO (a entrada deixou de
+    // existir) e recomputa o statusFinanceiro.
+    if (current.pedidoId) {
+      const cps = await tx.contaPagar.findMany({
+        where: { pedidoCompraId: current.pedidoId, antecipado: false },
+        select: { id: true },
+      });
+      if (cps.length > 0) {
+        const cpIds = cps.map((c) => c.id);
+        await apagarLancamentosContabeis({ origemTipo: { in: ["COMPRA", "PAGAMENTO"] }, origemId: { in: cpIds } }, tx);
+        await tx.contaPagar.deleteMany({ where: { id: { in: cpIds } } });
+      }
+      if (current.pedido?.status === "RECEBIDO") {
+        await tx.pedidoCompra.update({ where: { id: current.pedidoId }, data: { status: "EM_TRANSITO" } });
+      }
+      await recomputarStatusFinanceiroCompra(tx, current.pedidoId);
+    }
   });
 
   return NextResponse.json({ ok: true });

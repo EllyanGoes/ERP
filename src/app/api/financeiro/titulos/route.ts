@@ -132,8 +132,8 @@ export async function POST(req: NextRequest) {
 
     // Contabiliza o título (best-effort, pós-commit) — a natureza/rateio gera as
     // partidas (resultado por natureza + contrapartida ativo/passivo).
-    if (isReceber) { await espelharContaReceber(criado.id).catch(() => {}); await contabilizarTituloReceber(criado.id).catch(() => {}); }
-    else await contabilizarTituloPagar(criado.id).catch(() => {});
+    if (isReceber) { await espelharContaReceber(criado.id).catch((e) => console.error("[financeiro/titulos] espelhar intragrupo:", e)); await contabilizarTituloReceber(criado.id).catch((e) => console.error("[financeiro/titulos] contabilizar:", e)); }
+    else await contabilizarTituloPagar(criado.id).catch((e) => console.error("[financeiro/titulos] contabilizar:", e));
 
     return NextResponse.json({ data: { numeros: [criado.numero], total: 1 } }, { status: 201 });
   } catch (err) {

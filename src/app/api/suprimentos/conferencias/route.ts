@@ -4,9 +4,14 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { findMatchingPedidos } from "@/lib/pc-match";
-import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { getSession } from "@/lib/auth";
+import { criarConferenciaDePedido } from "@/lib/pedido-compra-de";
 
 export async function GET() {
+  const auth = await requireModulo("compras");
+  if (!auth.ok) return auth.response;
+
   const data = await prisma.conferenciaCompra.findMany({
     include: {
       pedido: {
@@ -48,45 +53,17 @@ export async function POST(req: NextRequest) {
 
     const pedido = await prisma.pedidoCompra.findUnique({
       where: { id: pedidoId },
-      include: { itens: { include: { tes: { select: { almoxarifadoDefaultId: true } } } } },
+      select: { id: true },
     });
 
     if (!pedido) {
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     }
 
-    // Multiempresa: a conferência herda a empresa do pedido; numeração dela.
-    const numeroDE = generateSimpleDocNumber("DE", await proximaSequenciaDaEmpresa(pedido.empresaId, "DE"));
-
+    // Criação unificada do DE a partir do pedido (copia TODOS os campos da linha:
+    // unidade, TES, centro, compõe-custo, local default e valores).
     const conferencia = await prisma.$transaction(async (tx) => {
-      const record = await tx.conferenciaCompra.create({
-        data: {
-          numero: numeroDE,
-          empresaId: pedido.empresaId,
-          pedidoId,
-          observacoes: observacoes?.trim() || null,
-          itens: {
-            create: pedido.itens.map((i) => ({
-              itemId: i.itemId,
-              // Herda a unidade da compra do pedido (conversão p/ base na conclusão).
-              unidadeId: i.unidadeId ?? null,
-              // Herda o centro de custo do pedido (default editável na entrada). Não
-              // classifica destino de custo — a precedência do material decide isso.
-              centroCustoId: i.centroCustoId ?? null,
-              // Herda o TES e compõe-custo; materializa o almoxarifado default do TES
-              // no local da entrada (editável). O usuário confirma/ajusta na conferência.
-              tesId: i.tesId ?? null,
-              compoeCusto: i.compoeCusto ?? null,
-              localEstoqueId: i.tes?.almoxarifadoDefaultId ?? null,
-              quantidadePedida: parseFloat(String(i.quantidade)),
-              quantidadeRecebida: 0,
-            })),
-          },
-        },
-        include: {
-          itens: { include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } } },
-        },
-      });
+      const record = await criarConferenciaDePedido(tx, pedidoId, { observacoes });
 
       // Update pedido to EM_TRANSITO
       await tx.pedidoCompra.update({
@@ -190,10 +167,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Multiempresa: o DE avulso pertence à empresa ATIVA da sessão (não à empresa
+  // padrão) — numeração e saldos ficam na empresa certa. DE vinculado a pedido
+  // herda a empresa do pedido.
+  const session = await getSession();
+  let empresaAlvo = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  if (linkedPedidoId) {
+    const pcOrigem = await prisma.pedidoCompra.findUnique({
+      where: { id: linkedPedidoId },
+      select: { empresaId: true },
+    });
+    if (pcOrigem) empresaAlvo = pcOrigem.empresaId;
+  }
+
   const conferencia = await prisma.$transaction(async (tx) => {
     const seq = await tx.sequencia.upsert({
-      where: { empresaId_prefixo: { empresaId: EMPRESA_PADRAO_ID, prefixo: "DE" } },
-      create: { prefixo: "DE", ultimo: 1 },
+      where: { empresaId_prefixo: { empresaId: empresaAlvo, prefixo: "DE" } },
+      create: { empresaId: empresaAlvo, prefixo: "DE", ultimo: 1 },
       update: { ultimo: { increment: 1 } },
     });
     const numero = generateSimpleDocNumber("DE", seq.ultimo);
@@ -201,6 +191,7 @@ export async function POST(req: NextRequest) {
     const record = await tx.conferenciaCompra.create({
       data: {
         numero,
+        empresaId: empresaAlvo,
         status: "PENDENTE",
         fornecedorId,
         responsavel: responsavel || null,

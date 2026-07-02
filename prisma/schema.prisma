@@ -970,6 +970,7 @@ enum OrigemLancamento {
   FOLHA_PAGAMENTO // apropriação da folha (D PEP-MOD/CIF/Despesa / C Salários, INSS, IRRF, FGTS)
   COMPENSACAO_AJUSTE // ajuste (juros/multa/desconto) por título no Encontro de Contas
   BAIXA_IMOBILIZADO // baixa do componente velho numa troca (CPC 27): D Deprec.Acum + Perda / C Imobilizado
+  DEVOLUCAO // devolução de venda: estorno de receita + retorno do estoque ao custo
   MANUAL
   ESTORNO
 }
@@ -1604,6 +1605,7 @@ model LancamentoFinanceiro {
   centroCustoId        String?
   contaReceberId       String?
   contaPagarId         String?
+  devolucaoId          String? // devolução de venda que gerou o estorno em dinheiro (sem FK — origem)
   conciliado           Boolean               @default(false)
   transferenciaParId   String?               @unique
   favorecido           String?
@@ -1626,6 +1628,7 @@ model LancamentoFinanceiro {
   @@index([contaBancariaId])
   @@index([naturezaFinanceiraId])
   @@index([empresaId])
+  @@index([devolucaoId])
   @@map("LancamentoCaixa")
 }
 
@@ -2056,6 +2059,7 @@ model Devolucao {
   valorTotal      Decimal                @db.Decimal(15, 2)
   tipoResolucao   TipoResolucaoDevolucao
   status          StatusDevolucao        @default(CONCLUIDA)
+  valorAbatidoCr  Decimal?               @db.Decimal(15, 2) // parcela do valor devolvido abatida de CR aberta do pedido
   contaBancariaId String? // estorno: conta de saída do dinheiro
   pedidoTrocaId   String? // troca: novo pedido gerado (fase B3)
   observacoes     String?
