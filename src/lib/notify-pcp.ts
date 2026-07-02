@@ -15,6 +15,17 @@ const fmtPct = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits:
 
 // Detecta a etapa de Embalagem pelo nome (Embalar/Embalagem/Paletização).
 const ehEmbalagem = (nome: string) => /embalag|embalar|paletiza/i.test(nome);
+const ehConformacao = (nome: string) => /conform/i.test(nome);
+const ehSecagem = (nome: string) => /secagem|secar/i.test(nome);
+const fmtVeic = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
+const selCargas = { select: { veiculo: true, capacidade: true } } as const;
+// Equivalente em veículos = peças (UN base) ÷ capacidade cadastrada do produto
+// (ItemCargaVeiculo, peças/veículo). Null quando não há capacidade cadastrada.
+function equivVeiculo(unBase: number, cargas: { veiculo: string; capacidade: number }[] | undefined, veiculo: string): number | null {
+  const cap = cargas?.find((c) => c.veiculo === veiculo)?.capacidade ?? 0;
+  return cap > 0 ? unBase / cap : null;
+}
 
 // Ordem canônica das etapas no resumo (fluxo produtivo, do começo ao fim). Etapas
 // fora dessa lista vão para o final, em ordem alfabética.
@@ -88,7 +99,7 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
     const et = await prisma.itemOrdemProducao.findUnique({
       where: { id: etapaId },
       select: { nome: true, status: true, qtdEntrada: true, qtdSaida: true, qtdPerda: true, vagoes: true, vagonetas: true, apontadoPor: true,
-        ordemProducao: { select: { numero: true, unidade: true, item: { select: { descricao: true, itemUnidades: selItemUnidades } } } } },
+        ordemProducao: { select: { numero: true, unidade: true, item: { select: { descricao: true, itemUnidades: selItemUnidades, cargasVeiculo: selCargas } } } } },
     });
     if (!et) return;
     const op = et.ordemProducao;
@@ -103,6 +114,11 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
       ? `📤 Produzido: *${escMD(fmtNum(saida))}* ${escMD(un)}`.trimEnd() +
         (conv ? ` \\(${escMD(fmtNum(conv.un))} UN${conv.plt != null ? ` · ${escMD(fmtNum(conv.plt))} PLT` : ""}\\)` : "")
       : null;
+    // Conformação → vagonetas; Secagem → vagões carregados (equivalente pelo cadastro).
+    const unBase = converterUnPlt(saida, op.item?.itemUnidades ?? [])?.un ?? saida;
+    const cargas = op.item?.cargasVeiculo;
+    const vgConf = ehConformacao(et.nome) ? equivVeiculo(unBase, cargas, "VAGONETA") : null;
+    const vgSec = ehSecagem(et.nome) ? equivVeiculo(unBase, cargas, "VAGAO") : null;
     // Na Embalagem: quebra com % (perda/descarregado) e vagões descarregados.
     const desc = saida + perda; // descarregado = apontado + quebra
     const linhaQuebra = perda > 0 || emb
@@ -115,6 +131,8 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
       `📦 ${escMD(op.item?.descricao ?? "—")}`,
       `🔧 Etapa: *${escMD(et.nome)}*${concl ? " \\(concluída\\)" : ""}`,
       linhaProd,
+      vgConf != null ? `🚃 ≈ ${escMD(fmtVeic(vgConf))} vagonetas` : null,
+      vgSec != null ? `🚃 ≈ ${escMD(fmtVeic(vgSec))} vagões carregados` : null,
       emb && et.vagoes != null ? `🚃 Vagões descarregados: ${escMD(String(et.vagoes))}` : null,
       linhaQuebra,
       et.apontadoPor ? `👤 ${escMD(et.apontadoPor)}` : null,
@@ -134,7 +152,7 @@ export async function enviarResumoPcpDia(): Promise<{ ok: boolean; apontamentos:
     where: { status: "CONCLUIDA", fimReal: { gte: ini, lte: fim } },
     select: {
       nome: true, sequencia: true, qtdSaida: true, qtdPerda: true, vagoes: true, vagonetas: true,
-      ordemProducao: { select: { numero: true, unidade: true, item: { select: { descricao: true, itemUnidades: selItemUnidades } } } },
+      ordemProducao: { select: { numero: true, unidade: true, item: { select: { descricao: true, itemUnidades: selItemUnidades, cargasVeiculo: selCargas } } } },
     },
     orderBy: [{ nome: "asc" }, { ordemProducao: { numero: "asc" } }],
   });
@@ -177,6 +195,16 @@ export async function enviarResumoPcpDia(): Promise<{ ok: boolean; apontamentos:
         } else {
           const un = unidadeItem(op.item?.itemUnidades ?? [], op.unidade); // unidade principal do item
           linhas.push(`  • ${escMD(op.numero)} — ${escMD(produto)}: *${escMD(fmtNum(prod))}* ${escMD(un)}`.trimEnd());
+          // Conformação: equivalente em vagonetas; Secagem: equivalente em vagões carregados.
+          const unBase = converterUnPlt(prod, op.item?.itemUnidades ?? [])?.un ?? prod;
+          const cargas = op.item?.cargasVeiculo;
+          if (ehConformacao(etapaNome)) {
+            const v = equivVeiculo(unBase, cargas, "VAGONETA");
+            if (v != null) linhas.push(`      🚃 ≈ ${escMD(fmtVeic(v))} vagonetas`);
+          } else if (ehSecagem(etapaNome)) {
+            const v = equivVeiculo(unBase, cargas, "VAGAO");
+            if (v != null) linhas.push(`      🚃 ≈ ${escMD(fmtVeic(v))} vagões carregados`);
+          }
         }
       }
     }
