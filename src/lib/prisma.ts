@@ -53,6 +53,7 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "TipoOperacao",
   "OrdemProducao", "ItemOrdemProducao", "ConsumoBiomassa", "PlanoMestre",
   "ContaPagar", "ContaReceber", "ContaBancaria", "LancamentoFinanceiro", "Recorrencia", "ImportacaoOFX",
+  "AdministradoraCartao", "Maquineta",
   "NaturezaFinanceira", "NaturezaSubgrupo", "ContaContabil", "LancamentoContabil", "PartidaContabil",
   "Imobilizado", "DepreciacaoLancamento", "FechamentoContabil", "DRESecao",
   // Marketing / Inteligência Comercial é COMPARTILHADO por todas as empresas do
