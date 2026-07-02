@@ -42,10 +42,14 @@ export async function GET(req: NextRequest) {
     m.set(p.contaId, (m.get(p.contaId) ?? 0) + decimalToNumber(p._sum.valor));
   }
 
-  // Saldo (natureza) agregando descendentes por prefixo de código.
+  // Saldo (natureza) agregando descendentes por prefixo de código, RESTRITO ao
+  // mesmo grupo: o PL mora sob o código do Passivo (2.3.x dentro de "2") — sem o
+  // filtro, o saldo da conta "2" engoliria o PL inteiro e o balanço somaria o PL
+  // DUAS vezes (Passivo já inflado + grupo PL), estourando Ativo ≠ Passivo+PL.
   function saldoConta(c: (typeof contas)[number]): number {
     let d = 0, cr = 0;
     for (const c2 of contas) {
+      if (c2.grupo !== c.grupo) continue;
       if (c2.codigo === c.codigo || c2.codigo.startsWith(c.codigo + ".")) {
         d += deb.get(c2.id) ?? 0;
         cr += cred.get(c2.id) ?? 0;
@@ -80,10 +84,12 @@ export async function GET(req: NextRequest) {
   const totalPL = totalGrupo(patrimonioLiquido);
 
   // Resultado do exercício (grupo RESULTADO, acumulado até a data): receitas −
-  // custos − despesas. Receita é credora (cr−d); custo/despesa devedora (d−cr).
+  // custos − despesas, pelas partidas PRÓPRIAS de cada conta (soma por conta,
+  // sem prefixo — não dupla-conta) — inclusive sintéticas onde o motor legado
+  // lançou (só analíticas deixava esse valor de fora e o balanço não fechava).
   let resultadoExercicio = 0;
   for (const c of contas) {
-    if (c.grupo !== "RESULTADO" || c.tipo !== "ANALITICA") continue;
+    if (c.grupo !== "RESULTADO") continue;
     const d = deb.get(c.id) ?? 0, cr = cred.get(c.id) ?? 0;
     resultadoExercicio += c.natureza === "CREDORA" ? cr - d : -(d - cr);
   }
