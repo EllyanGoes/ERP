@@ -29,7 +29,15 @@ import { encargosConferencia } from "@/lib/pedido-compra-de";
 
 export type ResultadoBackfill = { log: string[]; erros: string[] };
 
-export async function executarBackfillConsistencia(opts: { dry?: boolean } = {}): Promise<ResultadoBackfill> {
+// Faixas de % por passo (para a barra de progresso da UI). O peso reflete o
+// volume típico: títulos e recomputos dominam o tempo.
+const FAIXAS: Record<number, [number, number]> = {
+  1: [0, 2], 2: [2, 45], 3: [45, 55], 4: [55, 58], 5: [58, 82], 6: [82, 99],
+};
+
+export async function executarBackfillConsistencia(
+  opts: { dry?: boolean; onProgress?: (pct: number, fase: string) => void } = {},
+): Promise<ResultadoBackfill> {
   const DRY = opts.dry === true;
   const log: string[] = [];
   const erros: string[] = [];
@@ -37,9 +45,16 @@ export async function executarBackfillConsistencia(opts: { dry?: boolean } = {})
     erros.push(`${ctx}: ${e instanceof Error ? e.message : String(e)}`);
     return null;
   };
+  // Progresso dentro da faixa do passo: i de n itens processados.
+  const tick = (passo: number, fase: string, i: number, n: number) => {
+    const [ini, fim] = FAIXAS[passo];
+    const pct = n > 0 ? ini + ((fim - ini) * i) / n : fim;
+    opts.onProgress?.(Math.min(99, Math.round(pct)), fase);
+  };
 
   // 1) Colisão 3.3.9004 → reponta partidas por origem do lançamento.
   log.push("1) Repontando partidas da 3.3.9004 (colisão de código)…");
+  tick(1, "Repontando 3.3.9004", 0, 1);
   const empresas = await prismaSemEscopo.empresa.findMany({ select: { id: true, razaoSocial: true } });
   for (const emp of empresas) {
     const c9004 = await prismaSemEscopo.contaContabil.findFirst({
@@ -71,8 +86,10 @@ export async function executarBackfillConsistencia(opts: { dry?: boolean } = {})
   const cps = await prismaSemEscopo.contaPagar.findMany({ where: { status: { not: "CANCELADA" } }, select: { id: true } });
   log.push(`2) Re-sincronizando títulos: ${crs.length} CR + ${cps.length} CP${DRY ? " [dry — pulado]" : ""}`);
   if (!DRY) {
-    for (const cr of crs) await contabilizarTituloReceber(cr.id).catch(guardar(`CR ${cr.id}`));
-    for (const cp of cps) await contabilizarTituloPagar(cp.id).catch(guardar(`CP ${cp.id}`));
+    const nTit = crs.length + cps.length;
+    let iTit = 0;
+    for (const cr of crs) { await contabilizarTituloReceber(cr.id).catch(guardar(`CR ${cr.id}`)); tick(2, "Re-sincronizando títulos", ++iTit, nTit); }
+    for (const cp of cps) { await contabilizarTituloPagar(cp.id).catch(guardar(`CP ${cp.id}`)); tick(2, "Re-sincronizando títulos", ++iTit, nTit); }
   }
 
   // 3) Perna de venda dos pedidos.
@@ -81,7 +98,10 @@ export async function executarBackfillConsistencia(opts: { dry?: boolean } = {})
     select: { id: true },
   });
   log.push(`3) Perna de venda: ${pedidos.length} pedido(s)${DRY ? " [dry — pulado]" : ""}`);
-  if (!DRY) for (const p of pedidos) await contabilizarVendaPedido(p.id).catch(guardar(`Pedido ${p.id}`));
+  if (!DRY) {
+    let iPed = 0;
+    for (const p of pedidos) { await contabilizarVendaPedido(p.id).catch(guardar(`Pedido ${p.id}`)); tick(3, "Perna de venda dos pedidos", ++iPed, pedidos.length); }
+  }
 
   // 4) Devoluções antigas.
   const devs = await prismaSemEscopo.devolucao.findMany({ select: { id: true, empresaId: true, numero: true } });
@@ -106,6 +126,7 @@ export async function executarBackfillConsistencia(opts: { dry?: boolean } = {})
         data: { devolucaoId: dev.id },
       });
       await contabilizarDevolucao(dev.id).catch(guardar(`Devolução ${dev.numero}`));
+      tick(4, "Devoluções", devs.indexOf(dev) + 1, devs.length);
     }
   }
 
@@ -114,8 +135,10 @@ export async function executarBackfillConsistencia(opts: { dry?: boolean } = {})
   const pcs = await prismaSemEscopo.pedidoCompra.findMany({ select: { id: true } });
   log.push(`5) Recomputando status: ${pvs.length} PV + ${pcs.length} PC${DRY ? " [dry — pulado]" : ""}`);
   if (!DRY) {
-    for (const p of pvs) await recomputarStatusPedido(prismaSemEscopo, p.id).catch(guardar(`recompute PV ${p.id}`));
-    for (const p of pcs) await recomputarStatusFinanceiroCompra(prismaSemEscopo, p.id).catch(guardar(`recompute PC ${p.id}`));
+    const nRec = pvs.length + pcs.length;
+    let iRec = 0;
+    for (const p of pvs) { await recomputarStatusPedido(prismaSemEscopo, p.id).catch(guardar(`recompute PV ${p.id}`)); tick(5, "Recomputando status", ++iRec, nRec); }
+    for (const p of pcs) { await recomputarStatusFinanceiroCompra(prismaSemEscopo, p.id).catch(guardar(`recompute PC ${p.id}`)); tick(5, "Recomputando status", ++iRec, nRec); }
   }
 
   // 6) Frete/desconto nas entradas de compra.
@@ -132,9 +155,11 @@ export async function executarBackfillConsistencia(opts: { dry?: boolean } = {})
   log.push(`6) Entradas com frete/desconto: ${confs.length} conferência(s)${DRY ? " [dry — pulado]" : ""}`);
   if (!DRY) {
     const pedidosAjustar = new Set<string>();
+    let iConf = 0;
     for (const c of confs) {
       await recontabilizarConferencia(c.id).catch(guardar(`Conferência ${c.numero}`));
       if (c.pedidoId) pedidosAjustar.add(c.pedidoId);
+      tick(6, "Frete/desconto nas entradas", ++iConf, confs.length + 1);
     }
     // CPs ABERTAS sem baixa → líquido (proporcional por parcela; com baixa: manual).
     for (const pedidoId of Array.from(pedidosAjustar)) {

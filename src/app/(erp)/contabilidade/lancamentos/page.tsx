@@ -10,7 +10,8 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
-import { Loader2, RefreshCw, BookText, Plus, Trash2 } from "lucide-react";
+import { Loader2, RefreshCw, BookText, Plus, Trash2, HelpCircle, X, ShieldCheck, PenLine } from "lucide-react";
+import ModalPortal from "@/components/shared/ModalPortal";
 
 type Partida = { id: string; tipo: "DEBITO" | "CREDITO"; valor: unknown; conta: { codigo: string; nome: string } };
 type Lancamento = {
@@ -36,6 +37,8 @@ export default function LancamentosContabeisPage() {
   const [loading, setLoading] = useState(true);
   const [gerando, setGerando] = useState(false);
   const [consistencia, setConsistencia] = useState(false);
+  const [progressoCons, setProgressoCons] = useState<{ pct: number; fase: string } | null>(null);
+  const [infoAberto, setInfoAberto] = useState(false);
   const [progresso, setProgresso] = useState<{ pct: number; fase: string } | null>(null);
   const [aviso, setAviso] = useState("");
   // Reprocesso em andamento em QUALQUER sessão. Como o % é persistido (Configuracao),
@@ -161,20 +164,46 @@ export default function LancamentosContabeisPage() {
   // Backfill de consistência (jul/2026): motor idempotente que reponta a
   // 3.3.9004, re-sincroniza títulos/pedidos/devoluções e o frete/desconto das
   // entradas de compra. Roda no servidor (onde o DATABASE_URL vive); só ADMIN.
+  // Resposta em SSE — a barra de progresso segue o mesmo padrão do retroativo.
   async function backfillConsistencia() {
     if (!window.confirm("Rodar o backfill de consistência? É idempotente (re-rodar não duplica) e pode levar alguns minutos.")) return;
     setConsistencia(true);
+    setProgressoCons({ pct: 0, fase: "Iniciando" });
     setAviso("");
     try {
       const res = await fetch("/api/contabilidade/backfill-consistencia", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) {
-        setAviso(json.error ?? "Falha no backfill de consistência.");
-      } else {
-        const { log = [], erros = [] } = json.data ?? {};
-        console.log("[backfill-consistencia]", log, erros);
-        setAviso(erros.length
-          ? `Backfill concluído com ${erros.length} pendência(s) — detalhe no console: ${erros.slice(0, 2).join("; ")}…`
+      if (!res.ok || !res.body) {
+        const json = await res.json().catch(() => null);
+        setAviso(json?.error ?? "Falha no backfill de consistência.");
+        return;
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let final: { done?: boolean; log?: string[]; erros?: string[]; error?: string } | null = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const partes = buffer.split("\n\n");
+        buffer = partes.pop() ?? "";
+        for (const parte of partes) {
+          const linha = parte.replace(/^data:\s*/, "").trim();
+          if (!linha) continue;
+          try {
+            const obj = JSON.parse(linha);
+            if (obj.done) final = obj;
+            else if (typeof obj.pct === "number") setProgressoCons({ pct: obj.pct, fase: obj.fase ?? "" });
+          } catch { /* linha parcial */ }
+        }
+      }
+      if (final?.error) {
+        setAviso(final.error);
+      } else if (final) {
+        setProgressoCons({ pct: 100, fase: "Concluído" });
+        console.log("[backfill-consistencia]", final.log, final.erros);
+        setAviso(final.erros?.length
+          ? `Backfill concluído com ${final.erros.length} pendência(s) — detalhe no console: ${final.erros.slice(0, 2).join("; ")}…`
           : "Backfill de consistência concluído sem erros.");
         await load();
       }
@@ -182,6 +211,7 @@ export default function LancamentosContabeisPage() {
       setAviso("Erro de conexão no backfill de consistência.");
     } finally {
       setConsistencia(false);
+      setProgressoCons(null);
     }
   }
 
@@ -192,9 +222,17 @@ export default function LancamentosContabeisPage() {
         breadcrumbs={[{ label: "Contabilidade" }, { label: "Diário" }]}
         actions={
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setInfoAberto(true)}
+              title="Para que serve cada botão"
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-border text-muted-foreground hover:text-info hover:border-info/30 hover:bg-info/10 transition-colors"
+            >
+              <HelpCircle className="w-4.5 h-4.5" />
+            </button>
             <Button size="sm" variant="outline" onClick={backfillConsistencia} disabled={consistencia || gerando || reprocessoAtivo}>
-              {consistencia ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
-              {consistencia ? "Consistência…" : "Backfill de consistência"}
+              {consistencia ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
+              {consistencia ? `Consistência… ${progressoCons?.pct ?? 0}%` : "Backfill de consistência"}
             </Button>
             <Button size="sm" variant="outline" onClick={gerarRetroativos} disabled={gerando || reprocessoAtivo}>
               {gerando || reprocessoAtivo ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1.5" />}
@@ -206,6 +244,66 @@ export default function LancamentosContabeisPage() {
           </div>
         }
       />
+
+      {infoAberto && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => setInfoAberto(false)}>
+            <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between px-6 py-4 border-b border-border">
+                <div>
+                  <h3 className="font-bold text-foreground">Para que serve cada botão</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Os lançamentos do diário nascem sozinhos a partir dos fatos do ERP (vendas, compras, baixas…). Os botões abaixo são ferramentas de correção e de exceção.</p>
+                </div>
+                <button onClick={() => setInfoAberto(false)} className="ml-4 flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-muted-foreground shrink-0">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                <div className="rounded-xl border border-info/30 bg-info/10 p-4">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <ShieldCheck className="w-5 h-5 text-info" />
+                    <span className="font-semibold text-foreground">Backfill de consistência</span>
+                  </div>
+                  <ul className="text-[13px] text-muted-foreground space-y-1 list-disc pl-5">
+                    <li>Revisão geral de saúde do razão: <span className="font-medium text-foreground">re-sincroniza títulos e pedidos</span> com as regras atuais (juros/multa em conta de resultado, arredondamento por partida), aplica <span className="font-medium text-foreground">frete/desconto nas entradas de compra</span> (crédito do fornecedor pelo líquido) e ajusta os contas a pagar em aberto correspondentes, contabiliza devoluções antigas e recomputa os status dos pedidos.</li>
+                    <li><span className="font-medium text-foreground">É idempotente</span>: o que já está certo não muda; re-rodar não duplica nada. Se der timeout no meio, clique de novo — continua de onde parou.</li>
+                    <li>Quando usar: após atualizações do sistema que mudam regras contábeis, ou quando algum razonete parecer defasado. Só administradores. Pendências que exigem revisão manual (ex.: título já baixado) aparecem no aviso e no console do navegador.</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-warning/30 bg-warning/10 p-4">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <RefreshCw className="w-5 h-5 text-warning" />
+                    <span className="font-semibold text-foreground">Gerar retroativos</span>
+                  </div>
+                  <ul className="text-[13px] text-muted-foreground space-y-1 list-disc pl-5">
+                    <li>Reprocesso <span className="font-medium text-foreground">pesado</span> das vendas: apaga os lançamentos de Venda / Receita na entrega / Recebimento e os <span className="font-medium text-foreground">regrava do zero</span> a partir dos pedidos, minutas e títulos existentes.</li>
+                    <li>Quando usar: migrações de modelo contábil ou quando o histórico de vendas precisa ser reconstruído por inteiro. Mostra barra de progresso e sobrevive a trocar de aba (o andamento fica salvo).</li>
+                    <li>Diferença para o backfill de consistência: este <span className="font-medium text-foreground">apaga e refaz</span> um escopo (vendas); o de consistência <span className="font-medium text-foreground">só corrige o que diverge</span>, em todos os módulos.</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-success/30 bg-success/10 p-4">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <PenLine className="w-5 h-5 text-success" />
+                    <span className="font-semibold text-foreground">Novo lançamento</span>
+                  </div>
+                  <ul className="text-[13px] text-muted-foreground space-y-1 list-disc pl-5">
+                    <li>Lançamento <span className="font-medium text-foreground">manual</span> de partidas dobradas (débito = crédito), para fatos que não passam pelos fluxos do ERP — ex.: ajustes, provisões avulsas, reclassificações pontuais.</li>
+                    <li>Use com moderação: tudo que tem documento de origem (venda, compra, baixa, estoque) deve ser lançado pelo próprio fluxo, nunca manualmente — senão o reprocesso não enxerga.</li>
+                  </ul>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Lançamentos automáticos não devem ser editados aqui — corrija o documento de origem (pedido, título, conferência) que o razão re-sincroniza sozinho.
+                </p>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
       <div className="px-8 pb-8 space-y-4">
         {ultimaExecucao?.at && (
           <p className="text-xs text-muted-foreground">
@@ -223,6 +321,17 @@ export default function LancamentosContabeisPage() {
             </div>
             <div className="h-1.5 w-full rounded-full bg-info/20 overflow-hidden">
               <div className="h-full rounded-full bg-info transition-all duration-300" style={{ width: `${progresso.pct}%` }} />
+            </div>
+          </div>
+        )}
+        {consistencia && progressoCons && (
+          <div className="rounded-lg border border-info/30 bg-info/10 px-4 py-3 text-sm text-info space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span>Backfill de consistência{progressoCons.fase ? ` — ${progressoCons.fase}` : ""}…</span>
+              <span className="font-semibold tabular-nums">{progressoCons.pct}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-info/20 overflow-hidden">
+              <div className="h-full rounded-full bg-info transition-all duration-300" style={{ width: `${progressoCons.pct}%` }} />
             </div>
           </div>
         )}
