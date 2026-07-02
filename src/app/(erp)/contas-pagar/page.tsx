@@ -14,7 +14,9 @@ export default async function ContasPagarPage() {
       contaBancaria: { select: { id: true, nome: true } },
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
       naturezas: { select: { naturezaFinanceiraId: true, detalhamento: true, valor: true } },
-      pedidoCompra: { select: { id: true, numero: true, conferencia: { select: { id: true, numero: true } } } },
+      centroCusto: { select: { codigo: true, nome: true } },
+      pedidoCompra: { select: { id: true, numero: true, conferencia: { select: { id: true, numero: true } },
+        itens: { select: { tes: { select: { codigo: true, nome: true } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
     },
     orderBy: { dataVencimento: "asc" },
   });

@@ -31,9 +31,34 @@ type ContaRow = {
   fornecedor: { id: string; razaoSocial: string } | null;
   contasContrapartida?: { id: string; nome: string }[];
   naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown }[];
-  pedidoCompra?: { id: string; numero: string; conferencia?: { id: string; numero: string } | null } | null;
+  pedidoCompra?: {
+    id: string; numero: string; conferencia?: { id: string; numero: string } | null;
+    itens?: { tes?: { codigo: string; nome: string } | null; centroCusto?: { codigo: string; nome: string } | null }[];
+  } | null;
+  centroCusto?: { codigo: string; nome: string } | null;
   folhaId?: string | null; recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
 };
+
+// TES e Centro de custo do documento de material que originou o título — SOMENTE
+// LEITURA para o financeiro (a fonte é a linha do material; aqui só exibe). Junta
+// os valores distintos dos itens; "Vários" quando a compra mistura.
+function rotulosDistintos(vals: (string | null | undefined)[]): string {
+  const set = Array.from(new Set(vals.filter((v): v is string => !!v)));
+  if (set.length === 0) return "—";
+  if (set.length === 1) return set[0];
+  return `Vários (${set.length})`;
+}
+function tesEcentroDoTitulo(c: ContaRow): { tes: string; centro: string } {
+  const itens = c.pedidoCompra?.itens ?? [];
+  if (itens.length > 0) {
+    return {
+      tes: rotulosDistintos(itens.map((i) => i.tes ? `${i.tes.codigo} ${i.tes.nome}` : null)),
+      centro: rotulosDistintos(itens.map((i) => i.centroCusto ? `${i.centroCusto.codigo} - ${i.centroCusto.nome}` : null)),
+    };
+  }
+  // Título avulso/despesa: centro é do próprio título; sem TES.
+  return { tes: "—", centro: c.centroCusto ? `${c.centroCusto.codigo} - ${c.centroCusto.nome}` : "—" };
+}
 
 // Documento de ORIGEM do título a pagar: de onde ele veio (documento de entrada,
 // pedido antecipado, folha, encontro de contas, recorrência, intragrupo) ou avulso.
@@ -406,6 +431,9 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
             ),
           }] : []),
           { label: "Descrição", valor: detalhe.descricao || "—", full: true },
+          // TES e Centro de custo — SOMENTE LEITURA (definidos no material, não aqui).
+          { label: "TES (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).tes}</span> },
+          { label: "Centro de custo (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).centro}</span> },
           { label: "Categoria", valor: detalhe.categoria ?? "—" },
           { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{formatDate(detalhe.dataVencimento)}</span> },
           { label: "Valor", valor: formatBRL(vo) },

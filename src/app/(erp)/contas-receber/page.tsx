@@ -14,6 +14,7 @@ export default async function ContasReceberPage() {
       contaBancaria: { select: { id: true, nome: true } },
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
       pedidoVenda: { select: { id: true, numero: true } },
+      centroCusto: { select: { codigo: true, nome: true } },
     },
     orderBy: { dataVencimento: "asc" },
   });

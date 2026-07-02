@@ -25,6 +25,7 @@ type ContaRow = {
   cliente: { id: string; razaoSocial: string };
   contasContrapartida?: { id: string; nome: string }[];
   pedidoVenda?: { id: string; numero: string } | null;
+  centroCusto?: { codigo: string; nome: string } | null;
   recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
 };
 
@@ -352,6 +353,8 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
           { label: "Cliente", valor: detalhe.cliente?.razaoSocial ?? "—", full: true },
           { label: "Origem", full: true, valor: org.ref ? `${org.label} · ${org.ref}` : org.label },
           { label: "Descrição", valor: detalhe.descricao || "—", full: true },
+          // Centro de custo — SOMENTE LEITURA (definido no material/título, não aqui).
+          { label: "Centro de custo", valor: <span className="text-muted-foreground">{detalhe.centroCusto ? `${detalhe.centroCusto.codigo} - ${detalhe.centroCusto.nome}` : "—"}</span> },
           { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{formatDate(detalhe.dataVencimento)}</span> },
           { label: "Valor", valor: formatBRL(vo) },
           { label: "Recebido", valor: formatBRL(vp) },
