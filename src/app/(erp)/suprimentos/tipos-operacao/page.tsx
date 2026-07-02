@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info } from "lucide-react";
+import { Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEscToClose } from "@/lib/use-esc-to-close";
 
@@ -45,6 +45,8 @@ export default function TiposOperacaoPage() {
   const [form, setForm] = useState<FormState>(empty());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,6 +78,18 @@ export default function TiposOperacaoPage() {
   const cancel = () => { setEditingId(null); setError(null); };
   useEscToClose(cancel, editingId !== null);
 
+  const criarPadrao = async () => {
+    setSeeding(true); setSeedMsg(null);
+    try {
+      const res = await fetch("/api/suprimentos/tipos-operacao/padrao", { method: "POST" });
+      const j = await res.json();
+      if (!res.ok) { setSeedMsg(j.error ?? "Erro ao criar padrões"); return; }
+      setSeedMsg(j.criados > 0 ? `${j.criados} TES padrão criado(s).` : "Nenhum novo — os padrões já existem.");
+      await load();
+    } catch { setSeedMsg("Erro de conexão."); }
+    finally { setSeeding(false); }
+  };
+
   const save = async () => {
     setSaving(true); setError(null);
     const url = editingId === "new" ? "/api/suprimentos/tipos-operacao" : `/api/suprimentos/tipos-operacao/${editingId}`;
@@ -103,8 +117,17 @@ export default function TiposOperacaoPage() {
         </div>
 
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">{rows.length} TES cadastrado(s)</p>
-          <Button size="sm" onClick={startNew} disabled={editingId !== null}><Plus className="w-4 h-4 mr-1" /> Novo TES</Button>
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-muted-foreground">{rows.length} TES cadastrado(s)</p>
+            {seedMsg && <span className="text-xs text-info">{seedMsg}</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={criarPadrao} disabled={seeding || editingId !== null}
+              title="Cria o conjunto padrão de TES (idempotente) na empresa ativa">
+              {seeding ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />} Criar TES padrão
+            </Button>
+            <Button size="sm" onClick={startNew} disabled={editingId !== null}><Plus className="w-4 h-4 mr-1" /> Novo TES</Button>
+          </div>
         </div>
 
         <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
