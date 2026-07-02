@@ -31,8 +31,23 @@ type ContaRow = {
   fornecedor: { id: string; razaoSocial: string } | null;
   contasContrapartida?: { id: string; nome: string }[];
   naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown }[];
-  pedidoCompra?: { id: string; numero: string } | null;
+  pedidoCompra?: { id: string; numero: string; conferencia?: { id: string; numero: string } | null } | null;
+  folhaId?: string | null; recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
 };
+
+// Documento de ORIGEM do título a pagar: de onde ele veio (documento de entrada,
+// pedido antecipado, folha, encontro de contas, recorrência, intragrupo) ou avulso.
+function origemPagar(c: ContaRow): { label: string; ref: string | null } {
+  if (c.pedidoCompra) {
+    if (c.antecipado) return { label: "Pedido de Compra (PA)", ref: c.pedidoCompra.numero };
+    return { label: "Documento de Entrada", ref: c.pedidoCompra.conferencia?.numero ?? c.pedidoCompra.numero };
+  }
+  if (c.folhaId) return { label: "Folha de Pagamento", ref: null };
+  if (c.compensacaoOrigemId) return { label: "Encontro de Contas", ref: null };
+  if (c.recorrenciaId) return { label: "Recorrência", ref: null };
+  if (c.intragrupo) return { label: "Intragrupo", ref: null };
+  return { label: "Manual", ref: null };
+}
 
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
 
@@ -187,6 +202,15 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     ) },
     { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => <span>{row.original.fornecedor?.razaoSocial ?? "—"}</span> },
     { accessorKey: "descricao", header: "Descrição" },
+    { id: "origem", header: "Origem", cell: ({ row }) => {
+      const o = origemPagar(row.original);
+      return (
+        <span className="inline-flex flex-col leading-tight">
+          <span className="text-xs text-foreground">{o.label}</span>
+          {o.ref && <span className="font-mono text-[10px] text-muted-foreground">{o.ref}</span>}
+        </span>
+      );
+    } },
     { accessorKey: "categoria", header: "Categoria", cell: ({ row }) => <span className="text-xs text-muted-foreground">{row.original.categoria ?? "—"}</span> },
     {
       accessorKey: "dataVencimento",
@@ -329,7 +353,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
                     <div
                       key={c.id}
                       onClick={() => setDetalhe(c)}
-                      className="grid grid-cols-[7rem_1.4fr_1.6fr_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
+                      className="grid grid-cols-[7rem_1.2fr_1.4fr_8rem_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
                     >
                       <span className="inline-flex items-center gap-1 min-w-0">
                         <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
@@ -337,6 +361,9 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
                       </span>
                       <span className="truncate">{c.fornecedor?.razaoSocial ?? "—"}</span>
                       <span className="truncate text-muted-foreground">{c.descricao}</span>
+                      {(() => { const o = origemPagar(c); return (
+                        <span className="truncate text-xs text-muted-foreground" title={o.ref ? `${o.label} · ${o.ref}` : o.label}>{o.label}{o.ref ? ` ${o.ref}` : ""}</span>
+                      ); })()}
                       <span className="font-medium tabular-nums text-right">{formatBRL(decimalToNumber(c.valorOriginal))}</span>
                       <StatusBadge status={c.status} />
                       {renderAcoes(c)}

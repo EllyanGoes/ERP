@@ -24,7 +24,19 @@ type ContaRow = {
   valorOriginal: unknown; valorPago: unknown;
   cliente: { id: string; razaoSocial: string };
   contasContrapartida?: { id: string; nome: string }[];
+  pedidoVenda?: { id: string; numero: string } | null;
+  recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
 };
+
+// Documento de ORIGEM do título a receber: pedido de venda, encontro de contas,
+// recorrência, intragrupo — ou avulso (manual).
+function origemReceber(c: ContaRow): { label: string; ref: string | null } {
+  if (c.pedidoVenda) return { label: "Pedido de Venda", ref: c.pedidoVenda.numero };
+  if (c.compensacaoOrigemId) return { label: "Encontro de Contas", ref: null };
+  if (c.recorrenciaId) return { label: "Recorrência", ref: null };
+  if (c.intragrupo) return { label: "Intragrupo", ref: null };
+  return { label: "Manual", ref: null };
+}
 
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
 
@@ -144,6 +156,15 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
     { id: "cliente", header: "Cliente", cell: ({ row }) => <span>{row.original.cliente.razaoSocial}</span> },
     { accessorKey: "descricao", header: "Descrição", cell: ({ row }) => <span className="text-sm">{row.original.descricao}</span> },
+    { id: "origem", header: "Origem", cell: ({ row }) => {
+      const o = origemReceber(row.original);
+      return (
+        <span className="inline-flex flex-col leading-tight">
+          <span className="text-xs text-foreground">{o.label}</span>
+          {o.ref && <span className="font-mono text-[10px] text-muted-foreground">{o.ref}</span>}
+        </span>
+      );
+    } },
     {
       accessorKey: "dataVencimento",
       header: "Vencimento",
@@ -292,11 +313,14 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
                     <div
                       key={c.id}
                       onClick={() => setDetalhe(c)}
-                      className="grid grid-cols-[7rem_1.4fr_1.6fr_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
+                      className="grid grid-cols-[7rem_1.2fr_1.4fr_8rem_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
                     >
                       <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
                       <span className="truncate">{c.cliente?.razaoSocial ?? "—"}</span>
                       <span className="truncate text-muted-foreground">{c.descricao}</span>
+                      {(() => { const o = origemReceber(c); return (
+                        <span className="truncate text-xs text-muted-foreground" title={o.ref ? `${o.label} · ${o.ref}` : o.label}>{o.label}{o.ref ? ` ${o.ref}` : ""}</span>
+                      ); })()}
                       <span className="font-medium tabular-nums text-right">{formatBRL(decimalToNumber(c.valorOriginal))}</span>
                       <StatusBadge status={c.status} />
                       {renderAcoes(c)}

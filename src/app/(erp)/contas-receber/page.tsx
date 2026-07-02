@@ -13,6 +13,7 @@ export default async function ContasReceberPage() {
       cliente: { select: { id: true, razaoSocial: true } },
       contaBancaria: { select: { id: true, nome: true } },
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
+      pedidoVenda: { select: { id: true, numero: true } },
     },
     orderBy: { dataVencimento: "asc" },
   });
