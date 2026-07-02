@@ -18,7 +18,7 @@ import MinutaActionsMenu from "./MinutaActionsMenu";
 import DevolucaoButton from "./DevolucaoButton";
 import PagamentosInput, {
   novaLinhaPagamento, pagamentosPayload, pagamentosValidos, contaCaixaPadrao, parseValorBR,
-  contaPadraoParaForma, pagamentoContaInvalida,
+  contaPadraoParaForma, pagamentoContaInvalida, pagamentoCartaoSemMaquineta,
   type LinhaPagamento, type FormaOpt,
 } from "./PagamentosInput";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -241,7 +241,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   async function concluirBalcao() {
     if (!balcaoLocalId) { setBalcaoErro("Informe o local de estoque da retirada."); return; }
     if (!balcaoData) { setBalcaoErro("Confirme a data do recebimento."); return; }
-    if (!pagamentosValidos(balcaoPagamentos, balcaoFormas, balcaoTotal)) {
+    // Cartão (crédito/débito) exige a maquineta — a conta da administradora e
+    // a taxa derivam dela (venda no cartão = troca de credor).
+    const cartaoSemMaq = pagamentoCartaoSemMaquineta(balcaoPagamentos, balcaoFormas);
+    if (cartaoSemMaq) {
+      setBalcaoErro(`Selecione a maquineta para "${cartaoSemMaq.forma}" — sem maquineta cadastrada, cadastre em Financeiro → Cartões.`);
+      return;
+    }
+    if (!pagamentosValidos(balcaoPagamentos, balcaoFormas, balcaoTotal, true)) {
       setBalcaoErro("Confira as formas de pagamento — a soma precisa cobrir o total (troco só em dinheiro).");
       return;
     }
@@ -1270,7 +1277,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
               </div>
             </div>
             {/* Formas de pagamento (misto: PIX + dinheiro etc.) */}
-            <PagamentosInput linhas={balcaoPagamentos} setLinhas={setBalcaoPagamentos} formas={balcaoFormas} contas={balcaoContas} total={balcaoTotal} />
+            <PagamentosInput linhas={balcaoPagamentos} setLinhas={setBalcaoPagamentos} formas={balcaoFormas} contas={balcaoContas} total={balcaoTotal} usarMaquinetas />
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setBalcaoOpen(false)} disabled={loading}>Cancelar</Button>
               <Button onClick={concluirBalcao} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 font-semibold">

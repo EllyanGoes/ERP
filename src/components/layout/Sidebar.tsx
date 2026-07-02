@@ -258,6 +258,7 @@ const mainModules: Module[] = [
         items: [
           { href: "/financeiro/contas",       label: "Contas",           icon: Wallet },
           { href: "/financeiro/bancos",       label: "Bancos",           icon: Landmark },
+          { href: "/financeiro/cartoes",      label: "Cartões",          icon: CreditCard },
           { href: "/financeiro/naturezas",    label: "Naturezas Financeiras", icon: ArrowLeftRight },
         ],
       },

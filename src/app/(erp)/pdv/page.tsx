@@ -18,7 +18,7 @@ import { printEscPosUSB } from "@/lib/webusb-print";
 import { buildPedidoEscPos, printPedidoTermicaDialog, type PedidoPrintData } from "@/lib/print-pedido";
 import PagamentosInput, {
   novaLinhaPagamento, parseValorBR, pagamentosPayload, pagamentosValidos,
-  contaPadraoParaForma, pagamentoContaInvalida,
+  contaPadraoParaForma, pagamentoContaInvalida, pagamentoCartaoSemMaquineta,
   type LinhaPagamento, type FormaOpt,
 } from "@/components/pedidos-venda/PagamentosInput";
 import { Search, RefreshCw, Loader2, Receipt, CheckCircle2, Printer } from "lucide-react";
@@ -210,7 +210,14 @@ export default function PdvPage() {
     if (!pedido) return;
     if (!localId) { setErro("Informe o local de estoque da retirada."); return; }
     const total = decimalToNumber(pedido.valorTotal);
-    if (!pagamentosValidos(pagamentos, formas, total)) {
+    // Cartão (crédito/débito) exige a maquineta — a conta da administradora e
+    // a taxa derivam dela (venda no cartão = troca de credor).
+    const cartaoSemMaq = pagamentoCartaoSemMaquineta(pagamentos, formas);
+    if (cartaoSemMaq) {
+      setErro(`Selecione a maquineta para "${cartaoSemMaq.forma}" — sem maquineta cadastrada, cadastre em Financeiro → Cartões.`);
+      return;
+    }
+    if (!pagamentosValidos(pagamentos, formas, total, true)) {
       setErro("Confira as formas de pagamento — a soma precisa cobrir o total (troco só em dinheiro).");
       return;
     }
@@ -262,7 +269,7 @@ export default function PdvPage() {
   const creditoUsadoNum = Math.min(Math.max(0, parseValorBR(creditoUsadoStr) || 0), creditoSaldo, total);
   const alvoCash = Math.max(0, Math.round((total - creditoUsadoNum) * 100) / 100);
   const pagoNum = pagamentos.reduce((s, l) => s + parseValorBR(l.valor), 0);
-  const pagamentoOk = alvoCash <= 0.001 ? true : pagamentosValidos(pagamentos, formas, alvoCash);
+  const pagamentoOk = alvoCash <= 0.001 ? true : pagamentosValidos(pagamentos, formas, alvoCash, true);
 
   // Venda à ordem: marcada no pedido OU escolhida aqui no caixa (origemSel).
   const aOrdemEmpresa = pedido?.estoqueOrigemEmpresa ?? null;
@@ -461,7 +468,7 @@ export default function PdvPage() {
                 )}
 
                 {/* Formas de pagamento (misto: PIX + dinheiro etc.) */}
-                <PagamentosInput linhas={pagamentos} setLinhas={setPagamentos} formas={formas} contas={contas} total={alvoCash} />
+                <PagamentosInput linhas={pagamentos} setLinhas={setPagamentos} formas={formas} contas={contas} total={alvoCash} usarMaquinetas />
 
                 <div className="flex items-center gap-3 pt-1">
                   <span className="text-sm text-muted-foreground">

@@ -4,6 +4,11 @@ export const dynamic = "force-dynamic";
 // estoque, conta a receber nasce PAGA e o recebimento é lançado na conta
 // indicada (padrão Caixa Geral). Fluxo da Cimento e Mix; pedidos com entrega
 // continuam no fluxo normal de minutas.
+//
+// Cartão (crédito/débito) = TROCA DE CREDOR: o cliente é baixado no ato e a
+// administradora vira a devedora — o título nasce/baixa pelo BRUTO com
+// valorTaxa/taxaNaturezaId, e o caixa entra pelo LÍQUIDO na conta da
+// administradora (tipo CARTAO), com maquinetaId no lançamento.
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +22,7 @@ import { contabilizarPedidoVenda, contabilizarCmvMinuta, contabilizarReceitaMinu
 import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
 import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
+import { naturezaSistema } from "@/lib/natureza-sistema";
 import { z } from "zod";
 
 const pagamentoSchema = z.object({
@@ -24,6 +30,9 @@ const pagamentoSchema = z.object({
   contaBancariaId: z.string().optional().nullable(),
   valor: z.coerce.number().min(0),
   troco: z.boolean().optional(), // linha em dinheiro: pode exceder o total (devolve troco)
+  // Cartão (crédito/débito): o operador escolhe a MAQUINETA — a conta efetiva
+  // é a da administradora (tipo CARTAO) e a taxa vem da TaxaMaquineta.
+  maquinetaId: z.string().optional().nullable(),
 });
 
 const schema = z.object({
@@ -139,27 +148,71 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Traduz o sentinel "caixa-geral" do front para a conta Caixa em Dinheiro DA
   // EMPRESA (nunca hardcodar caixa-geral — cada empresa tem o seu caixa).
   const contaReal = (id: string | null | undefined) => (id && id !== "caixa-geral" ? id : caixaPadrao);
+
+  // ── Cartão = troca de credor ──────────────────────────────────────────────
+  // Linha com maquineta: o cliente é baixado NO ATO e a ADMINISTRADORA vira a
+  // devedora — a conta efetiva é a da administradora (tipo CARTAO, razão 1.1.8)
+  // e a taxa (valor × taxaPct do tipo crédito/débito) fica no título
+  // (valorTaxa/taxaNaturezaId); o caixa entra pelo LÍQUIDO. Valida as
+  // maquinetas informadas ANTES de montar as linhas.
+  const formasInfo = await prisma.formaPagamento.findMany({ select: { nome: true, tipo: true } });
+  const tipoDaForma = (nome: string) => formasInfo.find((f) => f.nome === nome)?.tipo ?? null;
+  const maqIds = Array.from(new Set((pagamentosIn ?? []).map((p) => p.maquinetaId).filter((id): id is string => !!id)));
+  const maquinetas = maqIds.length > 0
+    ? await prisma.maquineta.findMany({
+        where: { id: { in: maqIds } },
+        select: {
+          id: true, nome: true, ativo: true, empresaId: true,
+          administradora: { select: { nome: true, ativo: true, contaBancariaId: true } },
+          taxas: { select: { tipoForma: true, taxaPct: true } },
+        },
+      })
+    : [];
+  const maqDe = new Map(maquinetas.map((m) => [m.id, m]));
+  for (const p of pagamentosIn ?? []) {
+    if (!p.maquinetaId) continue;
+    const tipo = tipoDaForma(p.forma);
+    if (tipo !== "CARTAO_CREDITO" && tipo !== "CARTAO_DEBITO") {
+      return NextResponse.json({ error: `Maquineta só se aplica a formas de cartão — "${p.forma}" não é cartão de crédito/débito.` }, { status: 422 });
+    }
+    const m = maqDe.get(p.maquinetaId);
+    if (!m || !m.ativo || m.empresaId !== pedido.empresaId || m.administradora.ativo === false) {
+      return NextResponse.json({ error: "Maquineta inválida ou inativa para a empresa da venda." }, { status: 422 });
+    }
+    if (!m.taxas.some((t) => t.tipoForma === tipo)) {
+      return NextResponse.json({ error: `A maquineta "${m.nome}" não tem taxa cadastrada para ${tipo === "CARTAO_CREDITO" ? "cartão de crédito" : "cartão de débito"} — cadastre em Financeiro → Cartões.` }, { status: 422 });
+    }
+  }
+
   const linhas = (pagamentosIn && pagamentosIn.length > 0)
-    ? pagamentosIn.map((p) => ({
-        forma: p.forma,
-        contaBancariaId: contaReal(p.contaBancariaId),
-        valor: round2(p.valor),
-        troco: !!p.troco,
-      }))
+    ? pagamentosIn.map((p) => {
+        const maq = p.maquinetaId ? maqDe.get(p.maquinetaId) : undefined;
+        return {
+          forma: p.forma,
+          // Linha de cartão com maquineta: a conta é DERIVADA (administradora),
+          // nunca escolhida pelo operador.
+          contaBancariaId: maq ? maq.administradora.contaBancariaId : contaReal(p.contaBancariaId),
+          valor: round2(p.valor),
+          troco: !!p.troco,
+          maquinetaId: maq ? p.maquinetaId! : null,
+        };
+      })
     : (alvoCash > 0 ? [{
         forma: (formaPagamento ?? pedido.formaPagamento ?? "À vista"),
         contaBancariaId: contaReal(contaBancariaId),
         valor: alvoCash,
         troco: false,
+        maquinetaId: null as string | null,
       }] : []);
 
-  // Guarda de roteamento: forma eletrônica (Pix, cartão, transferência…) não
-  // pode cair em conta tipo CAIXA (dinheiro físico) — trava compartilhada em
+  // Guarda de roteamento: forma eletrônica (Pix, transferência…) não pode cair
+  // em conta tipo CAIXA (dinheiro físico) — trava compartilhada em
   // src/lib/roteamento-conta.ts (só vale se a empresa tem banco cadastrado).
+  // Linha de cartão COM maquineta fica de fora: a conta é derivada, não escolhida.
   if (linhas.length > 0) {
     const ruim = await formaEletronicaNoCaixa(
       prisma, pedido.empresaId,
-      linhas.filter((l) => l.valor > 0).map((l) => ({ forma: l.forma, contaBancariaId: l.contaBancariaId })),
+      linhas.filter((l) => l.valor > 0 && !l.maquinetaId).map((l) => ({ forma: l.forma, contaBancariaId: l.contaBancariaId })),
     );
     if (ruim) {
       return NextResponse.json({ error: `A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.` }, { status: 422 });
@@ -195,16 +248,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     ...(creditoUsado > 0 ? ["Crédito"] : []),
   ].join(" + ") || (formaPagamento ?? pedido.formaPagamento ?? null);
 
-  // Compensação por forma (ex.: cartão de crédito = 30 dias): linhas com
-  // diasCompensacao > 0 NÃO entram no caixa na hora — viram conta a receber com
-  // vencimento +N dias. As demais (dinheiro/Pix/débito) são recebidas no ato.
-  const formasComp = await prisma.formaPagamento.findMany({ select: { nome: true, diasCompensacao: true } });
-  const diasDaForma = (forma: string) => formasComp.find((f) => f.nome === forma)?.diasCompensacao ?? 0;
-  const linhasRecebidas = linhasReais.filter((l) => diasDaForma(l.forma) <= 0);
-  const linhasAReceber = linhasReais.filter((l) => diasDaForma(l.forma) > 0);
-  const valorRecebido = round2(linhasRecebidas.reduce((s, l) => s + l.valor, 0));
-  const valorAReceber = round2(linhasAReceber.reduce((s, l) => s + l.valor, 0));
-  const maxDiasComp = linhasAReceber.reduce((m, l) => Math.max(m, diasDaForma(l.forma)), 0);
+  // Taxa da maquineta por linha de cartão (valor × taxaPct do tipo da forma,
+  // arredondada a 2 casas): o LancamentoFinanceiro entra pelo LÍQUIDO na conta
+  // da administradora; a taxa acumula no título (valorTaxa). Como líquido =
+  // valor − taxa (exato), líquido + taxa fecham o bruto sem resíduo — qualquer
+  // centavo de arredondamento fica na taxa, nunca no caixa.
+  const taxaDaLinha = (l: { valor: number; forma: string; maquinetaId: string | null }) => {
+    if (!l.maquinetaId) return 0;
+    const m = maqDe.get(l.maquinetaId);
+    const pct = Number(m?.taxas.find((t) => t.tipoForma === tipoDaForma(l.forma))?.taxaPct ?? 0);
+    return round2((l.valor * pct) / 100);
+  };
+  const linhasComTaxa = linhasReais.map((l) => {
+    const taxa = taxaDaLinha(l);
+    return { ...l, taxa, liquido: round2(l.valor - taxa) };
+  });
+  const valorBruto = round2(linhasComTaxa.reduce((s, l) => s + l.valor, 0));
+  const taxaTotal = round2(linhasComTaxa.reduce((s, l) => s + l.taxa, 0));
+  // Natureza travada do sistema p/ a despesa de taxa (null se o seed não rodou
+  // — o título ainda guarda o valorTaxa; o motor contábil trata a ausência).
+  const naturezaTaxa = taxaTotal > 0 ? await naturezaSistema(null, pedido.empresaId, "taxa-cartao") : null;
 
   // Valida o crédito antes da transação (erro limpo).
   if (creditoUsado > 0) {
@@ -224,11 +287,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const numeroCR = valorTotal > 0
     ? generateDocNumber("CR", await proximaSequenciaDaEmpresa(pedido.empresaId, "CR"))
     : null;
-  // 2º número para o título a receber (cartão de crédito) numa venda nova.
-  const numeroCR2 = valorAReceber > 0
-    ? generateDocNumber("CR", await proximaSequenciaDaEmpresa(pedido.empresaId, "CR"))
-    : null;
-  const vencCompensacao = new Date(hoje.getTime() + maxDiasComp * 86400000);
 
   try {
     const resultado = await prisma.$transaction(async (tx) => {
@@ -318,23 +376,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // Recebimento à vista: o dinheiro entra na conta indicada. Se o pedido JÁ
       // tem título(s) em aberto (gerado na confirmação), eles são RECEBIDOS
       // (baixados) — não cria outro. Senão, cria uma conta já PAGA.
-      // Cria os lançamentos de caixa (recebimento de fato) de um conjunto de linhas.
-      const receberLinhas = async (contaId: string, lns: typeof linhasReais) => {
-        for (const l of lns) {
-          await tx.lancamentoFinanceiro.create({
-            data: {
-              empresaId: pedido.empresaId,
-              tipo: "RECEITA",
-              descricao: `Recebimento — venda balcão${linhasReais.length > 1 ? ` (${l.forma})` : ""}`,
-              valor: l.valor,
-              dataLancamento: hoje,
-              contaReceberId: contaId,
-              contaBancariaId: l.contaBancariaId,
-            },
-          });
-        }
-      };
-
+      // Cartão = troca de credor: o título é baixado pelo BRUTO (cliente
+      // zerado no ato); a taxa acumula em valorTaxa e o caixa entra pelo
+      // LÍQUIDO na conta da administradora, com maquinetaId.
       let conta: { id: string; numero: string } | null = null;
       if (valorTotal > 0) {
         const abertos = await tx.contaReceber.findMany({
@@ -362,52 +406,86 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           // caixa pelo seu SALDO — NUNCA concentra o total na 1ª parcela (senão o
           // caixa e a contabilidade por título saem divergentes). Preenche cada CR
           // com as linhas de pagamento em ordem (cobre pagamento misto).
+          // Linha de cartão: a taxa é RATEADA proporcional ao valor coberto de
+          // cada parcela (resíduo de centavo na última alocação da linha); o
+          // lançamento de caixa sai pelo líquido (coberto − taxa rateada) e a
+          // parcela acumula a taxa em valorTaxa.
           let li = 0;
-          let restanteLinha = linhasReais[0]?.valor ?? 0;
+          let restanteLinha = linhasComTaxa[0]?.valor ?? 0;
+          let restanteTaxaLinha = linhasComTaxa[0]?.taxa ?? 0;
           for (const ab of abertos) {
             let restanteCR = saldoDe(ab);
-            while (restanteCR > 0.001 && li < linhasReais.length) {
+            let taxaCR = 0;
+            while (restanteCR > 0.001 && li < linhasComTaxa.length) {
+              const linha = linhasComTaxa[li];
               const usar = round2(Math.min(restanteCR, restanteLinha));
               if (usar > 0.001) {
-                await tx.lancamentoFinanceiro.create({
-                  data: {
-                    empresaId: pedido.empresaId, tipo: "RECEITA",
-                    descricao: `Recebimento — venda balcão${linhasReais.length > 1 ? ` (${linhasReais[li].forma})` : ""}`,
-                    valor: usar, dataLancamento: hoje,
-                    contaReceberId: ab.id, contaBancariaId: linhasReais[li].contaBancariaId,
-                  },
-                });
+                // Última fatia da linha leva o resíduo da taxa; as anteriores,
+                // a fração proporcional (limitada ao que resta da taxa).
+                const ultimaFatia = usar >= restanteLinha - 0.001;
+                const taxaAloc = linha.taxa > 0
+                  ? (ultimaFatia
+                      ? Math.max(0, restanteTaxaLinha)
+                      : Math.min(round2((linha.taxa * usar) / linha.valor), Math.max(0, restanteTaxaLinha)))
+                  : 0;
+                const valorLF = round2(usar - taxaAloc);
+                if (valorLF > 0.001) {
+                  await tx.lancamentoFinanceiro.create({
+                    data: {
+                      empresaId: pedido.empresaId, tipo: "RECEITA",
+                      descricao: `Recebimento — venda balcão${linhasComTaxa.length > 1 ? ` (${linha.forma})` : ""}`,
+                      valor: valorLF, dataLancamento: hoje,
+                      contaReceberId: ab.id, contaBancariaId: linha.contaBancariaId,
+                      ...(linha.maquinetaId ? { maquinetaId: linha.maquinetaId } : {}),
+                    },
+                  });
+                }
+                taxaCR = round2(taxaCR + taxaAloc);
+                restanteTaxaLinha = round2(restanteTaxaLinha - taxaAloc);
               }
               restanteCR = round2(restanteCR - usar);
               restanteLinha = round2(restanteLinha - usar);
-              if (restanteLinha <= 0.001) { li++; restanteLinha = linhasReais[li]?.valor ?? 0; }
+              if (restanteLinha <= 0.001) {
+                li++;
+                restanteLinha = linhasComTaxa[li]?.valor ?? 0;
+                restanteTaxaLinha = linhasComTaxa[li]?.taxa ?? 0;
+              }
+            }
+            if (taxaCR > 0.001) {
+              await tx.contaReceber.update({
+                where: { id: ab.id },
+                data: { valorTaxa: { increment: taxaCR }, ...(naturezaTaxa ? { taxaNaturezaId: naturezaTaxa.id } : {}) },
+              });
             }
           }
-        } else {
-          // Venda nova: o recebido no ato (dinheiro/Pix/débito) baixa o caixa; o
-          // cartão de crédito (diasCompensacao > 0) vira conta A RECEBER (+N dias).
-          if (valorRecebido > 0 && numeroCR) {
-            conta = await tx.contaReceber.create({
+        } else if (valorBruto > 0 && numeroCR) {
+          // Venda nova: UMA conta a receber já PAGA pelo BRUTO (cliente zerado
+          // no ato — no cartão, a administradora vira a devedora na conta
+          // tipo CARTAO). Vencimento = data da venda.
+          conta = await tx.contaReceber.create({
+            data: {
+              empresaId: pedido.empresaId, numero: numeroCR, clienteId: pedido.clienteId, pedidoVendaId: pedido.id,
+              descricao: `Venda balcão ${pedido.numero}`, valorOriginal: valorBruto, valorPago: valorBruto,
+              dataVencimento: hoje, dataPagamento: hoje, status: "PAGA", formaPagamento: formasResumo,
+              ...(taxaTotal > 0 ? { valorTaxa: taxaTotal, taxaNaturezaId: naturezaTaxa?.id ?? null } : {}),
+            },
+            select: { id: true, numero: true },
+          });
+          for (const l of linhasComTaxa) {
+            const valorLF = l.maquinetaId ? l.liquido : l.valor;
+            if (valorLF <= 0.001) continue;
+            await tx.lancamentoFinanceiro.create({
               data: {
-                empresaId: pedido.empresaId, numero: numeroCR, clienteId: pedido.clienteId, pedidoVendaId: pedido.id,
-                descricao: `Venda balcão ${pedido.numero}`, valorOriginal: valorRecebido, valorPago: valorRecebido,
-                dataVencimento: hoje, dataPagamento: hoje, status: "PAGA", formaPagamento: formasResumo,
+                empresaId: pedido.empresaId,
+                tipo: "RECEITA",
+                descricao: `Recebimento — venda balcão${linhasComTaxa.length > 1 ? ` (${l.forma})` : ""}`,
+                valor: valorLF,
+                dataLancamento: hoje,
+                contaReceberId: conta.id,
+                contaBancariaId: l.contaBancariaId,
+                ...(l.maquinetaId ? { maquinetaId: l.maquinetaId } : {}),
               },
-              select: { id: true, numero: true },
             });
-            await receberLinhas(conta.id, linhasRecebidas);
-          }
-          if (valorAReceber > 0 && numeroCR2) {
-            const formaCred = linhasAReceber.map((l) => l.forma).join(" + ");
-            const crAR = await tx.contaReceber.create({
-              data: {
-                empresaId: pedido.empresaId, numero: numeroCR2, clienteId: pedido.clienteId, pedidoVendaId: pedido.id,
-                descricao: `Venda balcão ${pedido.numero} — ${formaCred} (a receber ${maxDiasComp}d)`,
-                valorOriginal: valorAReceber, valorPago: 0, dataVencimento: vencCompensacao, status: "ABERTA", formaPagamento: formaCred,
-              },
-              select: { id: true, numero: true },
-            });
-            if (!conta) conta = crAR;
           }
         }
       }

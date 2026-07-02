@@ -42,6 +42,17 @@ function origemReceber(c: ContaRow): { label: string; ref: string | null } {
   return { label: "Manual", ref: null };
 }
 
+// Naturezas TRAVADAS do sistema elegíveis para a taxa/tarifa RETIDA na baixa
+// (vêm do GET de naturezas com sistema=true). A ordem das chaves define o
+// default do lado: no receber, taxa de cartão primeiro.
+type TaxaNaturezaOpt = { id: string; nome: string; sistema?: boolean; sistemaChave?: string | null };
+const CHAVES_TAXA_RECEBER = ["taxa-cartao", "tarifa-bancaria"] as const;
+function filtrarTaxaNaturezas(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt[] {
+  return CHAVES_TAXA_RECEBER
+    .map((ch) => arr.find((n) => n.sistema === true && n.sistemaChave === ch))
+    .filter((n): n is TaxaNaturezaOpt => !!n);
+}
+
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
 
 // Casa a conta com o filtro de status. "VENCIDA" é derivado (em aberto/parcial
@@ -93,6 +104,14 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  // Encargos da baixa: juros/multa ENTRAM no caixa além do título; a taxa/tarifa
+  // é RETIDA (recebe MENOS) — o título é quitado por linhas + taxa e a taxa vira
+  // despesa com natureza travada do sistema.
+  const [juros, setJuros] = useState("");
+  const [multa, setMulta] = useState("");
+  const [taxa, setTaxa] = useState("");
+  const [taxaNaturezaId, setTaxaNaturezaId] = useState("");
+  const [taxaNaturezas, setTaxaNaturezas] = useState<TaxaNaturezaOpt[]>([]);
 
   // Agrupamento (toggle): por data de VENCIMENTO ou por CLIENTE. Grupos com
   // contagem e soma dos valores.
@@ -132,6 +151,12 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   useEffect(() => {
     fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
     fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => setContasBanco(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    // Naturezas travadas do sistema para a taxa/tarifa retida (taxa de cartão,
+    // tarifa bancária — ambas SAIDA).
+    fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json()).then((j) => {
+      const arr = Array.isArray(j) ? j : (j.data ?? []);
+      setTaxaNaturezas(filtrarTaxaNaturezas(arr));
+    }).catch(() => {});
   }, []);
 
   const saldo = selected ? decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago) : 0;
@@ -142,6 +167,8 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     setDataPag(new Date().toISOString().split("T")[0]);
     const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
     setLinhas([novaLinhaPagamento("", contaPadraoParaForma("", formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
+    // Encargos sempre zerados ao reabrir o modal.
+    setJuros(""); setMulta(""); setTaxa(""); setTaxaNaturezaId("");
   }
 
   function renderAcoes(c: ContaRow) {
@@ -231,11 +258,20 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
       setErro(`Selecione a conta bancária de destino para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem cair no Caixa em Dinheiro.`);
       return;
     }
+    // Encargos: juros/multa entram no caixa; taxa é retida (natureza travada).
+    const vJuros = parseValorBR(juros);
+    const vMulta = parseValorBR(multa);
+    const vTaxa = parseValorBR(taxa);
+    if (vJuros < 0 || vMulta < 0 || vTaxa < 0) { setErro("Juros, multa e taxa não podem ser negativos."); return; }
     setSaving(true); setErro(null);
     const res = await fetch(`/api/contas-receber/${selected.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pagamentos, dataPagamento: dataPag, valorMulta: 0, valorJuros: 0 }),
+      body: JSON.stringify({
+        pagamentos, dataPagamento: dataPag, valorMulta: vMulta, valorJuros: vJuros,
+        valorTaxa: vTaxa,
+        taxaNaturezaId: vTaxa > 0 ? (taxaNaturezaId || taxaNaturezas[0]?.id || null) : null,
+      }),
     });
     setSaving(false);
     if (!res.ok) { setErro((await res.json().catch(() => ({}))).error ?? "Erro ao receber."); return; }
@@ -412,6 +448,52 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
               contas={contasBanco}
               total={saldo}
             />
+            {/* Encargos da baixa: juros/multa entram no caixa além do título; a
+                taxa/tarifa é retida (recebe MENOS) — quitação = linhas + taxa. */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Encargos (opcional)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">Juros (R$)</Label>
+                  <Input value={juros} onChange={(e) => setJuros(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                </div>
+                <div>
+                  <Label className="text-xs">Multa (R$)</Label>
+                  <Input value={multa} onChange={(e) => setMulta(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                </div>
+              </div>
+              <div className="grid grid-cols-[9rem_1fr] gap-2">
+                <div>
+                  <Label className="text-xs">Taxa/tarifa retida (R$)</Label>
+                  <Input value={taxa} onChange={(e) => setTaxa(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                </div>
+                <div>
+                  <Label className="text-xs">Natureza da taxa</Label>
+                  <select
+                    value={taxaNaturezaId || taxaNaturezas[0]?.id || ""}
+                    onChange={(e) => setTaxaNaturezaId(e.target.value)}
+                    disabled={taxaNaturezas.length === 0}
+                    className="mt-1 w-full h-9 rounded-lg border border-border px-2 text-sm bg-card disabled:opacity-50"
+                  >
+                    {taxaNaturezas.length === 0 && <option value="">—</option>}
+                    {taxaNaturezas.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}
+                  </select>
+                </div>
+              </div>
+              {(() => {
+                const vJuros = parseValorBR(juros), vMulta = parseValorBR(multa), vTaxa = parseValorBR(taxa);
+                if (vJuros < 0 || vMulta < 0 || vTaxa < 0) return <p className="text-[11px] text-danger">Juros, multa e taxa não podem ser negativos.</p>;
+                if (vTaxa <= 0 && vJuros <= 0 && vMulta <= 0) return null;
+                const caixa = totalInformado + vJuros + vMulta;
+                return (
+                  <p className="text-[11px] text-muted-foreground">
+                    {vTaxa > 0
+                      ? <>Caixa: <span className="font-medium text-foreground">{formatBRL(caixa)}</span> · Baixa do título: <span className="font-medium text-foreground">{formatBRL(totalInformado + vTaxa)}</span></>
+                      : <>Caixa: <span className="font-medium text-foreground">{formatBRL(caixa)}</span> (título + juros/multa)</>}
+                  </p>
+                );
+              })()}
+            </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
           <DialogFooter>

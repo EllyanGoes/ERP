@@ -3,12 +3,22 @@
 // Lista de formas de pagamento (pagamento misto): cada linha tem forma, conta
 // de destino e valor. Usado no Caixa e na Venda Balcão. A forma "dinheiro"
 // (tipo DINHEIRO do cadastro) libera troco quando a soma excede o total.
+// Cartão (crédito/débito) com `usarMaquinetas`: o operador escolhe a MAQUINETA
+// no lugar da conta — a conta efetiva é a da administradora (derivada no back)
+// e o líquido (valor − taxa) é exibido ao lado.
+import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { cn, formatBRL } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 export type FormaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
 export type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean; ehTerceiro?: boolean };
+export type MaquinetaOpt = {
+  id: string;
+  nome: string;
+  administradora: { id: string; nome: string; contaBancariaId: string };
+  taxas: { tipoForma: string; taxaPct: number; diasCompensacao: number }[];
+};
 
 /**
  * Conta de destino padrão para dinheiro: o "Caixa em Dinheiro" (tipo CAIXA) da
@@ -27,6 +37,7 @@ export type LinhaPagamento = {
   forma: string;
   contaBancariaId: string;
   valor: string; // texto do input
+  maquinetaId?: string; // linha de cartão (crédito/débito): maquineta escolhida
 };
 
 export function novaLinhaPagamento(forma = "", contaBancariaId = "caixa-geral", valor = ""): LinhaPagamento {
@@ -43,6 +54,44 @@ export function formaEhDinheiro(nome: string, formas: FormaOpt[]): boolean {
   const f = formas.find((x) => x.nome === nome);
   if (f?.tipo) return f.tipo === "DINHEIRO";
   return /dinheiro|espécie|especie/i.test(nome);
+}
+
+/** Tipo cadastrado da forma (CARTAO_CREDITO, PIX, ...) ou null. */
+export function tipoDaForma(nome: string, formas: FormaOpt[]): string | null {
+  return formas.find((x) => x.nome === nome)?.tipo ?? null;
+}
+
+/** É forma de cartão (crédito/débito)? Decide pelo TIPO do cadastro. */
+export function formaEhCartao(nome: string, formas: FormaOpt[]): boolean {
+  const tipo = tipoDaForma(nome, formas);
+  return tipo === "CARTAO_CREDITO" || tipo === "CARTAO_DEBITO";
+}
+
+/** Taxa % da maquineta para o tipo da forma (null se não cadastrada). */
+export function taxaMaquinetaPct(m: MaquinetaOpt | undefined, forma: string, formas: FormaOpt[]): number | null {
+  const tipo = tipoDaForma(forma, formas);
+  const t = m?.taxas.find((x) => x.tipoForma === tipo);
+  return t ? Number(t.taxaPct) : null;
+}
+
+// ── Maquinetas ativas da empresa (GET /api/financeiro/cartoes/opcoes) ────────
+// Cache de módulo com TTL curto: várias instâncias do componente (PDV + modais)
+// compartilham a mesma busca sem refazer o fetch a cada render; o TTL cobre a
+// troca de empresa ativa e cadastros novos.
+let maquinetasCache: { promessa: Promise<MaquinetaOpt[]>; ate: number } | null = null;
+export function fetchMaquinetas(): Promise<MaquinetaOpt[]> {
+  const agora = Date.now();
+  if (!maquinetasCache || maquinetasCache.ate < agora) {
+    const promessa = fetch("/api/financeiro/cartoes/opcoes")
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j) => (Array.isArray(j?.data) ? (j.data as MaquinetaOpt[]) : []))
+      .catch(() => {
+        maquinetasCache = null; // falha não fica cacheada
+        return [] as MaquinetaOpt[];
+      });
+    maquinetasCache = { promessa, ate: agora + 30_000 };
+  }
+  return maquinetasCache.promessa;
 }
 
 /** É conta do tipo Caixa (dinheiro físico)? Inclui o "caixa-geral" legado.
@@ -80,12 +129,23 @@ export function pagamentoContaInvalida(linhas: LinhaPagamento[], formas: FormaOp
   return linhas.find((l) =>
     parseValorBR(l.valor) > 0 &&
     !formaEhDinheiro(l.forma, formas) &&
+    // Cartão com maquineta: a conta é DERIVADA (administradora) — isenta da trava.
+    !(formaEhCartao(l.forma, formas) && l.maquinetaId) &&
     (!l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contas))
   ) ?? null;
 }
 
+/**
+ * Bloqueio do cartão sem maquineta (modo `usarMaquinetas`): retorna a primeira
+ * linha de cartão (valor > 0) sem maquineta escolhida — a venda no cartão
+ * exige a maquineta (a conta e a taxa derivam dela). null = tudo certo.
+ */
+export function pagamentoCartaoSemMaquineta(linhas: LinhaPagamento[], formas: FormaOpt[]): LinhaPagamento | null {
+  return linhas.find((l) => parseValorBR(l.valor) > 0 && formaEhCartao(l.forma, formas) && !l.maquinetaId) ?? null;
+}
+
 export default function PagamentosInput({
-  linhas, setLinhas, formas, contas, total, mostrarConta = true, menuMinWidth,
+  linhas, setLinhas, formas, contas, total, mostrarConta = true, menuMinWidth, usarMaquinetas = false,
 }: {
   linhas: LinhaPagamento[];
   setLinhas: (fn: (prev: LinhaPagamento[]) => LinhaPagamento[]) => void;
@@ -94,6 +154,10 @@ export default function PagamentosInput({
   total: number;
   mostrarConta?: boolean; // no pedido de venda não há conta (intenção) → esconde
   menuMinWidth?: number; // largura mínima dos dropdowns de forma/conta
+  // Venda com cartão = troca de credor: forma CARTAO_* escolhe a MAQUINETA no
+  // lugar da conta (a conta efetiva é a da administradora, derivada no back).
+  // Só ligar em fluxos cuja API aceita `maquinetaId` (PDV / venda balcão).
+  usarMaquinetas?: boolean;
 }) {
   const pago = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
   const temDinheiro = linhas.some((l) => parseValorBR(l.valor) > 0 && formaEhDinheiro(l.forma, formas));
@@ -101,19 +165,35 @@ export default function PagamentosInput({
   const excesso = Math.max(pago - total, 0);
   const trocoValido = excesso > 0 && temDinheiro;
 
+  // Maquinetas ativas da empresa (cache de módulo — 1 fetch por 30s entre
+  // todas as instâncias). null = ainda carregando.
+  const [maquinetas, setMaquinetas] = useState<MaquinetaOpt[] | null>(null);
+  useEffect(() => {
+    if (!usarMaquinetas) return;
+    let vivo = true;
+    fetchMaquinetas().then((ms) => { if (vivo) setMaquinetas(ms); });
+    return () => { vivo = false; };
+  }, [usarMaquinetas]);
+
   function up(key: string, campo: keyof LinhaPagamento, valor: string) {
     setLinhas((prev) => prev.map((l) => l._key === key ? { ...l, [campo]: valor } : l));
   }
   // Ao trocar a forma, a conta de destino segue a forma: dinheiro → Caixa;
   // eletrônica → limpa o Caixa (força escolher o banco), mas preserva um banco
   // já selecionado para não atrapalhar quem alterna entre formas eletrônicas.
+  // Cartão (modo maquinetas) → limpa a conta e sugere a única maquineta.
   function changeForma(key: string, novaForma: string) {
     setLinhas((prev) => prev.map((l) => {
       if (l._key !== key) return l;
+      const cartao = usarMaquinetas && formaEhCartao(novaForma, formas);
       let conta = l.contaBancariaId;
-      if (formaEhDinheiro(novaForma, formas)) conta = contaCaixaPadrao(contas);
+      if (cartao) conta = ""; // conta derivada da administradora (no back)
+      else if (formaEhDinheiro(novaForma, formas)) conta = contaCaixaPadrao(contas);
       else if (contaEhCaixa(l.contaBancariaId, contas)) conta = temContaBanco(contas) ? "" : l.contaBancariaId;
-      return { ...l, forma: novaForma, contaBancariaId: conta };
+      const maquinetaId = cartao
+        ? (l.maquinetaId ?? (maquinetas?.length === 1 ? maquinetas[0].id : undefined))
+        : undefined;
+      return { ...l, forma: novaForma, contaBancariaId: conta, maquinetaId };
     }));
   }
   function add() {
@@ -137,8 +217,16 @@ export default function PagamentosInput({
         </button>
       </div>
 
-      {linhas.map((l) => (
-        <div key={l._key} className={cn("grid gap-2 items-center", mostrarConta ? "grid-cols-[1fr_1fr_5rem_auto]" : "grid-cols-[1fr_5rem_auto]")}>
+      {linhas.map((l) => {
+        const cartao = usarMaquinetas && formaEhCartao(l.forma, formas);
+        const maq = cartao ? maquinetas?.find((m) => m.id === l.maquinetaId) : undefined;
+        const pct = cartao ? taxaMaquinetaPct(maq, l.forma, formas) : null;
+        const valorNum = parseValorBR(l.valor);
+        const liquido = pct != null ? Math.round((valorNum - (valorNum * pct) / 100) * 100) / 100 : null;
+        const semMaquineta = cartao && maquinetas != null && maquinetas.length === 0;
+        return (
+        <div key={l._key}>
+        <div className={cn("grid gap-2 items-center", mostrarConta ? "grid-cols-[1fr_1fr_5rem_auto]" : "grid-cols-[1fr_5rem_auto]")}>
           <div className="min-w-0">
             <ComboboxWithCreate
               value={l.forma}
@@ -154,7 +242,19 @@ export default function PagamentosInput({
               ]}
             />
           </div>
-          {mostrarConta && (() => {
+          {mostrarConta && cartao ? (
+            // Cartão: escolhe a MAQUINETA (a conta efetiva é a da administradora,
+            // derivada no back; a taxa vem da TaxaMaquineta do tipo da forma).
+            <ComboboxWithCreate
+              value={l.maquinetaId ?? ""}
+              onChange={(v) => up(l._key, "maquinetaId", v)}
+              allowNone={false}
+              placeholder="— Maquineta —"
+              menuMinWidth={menuMinWidth}
+              triggerClassName={cn("h-9 rounded-lg", valorNum > 0 && !l.maquinetaId && "border-red-400 bg-danger/10 text-danger")}
+              options={(maquinetas ?? []).map((m) => ({ value: m.id, label: m.nome }))}
+            />
+          ) : mostrarConta ? (() => {
             // Forma eletrônica sem banco (ou apontando para o Caixa) = roteamento
             // errado: destaca em vermelho e exige a escolha do banco.
             const invalida = temContaBanco(contas) && parseValorBR(l.valor) > 0 && !formaEhDinheiro(l.forma, formas) && (!l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contas));
@@ -172,7 +272,7 @@ export default function PagamentosInput({
                 ]}
               />
             );
-          })()}
+          })() : null}
           <input
             value={l.valor}
             onChange={(e) => up(l._key, "valor", e.target.value)}
@@ -189,7 +289,22 @@ export default function PagamentosInput({
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
-      ))}
+        {semMaquineta ? (
+          <p className="mt-1 text-[11px] text-danger">
+            Nenhuma maquineta ativa — cadastre em <span className="font-semibold">Financeiro → Cartões</span> para receber no cartão.
+          </p>
+        ) : cartao && liquido != null && valorNum > 0 && maq ? (
+          <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
+            {formatBRL(liquido)} líq. − {pct!.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% {maq.administradora?.nome || maq.nome}
+          </p>
+        ) : cartao && l.maquinetaId && pct == null && maquinetas != null ? (
+          <p className="mt-1 text-[11px] text-danger">
+            A maquineta não tem taxa cadastrada para esta forma — cadastre em <span className="font-semibold">Financeiro → Cartões</span>.
+          </p>
+        ) : null}
+        </div>
+        );
+      })}
 
       <div className="flex items-center justify-between text-sm pt-1">
         <span className="text-muted-foreground">Pago: <span className="font-semibold text-foreground tabular-nums">{formatBRL(pago)}</span></span>
@@ -207,20 +322,28 @@ export default function PagamentosInput({
   );
 }
 
-/** Monta o payload `pagamentos` para a API a partir das linhas. */
+/** Monta o payload `pagamentos` para a API a partir das linhas.
+ *  Linha de cartão com maquineta: envia `maquinetaId` e NÃO envia conta —
+ *  a conta efetiva (administradora) é derivada no back. */
 export function pagamentosPayload(linhas: LinhaPagamento[], formas: FormaOpt[]) {
   return linhas
     .filter((l) => l.forma && parseValorBR(l.valor) > 0)
-    .map((l) => ({
-      forma: l.forma,
-      contaBancariaId: l.contaBancariaId || "caixa-geral",
-      valor: parseValorBR(l.valor),
-      troco: formaEhDinheiro(l.forma, formas),
-    }));
+    .map((l) => {
+      const comMaquineta = !!l.maquinetaId && formaEhCartao(l.forma, formas);
+      return {
+        forma: l.forma,
+        contaBancariaId: comMaquineta ? null : (l.contaBancariaId || "caixa-geral"),
+        valor: parseValorBR(l.valor),
+        troco: formaEhDinheiro(l.forma, formas),
+        ...(comMaquineta ? { maquinetaId: l.maquinetaId } : {}),
+      };
+    });
 }
 
-/** Validação client: soma cobre o total e troco só com dinheiro. */
-export function pagamentosValidos(linhas: LinhaPagamento[], formas: FormaOpt[], total: number): boolean {
+/** Validação client: soma cobre o total, troco só com dinheiro e — no modo
+ *  maquinetas — toda linha de cartão com valor tem maquineta escolhida. */
+export function pagamentosValidos(linhas: LinhaPagamento[], formas: FormaOpt[], total: number, usarMaquinetas = false): boolean {
+  if (usarMaquinetas && pagamentoCartaoSemMaquineta(linhas, formas)) return false;
   if (total <= 0) return true;
   const pago = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
   if (pago < total - 0.001) return false;
