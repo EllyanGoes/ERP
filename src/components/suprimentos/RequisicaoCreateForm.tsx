@@ -217,7 +217,7 @@ function GroupedSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [pos, setPos]   = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pos, setPos]   = useState<{ left: number; width: number; dropUp: boolean; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -246,7 +246,17 @@ function GroupedSelect({
     const width = Math.max(r.width, compact ? 340 : 280);
     const maxLeft = window.innerWidth - width - 8;
     const left = Math.min(r.left, Math.max(8, maxLeft));
-    setPos({ top: r.bottom + 4, left, width });
+    // Abre PARA CIMA quando não cabe embaixo e há mais espaço acima (linhas no
+    // rodapé do drawer). Ancora pelo `bottom` p/ crescer para cima; limita a altura
+    // ao espaço disponível.
+    const PANEL = 320; // max-h-80
+    const abaixo = window.innerHeight - r.bottom;
+    const acima = r.top;
+    const dropUp = abaixo < Math.min(PANEL, acima) && acima > abaixo;
+    const maxHeight = Math.max(160, Math.min(PANEL, (dropUp ? acima : abaixo) - 12));
+    setPos(dropUp
+      ? { left, width, dropUp, bottom: window.innerHeight - r.top + 4, maxHeight }
+      : { left, width, dropUp, top: r.bottom + 4, maxHeight });
   }
   function openDrop() { calcPos(); setQuery(""); setOpen(true); }
 
@@ -293,8 +303,8 @@ function GroupedSelect({
         <ChevronDown className={cn("text-muted-foreground shrink-0 mr-2 transition-transform", compact ? "w-3.5 h-3.5" : "w-4 h-4", open && "rotate-180")} />
       </div>
       {mounted && open && createPortal(
-        <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto max-h-80"
-          style={{ top: pos?.top, left: pos?.left, width: pos?.width }}>
+        <div className="fixed z-[9999] bg-card border border-border rounded-xl shadow-lg overflow-auto"
+          style={{ top: pos?.top, bottom: pos?.bottom, left: pos?.left, width: pos?.width, maxHeight: pos?.maxHeight }}>
           {grupos.length > 0 ? grupos.map(([g, { opts }]) => (
             <div key={g}>
               <div className="px-3 py-1.5 bg-muted text-[10px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0 z-10 border-b border-border shadow-sm">
@@ -329,6 +339,11 @@ function naturezaOpts(naturezas: NaturezaOpt[]): GroupedOpt[] {
     group: GRUPO_NAT_LABEL[n.grupo ?? ""] ?? "Outros",
     order: GRUPO_NAT_ORDER[n.grupo ?? ""] ?? 99,
   }));
+}
+
+// Constrói as opções do TES (consumo) para o mesmo seletor agrupado do Centro/Natureza.
+function tesOpts(tes: TesOpt[]): GroupedOpt[] {
+  return tes.map((t) => ({ id: t.id, label: `${t.codigo} ${t.nome}`, group: "Tipos de operação", order: 0 }));
 }
 
 // Constrói as opções agrupadas de CENTRO DE CUSTO (por grupo de centro de custo).
@@ -1164,11 +1179,18 @@ export default function RequisicaoCreateForm() {
                       </td>
                       {tipo === "REQUISICAO" && <>
                         <td className="px-3 py-2">
-                          <select value={row.tesId} onChange={(e) => applyTes(row._key, e.target.value)}
-                            className={cn("h-8 text-xs w-full rounded-md border bg-card px-1", submitted && !!row.itemId && !row.tesId ? "border-red-400 bg-danger/10" : "border-border")} title="Tipo de operação (preset)">
-                            <option value="">— TES —</option>
-                            {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
-                          </select>
+                          <GroupedSelect
+                            options={tesOpts(tesList)}
+                            value={row.tesId}
+                            onChange={(v) => applyTes(row._key, v)}
+                            placeholder="— TES —"
+                            compact
+                            vazio="Nenhum TES"
+                            error={submitted && !!row.itemId && !row.tesId}
+                          />
+                          {submitted && row.itemId && !row.tesId && (
+                            <p className="text-[10px] text-red-500 mt-0.5">TES obrigatório</p>
+                          )}
                         </td>
                         <td className="px-3 py-2">
                           <GroupedSelect
