@@ -174,7 +174,11 @@ function idsFolha(insumos: InsumoEng[], bomMap: Map<string, InsumoEng[]>, acc: S
  * Calcula o custeio de uma competência. Volume = entradas MANUAIS no estoque de PA
  * (sem ordemProducaoId). CIF pool = biomassa + energia + combustível.
  */
-export async function calcularCusteio(empresaId: string, competencia: Date): Promise<CusteioResult> {
+export async function calcularCusteio(
+  empresaId: string,
+  competencia: Date,
+  opts?: { volumeDoMes?: boolean },
+): Promise<CusteioResult> {
   const params = await prismaSemEscopo.parametroCusteio.findUnique({
     where: { empresaId_competencia: { empresaId, competencia } },
   });
@@ -195,11 +199,23 @@ export async function calcularCusteio(empresaId: string, competencia: Date): Pro
     where: { categoriasAceitas: { has: "PRODUTO_ACABADO" } }, select: { id: true },
   });
   const localIds = locaisPA.map((l) => l.id);
+  // Opcional: contar só a produção DO MÊS (data de negócio no mês da competência;
+  // cai no createdAt quando a movimentação não tem data). Sem isto, o volume é
+  // acumulado (todo o histórico) e o mesmo p/ qualquer competência — o que fazia
+  // o "Custo absorvido" repetir o valor em todos os meses, inclusive futuros.
+  const filtroMes = opts?.volumeDoMes
+    ? {
+        OR: [
+          { data: { gte: competencia, lt: new Date(Date.UTC(competencia.getUTCFullYear(), competencia.getUTCMonth() + 1, 1)) } },
+          { data: null, createdAt: { gte: competencia, lt: new Date(Date.UTC(competencia.getUTCFullYear(), competencia.getUTCMonth() + 1, 1)) } },
+        ],
+      }
+    : {};
   const entradas = localIds.length
     ? await prismaSemEscopo.movimentacaoEstoque.groupBy({
         by: ["itemId"],
         // Só produtos de FABRICAÇÃO (acabado próprio) entram no rateio — não revenda.
-        where: { tipo: "ENTRADA", ordemProducaoId: null, clienteDonoId: null, localEstoqueId: { in: localIds }, item: { categoriaEstoque: "PRODUTO_ACABADO" } },
+        where: { tipo: "ENTRADA", ordemProducaoId: null, clienteDonoId: null, localEstoqueId: { in: localIds }, item: { categoriaEstoque: "PRODUTO_ACABADO" }, ...filtroMes },
         _sum: { quantidade: true },
       })
     : [];

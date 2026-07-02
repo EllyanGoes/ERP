@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   };
 
   for (let m = 0; m < 12; m++) {
-    const comp = await calcularCusteio(empresaId, new Date(Date.UTC(ano, m, 1)));
+    const comp = await calcularCusteio(empresaId, new Date(Date.UTC(ano, m, 1)), { volumeDoMes: true });
     const vol = comp.volumeTotalMilheiros;
     if (vol <= 0) continue; // sem produção no mês
     const c = comp.composicao;
