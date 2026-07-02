@@ -765,19 +765,27 @@ export default function PedidoForm({
 
     setSubmitting(status === "ORCAMENTO" ? "orcamento" : "confirmado");
     try {
-      const res = await fetch("/api/pedidos-venda", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
-      });
+      const criar = (ignorarDuplicidade: boolean) =>
+        fetch("/api/pedidos-venda", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...buildPayload(), ignorarDuplicidade }),
+        });
 
+      let res = await criar(false);
+      let json = await res.json();
+      // Servidor detectou pedido idêntico recém-criado p/ o mesmo cliente: só
+      // recria se o usuário confirmar que é mesmo uma segunda venda igual.
+      if (res.status === 409 && json.duplicada) {
+        if (!confirm(`${json.error}\n\nCriar mesmo assim?`)) { setSubmitError(""); return; }
+        res = await criar(true);
+        json = await res.json();
+      }
       if (!res.ok) {
-        const json = await res.json();
         setSubmitError(json.error || "Erro ao criar pedido");
         return;
       }
 
-      const json = await res.json();
       const pedidoId = json.data.id;
 
       if (status === "CONFIRMADO") {

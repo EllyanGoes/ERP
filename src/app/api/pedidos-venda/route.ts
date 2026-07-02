@@ -67,6 +67,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data, total, page, limit });
 }
 
+// Assinatura do conteúdo do pedido (itens+quantidades) p/ detectar duplicata exata.
+function assinaturaItens(itens: { itemId: string; quantidade: unknown }[]): string {
+  return itens.map((i) => `${i.itemId}:${Number(i.quantidade)}`).sort().join("|");
+}
+// Erro de negócio lançado de dentro da transação (rollback + resposta 409 tipada).
+class PedidoDuplicadoError extends Error {
+  constructor(public numero: string, public criadaEm: Date) { super("Pedido idêntico recém-criado"); }
+}
+
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("comercial");
   if (!auth.ok) return auth.response;
@@ -142,7 +151,32 @@ export async function POST(req: NextRequest) {
   const totalLinha = (i: { quantidade: number; precoUnitario: number; valorDesconto?: number | null }) =>
     Math.max(0, round2(i.quantidade * i.precoUnitario - (i.valorDesconto ?? 0)));
 
-  const pedido = await prisma.$transaction(async (tx) => {
+  let pedido;
+  try {
+    pedido = await prisma.$transaction(async (tx) => {
+
+    // Serializa criações concorrentes do MESMO cliente: quem chegar segundo espera
+    // o commit do primeiro e enxerga o pedido dele no guard de duplicidade abaixo.
+    await tx.$queryRaw`SELECT id FROM "Cliente" WHERE id = ${pedidoData.clienteId} FOR UPDATE`;
+
+    // Duplicata exata: mesma composição de itens/quantidades em pedido ativo do
+    // mesmo cliente criado nos últimos 10 minutos → bloqueia (o front pode
+    // reenviar com ignorarDuplicidade quando for venda repetida de verdade).
+    if (body.ignorarDuplicidade !== true) {
+      const desde = new Date(Date.now() - 10 * 60 * 1000);
+      const recentes = await tx.pedidoVenda.findMany({
+        where: {
+          empresaId: empresaAlvo,
+          clienteId: pedidoData.clienteId,
+          status: { not: "CANCELADO" },
+          createdAt: { gte: desde },
+        },
+        select: { numero: true, createdAt: true, itens: { select: { itemId: true, quantidade: true } } },
+      });
+      const nova = assinaturaItens(itens);
+      const igual = recentes.find((p) => assinaturaItens(p.itens) === nova);
+      if (igual) throw new PedidoDuplicadoError(igual.numero, igual.createdAt);
+    }
 
     // Calculate totals (server-side, das linhas recomputadas)
     const valorProdutos = round2(itens.reduce((sum, i) => sum + totalLinha(i), 0));
@@ -218,7 +252,21 @@ export async function POST(req: NextRequest) {
     }
 
     return novoPedido;
-  });
+    });
+  } catch (err: unknown) {
+    if (err instanceof PedidoDuplicadoError) {
+      const min = Math.max(1, Math.round((Date.now() - err.criadaEm.getTime()) / 60000));
+      return NextResponse.json(
+        {
+          error: `Já existe o pedido ${err.numero}, idêntico (mesmos itens e quantidades) e do mesmo cliente, criado há ${min} min. Se for mesmo uma segunda venda igual, confirme a criação.`,
+          duplicada: true,
+          pedidoNumero: err.numero,
+        },
+        { status: 409 },
+      );
+    }
+    throw err;
+  }
 
   // Avisa o grupo do Telegram a cada novo pedido (não bloqueia em caso de erro).
   await notifyPedidoVendaCriado(pedido);
