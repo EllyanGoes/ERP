@@ -131,6 +131,7 @@ const mainModules: Module[] = [
         items: [
           { href: "/suprimentos/fornecedores",        label: "Fornecedores",        icon: Truck },
           { href: "/suprimentos/condicoes-pagamento", label: "Cond. de Pagamento",  icon: CalendarDays },
+          { href: "/suprimentos/tipos-operacao",      label: "Tipos de Op. (TES)",  icon: ArrowLeftRight },
           { href: "/suprimentos/formas-pagamento",    label: "Formas de Pagamento", icon: CreditCard },
         ],
       },
