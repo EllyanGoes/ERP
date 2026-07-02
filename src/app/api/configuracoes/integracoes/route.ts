@@ -31,6 +31,8 @@ const MANAGED_KEYS = [
   "tg_chat_estoque_label",
   "tg_chat_pedidos",
   "tg_chat_pedidos_label",
+  "tg_chat_pcp",
+  "tg_chat_pcp_label",
 ] as const;
 
 // Chaves cujo valor nunca sai do servidor. O GET devolve a máscara quando há

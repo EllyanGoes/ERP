@@ -178,6 +178,8 @@ export default function TelegramIntegracaoPage() {
   const [tgChatEstoqueLabel, setTgChatEstoqueLabel] = useState("Canal Estoque");
   const [tgChatPedidos,     setTgChatPedidos]     = useState("");
   const [tgChatPedidosLabel, setTgChatPedidosLabel] = useState("Canal Pedidos");
+  const [tgChatPcp,         setTgChatPcp]         = useState("");
+  const [tgChatPcpLabel,    setTgChatPcpLabel]    = useState("Canal PCP");
 
   const [status,    setStatus]    = useState<ConnStatus>("idle");
   const [statusMsg, setStatusMsg] = useState("");
@@ -205,6 +207,8 @@ export default function TelegramIntegracaoPage() {
       setTgChatEstoqueLabel(cfg.tg_chat_estoque_label || "Canal Estoque");
       setTgChatPedidos(cfg.tg_chat_pedidos ?? "");
       setTgChatPedidosLabel(cfg.tg_chat_pedidos_label || "Canal Pedidos");
+      setTgChatPcp(cfg.tg_chat_pcp ?? "");
+      setTgChatPcpLabel(cfg.tg_chat_pcp_label || "Canal PCP");
       setStatus(!!(cfg.tg_bot_token && cfg.tg_chat_id) ? "ok" : "unconfigured");
 
       // Load webhook info
@@ -234,6 +238,8 @@ export default function TelegramIntegracaoPage() {
           tg_chat_estoque_label:  tgChatEstoqueLabel.trim()  || null,
           tg_chat_pedidos:        tgChatPedidos.trim()       || null,
           tg_chat_pedidos_label:  tgChatPedidosLabel.trim()  || null,
+          tg_chat_pcp:            tgChatPcp.trim()           || null,
+          tg_chat_pcp_label:      tgChatPcpLabel.trim()      || null,
         }),
       });
       if (!res.ok) {
@@ -417,6 +423,30 @@ export default function TelegramIntegracaoPage() {
             />
 
             {testMsg?.key === "tg_chat_pedidos" && (
+              <div className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border mt-3",
+                testMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
+              )}>
+                {testMsg.type === "ok" ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                <span>{testMsg.text}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <ChatRow
+              label={tgChatPcpLabel}
+              onLabelChange={(v) => { setTgChatPcpLabel(v); mark(); }}
+              value={tgChatPcp}
+              onValueChange={(v) => { setTgChatPcp(v); mark(); }}
+              placeholder="-1004437683949"
+              description="Grupo do PCP: OP criada, apontamentos e o resumo diário de produção (19h)"
+              onTest={handleTestChat}
+              testing={testingChat}
+              configKey="tg_chat_pcp"
+            />
+
+            {testMsg?.key === "tg_chat_pcp" && (
               <div className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border mt-3",
                 testMsg.type === "ok" ? "bg-success/10 border-success/30 text-success" : "bg-danger/10 border-danger/30 text-danger"
