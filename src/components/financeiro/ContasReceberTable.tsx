@@ -347,8 +347,10 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
         const vo = decimalToNumber(detalhe.valorOriginal);
         const vp = decimalToNumber(detalhe.valorPago);
         const contas = detalhe.contasContrapartida ?? [];
+        const org = origemReceber(detalhe);
         const campos: TituloCampo[] = [
           { label: "Cliente", valor: detalhe.cliente?.razaoSocial ?? "—", full: true },
+          { label: "Origem", full: true, valor: org.ref ? `${org.label} · ${org.ref}` : org.label },
           { label: "Descrição", valor: detalhe.descricao || "—", full: true },
           { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{formatDate(detalhe.dataVencimento)}</span> },
           { label: "Valor", valor: formatBRL(vo) },

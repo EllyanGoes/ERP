@@ -389,8 +389,10 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         const vo = decimalToNumber(detalhe.valorOriginal);
         const vp = decimalToNumber(detalhe.valorPago);
         const contas = detalhe.contasContrapartida ?? [];
+        const org = origemPagar(detalhe);
         const campos: TituloCampo[] = [
           { label: "Fornecedor", valor: detalhe.fornecedor?.razaoSocial ?? "—", full: true },
+          { label: "Origem", full: true, valor: org.ref ? `${org.label} · ${org.ref}` : org.label },
           ...(detalhe.pedidoCompra ? [{
             label: "Pedido de origem", full: true,
             valor: (
