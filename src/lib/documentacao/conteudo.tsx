@@ -4,7 +4,7 @@
 // implementados (venda balcão/agendada, venda à ordem, cotação→aprovação CT→PC,
 // requisição de materiais, recebimento/baixa financeira).
 import type { LucideIcon } from "lucide-react";
-import { Network, ShoppingCart, Boxes, ClipboardList, Wallet, Factory, Wrench, Calculator } from "lucide-react";
+import { Network, ShoppingCart, Boxes, ClipboardList, Wallet, Factory, Wrench, Calculator, ArrowLeftRight } from "lucide-react";
 import type { BpmnGrafo } from "@/components/documentacao/ProcessoDiagram";
 
 export type Tela = { label: string; href: string; descricao: string };
@@ -220,6 +220,140 @@ const naturezaContabilFluxo: BpmnGrafo = {
   ],
 };
 
+// ── TES (Tipos de Operação) ───────────────────────────────────────────────────
+// 1) O que a TES define — e o que NÃO define.
+const tesDefineFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a", tipo: "inicio", x: 0,   y: 60,  label: "Escolhe a TES na linha", sub: "compra / entrada / requisição" },
+    { id: "b", tipo: "tarefa", x: 160, y: 44,  label: "TES = preset operacional", sub: "estocável? gera fiscal? gera financeiro? compõe custo? capitaliza?", cor: "azul" },
+    { id: "c", tipo: "tarefa", x: 430, y: 44,  label: "Aplica as flags na linha", sub: "+ almoxarifado e centro sugeridos", cor: "cinza" },
+    { id: "n", tipo: "nota",   x: 440, y: 150, label: "A TES NÃO carrega conta contábil nem decide CIF × Despesa" },
+    { id: "z", tipo: "fim",    x: 690, y: 60,  label: "Linha pronta p/ estoque, fiscal e financeiro" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "b", to: "c" }, { from: "c", to: "n", label: "atenção" }, { from: "c", to: "z" },
+  ],
+};
+
+// 2) Herança da TES na compra (pedido → conferência → contábil).
+const tesHerancaFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a", tipo: "inicio", x: 0,    y: 40,  label: "Pedido de Compra" },
+    { id: "b", tipo: "tarefa", x: 130,  y: 24,  label: "Linha escolhe a TES", sub: "ex.: TES-E01 Matéria-Prima", cor: "ambar" },
+    { id: "c", tipo: "tarefa", x: 350,  y: 24,  label: "Conferência / Entrada", sub: "herda TES, flags e almoxarifado", cor: "ambar" },
+    { id: "d", tipo: "tarefa", x: 580,  y: -36, label: "Estoque (ENTRADA)", cor: "cinza" },
+    { id: "e", tipo: "tarefa", x: 580,  y: 96,  label: "Contas a Pagar", cor: "verde" },
+    { id: "f", tipo: "tarefa", x: 800,  y: -36, label: "Contábil", sub: "D Estoque / C Fornecedor", cor: "verde" },
+    { id: "z", tipo: "fim",    x: 1020, y: 0,   label: "Entrada registrada" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "b", to: "c" },
+    { from: "c", to: "d" }, { from: "c", to: "e" }, { from: "d", to: "f" }, { from: "f", to: "z" },
+  ],
+};
+
+// 3) Roteamento contábil da saída — a precedência do material (o coração).
+const tesRoteamentoFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a",  tipo: "inicio",  x: 0,   y: 120, label: "Item na requisição" },
+    { id: "g1", tipo: "gateway", x: 190, y: 0,   label: "Compõe custo + MP/Insumo/Emb.?" },
+    { id: "g2", tipo: "gateway", x: 190, y: 95,  label: "Tem destino manual?" },
+    { id: "g3", tipo: "gateway", x: 190, y: 190, label: "Capitaliza?" },
+    { id: "g4", tipo: "gateway", x: 190, y: 285, label: "Fabril + centro fabril?" },
+    { id: "pep",  tipo: "tarefa", x: 470, y: -18, label: "PEP-MD (Material Direto)", sub: "D 1.1.3.0005.0001", cor: "violeta" },
+    { id: "man",  tipo: "tarefa", x: 470, y: 80,  label: "Destino informado", sub: "vence a regra automática", cor: "cinza" },
+    { id: "imo",  tipo: "tarefa", x: 470, y: 178, label: "Imobilizado em Andamento", cor: "cinza" },
+    { id: "cif",  tipo: "tarefa", x: 470, y: 262, label: "CIF a Apropriar", sub: "D 1.1.4.0001", cor: "violeta" },
+    { id: "desp", tipo: "tarefa", x: 470, y: 346, label: "Despesa", sub: "D 3.3.x (DRE)", cor: "verde" },
+    { id: "z",    tipo: "fim",    x: 760, y: 150, label: "C Estoque (contrapartida)" },
+  ],
+  edges: [
+    { from: "a", to: "g1" },
+    { from: "g1", to: "pep", label: "sim" }, { from: "g1", to: "g2", label: "não" },
+    { from: "g2", to: "man", label: "sim" }, { from: "g2", to: "g3", label: "não" },
+    { from: "g3", to: "imo", label: "sim" }, { from: "g3", to: "g4", label: "não" },
+    { from: "g4", to: "cif", label: "sim → CIF" }, { from: "g4", to: "desp", label: "não → Despesa" },
+    { from: "pep", to: "z" }, { from: "man", to: "z" }, { from: "imo", to: "z" }, { from: "cif", to: "z" }, { from: "desp", to: "z" },
+  ],
+};
+
+// 4) TES × Natureza × Centro × Item — quem decide o quê (ortogonais).
+const tesVsNaturezaFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a",  tipo: "inicio", x: 0,   y: 150, label: "Uma operação", sub: "compra ou consumo" },
+    { id: "t1", tipo: "tarefa", x: 200, y: 20,  label: "TES", sub: "estoque? fiscal? financeiro? + flags", cor: "azul" },
+    { id: "t2", tipo: "tarefa", x: 200, y: 110, label: "Natureza", sub: "gerencial + flag cif → CIF a Apropriar", cor: "verde" },
+    { id: "t3", tipo: "tarefa", x: 200, y: 200, label: "Centro de custo", sub: "fabril → CIF; senão Despesa", cor: "violeta" },
+    { id: "t4", tipo: "tarefa", x: 200, y: 290, label: "Item", sub: "categoria, compõe custo, fabril, capitaliza", cor: "ambar" },
+    { id: "z",  tipo: "tarefa", x: 500, y: 150, label: "Destino contábil final", sub: "PEP-MD / CIF / Despesa / Imobilizado", cor: "cinza" },
+    { id: "f",  tipo: "fim",    x: 740, y: 166, label: "Lançamento correto" },
+  ],
+  edges: [
+    { from: "a", to: "t1" }, { from: "a", to: "t2" }, { from: "a", to: "t3" }, { from: "a", to: "t4" },
+    { from: "t1", to: "z" }, { from: "t2", to: "z" }, { from: "t3", to: "z" }, { from: "t4", to: "z" }, { from: "z", to: "f" },
+  ],
+};
+
+// 5) Da compra ao custo do produto (contábil, ponta a ponta).
+const tesCusteioFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a",  tipo: "inicio", x: 0,    y: 130, label: "Compra do material" },
+    { id: "b",  tipo: "tarefa", x: 130,  y: 114, label: "Entrada", sub: "D Estoque / C Fornecedor", cor: "cinza" },
+    { id: "g",  tipo: "gateway",x: 350,  y: 118, label: "Como é usado?" },
+    { id: "md", tipo: "tarefa", x: 500,  y: -10, label: "Material direto", sub: "D PEP-MD / C Estoque", cor: "violeta" },
+    { id: "ind",tipo: "tarefa", x: 500,  y: 110, label: "Indireto fabril", sub: "D CIF a Apropriar / C Estoque", cor: "violeta" },
+    { id: "mod",tipo: "tarefa", x: 500,  y: 240, label: "Mão de obra (folha)", sub: "MOD → PEP-MOD · MOI → CIF", cor: "verde" },
+    { id: "ap", tipo: "tarefa", x: 740,  y: 110, label: "Apropriação do CIF", sub: "D PEP-CIF / C CIF a Apropriar", cor: "violeta" },
+    { id: "abs",tipo: "tarefa", x: 960,  y: 70,  label: "Absorção", sub: "D Produto Acabado / C PEP (MD+MOD+CIF)", cor: "ambar" },
+    { id: "vd", tipo: "tarefa", x: 1200, y: 70,  label: "Venda", sub: "D CPV / C Produto Acabado", cor: "verde" },
+    { id: "z",  tipo: "fim",    x: 1420, y: 86,  label: "Custo no resultado (CPV)" },
+  ],
+  edges: [
+    { from: "a", to: "b" }, { from: "b", to: "g" },
+    { from: "g", to: "md", label: "direto" }, { from: "g", to: "ind", label: "indireto" }, { from: "g", to: "mod", label: "pessoal" },
+    { from: "ind", to: "ap" }, { from: "md", to: "abs" }, { from: "ap", to: "abs" }, { from: "mod", to: "abs" },
+    { from: "abs", to: "vd" }, { from: "vd", to: "z" },
+  ],
+};
+
+// ── Motor contábil: origens e variáveis ───────────────────────────────────────
+// A) De onde vêm os lançamentos (cada fato gera seu lançamento, idempotente).
+const origensFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "v", tipo: "inicio", x: 0,   y: 0,   label: "Venda / Entrega" },
+    { id: "c", tipo: "inicio", x: 0,   y: 80,  label: "Compra / Entrada" },
+    { id: "e", tipo: "inicio", x: 0,   y: 160, label: "Estoque / Produção" },
+    { id: "f", tipo: "inicio", x: 0,   y: 240, label: "Folha" },
+    { id: "i", tipo: "inicio", x: 0,   y: 320, label: "Imobilizado / Fechamento" },
+    { id: "r", tipo: "tarefa", x: 280, y: 150, label: "registrarLancamento()", sub: "monta as partidas (D/C) conforme a origem", cor: "verde" },
+    { id: "n", tipo: "nota",   x: 290, y: 280, label: "Idempotente por (empresa, origemTipo, origemId) — não duplica" },
+    { id: "d", tipo: "tarefa", x: 540, y: 150, label: "Diário (partida dobrada)", sub: "débito = crédito", cor: "verde" },
+    { id: "z", tipo: "fim",    x: 760, y: 166, label: "Razão → DRE / Balanço" },
+  ],
+  edges: [
+    { from: "v", to: "r" }, { from: "c", to: "r" }, { from: "e", to: "r" }, { from: "f", to: "r" }, { from: "i", to: "r" },
+    { from: "r", to: "n" }, { from: "r", to: "d" }, { from: "d", to: "z" },
+  ],
+};
+
+// B) As variáveis que determinam as contas e os valores da partida.
+const variaveisFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "a",  tipo: "inicio", x: 0,   y: 150, label: "Um fato contábil" },
+    { id: "v1", tipo: "tarefa", x: 210, y: -20, label: "origemTipo (o evento)", sub: "escolhe o padrão D/C", cor: "azul" },
+    { id: "v2", tipo: "tarefa", x: 210, y: 60,  label: "Natureza (+ flag cif)", sub: "resultado × CIF a Apropriar", cor: "verde" },
+    { id: "v3", tipo: "tarefa", x: 210, y: 140, label: "Item", sub: "categoria, compõe custo, fabril, capitaliza", cor: "ambar" },
+    { id: "v4", tipo: "tarefa", x: 210, y: 220, label: "Centro fabril", sub: "CIF × Despesa do indireto", cor: "violeta" },
+    { id: "v5", tipo: "tarefa", x: 210, y: 300, label: "Empresa · Local · Beneficiário", sub: "revenda×fábrica · conta do local · analítica", cor: "cinza" },
+    { id: "z",  tipo: "tarefa", x: 520, y: 150, label: "Contas + valores da partida", sub: "custo pelo CMPM da empresa", cor: "verde" },
+    { id: "f",  tipo: "fim",    x: 740, y: 166, label: "Lançamento determinado" },
+  ],
+  edges: [
+    { from: "a", to: "v1" }, { from: "a", to: "v2" }, { from: "a", to: "v3" }, { from: "a", to: "v4" }, { from: "a", to: "v5" },
+    { from: "v1", to: "z" }, { from: "v2", to: "z" }, { from: "v3", to: "z" }, { from: "v4", to: "z" }, { from: "v5", to: "z" }, { from: "z", to: "f" },
+  ],
+};
+
 export const MODULOS: ModuloDoc[] = [
   {
     id: "visao-geral", label: "Visão geral", icon: Network,
@@ -349,6 +483,76 @@ export const MODULOS: ModuloDoc[] = [
     }],
   },
   {
+    id: "tes", label: "Tipos de Operação (TES)", icon: ArrowLeftRight,
+    resumo: "A TES (Tipo de Entrada e Saída, à moda do Protheus) é um preset de COMPORTAMENTO de uma operação: diz se movimenta estoque, se gera fiscal (CFOP) e financeiro, se o item compõe custo e se pode capitalizar — e preenche essas flags na linha do pedido, da conferência e da requisição. Ela NÃO carrega conta contábil e NÃO decide sozinha se um gasto vira Custo, CIF ou Despesa: o destino contábil é resolvido pela precedência do material (categoria e flags do item + centro de custo fabril + natureza). Este módulo mostra, em tópicos, como a TES organiza a operação e como ela se conecta ao motor contábil.",
+    telas: [
+      { label: "Tipos de Op. (TES)", href: "/suprimentos/tipos-operacao", descricao: "Cadastro das TES e suas flags de comportamento." },
+      { label: "Centros de Custo", href: "/empresa/centros-custo", descricao: "Marcar centro como fabril (decide CIF × Despesa do indireto)." },
+      { label: "Naturezas Financeiras", href: "/financeiro/naturezas", descricao: "Classificação gerencial + flag CIF (CIF a Apropriar)." },
+      { label: "Produtos", href: "/suprimentos/produtos", descricao: "Flags do item: compõe custo, fabril, capitaliza, categoria." },
+      { label: "Requisições de Materiais", href: "/suprimentos/requisicoes-materiais", descricao: "Saída/consumo onde o destino contábil é roteado." },
+      { label: "Diário Contábil", href: "/contabilidade/lancamentos", descricao: "Onde o lançamento resultante aparece." },
+    ],
+    processos: [
+      {
+        titulo: "1. O que a TES define — e o que não define",
+        texto: "Ao lançar uma linha (compra, entrada ou requisição), a TES aplica um preset de comportamento operacional: se a operação entra em estoque, se gera CFOP/nota fiscal, se gera título financeiro, se o item compõe custo e se pode capitalizar. Ela também sugere o almoxarifado e o centro de custo. O que a TES NÃO faz: não guarda conta contábil e não decide, por si só, se o valor vira Custo, CIF ou Despesa — isso é definido depois, pela precedência do material.",
+        grafo: tesDefineFluxo,
+        detalhes: [
+          "Campos da TES: sentido (Entrada/Saída), estocável, compõe custo, permite capitalizar, gera financeiro, gera fiscal, CFOP, natureza fiscal, almoxarifado padrão e centro de custo sugerido.",
+          "As flags viajam para a linha do Pedido de Compra → Conferência → Requisição (herança). Onde a linha deixa a flag em branco, ela herda o cadastro do item.",
+          "gera financeiro / gera fiscal são informativos/validação — a contabilização da entrada acontece por haver movimentação de estoque, não por consultar a TES.",
+          "TES padrão já cadastradas: Entrada (Matéria-Prima, Insumos, Combustível, Embalagem, MRO/Manutenção, Revenda, Imobilizado, Uso e Consumo, Serviço) e Saída (Material Direto, Manutenção Fabril/CIF, Administrativo/Despesa, Imobilizado/Obra, Troca de Componente).",
+        ],
+      },
+      {
+        titulo: "2. Herança da TES na compra até o contábil",
+        texto: "Na linha do Pedido de Compra escolhe-se a TES (ex.: TES-E01 Matéria-Prima). Ao gerar a Conferência de entrada, a TES, suas flags e o almoxarifado padrão são herdados. Concluída a conferência, o estoque é atualizado e o motor contábil lança a entrada — D Estoque (conta do local) / C Fornecedor — e o título em Contas a Pagar. A TES organizou a operação; o lançamento sai da movimentação de estoque.",
+        grafo: tesHerancaFluxo,
+        detalhes: [
+          "A conta de Estoque debitada vem do LOCAL de estoque (não da categoria) — cada local tem sua conta no plano de contas.",
+          "Compra de material vai para Estoque (Ativo); só vira custo/despesa no consumo ou na venda.",
+          "Origem contábil da entrada: ESTOQUE_ENTRADA (idempotente por conferência).",
+        ],
+      },
+      {
+        titulo: "3. Roteamento contábil da saída (a precedência)",
+        texto: "No consumo/requisição, o destino contábil é decidido por uma ordem de precedência que lê as flags que a TES (e o item) preencheram. Primeiro: material que compõe custo e é matéria-prima/insumo/embalagem vai para o PEP-MD (produto em elaboração). Se não, um destino manual informado vence. Depois: item que capitaliza vira Imobilizado. Depois: item indireto de fábrica vira CIF se o centro for fabril, ou Despesa se não for. Por fim, o padrão é Despesa. O lançamento é sempre D <destino> / C Estoque.",
+        grafo: tesRoteamentoFluxo,
+        detalhes: [
+          "1º Compõe custo + categoria direta (matéria-prima/insumo/embalagem) → PEP-MD (1.1.3.0005.0001).",
+          "2º Destino manual na requisição → vence a regra automática (escape).",
+          "3º Item capitaliza → Imobilizado em Andamento.",
+          "4º Item fabril (indireto): centro de custo fabril → CIF a Apropriar (1.1.4.0001); centro não-fabril → Despesa (3.3.x).",
+          "5º Sem enquadrar → Despesa. Contrapartida sempre: C Estoque.",
+          "É aqui que o centro de custo fabril importa: sem centro marcado como fabril, o indireto cai em Despesa em vez de CIF.",
+        ],
+      },
+      {
+        titulo: "4. TES × Natureza × Centro × Item: quem decide o quê",
+        texto: "Quatro dimensões atuam sobre a mesma operação, e são ortogonais (cada uma responde por uma coisa). A TES define o comportamento operacional (estoque, fiscal, financeiro e as flags). A Natureza é a classificação gerencial e, quando marcada como CIF, manda o débito da compra para 'CIF a Apropriar' em vez de uma conta de resultado. O Centro de custo fabril decide CIF × Despesa do consumo indireto. E o Item (categoria, compõe custo, fabril, capitaliza) fecha o destino final. Juntos, produzem o lançamento correto.",
+        grafo: tesVsNaturezaFluxo,
+        detalhes: [
+          "TES = comportamento (não é conta contábil).",
+          "Natureza = gaveta gerencial + ponte contábil; a flag 'cif' roteia a compra para CIF a Apropriar.",
+          "Centro de custo 'fabril' = liga/desliga o CIF do consumo indireto (senão vira Despesa).",
+          "Item = a palavra final do destino (compõe custo/categoria → PEP-MD; capitaliza → Imobilizado; fabril → CIF/Despesa).",
+        ],
+      },
+      {
+        titulo: "5. Da compra ao custo do produto (ponta a ponta)",
+        texto: "Fechando o ciclo com a contabilidade: a compra entra no Estoque. No uso, o material direto vai para o PEP-MD; o indireto fabril acumula em CIF a Apropriar; a folha aloca MOD no PEP-MOD e MOI no CIF. No fechamento, a apropriação leva o CIF a Apropriar para o PEP-CIF, e a absorção transfere PEP (material + MOD + CIF) para o Produto Acabado. Na venda, o custo sai como CPV no resultado. Assim o produto acabado carrega o custo por absorção (material + mão de obra + indiretos).",
+        grafo: tesCusteioFluxo,
+        detalhes: [
+          "PEP (Produto em Processo) 1.1.3.0005: subcontas Materiais Aplicados (…0001), MOD (…0002) e CIF (…0003), no Ativo.",
+          "CIF a Apropriar 1.1.4.0001: staging do custo indireto real até a apropriação ao PEP-CIF.",
+          "Absorção: D Produto Acabado (1.1.3.0003) / C PEP, rateando pela produção do período.",
+          "Venda: D CPV (3.2.2.0001) / C Produto Acabado — o custo só vira resultado quando o produto é vendido.",
+        ],
+      },
+    ],
+  },
+  {
     id: "contabilidade", label: "Contabilidade", icon: Calculator,
     resumo: "Escrituração pela partida dobrada. Cada fato contábil (venda, compra, pagamento) vira um lançamento no Diário, sempre com débito igual ao crédito, classificado pelo Plano de Contas. O Razão acumula o movimento por conta; o Balancete confere os saldos; e as demonstrações fecham o período: DRE (contas de resultado) e Balanço Patrimonial (ativo, passivo e PL). O Imobilizado controla os bens e sua depreciação.",
     telas: [
@@ -359,10 +563,54 @@ export const MODULOS: ModuloDoc[] = [
       { label: "DRE", href: "/contabilidade/dre", descricao: "Demonstração do resultado." },
       { label: "Balanço Patrimonial", href: "/contabilidade/balanco", descricao: "Posição patrimonial (ativo, passivo, PL)." },
     ],
-    processos: [{
-      titulo: "Do lançamento às demonstrações",
-      texto: "Um fato contábil gera um lançamento no Diário em partida dobrada (débito = crédito), classificado pelo Plano de Contas. Os lançamentos são acumulados no Razão por conta e conferidos no Balancete. No fechamento, as contas de resultado compõem a DRE e as patrimoniais o Balanço Patrimonial.",
-      grafo: contabilidadeFluxo,
-    }],
+    processos: [
+      {
+        titulo: "Do lançamento às demonstrações",
+        texto: "Um fato contábil gera um lançamento no Diário em partida dobrada (débito = crédito), classificado pelo Plano de Contas. Os lançamentos são acumulados no Razão por conta e conferidos no Balancete. No fechamento, as contas de resultado compõem a DRE e as patrimoniais o Balanço Patrimonial.",
+        grafo: contabilidadeFluxo,
+      },
+      {
+        titulo: "Origem dos lançamentos: cada fato gera o seu",
+        texto: "Nenhum lançamento é digitado à mão (exceto o lançamento manual). Cada evento do sistema — uma venda, uma entrada de compra, um consumo, a folha, a depreciação — chama o motor contábil, que monta as partidas certas para aquela ORIGEM. Toda origem carrega um par (origemTipo, origemId) e é idempotente: reprocessar não duplica. A tabela abaixo lista todas as origens e o padrão débito/crédito de cada uma.",
+        grafo: origensFluxo,
+        detalhes: [
+          "VENDA → título a receber: D Clientes a Receber / C Receita. Origem: confirmação/entrega do pedido (modelo venda-entrega).",
+          "RECEITA_ENTREGA → reconhece a receita na entrega: D Bens/Material a Entregar / C Receita (o recebível nasce na entrega, não duplica a VENDA).",
+          "RECEBIMENTO → baixa do a receber: D Caixa/Banco (conta real) / C Clientes a Receber.",
+          "COMPRA → título a pagar: D Estoque, CIF a Apropriar ou Despesa / C Fornecedores (o destino do débito depende das variáveis; ver tópico seguinte).",
+          "PAGAMENTO → baixa do a pagar: D Fornecedores / C Caixa/Banco (conta real).",
+          "ESTOQUE_ENTRADA → conferência de compra: D Estoque (conta do LOCAL) / C Fornecedor.",
+          "ESTOQUE_SAIDA → baixa na venda: D CMV (revenda, 3.2.1) ou CPV (fábrica, 3.2.2) / C Estoque.",
+          "ESTOQUE_CONSUMO → requisição/consumo: D PEP-MD, CIF a Apropriar, Despesa ou Imobilizado / C Estoque (roteado pela precedência do material).",
+          "ESTOQUE_PRODUCAO → apontamento/absorção: movimenta o PEP e o Produto Acabado (D Estoque/PA / C Custo de Produção; absorve MOD/CIF).",
+          "ESTOQUE_AJUSTE → inventário: perda = D Perdas / C Estoque; sobra = D Estoque / C Sobras (pelo sinal do ajuste).",
+          "ESTOQUE_TRANSFERENCIA → entre locais: D Estoque (destino) / C Estoque (origem).",
+          "FOLHA_PAGAMENTO → apropriação da folha: D PEP-MOD (MOD), CIF a Apropriar (MOI) ou Despesa (ADMIN) / C Salários a Pagar (e encargos).",
+          "DEPRECIACAO → D Despesa de Depreciação (ou CIF, se o bem for fabril) / C Depreciação Acumulada.",
+          "BAIXA_IMOBILIZADO → troca de componente (CPC 27): D Depreciação Acumulada + Perda / C Imobilizado.",
+          "COMPENSACAO_AJUSTE → juros/multa/desconto no Encontro de Contas (Compensação Pagar/Receber).",
+          "ENCERRAMENTO → zera as contas de resultado contra o Patrimônio Líquido no fim do exercício.",
+          "MANUAL → lançamento avulso feito pelo usuário no Diário. ESTORNO → reversão espelhada de um lançamento (aponta para o original).",
+        ],
+      },
+      {
+        titulo: "As variáveis que determinam o lançamento",
+        texto: "Dentro de cada origem, quais CONTAS e VALORES entram na partida não é fixo — depende de um conjunto de variáveis de negócio. Entender essas variáveis é entender por que um mesmo tipo de gasto às vezes vira Estoque, às vezes Custo, às vezes CIF e às vezes Despesa. São elas que traduzem a operação em débito e crédito.",
+        grafo: variaveisFluxo,
+        detalhes: [
+          "origemTipo (o evento): escolhe a função do motor e o esqueleto do lançamento (o padrão D/C do tópico anterior).",
+          "Natureza Financeira: nos títulos (venda/compra) define a conta de resultado e a contrapartida; a flag 'cif' desvia o débito da compra para CIF a Apropriar (1.1.4.0001) em vez da DRE.",
+          "Contrapartida por beneficiário: Clientes/Fornecedores/Salários usam a conta SINTÉTICA; a analítica de cada cliente/fornecedor/colaborador é resolvida pelo beneficiário do título (não se cadastra conta por pessoa).",
+          "Item: categoria de estoque + 'compõe custo' → material direto (PEP-MD); 'capitaliza' → Imobilizado; 'fabril' → CIF/Despesa. É a palavra final do destino no consumo.",
+          "Centro de custo fabril: liga/desliga o CIF do consumo indireto (centro fabril → CIF; senão → Despesa).",
+          "Empresa (industrializa × revenda): decide CPV × CMV na venda e se a compra de material vai para Estoque (revenda) ou é tratada como custo/despesa (fábrica).",
+          "Local de estoque: define QUAL conta de estoque é debitada/creditada (a conta segue o local, não a categoria).",
+          "Estágio (WIP) e natureza como dimensão: viajam na partida do PEP/CIF como marcadores gerenciais (permitem razão por estágio e por natureza).",
+          "Custo unitário: o valor da partida de estoque usa o custo médio por empresa (CMPM / ItemCustoEmpresa); acabado de revenda custeia pelo custo de compra.",
+          "Conta de destino da baixa: no recebimento/pagamento, usa sempre a conta real (Caixa em Dinheiro por empresa, ou o banco) onde o dinheiro entrou/saiu.",
+          "Destino manual (requisição): quando informado, vence a regra automática de roteamento.",
+        ],
+      },
+    ],
   },
 ];
