@@ -397,6 +397,9 @@ export default function PedidoCompraCreateForm() {
       (row) => row.itemId && parseDecimal(row.quantidade) > 0
     );
     if (validItens.length === 0) { setError("Adicione pelo menos um item"); return; }
+    // TES e centro de custo são obrigatórios por item (herdam para a entrada).
+    if (validItens.some((r) => !r.tesId)) { setError("Selecione o TES em cada item."); return; }
+    if (validItens.some((r) => !r.centroCustoId)) { setError("Informe o centro de custo em cada item."); return; }
 
     // Anti-duplicidade: se há Cotação aberta compatível e o usuário não confirmou
     // que é avulso, bloqueia o envio e mantém o aviso (já visível no banner).
@@ -792,7 +795,7 @@ export default function PedidoCompraCreateForm() {
                 <tr>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground min-w-[320px]">Produto</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-40" title="TES: preset de comportamento que herda para a entrada. Não decide destino.">TES</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground min-w-[160px]" title="TES: preset de comportamento que herda para a entrada. Não decide destino.">TES</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground w-44" title="Centro de custo herdado pela entrada e pela requisição (default editável). Não classifica destino de custo.">Centro de custo</th>
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Quantidade</th>
@@ -850,7 +853,7 @@ export default function PedidoCompraCreateForm() {
                       </td>
                       <td className="px-4 py-2">
                         <select value={row.tesId ?? ""} onChange={(e) => applyTesRow(i, e.target.value)}
-                          className="h-8 text-xs w-full rounded-md border border-border bg-card px-1" title="Tipo de operação (preset)">
+                          className={cn("h-8 text-xs w-full min-w-[150px] rounded-md border bg-card px-1", error && !row.tesId ? "border-red-400 bg-danger/10" : "border-border")} title="Tipo de operação (preset)">
                           <option value="">— TES —</option>
                           {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
                         </select>
@@ -861,7 +864,7 @@ export default function PedidoCompraCreateForm() {
                           value={row.centroCustoId ?? ""}
                           onChange={(v) => updateRow(i, "centroCustoId", v)}
                           placeholder="— Centro —"
-                          triggerClassName="h-8 text-xs"
+                          triggerClassName={cn("h-8 text-xs", error && !row.centroCustoId && "border-red-400 bg-danger/10")}
                         />
                       </td>
                       <td className="px-4 py-2">

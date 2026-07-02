@@ -828,6 +828,15 @@ export default function RequisicaoCreateForm() {
         return;
       }
     }
+    // TES obrigatório por item (consumo, não transferência).
+    if (tipo === "REQUISICAO" && !localDestinoId) {
+      const semTes = validRows.filter((r) => !r.tesId);
+      if (semTes.length > 0) {
+        const cods = semTes.map((r) => itensCat.find((i) => i.id === r.itemId)?.codigo ?? r.itemId).join(", ");
+        setSaveError(`Selecione o TES em cada item: ${cods}.`);
+        return;
+      }
+    }
     // Capex: linha que capitaliza exige o bem (imobilizado_id). Não posta sem o bem.
     const semBem = validRows.filter((r) => r.capitaliza && !r.imobilizadoId);
     if (semBem.length > 0) {
@@ -1156,7 +1165,7 @@ export default function RequisicaoCreateForm() {
                       {tipo === "REQUISICAO" && <>
                         <td className="px-3 py-2">
                           <select value={row.tesId} onChange={(e) => applyTes(row._key, e.target.value)}
-                            className="h-8 text-xs w-full rounded-md border border-border bg-card px-1" title="Tipo de operação (preset)">
+                            className={cn("h-8 text-xs w-full rounded-md border bg-card px-1", submitted && !!row.itemId && !row.tesId ? "border-red-400 bg-danger/10" : "border-border")} title="Tipo de operação (preset)">
                             <option value="">— TES —</option>
                             {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
                           </select>

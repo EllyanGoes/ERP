@@ -500,8 +500,12 @@ export default function DocumentoEntradaDetailPage() {
       const semLocal = allItems.some((i) => !i.localEstoqueId);
       if (semLocal) { setValidationError("Todos os itens precisam ter um Local de Estoque definido."); return; }
     }
+    // TES e centro de custo são obrigatórios por item.
+    const todosItens = [...editItems, ...newItems];
+    if (todosItens.some((i) => !i.tesId)) { setValidationError("Selecione o TES em cada item."); return; }
+    if (todosItens.some((i) => !i.centroCustoId)) { setValidationError("Informe o centro de custo em cada item."); return; }
     // Capex: linha que capitaliza exige o bem (imobilizado).
-    if ([...editItems, ...newItems].some((i) => i.capitaliza && !i.imobilizadoId)) {
+    if (todosItens.some((i) => i.capitaliza && !i.imobilizadoId)) {
       setValidationError("Item que capitaliza exige o bem (imobilizado)."); return;
     }
 
@@ -1366,7 +1370,7 @@ export default function DocumentoEntradaDetailPage() {
                         <td className="px-3 py-2">
                           {canEdit && ei ? (
                             <select value={ei.tesId} onChange={(e) => applyTesEdit(item.id, e.target.value)}
-                              className="h-7 rounded text-xs w-full border border-border bg-card px-1">
+                              className={cn("h-7 rounded text-xs w-full border bg-card px-1", !ei.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
                               <option value="">— TES —</option>
                               {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
                             </select>
@@ -1399,7 +1403,7 @@ export default function DocumentoEntradaDetailPage() {
                               value={ei.centroCustoId}
                               onChange={(v) => updateEditItem(item.id, "centroCustoId", v)}
                               noneLabel="—"
-                              triggerClassName="h-7 rounded text-xs min-w-[9rem]"
+                              triggerClassName={cn("h-7 rounded text-xs min-w-[9rem]", !ei.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                               options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                             />
                           ) : (
@@ -1627,7 +1631,7 @@ export default function DocumentoEntradaDetailPage() {
                       {/* TES */}
                       <td className="px-3 py-2">
                         <select value={ni.tesId} onChange={(e) => applyTesNew(ni._key, e.target.value)}
-                          className="h-7 rounded text-xs w-full border border-border bg-card px-1">
+                          className={cn("h-7 rounded text-xs w-full border bg-card px-1", !ni.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
                           <option value="">— TES —</option>
                           {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
                         </select>
@@ -1649,7 +1653,7 @@ export default function DocumentoEntradaDetailPage() {
                           value={ni.centroCustoId}
                           onChange={(v) => updateNewItem(ni._key, "centroCustoId", v)}
                           noneLabel="—"
-                          triggerClassName="h-7 rounded text-xs min-w-[9rem]"
+                          triggerClassName={cn("h-7 rounded text-xs min-w-[9rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                           options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                         />
                       </td>
