@@ -11,6 +11,7 @@ import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/Natu
 import BeneficiarioCombobox, { type BenTipo } from "@/components/financeiro/BeneficiarioCombobox";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { formatBRL, parseDecimal } from "@/lib/utils";
+import { centroExigidoPelaNatureza } from "@/lib/natureza-centro";
 
 type Contato = { id: string; razaoSocial: string; doc?: string | null };
 type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
@@ -62,6 +63,8 @@ export default function LancamentoForm({
   const [linhas, setLinhas] = useState<Linha[]>([novaLinha()]);
   const [contas, setContas] = useState<ContaOpt[]>(contaFixa ? [contaFixa] : []);
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
+  const [centroCustoId, setCentroCustoId] = useState("");
+  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string }[]>([]);
   // Modo conta: as listas de clientes/fornecedores trocam conforme o tipo.
   const [clientes, setClientes] = useState<Contato[]>([]);
   const [fornecedores, setFornecedores] = useState<Contato[]>([]);
@@ -75,7 +78,7 @@ export default function LancamentoForm({
       setBenTipo(tipo === "receber" ? "CLIENTE" : "FORNECEDOR"); setBenId("");
       setContaBancariaId(contaFixa?.id ?? ""); setDescricao("");
       setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput());
-      setLinhas([novaLinha()]); setErro(null);
+      setLinhas([novaLinha()]); setCentroCustoId(""); setErro(null);
     },
   });
 
@@ -94,6 +97,16 @@ export default function LancamentoForm({
     fetch(`/api/financeiro/naturezas?tipo=${isReceber ? "ENTRADA" : "SAIDA"}&ativo=1`)
       .then((r) => r.json()).then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, [isReceber]);
+
+  useEffect(() => {
+    fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
+      .then((j) => setCentros(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+  }, []);
+
+  // Centro (gerencial no título) é exigido quando ALGUMA natureza do rateio é de custo
+  // (despesa/CIF). Saída sem material; o razão segue pela natureza. Receita não exige.
+  const exigeCentro = !isReceber && linhas.some((l) =>
+    centroExigidoPelaNatureza(naturezas.find((n) => n.id === l.naturezaFinanceiraId)));
 
   // Carrega clientes, fornecedores e colaboradores p/ o seletor de beneficiário.
   useEffect(() => {
@@ -129,6 +142,7 @@ export default function LancamentoForm({
     const linhasValidas = linhas.filter((l) => parseDecimal(l.valor) > 0);
     if (linhasValidas.length === 0) { setErro("Informe ao menos uma natureza com valor."); return; }
     if (linhasValidas.some((l) => !l.naturezaFinanceiraId)) { setErro("Selecione a natureza financeira de todas as linhas com valor."); return; }
+    if (exigeCentro && !centroCustoId) { setErro("Centro de custo é obrigatório para natureza de despesa/CIF."); return; }
     if (pago && !contaBancariaId) { setErro("Selecione a conta de destino."); return; }
     setSalvando(true);
     try {
@@ -143,6 +157,7 @@ export default function LancamentoForm({
           dataPagamento: pago ? dataPagamento : null,
           dataVencimento,
           dataCompetencia,
+          centroCustoId: exigeCentro ? (centroCustoId || null) : null,
           linhas: linhasValidas.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseDecimal(l.valor) })),
         }),
       });
@@ -266,6 +281,22 @@ export default function LancamentoForm({
         ))}
         <p className="text-[11px] text-muted-foreground">As naturezas classificam o título (rateio) — a soma é o valor total. Crie/edite naturezas em Financeiro → Naturezas Financeiras.</p>
       </div>
+
+      {/* Centro de custo — só saída sem material com destino de custo (despesa/CIF).
+          Natureza patrimonial (imposto/empréstimo) não exige e o campo não aparece. */}
+      {exigeCentro && (
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Centro de custo <span className="text-red-500">*</span></Label>
+          <ComboboxWithCreate
+            value={centroCustoId}
+            onChange={setCentroCustoId}
+            placeholder="Selecionar centro de custo..."
+            triggerClassName="h-10 rounded-lg"
+            options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+          />
+          <p className="text-[11px] text-muted-foreground">Obrigatório para despesa/CIF — classificação gerencial do débito.</p>
+        </div>
+      )}
 
       {erro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{erro}</p>}
 

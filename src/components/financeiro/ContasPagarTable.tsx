@@ -466,7 +466,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         ];
         const podeEstornar = detalhe.status === "PAGA" || detalhe.status === "PARCIAL";
         const acoes: TituloAcao[] = [
-          ...(podePagar ? [{ label: "Pagar", tone: "primary" as const, icon: <Wallet className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); abrir(r); } }] : []),
+          ...(podePagar ? [{ label: "Pagar", tone: "primary" as const, icon: <Wallet className="w-4 h-4" />, onClick: () => abrir(detalhe) }] : []),
           ...(podeEstornar ? [{ label: "Reabrir", tone: "danger" as const, icon: <RotateCcw className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); estornar(r); } }] : []),
           ...(isAdmin ? [{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setEditar(r); } }] : []),
         ];
@@ -488,6 +488,14 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
             {selected && <p className="text-sm text-muted-foreground">{selected.numero} — Saldo: {formatBRL(saldo)}</p>}
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {/* Classificação de origem (somente leitura) — o financeiro vê, não edita. */}
+            {selected && (() => { const o = tesEcentroDoTitulo(selected); const org = origemPagar(selected); return (
+              <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs grid grid-cols-3 gap-2">
+                <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Origem</span><span className="text-foreground">{org.label}{org.ref ? ` · ${org.ref}` : ""}</span></div>
+                <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">TES</span><span className="text-foreground">{o.tes}</span></div>
+                <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Centro de custo</span><span className="text-foreground">{o.centro}</span></div>
+              </div>
+            ); })()}
             <div>
               <Label>Data do Pagamento</Label>
               <DatePicker value={dataPag} onChange={(v) => setDataPag(v)} className="mt-1 w-full" />

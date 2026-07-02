@@ -28,6 +28,9 @@ const schema = z.object({
   dataPagamento: DATE.optional().nullable(),
   dataVencimento: DATE.optional().nullable(),
   dataCompetencia: DATE.optional().nullable(),
+  // Centro de custo gerencial do título (só saída sem material, quando o destino é
+  // despesa/CIF). O razão segue pela natureza; centro é dimensão gerencial do título.
+  centroCustoId: z.string().optional().nullable().transform((v) => v || null),
   linhas: z.array(z.object({
     naturezaFinanceiraId: z.string().min(1, "Selecione a natureza financeira de cada linha"),
     detalhamento: z.string().optional().nullable(),
@@ -114,6 +117,7 @@ export async function POST(req: NextRequest) {
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
+            centroCustoId: f.centroCustoId,
             ...(rateio.length ? { naturezas: { create: rateio } } : {}),
           },
         });
