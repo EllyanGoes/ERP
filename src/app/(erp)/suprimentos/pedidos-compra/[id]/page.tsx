@@ -1019,7 +1019,7 @@ async function openWAModal() {
                         <td className="px-4 py-2.5"><StatusBadge status={c.status} /></td>
                         <td className="px-4 py-2.5 text-right">
                           {podePagar && (
-                            <Button size="sm" variant="outline" onClick={() => abrirPagar(c)} disabled={actioning}
+                            <Button size="sm" variant="outline" onClick={() => router.push(`/contas-pagar?abrir=${c.id}`)}
                               className="h-7 gap-1 border-rose-200 text-danger hover:bg-danger/10">
                               Pagar{saldo > 0 ? ` ${formatBRL(saldo)}` : ""}
                             </Button>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import { formatBRL, formatDate, decimalToNumber, isVencida } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -120,6 +120,16 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [editar, setEditar] = useState<ContaRow | null>(null);
+
+  // Abre o detalhe do título vindo por ?abrir=<id> (ex.: botão "Pagar" do pedido de
+  // compra que leva para o financeiro). Roda uma vez, ao encontrar o título.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const alvo = searchParams.get("abrir");
+    if (!alvo) return;
+    const c = contas.find((x) => x.id === alvo);
+    if (c) setDetalhe(c);
+  }, [searchParams, contas]);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
   const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
   const [formas, setFormas] = useState<FormaOpt[]>([]);
