@@ -8,6 +8,7 @@ import { generateDocNumber } from "@/lib/utils";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
+import { notifyOpCriada } from "@/lib/notify-pcp";
 
 // GET — lista de ordens de produção com progresso
 export async function GET() {
@@ -106,6 +107,9 @@ export async function POST(req: NextRequest) {
       include: { etapas: true },
     });
   });
+
+  // Notifica o grupo de PCP no Telegram (best-effort, pós-commit, não bloqueia).
+  await notifyOpCriada(ordem.id).catch(() => {});
 
   return NextResponse.json({ data: ordem });
 }

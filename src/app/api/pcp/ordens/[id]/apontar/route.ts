@@ -6,6 +6,8 @@ import type { Prisma, StatusEtapaOP } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { contabilizarProducaoOrdem } from "@/lib/contabilidade";
 import { apontarEtapaProducao } from "@/lib/pcp/apontamento";
+import { notifyApontamentoPcp } from "@/lib/notify-pcp";
+import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
 
 function numOrNull(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -66,25 +68,33 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const qtdSaidaNum = numOrNull(body.qtdSaida);
   const qtdEntradaNum = numOrNull(body.qtdEntrada);
 
-  await prisma.$transaction(async (tx) => {
-    await apontarEtapaProducao(tx, {
-      ordemId: params.id,
-      etapa: { id: etapa.id, status: etapa.status, estadoSaida: etapa.estadoSaida, sequencia: etapa.sequencia, nome: etapa.nome, subprodutoItemId: etapa.subprodutoItemId },
-      upd,
-      concluindoAgora,
-      qtdEntradaNum,
-      qtdSaidaNum,
-      biomassaKg,
-      biomassaDescricao: typeof body.biomassaDescricao === "string" ? body.biomassaDescricao.trim() || null : null,
-      milheiros,
-      subprodutoQtd: numOrNull(body.subprodutoQtd),
-      apontadoPor,
+  try {
+    await prisma.$transaction(async (tx) => {
+      await apontarEtapaProducao(tx, {
+        ordemId: params.id,
+        etapa: { id: etapa.id, status: etapa.status, estadoSaida: etapa.estadoSaida, sequencia: etapa.sequencia, nome: etapa.nome, subprodutoItemId: etapa.subprodutoItemId },
+        upd,
+        concluindoAgora,
+        qtdEntradaNum,
+        qtdSaidaNum,
+        biomassaKg,
+        biomassaDescricao: typeof body.biomassaDescricao === "string" ? body.biomassaDescricao.trim() || null : null,
+        milheiros,
+        subprodutoQtd: numOrNull(body.subprodutoQtd),
+        apontadoPor,
+      });
     });
-  });
+  } catch (e) {
+    if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
+    throw e;
+  }
 
   // Contabiliza a produção (D Estoque / C Custo de Produção) quando a ordem
   // conclui. Best-effort, pós-commit — não bloqueia o apontamento.
   await contabilizarProducaoOrdem(params.id).catch(() => {});
+
+  // Notifica o grupo de PCP no Telegram (best-effort, pós-commit).
+  await notifyApontamentoPcp(etapa.id).catch(() => {});
 
   return NextResponse.json({ ok: true });
 }
