@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const r = await enviarResumoPcpDia();
-    return NextResponse.json({ ok: true, opsCriadas: r.opsCriadas, etapasConcluidas: r.etapasConcluidas });
+    return NextResponse.json({ ok: true, apontamentos: r.apontamentos });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[cron/relatorio-pcp]", msg);

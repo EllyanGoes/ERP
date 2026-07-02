@@ -47,19 +47,21 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
     const et = await prisma.itemOrdemProducao.findUnique({
       where: { id: etapaId },
       select: { nome: true, status: true, qtdEntrada: true, qtdSaida: true, qtdPerda: true, apontadoPor: true,
-        ordemProducao: { select: { numero: true, item: { select: { descricao: true } } } } },
+        ordemProducao: { select: { numero: true, unidade: true, item: { select: { descricao: true } } } } },
     });
     if (!et) return;
     const op = et.ordemProducao;
     const saida = decimalToNumber(et.qtdSaida);
     const perda = decimalToNumber(et.qtdPerda);
     const concl = et.status === "CONCLUIDA";
+    const ehEmbalagem = /embalag/i.test(et.nome); // na Embalagem, a perda é "quebra"
+    const un = op.unidade ?? "";
     const linhas = [
       `${concl ? "✅" : "📝"} *Apontamento* — ${escMD(op.numero)}`,
       `📦 ${escMD(op.item?.descricao ?? "—")}`,
       `🔧 Etapa: *${escMD(et.nome)}*${concl ? " \\(concluída\\)" : ""}`,
-      saida > 0 ? `📤 Produzido: *${escMD(fmtNum(saida))}*` : null,
-      perda > 0 ? `♻️ Perda: ${escMD(fmtNum(perda))}` : null,
+      saida > 0 ? `📤 Produzido: *${escMD(fmtNum(saida))}* ${escMD(un)}`.trimEnd() : null,
+      perda > 0 ? `${ehEmbalagem ? "🧱 Quebra" : "♻️ Perda"}: ${escMD(fmtNum(perda))}` : null,
       et.apontadoPor ? `👤 ${escMD(et.apontadoPor)}` : null,
     ].filter(Boolean) as string[];
     await sendPcp({ text: linhas.join("\n") });
@@ -67,52 +69,48 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
 }
 
 // ── Resumo diário (19h BRT via cron) ──────────────────────────────────────────
-export async function enviarResumoPcpDia(): Promise<{ ok: boolean; opsCriadas: number; etapasConcluidas: number }> {
+// Baseado nos APONTAMENTOS (resultado real do dia), não no planejado: cada linha é
+// uma etapa concluída de uma OP (etapa produtiva + produzido). Na Embalagem, a
+// perda aparece como "quebra". Fecha com o total por etapa.
+export async function enviarResumoPcpDia(): Promise<{ ok: boolean; apontamentos: number }> {
   const { ini, fim } = rangeHojeSP();
 
-  const [opsCriadas, etapasConcluidas] = await Promise.all([
-    prisma.ordemProducao.findMany({
-      where: { createdAt: { gte: ini, lte: fim } },
-      select: { numero: true, quantidadePlanejada: true, unidade: true, item: { select: { descricao: true } } },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.itemOrdemProducao.findMany({
-      where: { status: "CONCLUIDA", fimReal: { gte: ini, lte: fim } },
-      select: { nome: true, qtdSaida: true, qtdPerda: true,
-        ordemProducao: { select: { numero: true, item: { select: { descricao: true } } } } },
-    }),
-  ]);
-
-  const totalProduzido = etapasConcluidas.reduce((s, e) => s + decimalToNumber(e.qtdSaida), 0);
-  const totalPerda = etapasConcluidas.reduce((s, e) => s + decimalToNumber(e.qtdPerda), 0);
-
-  // Produção por produto (das etapas concluídas hoje).
-  const porProduto = new Map<string, number>();
-  for (const e of etapasConcluidas) {
-    const p = e.ordemProducao.item?.descricao ?? "—";
-    porProduto.set(p, (porProduto.get(p) ?? 0) + decimalToNumber(e.qtdSaida));
-  }
+  const etapas = await prisma.itemOrdemProducao.findMany({
+    where: { status: "CONCLUIDA", fimReal: { gte: ini, lte: fim } },
+    select: {
+      nome: true, sequencia: true, qtdSaida: true, qtdPerda: true,
+      ordemProducao: { select: { numero: true, unidade: true, item: { select: { descricao: true } } } },
+    },
+    orderBy: [{ ordemProducao: { numero: "asc" } }, { sequencia: "asc" }],
+  });
 
   const dataBR = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
+  const linhas: string[] = [`📊 *Resumo do PCP* — ${escMD(dataBR)} \\(apontamentos\\)`, ""];
+  linhas.push(`✅ Apontamentos concluídos: *${etapas.length}*`);
 
-  const linhas: string[] = [`📊 *Resumo do PCP* — ${escMD(dataBR)}`, ""];
-  linhas.push(`🏭 OPs criadas: *${opsCriadas.length}*`);
-  for (const op of opsCriadas.slice(0, 15)) {
-    linhas.push(`  • ${escMD(op.numero)} — ${escMD(op.item?.descricao ?? "—")} \\(${escMD(fmtNum(decimalToNumber(op.quantidadePlanejada)))} ${escMD(op.unidade ?? "")}\\)`.trimEnd());
-  }
-  if (opsCriadas.length > 15) linhas.push(`  …e mais ${opsCriadas.length - 15}`);
-  linhas.push("");
-  linhas.push(`✅ Etapas concluídas: *${etapasConcluidas.length}*`);
-  linhas.push(`📤 Produzido: *${escMD(fmtNum(totalProduzido))}*`);
-  if (totalPerda > 0) linhas.push(`♻️ Perda: ${escMD(fmtNum(totalPerda))}`);
-  if (porProduto.size > 0) {
+  if (etapas.length === 0) {
+    linhas.push("", "_Nenhum apontamento concluído hoje\\._");
+  } else {
     linhas.push("");
-    linhas.push("*Por produto:*");
-    for (const [p, q] of Array.from(porProduto.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10)) {
-      linhas.push(`  • ${escMD(p)}: ${escMD(fmtNum(q))}`);
+    // Uma linha por OP + etapa produtiva (resultado). Quebra só na Embalagem.
+    const porEtapa = new Map<string, number>();
+    for (const e of etapas) {
+      const op = e.ordemProducao;
+      const prod = decimalToNumber(e.qtdSaida);
+      const un = op.unidade ?? "";
+      const ehEmbalagem = /embalag/i.test(e.nome);
+      let linha = `• ${escMD(op.numero)} · *${escMD(e.nome)}* — ${escMD(fmtNum(prod))} ${escMD(un)}`.trimEnd();
+      linha += ` \\(${escMD(op.item?.descricao ?? "—")}\\)`;
+      if (ehEmbalagem) linha += ` · 🧱 quebra ${escMD(fmtNum(decimalToNumber(e.qtdPerda)))}`;
+      linhas.push(linha);
+      porEtapa.set(e.nome, (porEtapa.get(e.nome) ?? 0) + prod);
+    }
+    linhas.push("", "*Total por etapa:*");
+    for (const [nome, q] of Array.from(porEtapa.entries()).sort((a, b) => b[1] - a[1])) {
+      linhas.push(`  ${escMD(nome)}: ${escMD(fmtNum(q))}`);
     }
   }
 
   await sendPcp({ text: linhas.join("\n") });
-  return { ok: true, opsCriadas: opsCriadas.length, etapasConcluidas: etapasConcluidas.length };
+  return { ok: true, apontamentos: etapas.length };
 }
