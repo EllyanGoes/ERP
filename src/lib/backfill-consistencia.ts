@@ -60,13 +60,18 @@ export async function executarBackfillConsistencia(
   // "apagar e regravar" que ainda tinha valor. Órfão datado em exercício fechado
   // é recusado pelo guard e reportado (exige reabrir o exercício).
   tick(0, "Limpando órfãos", 0, 1);
+  // Nas origens de minuta, o filtro extra de HISTÓRICO protege ajustes manuais
+  // postados com esses tipos e origemId sintético (ex.: "Saída TELHA sem minuta …
+  // [PENDENTE classificação]") — só o padrão gerado pelo motor é elegível.
   const orfaos = await prismaSemEscopo.$queryRaw<{ id: string }[]>`
     SELECT l.id FROM "LancamentoContabil" l WHERE l."origemId" IS NOT NULL AND (
       (l."origemTipo" = 'VENDA' AND NOT EXISTS (SELECT 1 FROM "PedidoVenda" d WHERE d.id = l."origemId") AND NOT EXISTS (SELECT 1 FROM "ContaReceber" d WHERE d.id = l."origemId"))
       OR (l."origemTipo" = 'RECEBIMENTO' AND NOT EXISTS (SELECT 1 FROM "ContaReceber" d WHERE d.id = l."origemId"))
       OR (l."origemTipo" IN ('COMPRA', 'PAGAMENTO') AND NOT EXISTS (SELECT 1 FROM "ContaPagar" d WHERE d.id = l."origemId"))
-      OR (l."origemTipo" IN ('RECEITA_ENTREGA', 'ESTOQUE_SAIDA') AND NOT EXISTS (SELECT 1 FROM "Minuta" d WHERE d.id = l."origemId"))
-      OR (l."origemTipo" = 'ESTOQUE_ENTRADA' AND NOT EXISTS (SELECT 1 FROM "ConferenciaCompra" d WHERE d.id = l."origemId"))
+      OR (l."origemTipo" IN ('RECEITA_ENTREGA', 'ESTOQUE_SAIDA')
+          AND (l.historico LIKE 'Custo da venda — saída %' OR l.historico LIKE 'Receita na entrega — %')
+          AND NOT EXISTS (SELECT 1 FROM "Minuta" d WHERE d.id = l."origemId"))
+      OR (l."origemTipo" = 'ESTOQUE_ENTRADA' AND l.historico LIKE 'Entrada de estoque — %' AND NOT EXISTS (SELECT 1 FROM "ConferenciaCompra" d WHERE d.id = l."origemId"))
       OR (l."origemTipo" = 'DEVOLUCAO' AND NOT EXISTS (SELECT 1 FROM "Devolucao" d WHERE d.id = split_part(l."origemId", '#', 1)))
     )`;
   log.push(`0) Órfãos: ${orfaos.length} lançamento(s) de documento apagado${DRY ? " [dry]" : ""}`);
