@@ -11,6 +11,7 @@ import { generateDocNumber } from "@/lib/utils";
 import { contabilizarPedidoCompra, contabilizarEntradaEstoque } from "@/lib/contabilidade";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
+import { encargosConferencia } from "@/lib/pedido-compra-de";
 
 const num = (d: unknown) => parseFloat(String(d ?? 0));
 
@@ -328,14 +329,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // ── DE AVULSA com fornecedor: gera a ContaPagar da entrada ────────────────
     // A entrada credita o Fornecedor no razão (contabilizarEntradaEstoque) mesmo
     // sem pedido — a dívida existe e precisa do título (invariante "CP de compra
-    // = crédito da entrada"). Valor = Σ itens (qtd recebida × vlr unitário) — o
-    // MESMO valor do crédito ao fornecedor; nunca vrTotal da NF nem total de
-    // pedido. semProvisao: a provisão contábil É a própria entrada (D Estoque /
-    // C Fornecedor) — o título não deve reprovisionar.
+    // = crédito da entrada"). Valor = LÍQUIDO do documento (itens − desconto +
+    // frete, via encargosConferencia) — o MESMO valor do crédito ao fornecedor.
+    // semProvisao: a provisão contábil É a própria entrada (D Estoque + D Fretes
+    // / C Descontos / C Fornecedor) — o título não deve reprovisionar.
     if (!conferencia.pedidoId && conferencia.fornecedorId) {
-      const valorEntrada = conferencia.itens.reduce(
-        (s, it) => s + num(it.quantidadeRecebida) * num(it.vlrUnitario), 0,
-      );
+      const valorEntrada = (await encargosConferencia(tx, conferencia.id)).liquido;
       if (valorEntrada > 0) {
         const condicao = conferencia.condicaoPagamentoId
           ? await tx.condicaoPagamento.findUnique({ where: { id: conferencia.condicaoPagamentoId } })
@@ -415,13 +414,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const jaTem = await tx.contaPagar.count({ where: { pedidoCompraId: pc.id } });
         if (jaTem === 0) {
           // O contas a pagar deve bater com o que a ENTRADA credita ao Fornecedor
-          // (= Σ recebido × preço unitário, já LÍQUIDO de desconto). `pc.valorTotal`
-          // é só o SUBTOTAL (sem desconto/frete) e não pode ser usado — senão o
-          // título vai maior que a dívida real e o razão do fornecedor não zera.
+          // = LÍQUIDO do documento (itens recebidos − desconto + frete/seguro/
+          // despesas, do DE ou rateados do pedido — encargosConferencia). Fontes:
+          // vrTotal digitado (total da NF) → líquido calculado → pc.valorTotal
+          // (último recurso; hoje o POST já grava o líquido do pedido).
           let valorTotal = conferencia.vrTotal != null ? num(conferencia.vrTotal) : 0;
-          if (valorTotal <= 0) {
-            valorTotal = conferencia.itens.reduce((s, it) => s + num(it.quantidadeRecebida) * num(it.vlrUnitario), 0);
-          }
+          if (valorTotal <= 0) valorTotal = (await encargosConferencia(tx, conferencia.id)).liquido;
           if (valorTotal <= 0) valorTotal = num(pc.valorTotal);
           if (valorTotal > 0) {
             const condId = conferencia.condicaoPagamentoId ?? pc.condicaoPagamentoId ?? null;

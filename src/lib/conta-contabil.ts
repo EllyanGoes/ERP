@@ -632,6 +632,13 @@ export async function garantirContaJurosMultasPassivos(empresaId: string) {
 export async function garantirContaDescontosObtidos(empresaId: string) {
   return garantirResultadoSobPai(empresaId, "3.1.9005", "Descontos Obtidos", "3.1", "CREDORA");
 }
+/** Despesa "Fretes e Encargos sobre Compras" (3.3.9007), DEVEDORA sob 3.3 —
+ *  frete/seguro/despesas do documento de entrada. A dívida com o fornecedor é o
+ *  LÍQUIDO do documento; o estoque continua ao preço unitário (ratear encargos
+ *  no custo do item é evolução futura). */
+export async function garantirContaFretesSobreCompras(empresaId: string) {
+  return garantirResultadoSobPai(empresaId, "3.3.9007", "Fretes e Encargos sobre Compras", "3.3", "DEVEDORA");
+}
 /** Redutora de receita "(-) Devoluções de Vendas" (3.1.9006), DEVEDORA sob 3.1 —
  *  estorno da receita na devolução de venda (contabilizarDevolucao). */
 export async function garantirContaDevolucaoVendas(empresaId: string) {

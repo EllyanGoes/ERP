@@ -63,3 +63,39 @@ export async function criarConferenciaDePedido(
     },
   });
 }
+
+/**
+ * Encargos e desconto do DOCUMENTO de entrada, para compor a dívida LÍQUIDA com
+ * o fornecedor: líquido = itens recebidos − desconto + frete/seguro/despesas.
+ * Fonte: os campos da própria conferência (frete/desconto digitados no DE);
+ * quando vazios, rateia os do PEDIDO pela fração recebida em valor (recebimento
+ * parcial rateia os encargos proporcionalmente). `base` = Σ recebido × vlrUnitario
+ * (mesma grandeza monetária dos movimentos de entrada, independentemente da
+ * unidade — qtd×fator e preço÷fator se cancelam).
+ */
+export async function encargosConferencia(
+  db: Pick<Prisma.TransactionClient, "conferenciaCompra">,
+  conferenciaId: string,
+): Promise<{ base: number; encargos: number; desconto: number; liquido: number }> {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const num = (d: unknown) => (d == null ? 0 : parseFloat(String(d)) || 0);
+  const conf = await db.conferenciaCompra.findUnique({
+    where: { id: conferenciaId },
+    select: {
+      frete: true, desconto: true,
+      itens: { select: { quantidadeRecebida: true, vlrUnitario: true } },
+      pedido: { select: { frete: true, seguro: true, despesas: true, vrDesconto: true, itens: { select: { valorTotal: true } } } },
+    },
+  });
+  if (!conf) return { base: 0, encargos: 0, desconto: 0, liquido: 0 };
+  const base = r2(conf.itens.reduce((s, it) => s + num(it.quantidadeRecebida) * num(it.vlrUnitario), 0));
+  let encargos = r2(num(conf.frete));
+  let desconto = r2(num(conf.desconto));
+  if (encargos <= 0 && desconto <= 0 && conf.pedido) {
+    const subtotalPedido = conf.pedido.itens.reduce((s, it) => s + num(it.valorTotal), 0);
+    const frac = subtotalPedido > 0 ? Math.min(base / subtotalPedido, 1) : 0;
+    encargos = r2((num(conf.pedido.frete) + num(conf.pedido.seguro) + num(conf.pedido.despesas)) * frac);
+    desconto = r2(num(conf.pedido.vrDesconto) * frac);
+  }
+  return { base, encargos, desconto, liquido: r2(base - desconto + encargos) };
+}

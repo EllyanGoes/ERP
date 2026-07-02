@@ -8,7 +8,8 @@ import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
 import { DIAS_TRABALHADOS_DEFAULT } from "@/lib/pcp/custeio-cif";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaFretesSobreCompras, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
+import { encargosConferencia } from "@/lib/pedido-compra-de";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
 // empresaId explícito (cada empresa tem seu próprio plano de contas).
@@ -999,6 +1000,18 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
   const contaForn = await contaDoFornecedor(conf.empresaId, fornecedorId);
   if (!contaForn) return;
 
+  // Frete/seguro/despesas e desconto do DOCUMENTO: a dívida com o fornecedor é o
+  // LÍQUIDO (itens − desconto + encargos), não só os itens. O estoque continua ao
+  // preço unitário; os encargos vão a "Fretes e Encargos sobre Compras" (3.3.9007)
+  // e o desconto a "Descontos Obtidos" (3.1.9005). Se alguma conta não resolver,
+  // cai no comportamento antigo (crédito = itens) para não desbalancear.
+  const enc = await encargosConferencia(prismaSemEscopo, conf.id);
+  const contaFretes = enc.encargos > 0.005 ? await garantirContaFretesSobreCompras(conf.empresaId) : null;
+  const contaDescObt = enc.desconto > 0.005 ? await garantirContaDescontosObtidos(conf.empresaId) : null;
+  const encargos = contaFretes ? enc.encargos : 0;
+  const desconto = contaDescObt ? enc.desconto : 0;
+  const liquido = r2(total - desconto + encargos);
+
   // Liquidação de adiantamento: se o pedido teve pagamento(s) antecipado(s) (PA)
   // já pago(s), a entrada BAIXA o adiantamento (ativo 1.1.7) em vez de creditar o
   // fornecedor, até o valor adiantado. Excedente → C Fornecedores (título normal);
@@ -1013,8 +1026,8 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
     adiantPago = decimalToNumber(pas._sum.valorPago ?? 0);
   }
   const contaAdiant = adiantPago > 0.005 ? await contaAdiantamentoDoFornecedor(conf.empresaId, fornecedorId) : null;
-  const credAdiant = contaAdiant ? Math.min(total, adiantPago) : 0;
-  const credForn = total - credAdiant;
+  const credAdiant = contaAdiant ? Math.min(liquido, adiantPago) : 0;
+  const credForn = liquido - credAdiant;
 
   const partidas: PartidaIn[] = [];
   for (const [localId, v] of Array.from(porLocal.entries())) {
@@ -1024,6 +1037,8 @@ export async function contabilizarEntradaEstoque(conferenciaId: string) {
     partidas.push({ contaId: cl.id, tipo: "DEBITO", valor: v });
   }
   if (partidas.length === 0) return;
+  if (encargos > 0.005) partidas.push({ contaId: contaFretes!.id, tipo: "DEBITO", valor: encargos });
+  if (desconto > 0.005) partidas.push({ contaId: contaDescObt!.id, tipo: "CREDITO", valor: desconto });
   if (credAdiant > 0.005) partidas.push({ contaId: contaAdiant!.id, tipo: "CREDITO", valor: credAdiant, fornecedorId });
   if (credForn > 0.005) partidas.push({ contaId: contaForn.id, tipo: "CREDITO", valor: credForn, fornecedorId });
 

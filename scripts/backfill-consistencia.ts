@@ -32,7 +32,9 @@ import {
   contabilizarTituloPagar,
   contabilizarVendaPedido,
   contabilizarDevolucao,
+  recontabilizarConferencia,
 } from "../src/lib/contabilidade";
+import { encargosConferencia } from "../src/lib/pedido-compra-de";
 import { garantirContaJurosMultasPassivos, garantirContaPerdaBaixaImobilizado } from "../src/lib/conta-contabil";
 import { recomputarStatusPedido, recomputarStatusFinanceiroCompra } from "../src/lib/pedido-totais";
 import { valoresEstoqueDaEmpresa } from "../src/lib/valor-estoque";
@@ -130,6 +132,61 @@ async function passo5_recomputos() {
   for (const p of pcs) await recomputarStatusFinanceiroCompra(prismaSemEscopo, p.id).catch(guardar(`recompute PC ${p.id}`));
 }
 
+async function passo6_freteDescontoCompras() {
+  // Conferências CONCLUIDAS cujo documento tem frete/desconto (no DE ou no
+  // pedido): re-sincroniza a entrada (o crédito do fornecedor passa a ser o
+  // LÍQUIDO, com pernas de Fretes sobre Compras / Descontos Obtidos) e ajusta as
+  // CPs ABERTAS sem baixa do pedido para o líquido (proporcional por parcela).
+  // CPs com baixa não são tocadas (reportadas p/ ajuste manual).
+  const confs = await prismaSemEscopo.conferenciaCompra.findMany({
+    where: {
+      status: "CONCLUIDA",
+      OR: [
+        { frete: { gt: 0 } }, { desconto: { gt: 0 } },
+        { pedido: { OR: [{ frete: { gt: 0 } }, { seguro: { gt: 0 } }, { despesas: { gt: 0 } }, { vrDesconto: { gt: 0 } }] } },
+      ],
+    },
+    select: { id: true, numero: true, pedidoId: true },
+  });
+  log(`  ${confs.length} conferência(s) com frete/desconto${DRY ? " [dry — pulado]" : ""}`);
+  if (DRY) return;
+  const pedidosAjustar = new Set<string>();
+  for (const c of confs) {
+    await recontabilizarConferencia(c.id).catch(guardar(`Conferência ${c.numero}`));
+    if (c.pedidoId) pedidosAjustar.add(c.pedidoId);
+  }
+  for (const pedidoId of Array.from(pedidosAjustar)) {
+    const cps = await prismaSemEscopo.contaPagar.findMany({
+      where: { pedidoCompraId: pedidoId, status: { not: "CANCELADA" }, antecipado: false },
+      select: { id: true, numero: true, valorOriginal: true, valorPago: true, status: true },
+      orderBy: { numero: "asc" },
+    });
+    if (!cps.length) continue;
+    if (cps.some((c) => decimalToNumber(c.valorPago) > 0)) {
+      erros.push(`Pedido ${pedidoId}: CP com baixa — ajustar frete/desconto manualmente`);
+      continue;
+    }
+    const confsPedido = await prismaSemEscopo.conferenciaCompra.findMany({
+      where: { pedidoId, status: "CONCLUIDA" }, select: { id: true },
+    });
+    let liquido = 0;
+    for (const cf of confsPedido) liquido += (await encargosConferencia(prismaSemEscopo, cf.id)).liquido;
+    liquido = Math.round(liquido * 100) / 100;
+    const atual = cps.reduce((s, c) => s + decimalToNumber(c.valorOriginal), 0);
+    if (liquido <= 0 || Math.abs(liquido - atual) <= 0.01) continue;
+    let acc = 0;
+    for (let i = 0; i < cps.length; i++) {
+      const v = i === cps.length - 1
+        ? Math.round((liquido - acc) * 100) / 100
+        : Math.round((decimalToNumber(cps[i].valorOriginal) / atual) * liquido * 100) / 100;
+      acc = Math.round((acc + v) * 100) / 100;
+      await prismaSemEscopo.contaPagar.update({ where: { id: cps[i].id }, data: { valorOriginal: v } });
+      await contabilizarTituloPagar(cps[i].id).catch(guardar(`CP ${cps[i].numero}`));
+    }
+    log(`  Pedido ${pedidoId}: CP(s) ajustada(s) ${atual.toFixed(2)} → ${liquido.toFixed(2)}`);
+  }
+}
+
 async function main() {
   log(`Backfill de consistência ${DRY ? "(DRY RUN)" : ""} — banco: ${process.env.DATABASE_URL?.replace(/:[^:@/]+@/, ":***@")}`);
   log("1) Repontando partidas da 3.3.9004 (colisão de código)…");
@@ -142,6 +199,8 @@ async function main() {
   await passo4_devolucoes();
   log("5) Recomputando status de pedidos…");
   await passo5_recomputos();
+  log("6) Frete/desconto nas entradas de compra (crédito líquido + CPs)…");
+  await passo6_freteDescontoCompras();
   if (erros.length) {
     log(`\n⚠ ${erros.length} erro(s) — itens pulados (rodar de novo após corrigir):`);
     for (const e of erros) log(`  - ${e}`);
