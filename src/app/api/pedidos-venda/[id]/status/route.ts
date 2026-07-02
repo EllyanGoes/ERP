@@ -17,7 +17,7 @@ const schema = z.object({
 // Nota: a máquina de transições, a reversão do cancelamento e os espelhos
 // intragrupo/triangular vivem em src/lib/pedido-venda-status.ts — compartilhados
 // com o PATCH /api/pedidos-venda/[id]. O contas a receber NÃO nasce mais na
-// confirmação: ele é gerado na ENTREGA total (faturarPedidoSeEntregue).
+// confirmação: ele é gerado na ENTREGA total (faturarEntregasPedido).
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("comercial");
   if (!auth.ok) return auth.response;

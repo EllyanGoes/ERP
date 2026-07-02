@@ -12,7 +12,7 @@ import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
 import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
-import { faturarPedidoSeEntregue } from "@/lib/contas-receber";
+import { faturarEntregasPedido } from "@/lib/contas-receber";
 import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import { z } from "zod";
 
@@ -74,8 +74,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       data: { status: "CONCLUIDO", dataConclusao: hoje },
     });
     // Faturamento na ENTREGA (rede de segurança) + contabilização.
-    await faturarPedidoSeEntregue(params.id).catch((e) =>
-      console.error(`[concluir-com-saida] faturarPedidoSeEntregue(${params.id}) falhou:`, e));
+    await faturarEntregasPedido(params.id).catch((e) =>
+      console.error(`[concluir-com-saida] faturarEntregasPedido(${params.id}) falhou:`, e));
     await contabilizarPedidoVenda(params.id).catch(() => {});
     return NextResponse.json({ data: { pedidoId: updated.id, minutaNumero: null } }, { status: 200 });
   }
@@ -153,8 +153,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Faturamento na ENTREGA: a entrega total acabou de se completar — gera o
     // contas a receber (idempotente) e contabiliza o pedido.
-    await faturarPedidoSeEntregue(params.id).catch((e) =>
-      console.error(`[concluir-com-saida] faturarPedidoSeEntregue(${params.id}) falhou:`, e));
+    await faturarEntregasPedido(params.id).catch((e) =>
+      console.error(`[concluir-com-saida] faturarEntregasPedido(${params.id}) falhou:`, e));
     await contabilizarPedidoVenda(params.id).catch(() => {});
 
     return NextResponse.json({ data: { pedidoId: params.id, minutaNumero: resultado.minuta.numero } }, { status: 201 });

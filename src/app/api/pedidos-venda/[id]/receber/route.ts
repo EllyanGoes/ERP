@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 // Recebimento manual do pedido — DESATIVADO como criador de título (decisão
 // jul/2026): o CONTAS A RECEBER nasce na CONFIRMAÇÃO DA ENTREGA/RETIRADA
-// (faturarPedidoSeEntregue), não na confirmação do pedido nem num recebimento
+// (faturarEntregasPedido), não na confirmação do pedido nem num recebimento
 // antecipado. Esta rota deixou de criar a conta PAGA "adiantada":
 //   • pedido SEM conta a receber (ainda não entregue) → 422 orientando que o
 //     título nasce na entrega (não criamos antecipação);
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { faturarPedidoSeEntregue } from "@/lib/contas-receber";
+import { faturarEntregasPedido } from "@/lib/contas-receber";
 import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -32,8 +32,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   // Se a entrega total já aconteceu mas o faturamento ainda não rodou (corrida
   // entre gatilhos), fatura agora — aí o caminho certo é baixar o título.
   if (pedido._count.contasReceber === 0) {
-    const faturou = await faturarPedidoSeEntregue(pedido.id).catch((e) => {
-      console.error(`[receber] faturarPedidoSeEntregue(${pedido.id}) falhou:`, e);
+    const faturou = await faturarEntregasPedido(pedido.id).catch((e) => {
+      console.error(`[receber] faturarEntregasPedido(${pedido.id}) falhou:`, e);
       return false;
     });
     if (faturou) await contabilizarPedidoVenda(pedido.id).catch(() => {});

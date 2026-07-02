@@ -6,13 +6,13 @@
 // Aqui: uma máquina, uma reversão de cancelamento e os mesmos espelhos.
 //
 // Decisão jul/2026: o CONTAS A RECEBER nasce na ENTREGA/RETIRADA total
-// (faturarPedidoSeEntregue), não mais na confirmação do pedido. A confirmação
+// (faturarEntregasPedido), não mais na confirmação do pedido. A confirmação
 // continua gerando o lançamento contábil da venda (modelo clássico).
 // ─────────────────────────────────────────────────────────────────────────────
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { getItensPendentesEntrega, type ItemPendenteEntrega } from "@/lib/pedido-totais";
-import { faturarPedidoSeEntregue } from "@/lib/contas-receber";
+import { faturarEntregasPedido } from "@/lib/contas-receber";
 import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import {
   espelharConfirmacaoVenda,
@@ -217,8 +217,8 @@ export async function mudarStatusPedidoVenda(opts: {
   // Rede de segurança do faturamento: o CR nasce na ENTREGA total (minuta
   // ENTREGUE / balcão). Se algum gatilho de entrega não faturou, fatura aqui.
   if (novoStatus === "CONCLUIDO") {
-    await faturarPedidoSeEntregue(id).catch((e) =>
-      console.error(`[pedido-venda-status] faturarPedidoSeEntregue(${id}) falhou:`, e));
+    await faturarEntregasPedido(id).catch((e) =>
+      console.error(`[pedido-venda-status] faturarEntregasPedido(${id}) falhou:`, e));
   }
 
   // Contabiliza (best-effort, pós-commit) a venda/títulos do pedido.

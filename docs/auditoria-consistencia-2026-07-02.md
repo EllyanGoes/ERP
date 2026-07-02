@@ -2,8 +2,9 @@
 
 > **STATUS (2026-07-02, mesma data):** correções aplicadas na sequência da auditoria.
 > Todos os CRÍTICOS (C1–C7) e os ALTOS foram corrigidos; decisão adicional do usuário
-> implementada: **ContaReceber nasce na confirmação da ENTREGA/RETIRADA total**
-> (`faturarPedidoSeEntregue`), não mais na confirmação do pedido. Helpers novos:
+> implementada: **ContaReceber nasce na ENTREGA/RETIRADA — inclusive parcial, por
+> minuta** (`faturarEntregasPedido`, modelo catch-up), não mais na confirmação do
+> pedido. Helpers novos:
 > `baixarEstoqueVenda`, `baixarTitulo`, `criarConferenciaDePedido`, máquina de status
 > compartilhada de pedido de venda. Migration `20260702100000` (enum DEVOLUCAO,
 > renumeração 3.3.9005/9006, campos de devolução). Backfill em

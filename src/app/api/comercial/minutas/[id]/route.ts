@@ -13,7 +13,7 @@ import { recontabilizarMinuta, apagarLancamentosContabeis, contabilizarPedidoVen
 import { resolverLocaisSaida } from "@/lib/local-saida";
 import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
 import { assertSaldoNaoNegativo, SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
-import { faturarPedidoSeEntregue } from "@/lib/contas-receber";
+import { faturarEntregasPedido } from "@/lib/contas-receber";
 
 // Lançado dentro das transações quando outra requisição mexeu na minuta no meio
 // do caminho (duplo clique, duas abas). Aborta a transação e vira HTTP 409.
@@ -529,8 +529,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         if (entregaAOrdem) await gerarCompraVirtualVendaOrdem(params.id); // venda à ordem: compra virtual + financeiro na empresa da venda
         // Faturamento na ENTREGA: gera o contas a receber quando a entrega total
         // se completou (idempotente) e contabiliza o pedido.
-        await faturarPedidoSeEntregue(minuta.pedidoVendaId).catch((e) =>
-          console.error(`[Minutas] faturarPedidoSeEntregue(${minuta.pedidoVendaId}) falhou:`, e));
+        await faturarEntregasPedido(minuta.pedidoVendaId).catch((e) =>
+          console.error(`[Minutas] faturarEntregasPedido(${minuta.pedidoVendaId}) falhou:`, e));
         await contabilizarPedidoVenda(minuta.pedidoVendaId).catch(() => {});
       }
 
@@ -568,8 +568,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (entregaAOrdem) await gerarCompraVirtualVendaOrdem(params.id); // venda à ordem: compra virtual + financeiro na empresa da venda
       // Faturamento na ENTREGA: o contas a receber nasce quando a entrega total
       // se completa (idempotente); contabiliza o pedido em seguida.
-      await faturarPedidoSeEntregue(minuta.pedidoVendaId).catch((e) =>
-        console.error(`[Minutas] faturarPedidoSeEntregue(${minuta.pedidoVendaId}) falhou:`, e));
+      await faturarEntregasPedido(minuta.pedidoVendaId).catch((e) =>
+        console.error(`[Minutas] faturarEntregasPedido(${minuta.pedidoVendaId}) falhou:`, e));
       await contabilizarPedidoVenda(minuta.pedidoVendaId).catch(() => {});
     } else if (minuta.status === "ENTREGUE" && newStatus) {
       // Saiu de ENTREGUE (ex.: cancelada) → o saldo entregue mudou: reavalia o
