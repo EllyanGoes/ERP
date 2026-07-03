@@ -8,6 +8,12 @@ import PrintButton from "@/components/shared/PrintButton";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { Loader2, Factory, RefreshCw } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList } from "recharts";
+
+// Cores do gráfico (par validado p/ daltonismo e contraste nos 2 temas):
+// produzido = ciano do PCP; perda = âmbar (mesma semântica das tabelas).
+const COR_PRODUZIDO = "#0891b2";
+const COR_PERDA = "#d97706";
 
 type ProdutoLinha = { itemId: string; codigo: string; descricao: string; pecas: number; perda: number; ops: number };
 type AreaLinha = { area: string; sequencia: number; ops: number; pecas: number; perda: number; vagoes: number | null; vagonetas: number | null; produtos: ProdutoLinha[] };
@@ -102,6 +108,32 @@ export default function RelatorioProducaoPage() {
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Perda</p>
                   <p className="text-xl font-bold tabular-nums text-amber-600">{n(totalPerda)} <span className="text-xs font-normal text-muted-foreground">pç · {pctPerda(totalPecas, totalPerda)}</span></p>
                 </div>
+              </div>
+
+              {/* Gráfico: produzido × perda por área (barras horizontais empilhadas). */}
+              <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2" style={{ breakInside: "avoid" }}>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Produção por área (pç)</p>
+                <ResponsiveContainer width="100%" height={Math.max(160, areas.length * 44 + 60)}>
+                  <BarChart
+                    layout="vertical"
+                    data={areas.map((a) => ({ area: a.area, Produzido: a.pecas, Perda: a.perda, total: a.pecas + a.perda }))}
+                    margin={{ top: 4, right: 56, bottom: 4, left: 8 }}
+                  >
+                    <CartesianGrid horizontal={false} stroke="#94a3b8" strokeOpacity={0.18} />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v: number) => v.toLocaleString("pt-BR", { notation: v >= 10000 ? "compact" : "standard" })} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="area" width={130} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      cursor={{ fill: "#94a3b8", fillOpacity: 0.08 }}
+                      formatter={(v) => `${Number(v).toLocaleString("pt-BR")} pç`}
+                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    />
+                    <Legend formatter={(v: string) => <span style={{ color: "#64748b", fontSize: 12 }}>{v}</span>} />
+                    <Bar dataKey="Produzido" stackId="a" fill={COR_PRODUZIDO} barSize={22} />
+                    <Bar dataKey="Perda" stackId="a" fill={COR_PERDA} barSize={22} radius={[0, 4, 4, 0]}>
+                      <LabelList dataKey="total" position="right" formatter={(v: React.ReactNode) => Number(v).toLocaleString("pt-BR")} style={{ fill: "#64748b", fontSize: 11 }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
 
               {areas.map((a) => (

@@ -389,8 +389,6 @@ const mainModules: Module[] = [
         kind: "Outros" as SubSection["kind"],
         items: [
           { href: "/pcp/planejamento",     label: "Planejamento (MPS/MRP)", icon: Calculator },
-          { href: "/pcp/dashboard",        label: "Dashboard",            icon: BarChart3 },
-          { href: "/pcp/ajuda",            label: "Como usar",            icon: BookOpen },
         ],
       },
     ],

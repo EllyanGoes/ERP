@@ -165,9 +165,8 @@ export const ROUTES: RouteEntry[] = [
   { href: "/pcp/ordens",                           label: "Ordens de Produção",      group: "PCP",            section: "Planejamento/Apontamento",     icon: ClipboardList,  keywords: "pcp ordem produção op apontamento etapa" },
   { href: "/pcp/operacoes",                        label: "Operações (fila)",        group: "PCP",            section: "Planejamento/Apontamento",     icon: ListChecks,     keywords: "pcp operação fila chão etapa centro trabalho apontar" },
   { href: "/pcp/planejamento",                     label: "Planejamento (MPS/MRP)",  group: "PCP",            section: "Planejamento/Apontamento",     icon: Calculator,     keywords: "pcp mps mrp planejamento demanda necessidade insumo plano mestre" },
-  { href: "/pcp/dashboard",                        label: "Dashboard do PCP",        group: "PCP",            section: "Outros",           icon: BarChart3,      keywords: "pcp dashboard indicadores forno wip biomassa perdas simulação" },
+  { href: "/pcp/relatorios/producao",              label: "Relatório de Produção",   group: "PCP",            section: "Relatórios",       icon: TrendingUp,     keywords: "pcp relatório produção área entregue apontado peças perda" },
   { href: "/pcp/sequenciamento",                   label: "Sequenciamento (forno)",  group: "PCP",            section: "Outros",           icon: CalendarClock,  keywords: "pcp sequenciamento forno gargalo cronograma capacidade finita programação" },
-  { href: "/pcp/ajuda",                            label: "Como usar o PCP",         group: "PCP",            section: "Outros",           icon: BookOpen,       keywords: "pcp ajuda guia documentação como usar tutorial manual" },
 
   { href: "/configuracoes/aprovacoes",             label: "Aprovações",              group: "Configurações",  section: "Configurações",    icon: Settings2 },
   { href: "/configuracoes/integracoes",            label: "Integrações",             group: "Configurações",  section: "Configurações",    icon: Plug },
