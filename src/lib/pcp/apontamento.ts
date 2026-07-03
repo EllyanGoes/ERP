@@ -50,6 +50,8 @@ export type ApontarEtapaInput = {
   // OP multi-produto: produz ESTE produto (chamado 1× por produto da OP). qtdSaidaNum
   // é a quantidade real desse produto (na unidade-base). Ausente → usa ordem.itemId.
   produtoOverride?: { itemId: string; codigo: string; descricao: string } | null;
+  // Usuário confirmou apontar mesmo deixando saldo negativo (consumo real; ajusta depois).
+  permitirSaldoNegativo?: boolean;
 };
 
 /**
@@ -170,7 +172,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
         await postMovimento(tx, {
           itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo,
           ordemProducaoId: ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} — ${etapa.nome}`,
-          loteId, valorUnitario: custoUnit,
+          loteId, valorUnitario: custoUnit, permitirSaldoNegativo: p.permitirSaldoNegativo,
         });
         custoInsumos += consumo * custoUnit;
       }
@@ -185,7 +187,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
       await postMovimento(tx, {
         itemId: srcItemId, localEstoqueId: localFrom, tipo: "SAIDA", quantidade: qtdConsumidaWip,
         ordemProducaoId: ordemId, documento: ordem.numero, observacoes: `Consumo WIP ${fromEstado} — ${etapa.nome}`,
-        loteId, valorUnitario: custoWipFrom,
+        loteId, valorUnitario: custoWipFrom, permitirSaldoNegativo: p.permitirSaldoNegativo,
       });
       custoWipEntrada = qtdConsumidaWip * custoWipFrom;
     }
@@ -234,7 +236,7 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
  * insumo. NÃO gera WIP/PA. Gatilho: o produto da OP tem naturezaPadrao com
  * destinoSugerido = CIF. Idempotente por (empresa, ESTOQUE_CONSUMO, CIF-MISTURA-<ordemId>).
  */
-export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null }): Promise<void> {
+export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null; permitirSaldoNegativo?: boolean }): Promise<void> {
   const agora = new Date();
   await tx.itemOrdemProducao.update({
     where: { id: p.etapaId },
@@ -270,7 +272,7 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
       if (consumo <= 0) continue;
       const custoUnit = custos.get(ins.insumoItemId) ?? 0;
       const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
-      await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} (CIF queima) — ${ordem.numero}`, loteId, valorUnitario: custoUnit });
+      await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} (CIF queima) — ${ordem.numero}`, loteId, valorUnitario: custoUnit, permitirSaldoNegativo: p.permitirSaldoNegativo });
       const cl = await garantirContaLocalNaEmpresa(empresaId, localIns);
       if (cl) custoPorConta.set(cl.id, Math.round(((custoPorConta.get(cl.id) ?? 0) + consumo * custoUnit) * 100) / 100);
     }
@@ -299,7 +301,7 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
  * custo acumulado. A contabilização (D estoque-produção / C estoque-insumo) é feita
  * por contabilizarProducaoOrdem. NÃO é CIF — é material direto (vira PEP no consumo).
  */
-export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null }): Promise<void> {
+export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null; permitirSaldoNegativo?: boolean }): Promise<void> {
   const agora = new Date();
   await tx.itemOrdemProducao.update({
     where: { id: p.etapaId },
@@ -332,7 +334,7 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
       if (consumo <= 0) continue;
       const custoUnit = custos.get(ins.insumoItemId) ?? 0;
       const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
-      await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} — ${ordem.numero}`, loteId, valorUnitario: custoUnit });
+      await postMovimento(tx, { itemId: ins.insumoItemId, localEstoqueId: localIns, tipo: "SAIDA", quantidade: consumo, ordemProducaoId: p.ordemId, documento: ordem.numero, observacoes: `Consumo ${meta.descricao} — ${ordem.numero}`, loteId, valorUnitario: custoUnit, permitirSaldoNegativo: p.permitirSaldoNegativo });
       custoTotal += consumo * custoUnit;
     }
     // Entrada do produto no estoque de produção (WIP), valorado pelo custo consumido.

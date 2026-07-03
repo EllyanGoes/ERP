@@ -150,6 +150,9 @@ export async function postMovimento(
     observacoes: string;
     loteId?: string | null;
     valorUnitario?: number | null; // custo unitário da movimentação (custeio por fase)
+    // Apontamento com estoque insuficiente: o guard vira aviso no front (o usuário
+    // confirma e reenvia com o flag) — consumo real aconteceu, saldo ajusta depois.
+    permitirSaldoNegativo?: boolean;
   },
 ): Promise<void> {
   let estoque = await tx.estoqueItem.findFirst({
@@ -173,7 +176,7 @@ export async function postMovimento(
   const saldoAntes = saldoDepois - delta;
   // Guard de saldo: SAÍDA não pode deixar o saldo negativo. Lançar aqui (dentro da
   // transação) desfaz o increment junto com o resto do apontamento (rollback).
-  if (args.tipo === "SAIDA" && saldoDepois < -1e-9) {
+  if (args.tipo === "SAIDA" && saldoDepois < -1e-9 && args.permitirSaldoNegativo !== true) {
     const item = await tx.item.findUnique({ where: { id: args.itemId }, select: { descricao: true } });
     assertSaldoNaoNegativo([{ itemId: args.itemId, descricao: item?.descricao ?? null, saldoAtual: saldoAntes, saldoDepois }]);
   }

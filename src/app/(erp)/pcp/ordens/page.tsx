@@ -378,13 +378,24 @@ export default function OrdensBoardPage() {
     }
     setApBusy(true); setErro(null);
     try {
-      const r = await fetch(`/api/pcp/ordens/${apontar.id}/concluir-area`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        // qtdPerda (etapa) fica a cargo do servidor (soma das perdas por produto); mantém
-        // apForm.perda como fallback p/ etapas sem calculadora (1 produto).
-        body: JSON.stringify({ itens, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined, vagoes: apForm.vagoes || undefined, vagonetas: apForm.vagonetas || undefined }),
-      });
-      const j = await r.json();
+      const enviar = (permitirSaldoNegativo: boolean) =>
+        fetch(`/api/pcp/ordens/${apontar.id}/concluir-area`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          // qtdPerda (etapa) fica a cargo do servidor (soma das perdas por produto); mantém
+          // apForm.perda como fallback p/ etapas sem calculadora (1 produto).
+          body: JSON.stringify({ itens, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined, vagoes: apForm.vagoes || undefined, vagonetas: apForm.vagonetas || undefined, permitirSaldoNegativo }),
+        });
+      let r = await enviar(false);
+      let j = await r.json();
+      // Estoque insuficiente: mostra o que ficaria negativo e deixa apontar mesmo
+      // assim (consumo real aconteceu; o saldo se ajusta por inventário depois).
+      if (r.status === 422 && j?.codigo === "SALDO_NEGATIVO") {
+        const linhas = (j.negativos ?? []).map((ng: { descricao?: string | null; itemId: string; saldoAtual: number; saldoDepois: number }) =>
+          `• ${ng.descricao ?? ng.itemId}: ${Number(ng.saldoAtual).toLocaleString("pt-BR")} → ${Number(ng.saldoDepois).toLocaleString("pt-BR")}`).join("\n");
+        if (!confirm(`O apontamento deixa estoque NEGATIVO:\n\n${linhas}\n\nApontar mesmo assim?`)) { setApBusy(false); return; }
+        r = await enviar(true);
+        j = await r.json();
+      }
       if (!r.ok) throw new Error(j?.error ?? "Erro ao apontar");
       setApontar(null);
       await loadOps();

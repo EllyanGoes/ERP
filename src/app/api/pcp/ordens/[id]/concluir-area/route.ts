@@ -46,6 +46,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const vagoes = numOrNull(body?.vagoes);
   const vagonetas = numOrNull(body?.vagonetas);
   const apontadoPor = typeof body?.apontadoPor === "string" && body.apontadoPor.trim() ? body.apontadoPor.trim() : null;
+  // Usuário confirmou apontar mesmo deixando o estoque negativo (o front intercepta
+  // o 422 SALDO_NEGATIVO, mostra os itens e reenvia com o flag).
+  const permitirSaldoNegativo = body?.permitirSaldoNegativo === true;
 
   const ordem = await prisma.ordemProducao.findUnique({
     where: { id: params.id },
@@ -101,7 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (ehCifSemWip) {
     try {
       await prisma.$transaction(async (tx) => {
-        await apontarMisturaCif(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor });
+        await apontarMisturaCif(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor, permitirSaldoNegativo });
       }, { timeout: 30000 });
     } catch (e) {
       if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
@@ -122,7 +125,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!etapa.estadoSaida && produtoSaidaId) {
     try {
       await prisma.$transaction(async (tx) => {
-        await apontarProducaoProduto(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor });
+        await apontarProducaoProduto(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor, permitirSaldoNegativo });
       }, { timeout: 30000 });
     } catch (e) {
       if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
@@ -162,6 +165,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         fromEstadoOverride: fromEstado,
         firstEstadoOverride: firstEstado,
         produtoOverride: p.codigo ? { itemId: p.itemId, codigo: p.codigo, descricao: p.descricao } : null,
+        permitirSaldoNegativo,
       });
       i += 1;
     }
