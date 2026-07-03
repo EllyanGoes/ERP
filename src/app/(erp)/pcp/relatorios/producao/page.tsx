@@ -16,6 +16,7 @@ import { ResponsiveContainer, BarChart, ComposedChart, Bar, Line, XAxis, YAxis, 
 const COR_PRODUZIDO = "#0891b2";
 const COR_PERDA = "#d97706";
 const COR_QUEBRA = "#dc2626";
+const COR_VEICULOS = "#7c3aed";
 
 type ProdutoLinha = { itemId: string; codigo: string; descricao: string; pecas: number; perda: number; ops: number };
 type AreaLinha = { area: string; sequencia: number; ops: number; pecas: number; perda: number; vagoes: number | null; vagonetas: number | null; produtos: ProdutoLinha[] };
@@ -163,24 +164,79 @@ export default function RelatorioProducaoPage() {
               <p className="text-sm text-muted-foreground py-10 text-center">Sem dados no período.</p>
             ) : (
               <ResponsiveContainer width="100%" height={340}>
-                <ComposedChart data={serieDias} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+                <ComposedChart data={serieDias} margin={{ top: 8, right: 8, bottom: 4, left: 0 }} style={{ cursor: "pointer" }}
+                  onClick={(e) => { const dia = (e as { activePayload?: { payload?: { dia?: string } }[] })?.activePayload?.[0]?.payload?.dia; if (dia) setDiaPopup(dia); }}>
                   <CartesianGrid vertical={false} stroke="#94a3b8" strokeOpacity={0.18} />
                   <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={18} />
-                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v: number) => v.toLocaleString("pt-BR", { notation: v >= 10000 ? "compact" : "standard" })} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="pecas" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v: number) => v.toLocaleString("pt-BR", { notation: v >= 10000 ? "compact" : "standard" })} axisLine={false} tickLine={false} label={{ value: "pç", position: "insideTopLeft", offset: 0, fontSize: 10, fill: "#94a3b8" }} />
+                  <YAxis yAxisId="veiculos" orientation="right" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} label={{ value: "vagões", position: "insideTopRight", offset: 0, fontSize: 10, fill: "#94a3b8" }} />
                   <Tooltip
                     cursor={{ fill: "#94a3b8", fillOpacity: 0.08 }}
-                    formatter={(v) => `${Number(v).toLocaleString("pt-BR")} pç`}
-                    labelFormatter={(l) => `Dia ${l}`}
+                    formatter={(v, nome) => `${Number(v).toLocaleString("pt-BR")} ${nome === "Vagões descarregados" ? "vagões" : "pç"}`}
+                    labelFormatter={(l) => `Dia ${l} — clique na coluna p/ ver as OPs`}
                     contentStyle={{ fontSize: 12, borderRadius: 8 }}
                   />
                   <Legend formatter={(v: string) => <span style={{ color: "#64748b", fontSize: 12 }}>{v}</span>} />
-                  <Bar name="Produção" dataKey="producao" fill={COR_PRODUZIDO} radius={[4, 4, 0, 0]} maxBarSize={36} />
-                  <Line name="Quebra" dataKey="quebra" stroke={COR_QUEBRA} strokeWidth={2} dot={{ r: 3, fill: COR_QUEBRA, strokeWidth: 0 }} activeDot={{ r: 4 }} />
+                  <Bar yAxisId="pecas" name="Produção" dataKey="producao" stackId="p" fill={COR_PRODUZIDO} maxBarSize={30} />
+                  <Bar yAxisId="pecas" name="Quebra" dataKey="quebra" stackId="p" fill={COR_QUEBRA} radius={[4, 4, 0, 0]} maxBarSize={30} />
+                  <Bar yAxisId="veiculos" name="Vagões descarregados" dataKey="veiculos" fill={COR_VEICULOS} radius={[4, 4, 0, 0]} maxBarSize={18} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
           </div>
         )}
+
+        {/* Pop-up: resumo das OPs do dia clicado no gráfico */}
+        {diaPopup && (() => {
+          const doDia = opsDia.filter((o) => o.dia === diaPopup && (!areaSel || o.area === areaSel));
+          const tot = doDia.reduce((s, o) => ({ pecas: s.pecas + o.pecas, perda: s.perda + o.perda, veiculos: s.veiculos + o.veiculos }), { pecas: 0, perda: 0, veiculos: 0 });
+          const [y, m, d] = diaPopup.split("-");
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDiaPopup(null)}>
+              <div className="w-full max-w-3xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                    <Factory className="w-5 h-5 text-cyan-600" /> OPs de {d}/{m}/{y}{areaSel ? ` — ${areaSel}` : ""}
+                  </h2>
+                  <button onClick={() => setDiaPopup(null)} className="text-muted-foreground hover:text-foreground text-sm">Fechar ✕</button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 tabular-nums">
+                  {doDia.length} OP(s) · {n(tot.pecas)} pç produzidas · quebra {n(tot.perda)} pç ({pctPerda(tot.pecas, tot.perda)}){tot.veiculos ? ` · ${tot.veiculos} vagões` : ""}
+                </p>
+                {doDia.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma OP concluída neste dia.</p>
+                ) : (
+                  <div className="mt-3 rounded-lg border border-border overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-[10px] uppercase tracking-wide text-muted-foreground bg-muted border-b border-border">
+                          <th className="px-3 py-1.5 font-semibold">OP</th>
+                          <th className="px-3 py-1.5 font-semibold">Área</th>
+                          <th className="px-3 py-1.5 font-semibold">Produtos (real)</th>
+                          <th className="px-3 py-1.5 font-semibold text-right">Quebra</th>
+                          <th className="px-3 py-1.5 font-semibold text-right">Vagões</th>
+                          <th className="px-3 py-1.5 font-semibold text-right">Hora</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {doDia.map((o) => (
+                          <tr key={`${o.id}-${o.area}`} className="border-b border-border/60 last:border-0">
+                            <td className="px-3 py-1.5"><a href={`/pcp/ordens/${o.id}`} className="font-mono text-cyan-600 hover:underline">{o.numero}</a></td>
+                            <td className="px-3 py-1.5 text-muted-foreground">{o.area}</td>
+                            <td className="px-3 py-1.5">{o.produtos || "—"}{o.apontadoPor ? <span className="text-muted-foreground"> · {o.apontadoPor}</span> : null}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-amber-600">{o.perda ? n(o.perda) : "—"}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{o.veiculos || "—"}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{o.hora ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ── ABA POR ÁREA (imprimível) ─────────────────────────────────────── */}
         {aba === "areas" && (
