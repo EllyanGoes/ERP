@@ -19,7 +19,7 @@ type Unidade = { id: string; sigla: string; isPrincipal?: boolean; fator?: numbe
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
 type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
-type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number };
+type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number; pecasPorPalete?: number | null };
 type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
@@ -111,7 +111,23 @@ export default function OrdensBoardPage() {
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
-  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; perda: string; biomassa: string; vagoes: string; vagonetas: string }>({ reais: {}, perdas: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" });
+  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; paletes: Record<string, string>; pcPlt: Record<string, string>; perda: string; biomassa: string; vagoes: string; vagonetas: string }>({ reais: {}, perdas: {}, paletes: {}, pcPlt: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" });
+
+  // Apontamento POR PALETE: nº de paletes × pç/palete → quantidade real na
+  // unidade da linha (÷ pecasPorUnidade; linha em PLT vira nº de paletes puro).
+  function aplicarPorPalete(pr: ProdutoOP, paletesStr: string, pcPltStr: string) {
+    setApForm((f) => {
+      const next = { ...f, paletes: { ...f.paletes, [pr.itemId]: paletesStr }, pcPlt: { ...f.pcPlt, [pr.itemId]: pcPltStr } };
+      const paletes = Number(paletesStr.replace(",", "."));
+      const pcPlt = Number(pcPltStr.replace(",", "."));
+      if (Number.isFinite(paletes) && paletes > 0 && Number.isFinite(pcPlt) && pcPlt > 0) {
+        const totalPecas = paletes * pcPlt;
+        const real = Math.round((totalPecas / (pr.pecasPorUnidade && pr.pecasPorUnidade > 0 ? pr.pecasPorUnidade : 1)) * 1000) / 1000;
+        next.reais = { ...f.reais, [pr.itemId]: String(real) };
+      }
+      return next;
+    });
+  }
   // Calculadora de perda (Embalar): linhas de vagão descarregado → descarregado por produto.
   const [calcPerda, setCalcPerda] = useState<{ rows: CargaVagaoRow[] } | null>(null);
   // Planejamento por transporte (Nova OP): mesma calculadora de vagões, mas o total
@@ -582,7 +598,7 @@ export default function OrdensBoardPage() {
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                 onEditar={(o) => abrirEdicao(o)}
                 onExcluir={(o) => excluirOP(o)}
-                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
+                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, paletes: {}, pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])), perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
               />
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
@@ -654,7 +670,7 @@ export default function OrdensBoardPage() {
                         )}
                         {o.criadoPor && <p className="text-[10px] text-muted-foreground/70 truncate">Programado: {o.criadoPor}</p>}
                         {!concl && (
-                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
+                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, paletes: {}, pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])), perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
                             className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
                           </button>
@@ -822,8 +838,12 @@ export default function OrdensBoardPage() {
                   const perdaPc = Number(apForm.perdas[pr.itemId] || 0);
                   const desc = apontadoPecas(pr) + perdaPc; // descarregado = apontado + perda
                   const pct = desc > 0 && perdaPc > 0 ? `${(perdaPc / desc * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
+                  const paletesStr = apForm.paletes[pr.itemId] ?? "";
+                  const pcPltStr = apForm.pcPlt[pr.itemId] ?? "";
+                  const totPecas = (Number(paletesStr.replace(",", ".")) || 0) * (Number(pcPltStr.replace(",", ".")) || 0);
                   return (
-                    <div key={pr.itemId} className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 items-center border-t border-border/60">
+                    <div key={pr.itemId} className="border-t border-border/60">
+                    <div className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 items-center">
                       <span className="text-xs text-foreground truncate">{pr.descricao}{pr.unidade ? <span className="text-muted-foreground"> ({pr.unidade})</span> : null}</span>
                       <span className="text-xs text-muted-foreground text-right tabular-nums">{Number(pr.planejada)}</span>
                       <input inputMode="decimal" value={apForm.reais[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, reais: { ...p.reais, [pr.itemId]: e.target.value } }))} className="h-8 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
@@ -831,6 +851,16 @@ export default function OrdensBoardPage() {
                         <input inputMode="decimal" title="Perda em peças" value={apForm.perdas[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, perdas: { ...p.perdas, [pr.itemId]: e.target.value } }))} className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-amber-500" />
                         {pct && <span className="text-[10px] text-amber-600 tabular-nums leading-tight">{pct}</span>}
                       </div>
+                    </div>
+                    {/* Apontar POR PALETE: nº × pç/palete calcula o Real automaticamente. */}
+                    <div className="flex items-center gap-1.5 px-3 pb-1.5 text-[11px] text-muted-foreground">
+                      <span>ou por palete:</span>
+                      <input inputMode="numeric" placeholder="nº" value={paletesStr} onChange={(e) => aplicarPorPalete(pr, e.target.value, pcPltStr)} className="h-6 w-14 rounded border border-border px-1.5 text-[11px] text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                      <span>×</span>
+                      <input inputMode="numeric" placeholder="pç/plt" title="Peças por palete (do cadastro; editável)" value={pcPltStr} onChange={(e) => aplicarPorPalete(pr, paletesStr, e.target.value)} className="h-6 w-16 rounded border border-border px-1.5 text-[11px] text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                      <span>pç/palete</span>
+                      {totPecas > 0 && <span className="text-emerald-600 font-medium tabular-nums">= {totPecas.toLocaleString("pt-BR")} pç</span>}
+                    </div>
                     </div>
                   );
                 })}

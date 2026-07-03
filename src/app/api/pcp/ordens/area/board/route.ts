@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       item: { select: { codigo: true, descricao: true } },
       produtoItens: {
         select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true, unidadeId: true,
-          item: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
+          item: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { sigla: true } } } } } },
           unidade: { select: { sigla: true } } },
       },
       etapas: { where: { nodeId: areaNodeId }, select: { status: true, qtdSaida: true, qtdPerda: true }, take: 1 },
@@ -78,6 +78,10 @@ export async function GET(req: NextRequest) {
           if (Number.isFinite(f) && f > 0) pecasPorUnidade = f;
         }
       }
+      // Peças por PALETE (fator da unidade PLT do item, se cadastrada) — a UI usa
+      // no apontamento "por palete" (nº paletes × pç/palete → quantidade real).
+      const iuPlt = pi.item.itemUnidades.find((u) => /^PLT$/i.test(u.unidade?.sigla ?? "") && u.fatorConversao != null && Number(u.fatorConversao) > 0);
+      const pecasPorPalete = iuPlt ? Number(iuPlt.fatorConversao) : null;
       return {
         itemId: pi.itemId,
         codigo: pi.item.codigo,
@@ -87,6 +91,7 @@ export async function GET(req: NextRequest) {
         unidade: pi.unidade?.sigla ?? null,
         unidadeId: pi.unidadeId ?? null,
         pecasPorUnidade,
+        pecasPorPalete,
       };
     }),
     etapaStatus: o.etapas[0]?.status ?? "PENDENTE",
