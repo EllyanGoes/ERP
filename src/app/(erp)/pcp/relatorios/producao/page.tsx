@@ -19,7 +19,8 @@ const COR_QUEBRA = "#dc2626";
 
 type ProdutoLinha = { itemId: string; codigo: string; descricao: string; pecas: number; perda: number; ops: number };
 type AreaLinha = { area: string; sequencia: number; ops: number; pecas: number; perda: number; vagoes: number | null; vagonetas: number | null; produtos: ProdutoLinha[] };
-type DiaLinha = { dia: string; area: string; pecas: number; perda: number };
+type DiaLinha = { dia: string; area: string; pecas: number; perda: number; veiculos: number };
+type OpDia = { dia: string; area: string; id: string; numero: string; hora: string | null; apontadoPor: string | null; pecas: number; perda: number; veiculos: number; produtos: string };
 type FluxoOpt = { id: string; nome: string };
 
 const n = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
@@ -39,10 +40,13 @@ export default function RelatorioProducaoPage() {
   const [to, setTo] = useState(hoje());
   const [areas, setAreas] = useState<AreaLinha[] | null>(null);
   const [porDia, setPorDia] = useState<DiaLinha[]>([]);
+  const [opsDia, setOpsDia] = useState<OpDia[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [aba, setAba] = useState<"grafico" | "areas">("grafico");
   // Área selecionada no gráfico por data ("" = todas as áreas somadas).
   const [areaSel, setAreaSel] = usePersistedState("rel-producao-area", "");
+  // Dia clicado no gráfico → pop-up com o resumo das OPs.
+  const [diaPopup, setDiaPopup] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/pcp/fluxos").then((r) => r.json()).then((j) => setFluxos((j.data ?? []).map((f: { id: string; nome: string }) => ({ id: f.id, nome: f.nome })))).catch(() => {});
@@ -59,6 +63,7 @@ export default function RelatorioProducaoPage() {
       const j = await r.json();
       setAreas(j.data ?? []);
       setPorDia(j.porDia ?? []);
+      setOpsDia(j.ops ?? []);
     } finally { setCarregando(false); }
   }, [fluxoId, from, to]);
   useEffect(() => { carregar(); }, [carregar]);
@@ -70,20 +75,20 @@ export default function RelatorioProducaoPage() {
   // entram zerados p/ o eixo do tempo ser honesto), filtrada pela área escolhida.
   const serieDias = useMemo(() => {
     if (!from || !to) return [];
-    const mapa = new Map<string, { pecas: number; perda: number }>();
+    const mapa = new Map<string, { pecas: number; perda: number; veiculos: number }>();
     for (const d of porDia) {
       if (areaSel && d.area !== areaSel) continue;
-      const cur = mapa.get(d.dia) ?? { pecas: 0, perda: 0 };
-      cur.pecas += d.pecas; cur.perda += d.perda;
+      const cur = mapa.get(d.dia) ?? { pecas: 0, perda: 0, veiculos: 0 };
+      cur.pecas += d.pecas; cur.perda += d.perda; cur.veiculos += d.veiculos;
       mapa.set(d.dia, cur);
     }
-    const out: { dia: string; label: string; producao: number; quebra: number }[] = [];
+    const out: { dia: string; label: string; producao: number; quebra: number; veiculos: number }[] = [];
     const ini = new Date(`${from}T12:00:00`);
     const fim = new Date(`${to}T12:00:00`);
     for (let t = ini.getTime(); t <= fim.getTime() && out.length < 190; t += 86400000) {
       const iso = new Date(t).toISOString().slice(0, 10);
       const v = mapa.get(iso);
-      out.push({ dia: iso, label: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, producao: v?.pecas ?? 0, quebra: v?.perda ?? 0 });
+      out.push({ dia: iso, label: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, producao: v?.pecas ?? 0, quebra: v?.perda ?? 0, veiculos: v?.veiculos ?? 0 });
     }
     return out;
   }, [porDia, areaSel, from, to]);

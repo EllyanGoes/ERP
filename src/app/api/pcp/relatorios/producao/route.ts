@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     where,
     select: {
       nome: true, centroTrabalho: true, sequencia: true, fimReal: true,
-      qtdPerda: true, vagoes: true, vagonetas: true,
+      qtdPerda: true, vagoes: true, vagonetas: true, apontadoPor: true,
       ordemProducao: {
         select: {
           id: true, numero: true,
@@ -52,8 +52,14 @@ export async function GET(req: NextRequest) {
   type AreaAgg = { area: string; sequencia: number; pecas: number; perda: number; vagoes: number; vagonetas: number; ops: number; produtos: Map<string, ProdutoAgg> };
   const areas = new Map<string, AreaAgg>();
   // Série diária por área (gráfico por data). Dia no fuso de Belém (UTC−3).
-  const porDia = new Map<string, { dia: string; area: string; pecas: number; perda: number }>();
+  const porDia = new Map<string, { dia: string; area: string; pecas: number; perda: number; veiculos: number }>();
   const diaBelem = (d: Date | null) => (d ? new Date(d.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10) : null);
+  const diaDe = (dia: string, area: string) => {
+    const k = `${dia}|${area}`;
+    return porDia.get(k) ?? porDia.set(k, { dia, area, pecas: 0, perda: 0, veiculos: 0 }).get(k)!;
+  };
+  // Resumo por OP (pop-up do dia no gráfico): uma linha por etapa concluída.
+  const opsDia: { dia: string; area: string; id: string; numero: string; hora: string | null; apontadoPor: string | null; pecas: number; perda: number; veiculos: number; produtos: string }[] = [];
 
   for (const et of etapas) {
     const chave = et.centroTrabalho ?? et.nome;
@@ -63,6 +69,13 @@ export async function GET(req: NextRequest) {
     a.ops += 1;
     a.vagoes += et.vagoes ?? 0;
     a.vagonetas += et.vagonetas ?? 0;
+
+    // Veículos descarregados do dia (uma vez por etapa — não por produto).
+    const diaEtapa = diaBelem(et.fimReal);
+    if (diaEtapa) diaDe(diaEtapa, chave).veiculos += (et.vagoes ?? 0) + (et.vagonetas ?? 0);
+
+    let opPecas = 0, opPerda = 0;
+    const opProdutos: string[] = [];
 
     for (const pi of et.ordemProducao.produtoItens) {
       // Real na unidade da linha → peças (fator do ItemUnidade; principal = 1).
@@ -81,11 +94,24 @@ export async function GET(req: NextRequest) {
 
       const dia = diaBelem(et.fimReal);
       if (dia) {
-        const k = `${dia}|${chave}`;
-        const d = porDia.get(k) ?? porDia.set(k, { dia, area: chave, pecas: 0, perda: 0 }).get(k)!;
+        const d = diaDe(dia, chave);
         d.pecas += pecas;
         d.perda += perda;
       }
+      opPecas += pecas;
+      opPerda += perda;
+      opProdutos.push(`${Math.round(pecas).toLocaleString("pt-BR")}× ${pi.item.descricao}`);
+    }
+
+    if (diaEtapa) {
+      opsDia.push({
+        dia: diaEtapa, area: chave, id: et.ordemProducao.id, numero: et.ordemProducao.numero,
+        hora: et.fimReal ? new Date(et.fimReal.getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16) : null,
+        apontadoPor: et.apontadoPor ?? null,
+        pecas: Math.round(opPecas * 1000) / 1000, perda: Math.round(opPerda * 1000) / 1000,
+        veiculos: (et.vagoes ?? 0) + (et.vagonetas ?? 0),
+        produtos: opProdutos.join(" · "),
+      });
     }
   }
 
@@ -105,5 +131,5 @@ export async function GET(req: NextRequest) {
     .sort((x, y) => x.dia.localeCompare(y.dia))
     .map((d) => ({ ...d, pecas: round(d.pecas), perda: round(d.perda) }));
 
-  return NextResponse.json({ data, porDia: dias });
+  return NextResponse.json({ data, porDia: dias, ops: opsDia });
 }
