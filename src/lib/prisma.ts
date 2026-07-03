@@ -84,6 +84,32 @@ for (const m of Prisma.dmmf.datamodel.models) {
   relacoesComFkPropria.set(m.name, fkPropria)
 }
 
+// Autoria: modelos com colunas criadoPor/atualizadoPor (carimbadas pelo proxy da
+// sessão em TODO create/update manual — mesmo mecanismo do empresaId). Motor,
+// crons e scripts usam prismaSemEscopo e NÃO carimbam (não são ação de usuário).
+const MODELOS_COM_CRIADO_POR = new Set<string>()
+const MODELOS_COM_ATUALIZADO_POR = new Set<string>()
+for (const m of Prisma.dmmf.datamodel.models) {
+  for (const f of m.fields) {
+    if (f.name === "criadoPor") MODELOS_COM_CRIADO_POR.add(m.name)
+    if (f.name === "atualizadoPor") MODELOS_COM_ATUALIZADO_POR.add(m.name)
+  }
+}
+
+function carimbarCriadoPor(modelo: string, dados: unknown, nome: string): unknown {
+  if (Array.isArray(dados)) return dados.map((d) => carimbarCriadoPor(modelo, d, nome))
+  if (!dados || typeof dados !== "object" || !MODELOS_COM_CRIADO_POR.has(modelo)) return dados
+  const d = { ...(dados as Record<string, unknown>) }
+  if (d.criadoPor === undefined) d.criadoPor = nome
+  return d
+}
+function carimbarAtualizadoPor(modelo: string, dados: unknown, nome: string): unknown {
+  if (!dados || typeof dados !== "object" || Array.isArray(dados) || !MODELOS_COM_ATUALIZADO_POR.has(modelo)) return dados
+  const d = { ...(dados as Record<string, unknown>) }
+  if (d.atualizadoPor === undefined) d.atualizadoPor = nome
+  return d
+}
+
 type DadosCreate = Record<string, unknown>
 
 /**
@@ -163,7 +189,7 @@ const MODELOS_LEITURA_GRUPO = new Set<string>([
 ])
 
 /** Extensão que amarra todas as operações dos modelos escopados a uma empresa. */
-function escopoEmpresa(empresaId: string, grupoIds: string[] | null) {
+function escopoEmpresa(empresaId: string, grupoIds: string[] | null, usuarioNome: string | null) {
   // filtro de leitura: empresa ativa, ou o grupo todo nos modelos de compras
   const filtroLeitura = (model: string): ArgsQuery =>
     grupoIds && MODELOS_LEITURA_GRUPO.has(model)
@@ -171,10 +197,31 @@ function escopoEmpresa(empresaId: string, grupoIds: string[] | null) {
       : { empresaId }
 
   return Prisma.defineExtension({
-    name: `escopo-empresa-${empresaId}${grupoIds ? "-grupo" : ""}`,
+    name: `escopo-empresa-${empresaId}${grupoIds ? "-grupo" : ""}-${usuarioNome ?? ""}`,
     query: {
       $allModels: {
         $allOperations({ model, operation, args, query }) {
+          // Autoria (criadoPor/atualizadoPor) vale para QUALQUER modelo com as
+          // colunas — inclusive os compartilhados (Cliente, Item…), que não
+          // passam pelo escopo de empresa abaixo.
+          if (usuarioNome) {
+            const aut = args as ArgsQuery
+            switch (operation) {
+              case "create":
+              case "createMany":
+              case "createManyAndReturn":
+                aut.data = carimbarCriadoPor(model, aut.data, usuarioNome)
+                break
+              case "update":
+              case "updateMany":
+                aut.data = carimbarAtualizadoPor(model, aut.data, usuarioNome)
+                break
+              case "upsert":
+                aut.create = carimbarCriadoPor(model, aut.create, usuarioNome)
+                aut.update = carimbarAtualizadoPor(model, aut.update, usuarioNome)
+                break
+            }
+          }
           if (!MODELOS_ESCOPADOS.has(model)) return query(args)
           const a: ArgsQuery = { ...(args as ArgsQuery) }
 
@@ -245,15 +292,15 @@ function escopoEmpresa(empresaId: string, grupoIds: string[] | null) {
 type ClienteEscopado = ReturnType<typeof criarClienteEscopado>
 const clientesEscopados = new Map<string, ClienteEscopado>()
 
-function criarClienteEscopado(empresaId: string, grupoIds: string[] | null) {
-  return prismaSemEscopo.$extends(escopoEmpresa(empresaId, grupoIds))
+function criarClienteEscopado(empresaId: string, grupoIds: string[] | null, usuarioNome: string | null) {
+  return prismaSemEscopo.$extends(escopoEmpresa(empresaId, grupoIds, usuarioNome))
 }
 
-function clienteDoEscopo(empresaId: string, grupoIds: string[] | null): ClienteEscopado {
-  const chave = `${empresaId}|${grupoIds ? grupoIds.join(",") : ""}`
+function clienteDoEscopo(empresaId: string, grupoIds: string[] | null, usuarioNome: string | null): ClienteEscopado {
+  const chave = `${empresaId}|${grupoIds ? grupoIds.join(",") : ""}|${usuarioNome ?? ""}`
   let c = clientesEscopados.get(chave)
   if (!c) {
-    c = criarClienteEscopado(empresaId, grupoIds)
+    c = criarClienteEscopado(empresaId, grupoIds, usuarioNome)
     clientesEscopados.set(chave, c)
   }
   return c
@@ -262,12 +309,14 @@ function clienteDoEscopo(empresaId: string, grupoIds: string[] | null): ClienteE
 export const COOKIE_ESCOPO = "erp_escopo"
 
 /** Resolve empresa ativa + grupo de leitura da requisição atual. */
-async function resolverEscopoRequisicao(): Promise<{ empresaId: string; grupoIds: string[] | null }> {
+async function resolverEscopoRequisicao(): Promise<{ empresaId: string; grupoIds: string[] | null; usuarioNome: string | null }> {
   let empresaId = EMPRESA_PADRAO_ID
   let grupoIds: string[] | null = null
+  let usuarioNome: string | null = null
   try {
     const session = await getSession()
     if (session?.activeEmpresaId) empresaId = session.activeEmpresaId
+    if (session?.nome) usuarioNome = session.nome
     // modo grupo (compras): cookie de preferência + 2+ empresas na sessão
     if (session && (session.empresaIds?.length ?? 0) > 1) {
       const { cookies } = await import("next/headers")
@@ -277,7 +326,7 @@ async function resolverEscopoRequisicao(): Promise<{ empresaId: string; grupoIds
   } catch {
     // fora do contexto de requisição (cron/script) — escopo padrão
   }
-  return { empresaId, grupoIds }
+  return { empresaId, grupoIds, usuarioNome }
 }
 
 /**
@@ -292,8 +341,8 @@ export async function empresasDoEscopo(): Promise<string[]> {
 
 /** Resolve o client escopado da requisição atual (sessão → empresa ativa). */
 async function dbDaRequisicao(): Promise<ClienteEscopado> {
-  const { empresaId, grupoIds } = await resolverEscopoRequisicao()
-  return clienteDoEscopo(empresaId, grupoIds)
+  const { empresaId, grupoIds, usuarioNome } = await resolverEscopoRequisicao()
+  return clienteDoEscopo(empresaId, grupoIds, usuarioNome)
 }
 
 // ── Proxy lazy ───────────────────────────────────────────────────────────────

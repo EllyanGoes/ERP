@@ -109,6 +109,8 @@ model CentroCusto {
   itensPedidoCompra      PedidoCompraItem[]
   itensConferencia       ConferenciaCompraItem[]
   tesCentroSugerido      TipoOperacao[]           @relation("TesCentroSugerido")
+  criadoPor              String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor          String? // autoria: última edição manual (proxy de sessão)
 
   @@index([grupoCentroCustoId])
 }
@@ -146,6 +148,8 @@ model TipoOperacao {
   conferenciaItens      ConferenciaCompraItem[]
   requisicaoItens       RequisicaoMaterialItem[]
   pedidoItens           PedidoCompraItem[]
+  criadoPor             String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor         String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, codigo])
   @@index([empresaId])
@@ -188,6 +192,8 @@ model Cliente {
   recorrencias           Recorrencia[]
   contasContabeis        ContaContabil[]
   empresa                Empresa?
+  criadoPor              String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor          String? // autoria: última edição manual (proxy de sessão)
 
   @@index([cpfCnpj])
   @@index([status])
@@ -398,6 +404,8 @@ model CondicaoPagamento {
   pedidosVenda        PedidoVenda[]
   pedidosCompra       PedidoCompra[]      @relation("CondPgtoPedidoCompra")
   conferencias        ConferenciaCompra[] @relation("CondPgtoConferencia")
+  criadoPor           String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor       String? // autoria: última edição manual (proxy de sessão)
 }
 
 model ConferenciaCompra {
@@ -437,7 +445,9 @@ model ConferenciaCompra {
   localEstoque         LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
   itens                ConferenciaCompraItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([status])
@@ -589,7 +599,9 @@ model ContaPagar {
   compensacaoOrigem     Compensacao?           @relation("CompensacaoResiduoPagar", fields: [compensacaoOrigemId], references: [id])
   compensacaoItens      CompensacaoItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([dataVencimento])
@@ -673,7 +685,9 @@ model ContaReceber {
   compensacaoOrigem    Compensacao?           @relation("CompensacaoResiduoReceber", fields: [compensacaoOrigemId], references: [id])
   compensacaoItens     CompensacaoItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([clienteId])
@@ -737,6 +751,7 @@ model Compensacao {
   // Títulos-resíduo criados por esta compensação (modo "nova parcela").
   residuosReceber          ContaReceber[]    @relation("CompensacaoResiduoReceber")
   residuosPagar            ContaPagar[]      @relation("CompensacaoResiduoPagar")
+  atualizadoPor            String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([empresaId])
@@ -814,7 +829,9 @@ model ContaBancaria {
   contasContabeis  ContaContabil[]
   compensacoes     Compensacao[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@index([bancoId])
   @@index([empresaId])
@@ -839,6 +856,8 @@ model AdministradoraCartao {
   updatedAt       DateTime    @updatedAt
   maquinetas      Maquineta[]
   empresa         Empresa     @relation(fields: [empresaId], references: [id])
+  criadoPor       String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor   String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, nome])
   @@index([empresaId])
@@ -855,6 +874,8 @@ model Maquineta {
   taxas            TaxaMaquineta[]
   administradora   AdministradoraCartao @relation(fields: [administradoraId], references: [id])
   empresa          Empresa              @relation(fields: [empresaId], references: [id])
+  criadoPor        String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor    String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, nome])
   @@index([administradoraId])
@@ -938,6 +959,8 @@ model NaturezaFinanceira {
   // resultado. Definida no cadastro da natureza.
   contaContrapartidaId String?
   contaContrapartida   ContaContabil?           @relation("NaturezaContrapartida", fields: [contaContrapartidaId], references: [id])
+  criadoPor            String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor        String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, sistemaChave])
   @@index([empresaId])
@@ -1004,6 +1027,8 @@ model ContaContabil {
   contaBancaria            ContaBancaria?       @relation(fields: [contaBancariaId], references: [id])
   empresa                  Empresa              @relation(fields: [empresaId], references: [id])
   partidas                 PartidaContabil[]
+  criadoPor                String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor            String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, codigo])
   // Unicidade por PAI: um cliente tem várias analíticas com o mesmo clienteId —
@@ -1172,6 +1197,8 @@ model Imobilizado {
   confItensComponente         ConferenciaCompraItem[]  @relation("ConfItemComponente")
   rmItensImobilizado          RequisicaoMaterialItem[] @relation("RmItemImobilizado")
   rmItensComponente           RequisicaoMaterialItem[] @relation("RmItemComponente")
+  criadoPor                   String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor               String? // autoria: última edição manual (proxy de sessão)
 
   @@index([empresaId])
 }
@@ -1217,7 +1244,9 @@ model Recorrencia {
   contasReceber        ContaReceber[]
   contasPagar          ContaPagar[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@index([ativo])
   @@index([proximaGeracao])
@@ -1245,7 +1274,9 @@ model CotacaoCompra {
   pedidos              PedidoCompra[]
   aprovacoes           AprovacaoSC[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([status])
@@ -1476,6 +1507,8 @@ model FormaPagamento {
   ativo           Boolean            @default(true)
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
+  criadoPor       String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor   String? // autoria: última edição manual (proxy de sessão)
 }
 
 model Fornecedor {
@@ -1511,6 +1544,8 @@ model Fornecedor {
   recorrencias    Recorrencia[]
   contasContabeis ContaContabil[]
   empresa         Empresa?
+  criadoPor       String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor   String? // autoria: última edição manual (proxy de sessão)
 }
 
 model FornecedorContato {
@@ -1625,6 +1660,8 @@ model Item {
   metasProducaoDiaria       MetaProducaoDiaria[]
   custosEmpresa             ItemCustoEmpresa[]
   concorrentePrecos         ConcorrentePreco[]
+  criadoPor                 String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor             String? // autoria: última edição manual (proxy de sessão)
 
   @@index([codigo])
   @@index([tipo])
@@ -1694,7 +1731,9 @@ model LancamentoFinanceiro {
   linhaOFX             LinhaOFX?
   compensacaoItens     CompensacaoItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@index([dataLancamento])
   @@index([tipo])
@@ -1764,6 +1803,8 @@ model LocalEstoque {
   contasContabeis      ContaContabil[]
   tesAlmoxarifado      TipoOperacao[]          @relation("TesAlmoxarifado")
   empresa              Empresa                 @relation(fields: [empresaId], references: [id])
+  criadoPor            String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor        String? // autoria: última edição manual (proxy de sessão)
 
   @@index([empresaId])
 }
@@ -1779,6 +1820,8 @@ model LoteMovimentacao {
   createdAt        DateTime                @default(now())
   itens            MovimentacaoEstoque[]
   empresa          Empresa                 @relation(fields: [empresaId], references: [id])
+  criadoPor        String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor    String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([empresaId])
@@ -1823,7 +1866,8 @@ model MovimentacaoEstoque {
   // Devolução de venda: tag do movimento (ENTRADA de volta) gerado por uma devolução.
   devolucaoId       String?
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@index([createdAt])
   @@index([itemId])
@@ -1855,7 +1899,8 @@ model MovimentacaoComodato {
   cliente       Cliente                    @relation(fields: [clienteId], references: [id])
   item          Item                       @relation(fields: [itemId], references: [id])
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@index([clienteId])
   @@index([itemId])
@@ -1900,7 +1945,9 @@ model NecessidadeCompra {
   setor                 Setor?                  @relation(fields: [setorId], references: [id])
   itens                 NecessidadeCompraItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([status])
@@ -1955,7 +2002,9 @@ model PedidoCompra {
   pedidoVendaEspelho   PedidoVenda?           @relation("EspelhoIntragrupo", fields: [pedidoVendaEspelhoId], references: [id])
   itens                PedidoCompraItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([fornecedorId])
@@ -2055,6 +2104,8 @@ model PedidoVenda {
   estoqueOrigemEmpresa Empresa?      @relation("PedidoVendaEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
   pedidoVendaOrigem    PedidoVenda?  @relation("EntregaTriangular", fields: [pedidoVendaOrigemId], references: [id])
   entregasTriangular   PedidoVenda[] @relation("EntregaTriangular")
+  criadoPor            String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor        String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([clienteId])
@@ -2139,6 +2190,8 @@ model Devolucao {
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
   itens           DevolucaoItem[]
+  criadoPor       String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor   String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([pedidoVendaId])
@@ -2232,15 +2285,17 @@ model ProdutoFornecedor {
 // ── Minutas de Entrega ────────────────────────────────────────────────────────
 
 model Motorista {
-  id        String   @id @default(cuid())
-  nome      String
-  cpf       String?
-  cnh       String?
-  telefone  String?
-  ativo     Boolean  @default(true)
-  minutas   Minuta[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  nome          String
+  cpf           String?
+  cnh           String?
+  telefone      String?
+  ativo         Boolean  @default(true)
+  minutas       Minuta[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@index([ativo])
 }
@@ -2286,7 +2341,9 @@ model Minuta {
   motorista    Motorista?    @relation(fields: [motoristaId], references: [id])
   itens        MinutaItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([pedidoVendaId])
@@ -2347,7 +2404,9 @@ model TabelaPreco {
   itens             TabelaPrecoItem[]
   pedidosVenda      PedidoVenda[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, codigo])
   @@index([ativa])
@@ -2745,7 +2804,8 @@ model OrdemProducao {
   movimentacoes            MovimentacaoEstoque[]
   anexos                   OrdemProducaoAnexo[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([status])
@@ -3217,7 +3277,9 @@ model RequisicaoMaterial {
   naturezaFinanceira   NaturezaFinanceira?      @relation(fields: [naturezaFinanceiraId], references: [id])
   itens                RequisicaoMaterialItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([status])
@@ -3284,7 +3346,9 @@ model InventarioMaterial {
   colaborador    Colaborador?             @relation(fields: [colaboradorId], references: [id])
   itens          InventarioMaterialItem[]
 
-  empresa Empresa @relation(fields: [empresaId], references: [id])
+  empresa       Empresa @relation(fields: [empresaId], references: [id])
+  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, numero])
   @@index([status])
