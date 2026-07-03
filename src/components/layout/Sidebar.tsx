@@ -380,6 +380,12 @@ const mainModules: Module[] = [
         ],
       },
       {
+        kind: "Relatórios" as SubSection["kind"],
+        items: [
+          { href: "/pcp/relatorios/producao", label: "Produção", icon: TrendingUp },
+        ],
+      },
+      {
         kind: "Outros" as SubSection["kind"],
         items: [
           { href: "/pcp/planejamento",     label: "Planejamento (MPS/MRP)", icon: Calculator },

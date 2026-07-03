@@ -89,6 +89,8 @@ export default function OrdensBoardPage() {
   const [vista, setVista] = usePersistedState<"board" | "lista">("pcp-vista", "board");
   const [escopoLista, setEscopoLista] = usePersistedState<"area" | "todas">("pcp-escopo-lista", "area");
   const [soAbertas, setSoAbertas] = usePersistedState("pcp-so-abertas", false);
+  // Lista: segundo agrupamento (dentro do dia) por área, na ordem do fluxo.
+  const [agruparArea, setAgruparArea] = usePersistedState("pcp-lista-agrupar-area", false);
   const [opsLista, setOpsLista] = useState<BoardOP[]>([]);
   const [carregandoLista, setCarregandoLista] = useState(false);
   const [materiais, setMateriais] = useState<EstoqueLinha[] | null>(null);
@@ -594,6 +596,8 @@ export default function OrdensBoardPage() {
                 mes={data}
                 escopo={escopoLista} onEscopo={setEscopoLista}
                 soAbertas={soAbertas} onSoAbertas={setSoAbertas}
+                agruparArea={agruparArea} onAgruparArea={setAgruparArea}
+                ordemAreas={areas.map((a) => a.centroTrabalho ?? a.nome)}
                 onNova={escopoLista === "area" ? () => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); } : null}
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                 onEditar={(o) => abrirEdicao(o)}
@@ -1104,11 +1108,13 @@ export default function OrdensBoardPage() {
   );
 }
 
-// Visão em LISTA: OPs agrupadas por dia (cabeçalho de data + linhas).
-function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAbertas, onNova, onAbrir, onEditar, onExcluir, onApontar }: {
+// Visão em LISTA: OPs agrupadas por dia (cabeçalho de data + linhas); com
+// "Agrupar por área" ligado, empilha um 2º agrupamento por área dentro do dia.
+function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAbertas, agruparArea, onAgruparArea, ordemAreas, onNova, onAbrir, onEditar, onExcluir, onApontar }: {
   ops: BoardOP[]; carregando: boolean; mes: string;
   escopo: "area" | "todas"; onEscopo: (e: "area" | "todas") => void;
   soAbertas: boolean; onSoAbertas: (v: boolean) => void;
+  agruparArea: boolean; onAgruparArea: (v: boolean) => void; ordemAreas: string[];
   onNova: (() => void) | null; onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onExcluir: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
 }) {
   const fmtDiaTitulo = (dia: string) => {
@@ -1141,6 +1147,12 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
             <input type="checkbox" checked={soAbertas} onChange={(e) => onSoAbertas(e.target.checked)} className="accent-cyan-600" />
             Só abertas
           </label>
+          {escopo === "todas" && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <input type="checkbox" checked={agruparArea} onChange={(e) => onAgruparArea(e.target.checked)} className="accent-cyan-600" />
+              Agrupar por área
+            </label>
+          )}
         </div>
         {onNova && (
           <button onClick={onNova} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
@@ -1155,13 +1167,31 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
           <Factory className="w-6 h-6 text-cyan-400 mb-1.5" />
           <p className="text-xs text-muted-foreground">{soAbertas ? "Nenhuma OP aberta neste mês." : "Nenhuma OP neste mês."}</p>
         </div>
-      ) : grupos.map(([dia, lista]) => (
+      ) : grupos.map(([dia, lista]) => {
+        // 2º agrupamento (opcional): por área dentro do dia, na ordem do fluxo.
+        const subgrupos: [string | null, BoardOP[]][] = agruparArea && escopo === "todas"
+          ? (() => {
+              const m = new Map<string, BoardOP[]>();
+              for (const o of lista) { const k = o.areaNome ?? "—"; (m.get(k) ?? m.set(k, []).get(k)!).push(o); }
+              const pos = (nome: string) => { const i = ordemAreas.indexOf(nome); return i === -1 ? 999 : i; };
+              return Array.from(m.entries()).sort((a, b) => pos(a[0]) - pos(b[0])).map(([k, v]) => [k, v] as [string, BoardOP[]]);
+            })()
+          : [[null, lista]];
+        return (
         <div key={dia}>
           <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-1.5 bg-muted/70 border-b border-border text-xs font-semibold text-muted-foreground capitalize">
             <span>{dia === "—" ? "Sem data" : fmtDiaTitulo(dia)}</span>
             <span className="text-[10px] font-medium text-muted-foreground/70">{lista.length} OP{lista.length === 1 ? "" : "s"}</span>
           </div>
-          {lista.map((o) => {
+          {subgrupos.map(([areaNome, opsArea]) => (
+          <div key={areaNome ?? "_"}>
+          {areaNome !== null && (
+            <div className="flex items-center justify-between px-4 py-1 bg-cyan-500/5 border-b border-border/60 text-[11px] font-semibold text-cyan-700 dark:text-cyan-400">
+              <span className="inline-flex items-center gap-1.5"><Factory className="w-3 h-3" /> {areaNome === "—" ? "Sem área" : areaNome}</span>
+              <span className="text-[10px] font-medium text-muted-foreground/70">{opsArea.length} OP{opsArea.length === 1 ? "" : "s"}</span>
+            </div>
+          )}
+          {opsArea.map((o) => {
             const concl = o.etapaStatus === "CONCLUIDA";
             const qtdTxt = o.produtos.length > 1
               ? `${o.produtos.length} produtos`
@@ -1169,7 +1199,7 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
             return (
               <div key={o.id} className="flex items-center gap-3 px-4 py-2 border-b border-border/50 hover:bg-muted/40 text-sm">
                 <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600 w-24 shrink-0 text-left">{o.numero}</button>
-                {escopo === "todas" && o.areaNome && (
+                {escopo === "todas" && o.areaNome && areaNome === null && (
                   <span className="hidden sm:inline-flex items-center rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 px-2 py-0.5 text-[10px] font-medium shrink-0 w-32 justify-center truncate" title={o.areaNome}>{o.areaNome}</span>
                 )}
                 <div className="min-w-0 flex-1">
@@ -1196,8 +1226,11 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
               </div>
             );
           })}
+          </div>
+          ))}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
