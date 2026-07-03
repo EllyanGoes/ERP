@@ -39,6 +39,7 @@ type ContaRow = {
   centroCusto?: { codigo: string; nome: string } | null; centroCustoId?: string | null;
   folhaId?: string | null; recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
   naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
+  criadoPor?: string | null; atualizadoPor?: string | null;
 };
 
 // TES e Centro de custo do documento de material que originou o título — SOMENTE
@@ -511,6 +512,8 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
             status={detalhe.status}
             campos={campos}
             acoes={acoes}
+            criadoPor={detalhe.criadoPor}
+            atualizadoPor={detalhe.atualizadoPor}
           />
         );
       })()}

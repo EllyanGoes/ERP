@@ -21,6 +21,7 @@ function maskCpfCnpj(value: string, tipo: string): string {
 }
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import { Autoria } from "@/components/shared/Autoria";
 import { lookupParceiro, type ParceiroLookup } from "@/lib/parceiro-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,8 @@ type Fornecedor = {
   estado: string | null;
   ativo: boolean;
   observacoes: string | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   contatos: FornecedorContato[];
   produtos: Array<{
     id: string;
@@ -704,6 +707,8 @@ export default function FornecedorDetailPage() {
                 </CardContent>
               </Card>
             ) : null}
+
+            <Autoria criadoPor={fornecedor.criadoPor} atualizadoPor={fornecedor.atualizadoPor} />
           </div>
         )}
 

@@ -30,6 +30,7 @@ type ContaRow = {
   centroCusto?: { codigo: string; nome: string } | null; centroCustoId?: string | null;
   recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
   naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
+  criadoPor?: string | null; atualizadoPor?: string | null;
 };
 
 // Documento de ORIGEM do título a receber: pedido de venda, encontro de contas,
@@ -427,6 +428,8 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
             status={detalhe.status}
             campos={campos}
             acoes={acoes}
+            criadoPor={detalhe.criadoPor}
+            atualizadoPor={detalhe.atualizadoPor}
           />
         );
       })()}

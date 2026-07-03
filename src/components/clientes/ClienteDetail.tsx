@@ -6,6 +6,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { Autoria } from "@/components/shared/Autoria";
 import { formatCPFCNPJ, formatDate, formatBRL, decimalToNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { ExternalLink, MapPin, Crosshair, Loader2 } from "lucide-react";
@@ -31,6 +32,7 @@ type ClienteDetailProps = {
     id: string; tipoPessoa: string; razaoSocial: string; nomeFantasia: string | null;
     cpfCnpj: string | null; ie: string | null; email: string | null; telefone: string | null; celular: string | null;
     status: string; observacoes: string | null;
+    criadoPor?: string | null; atualizadoPor?: string | null;
     cep: string | null; logradouro: string | null; numero: string | null;
     complemento: string | null; bairro: string | null; cidade: string | null; estado: string | null;
     latitude: number | null; longitude: number | null; geoManual: boolean; geoReferencia: string | null;
@@ -232,6 +234,12 @@ export default function ClienteDetail({ cliente, comodato, contaContabil, contas
                 <p className="text-sm text-foreground whitespace-pre-wrap">{cliente.observacoes}</p>
               </div>
             </>
+          )}
+
+          {(cliente.criadoPor || cliente.atualizadoPor) && (
+            <div className="px-5 py-3 border-t border-border">
+              <Autoria criadoPor={cliente.criadoPor} atualizadoPor={cliente.atualizadoPor} />
+            </div>
           )}
         </div>
       )}

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
+import { Autoria } from "@/components/shared/Autoria";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, XCircle, ArrowRight, AlertCircle, Pencil, Printer } from "lucide-react";
@@ -48,6 +49,8 @@ type Minuta = {
   };
   localEstoque: LocalEstoque | null;
   itens: MinutaItem[];
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
 
 const STATUS_COLOR: Record<StatusMinuta, string> = {
@@ -341,6 +344,11 @@ export default function MinutaDetailPage() {
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Nº da Minuta Física</div>
                 <div className="text-foreground">{minuta.numeroFisico ?? "—"}</div>
               </div>
+              {(minuta.criadoPor || minuta.atualizadoPor) && (
+                <div className="col-span-2">
+                  <Autoria criadoPor={minuta.criadoPor} atualizadoPor={minuta.atualizadoPor} />
+                </div>
+              )}
             </div>
           </div>
 

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { Autoria } from "@/components/shared/Autoria";
 import FinanceiroCompraBadge from "@/components/suprimentos/FinanceiroCompraBadge";
 import ModalPortal from "@/components/shared/ModalPortal";
 import DatePicker from "@/components/shared/DatePicker";
@@ -100,6 +101,8 @@ type PedidoCompra = {
   }>;
   conferencia: { id: string; numero: string; status: string } | null;
   cotacaoFornecedor: CotacaoFornecedor | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
 
 const TIPO_FRETE_LABEL: Record<string, string> = {
@@ -1133,6 +1136,8 @@ async function openWAModal() {
             </div>
           </div>
         )}
+
+        <Autoria criadoPor={pedido.criadoPor} atualizadoPor={pedido.atualizadoPor} />
       </div>
 
       {/* ── WA Modal ─────────────────────────────────────────────────────────── */}

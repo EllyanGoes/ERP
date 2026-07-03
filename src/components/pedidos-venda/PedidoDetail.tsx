@@ -5,6 +5,7 @@ import Link from "next/link";
 import ModalPortal from "@/components/shared/ModalPortal";
 import StatusDimBadges, { EntregaBadge, FinanceiroBadge } from "@/components/pedidos-venda/StatusDimBadges";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { Autoria } from "@/components/shared/Autoria";
 import DatePicker from "@/components/shared/DatePicker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,7 @@ type PedidoDetailProps = {
     pedidoVendaOrigem?: { id: string; numero: string; empresa: { razaoSocial: string; nomeFantasia: string | null } | null } | null;
     entregasTriangular?: { id: string; numero: string; status: string; empresa: { razaoSocial: string; nomeFantasia: string | null } | null }[];
     condicaoPagamento: string | null; formaPagamento: string | null; observacoes: string | null;
+    criadoPor?: string | null; atualizadoPor?: string | null;
     valorProdutos: unknown; valorDesconto: unknown; valorFrete: unknown; valorTotal: unknown;
     cliente: { id: string; razaoSocial: string };
     clienteFinal?: { id: string; razaoSocial: string } | null;
@@ -839,6 +841,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
             )}
             <div className="flex justify-between"><span className="text-muted-foreground">Cond. Pagamento</span><span>{pedido.condicaoPagamento || "—"}</span></div>
             {pedido.observacoes && <div className="pt-2 border-t"><p className="text-muted-foreground text-xs mb-1">Observações</p><p>{pedido.observacoes}</p></div>}
+            <Autoria criadoPor={pedido.criadoPor} atualizadoPor={pedido.atualizadoPor} className="pt-2 border-t" />
           </CardContent>
         </Card>
 

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { Autoria } from "@/components/shared/Autoria";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
@@ -108,6 +109,8 @@ type Conferencia = {
   } | null;
   fornecedor: FornecedorInfo | null;
   itens: ConferenciaItem[];
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
 
 // Opção de unidade de compra de um item (base + alternativas) com o fator.
@@ -1911,6 +1914,8 @@ export default function DocumentoEntradaDetailPage() {
             </Button>
           )}
         </div>
+
+        <Autoria criadoPor={conferencia.criadoPor} atualizadoPor={conferencia.atualizadoPor} />
       </div>
 
       {/* ── Popup: novos vínculos fornecedor × produto ───────────────────────── */}

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { Autoria } from "@/components/shared/Autoria";
 import { cn } from "@/lib/utils";
 
 // Popup de detalhes de um título (Contas a Pagar/Receber): mostra os dados e as
@@ -18,7 +19,7 @@ export type TituloAcao = {
 };
 
 export default function TituloDetalhesDialog({
-  open, onOpenChange, numero, status, campos, acoes,
+  open, onOpenChange, numero, status, campos, acoes, criadoPor, atualizadoPor,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -26,6 +27,8 @@ export default function TituloDetalhesDialog({
   status: string;
   campos: TituloCampo[];
   acoes: TituloAcao[];
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,6 +48,8 @@ export default function TituloDetalhesDialog({
             </div>
           ))}
         </div>
+
+        <Autoria criadoPor={criadoPor} atualizadoPor={atualizadoPor} />
 
         {acoes.length > 0 && (
           <DialogFooter className="gap-2 sm:justify-end">
