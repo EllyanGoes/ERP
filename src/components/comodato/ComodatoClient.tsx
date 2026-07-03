@@ -22,9 +22,18 @@ type Movimento = {
   data: string;
   documento: string | null;
   observacoes: string | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   cliente: { id: string; razaoSocial: string; nomeFantasia: string | null };
   item: { id: string; codigo: string; descricao: string };
 };
+
+function autoriaTitle(criadoPor?: string | null, atualizadoPor?: string | null) {
+  const partes = [];
+  if (criadoPor) partes.push(`Criado por ${criadoPor}`);
+  if (atualizadoPor) partes.push(`Atualizado por ${atualizadoPor}`);
+  return partes.length ? partes.join(" · ") : undefined;
+}
 
 type Toast = { id: number; type: "success" | "error"; message: string };
 
@@ -390,7 +399,7 @@ export default function ComodatoClient({
             </thead>
             <tbody>
               {movimentos.slice(0, 30).map((m) => (
-                <tr key={m.id} className="border-b border-gray-50">
+                <tr key={m.id} title={autoriaTitle(m.criadoPor, m.atualizadoPor)} className="border-b border-gray-50">
                   <td className="px-6 py-3 text-muted-foreground">{formatDate(m.data)}</td>
                   <td className="px-6 py-3 text-foreground">{m.cliente.nomeFantasia || m.cliente.razaoSocial}</td>
                   <td className="px-6 py-3 text-muted-foreground">{m.item.codigo} — {m.item.descricao}</td>

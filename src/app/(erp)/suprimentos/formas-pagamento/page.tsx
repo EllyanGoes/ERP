@@ -9,6 +9,7 @@ import {
   Banknote, CreditCard, Smartphone, Building2, FileText, BookCheck, HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Autoria } from "@/components/shared/Autoria";
 
 const TIPOS = [
   { value: "PIX",            label: "PIX",              icon: Smartphone,  color: "text-success bg-success/10" },
@@ -30,6 +31,8 @@ interface Forma {
   descricao: string | null;
   ativo: boolean;
   diasCompensacao: number;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 }
 
 const emptyForm = () => ({ nome: "", tipo: "OUTROS" as TipoValue, descricao: "", diasCompensacao: 0 });
@@ -171,6 +174,7 @@ export default function FormasPagamentoPage() {
                       <td colSpan={5} className="px-4 py-4">
                         <FormaForm form={form} setForm={setForm} saving={saving} error={error}
                           onSave={save} onCancel={cancel} />
+                        <Autoria criadoPor={r.criadoPor} atualizadoPor={r.atualizadoPor} className="mt-2 px-1" />
                       </td>
                     </tr>
                   )}

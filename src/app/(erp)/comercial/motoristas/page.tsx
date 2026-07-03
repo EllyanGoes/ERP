@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import { Autoria } from "@/components/shared/Autoria";
 
 interface Motorista {
   id: string;
@@ -15,6 +16,8 @@ interface Motorista {
   cnh: string | null;
   telefone: string | null;
   ativo: boolean;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 }
 
 const empty = () => ({ nome: "", cpf: "", cnh: "", telefone: "" });
@@ -142,6 +145,7 @@ export default function MotoristasPage() {
                           form={form} setForm={setForm} saving={saving} error={error}
                           onSave={save} onCancel={cancel}
                         />
+                        <Autoria criadoPor={r.criadoPor} atualizadoPor={r.atualizadoPor} className="mt-2 px-1" />
                       </td>
                     </tr>
                   )}

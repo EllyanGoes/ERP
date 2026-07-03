@@ -22,7 +22,16 @@ type Bem = {
   status: "ATIVO" | "BAIXADO";
   depreciacaoAcumulada: number;
   valorContabil: number;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
+
+function autoriaTitle(criadoPor?: string | null, atualizadoPor?: string | null) {
+  const partes = [];
+  if (criadoPor) partes.push(`Criado por ${criadoPor}`);
+  if (atualizadoPor) partes.push(`Atualizado por ${atualizadoPor}`);
+  return partes.length ? partes.join(" · ") : undefined;
+}
 
 function mesAtual() {
   return new Date().toISOString().slice(0, 7);
@@ -83,7 +92,7 @@ export default function ImobilizadoPage() {
             ) : bens.length === 0 ? (
               <tr><td colSpan={6} className="px-6 py-10 text-center text-muted-foreground">Nenhum bem cadastrado.</td></tr>
             ) : bens.map((b) => (
-              <tr key={b.id} className={`border-b border-gray-50 hover:bg-muted ${b.status !== "ATIVO" ? "opacity-50" : ""}`}>
+              <tr key={b.id} title={autoriaTitle(b.criadoPor, b.atualizadoPor)} className={`border-b border-gray-50 hover:bg-muted ${b.status !== "ATIVO" ? "opacity-50" : ""}`}>
                 <td className="px-6 py-3 font-medium text-foreground">{b.descricao}</td>
                 <td className="px-6 py-3 text-muted-foreground">{new Date(b.dataAquisicao).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
                 <td className="px-6 py-3 text-right tabular-nums">{formatBRL(Number(b.valorAquisicao))}</td>

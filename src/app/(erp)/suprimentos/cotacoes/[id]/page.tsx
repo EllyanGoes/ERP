@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import { Autoria } from "@/components/shared/Autoria";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -70,6 +71,8 @@ type Cotacao = {
   dataLimiteResposta: string | null;
   observacoes: string | null;
   infoEntrega: string | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   necessidade: { id: string; numero: string; itens: SCItem[] } | null;
   fornecedores: CotacaoFornecedor[];
   pedidos: Array<{ id: string; numero: string; status: string; conferencia: { id: string } | null }>;
@@ -574,6 +577,7 @@ export default function CotacaoDetailPage() {
               </p>
             </div>
           </div>
+          <Autoria criadoPor={cotacao.criadoPor} atualizadoPor={cotacao.atualizadoPor} className="mt-3" />
         </div>
 
         {/* ── Histórico de aprovação (quem aprovou/reprovou e quando) ─────── */}

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeftRight, Loader2, Scale, Check, Trash2, Undo2, RefreshCw, Plus, Search, Filter } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
+import { Autoria } from "@/components/shared/Autoria";
 
 type Elegivel = {
   cpfCnpj: string; nome: string; clienteId: string; fornecedorId: string;
@@ -377,7 +378,7 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
 // ── Diálogo de detalhe / confirmação / estorno ───────────────────────────────
 type Detalhe = {
   id: string; numero: string; parceiro: string; status: string; modoResiduo: string;
-  valorCompensado: number; observacoes: string | null; criadoPor: string | null;
+  valorCompensado: number; observacoes: string | null; criadoPor: string | null; atualizadoPor?: string | null;
   itens: { id: string; tipo: string; numero: string; descricao: string; parte: string; valorAplicado: number; juros: number; multa: number; desconto: number; acrescimo: number }[];
   residuos: { tipo: string; numero: string; valor: number; status: string }[];
 };
@@ -453,6 +454,8 @@ function DetalheDialog({ id, onClose, onMudou }: { id: string; onClose: () => vo
             )}
 
             {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}
+
+            <Autoria criadoPor={d.criadoPor} atualizadoPor={d.atualizadoPor} />
           </div>
         )}
 

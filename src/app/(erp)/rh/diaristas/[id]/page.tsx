@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate, { type ComboboxOption } from "@/components/shared/ComboboxWithCreate";
+import { Autoria } from "@/components/shared/Autoria";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users } from "lucide-react";
@@ -32,6 +33,7 @@ export default function DiariaDetailPage() {
   const [observacoes, setObservacoes] = useState("");
   const [status, setStatus] = useState("ABERTA");
   const [grupos, setGrupos] = useState<GrupoRow[]>([]);
+  const [criadoPor, setCriadoPor] = useState<string | null>(null);
   const [colabs, setColabs] = useState<ComboboxOption[]>([]);
 
   const carregar = useCallback(async () => {
@@ -44,6 +46,7 @@ export default function DiariaDetailPage() {
       setData(f.data?.slice(0, 10) ?? "");
       setObservacoes(f.observacoes ?? "");
       setStatus(f.status ?? "ABERTA");
+      setCriadoPor(f.criadoPor ?? null);
       setGrupos(
         (f.grupos ?? []).map((g: { tipo: string; setor: string | null; turno: string; itens: { colaboradorId: string; servico: string | null; valor: string }[] }) => ({
           _key: key(), tipo: g.tipo, setor: g.setor ?? "", turno: g.turno,
@@ -169,6 +172,8 @@ export default function DiariaDetailPage() {
             <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />Nenhum bloco. Clique em &quot;Adicionar bloco&quot; para começar.
           </div>
         )}
+
+        <Autoria criadoPor={criadoPor} />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
+import { Autoria } from "@/components/shared/Autoria";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import DatePicker from "@/components/shared/DatePicker";
@@ -53,6 +54,8 @@ type TabelaPreco = {
   ecommerce: boolean;
   markupPadrao: unknown;
   observacoes: string | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   custos?: Record<string, number | null>; // custo ATUAL por itemId (empresa da tabela)
   itens: Array<{
     id: string; sequencia: number; itemId: string | null; grupo: string | null;
@@ -510,6 +513,7 @@ export default function TabelaPrecoDetailPage() {
               )}
             </div>
           </div>
+          <Autoria criadoPor={tabela.criadoPor} atualizadoPor={tabela.atualizadoPor} className="px-4 pb-3" />
         </div>
 
         {/* ── Items grid ─────────────────────────────────────────────────── */}

@@ -18,6 +18,7 @@ import {
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import { LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
+import { Autoria } from "@/components/shared/Autoria";
 import { cn, formatDate } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
@@ -39,6 +40,8 @@ type MovItem = {
   clienteDono?: { id: string; razaoSocial: string } | null;
   vendaOrdem?: { id: string; numero: string } | null;
   devolucaoId?: string | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
 
 type Lote = {
@@ -970,6 +973,7 @@ export default function MovimentacoesPage() {
               {editMovError && (
                 <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{editMovError}</p>
               )}
+              <Autoria criadoPor={editMov.criadoPor} atualizadoPor={editMov.atualizadoPor} />
             </div>
             <div className="px-5 pb-5 flex gap-2 justify-end">
               <Button variant="outline" size="sm" onClick={() => setEditMov(null)} disabled={editMovSaving}>Cancelar</Button>

@@ -15,6 +15,7 @@ import {
   ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity, Ruler,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { Autoria } from "@/components/shared/Autoria";
 import { UnidadeQuickCreate, LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
 import EstadosWipMultiSelect from "@/components/shared/EstadosWipMultiSelect";
@@ -74,6 +75,8 @@ type Item = {
   pontoReposicao: unknown;
   leadTimeDias: number | null;
   observacoes: string | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   custosEmpresa?: Array<{ empresaId: string; precoCusto: unknown }>;
   estoqueItems: Array<{
     id: string;
@@ -1445,6 +1448,8 @@ export default function ProdutoDetailPage() {
                 />
               </Section>
             )}
+
+            <Autoria criadoPor={item.criadoPor} atualizadoPor={item.atualizadoPor} />
           </div>
         )}
 

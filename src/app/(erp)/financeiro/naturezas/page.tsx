@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { Autoria } from "@/components/shared/Autoria";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -43,6 +44,8 @@ type Natureza = {
   aplicavelRequisicao: boolean;
   contaContabilId: string | null; contaContabil: ContaResultado | null;
   contaContrapartidaId: string | null; contaContrapartida: ContaResultado | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
 
 export default function NaturezasPage() {
@@ -676,6 +679,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
           </div>
           </>)}
           {error && <p className="text-sm text-rose-500">{error}</p>}
+          {editing && <Autoria criadoPor={editing.criadoPor} atualizadoPor={editing.atualizadoPor} />}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { Autoria } from "@/components/shared/Autoria";
 import DatePicker from "@/components/shared/DatePicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,8 @@ type Administradora = {
   saldoAtual: number;
   contaBancaria: { id: string; nome: string; contasContabeis: { id: string; codigo: string }[] } | null;
   _count: { maquinetas: number };
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
 type TipoForma = "CARTAO_CREDITO" | "CARTAO_DEBITO";
 type Taxa = { id?: string; tipoForma: TipoForma; taxaPct: string | number; diasCompensacao: number };
@@ -35,6 +38,8 @@ type Maquineta = {
   administradoraId: string;
   administradora: { id: string; nome: string };
   taxas: Taxa[];
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
 type LancPendente = {
   id: string;
@@ -258,6 +263,7 @@ function AdministradoraDialog({ admin, open, onOpenChange, onDone }: {
               Administradora ativa
             </label>
           )}
+          {editing && <Autoria criadoPor={admin?.criadoPor} atualizadoPor={admin?.atualizadoPor} />}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
@@ -425,6 +431,7 @@ function MaquinetaDialog({ maquineta, admins, open, onOpenChange, onDone }: {
               Maquineta ativa
             </label>
           )}
+          {editing && <Autoria criadoPor={maquineta?.criadoPor} atualizadoPor={maquineta?.atualizadoPor} />}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>

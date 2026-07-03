@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
+import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,8 @@ type Inv = {
   observacoes: string | null;
   localEstoque: { id: string; nome: string } | null;
   colaborador:  { id: string; nome: string } | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   itens: InvItem[];
 };
 
@@ -275,6 +278,7 @@ export default function InventarioDetailPage() {
               {inv.observacoes && <div className="col-span-full"><dt className="text-xs text-muted-foreground font-medium">Observações</dt><dd className="text-foreground mt-0.5">{inv.observacoes}</dd></div>}
             </dl>
           )}
+          <Autoria criadoPor={inv.criadoPor} atualizadoPor={inv.atualizadoPor} className="mt-3" />
         </div>
 
         {/* Amostragem */}

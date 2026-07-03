@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import { Autoria } from "@/components/shared/Autoria";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, RefreshCw, Flame, Ban, AlertTriangle, ArrowLeftRight, Printer, Paperclip, Upload, Trash2, FileText, RotateCcw } from "lucide-react";
 
@@ -19,7 +20,7 @@ interface Anexo { id: string; nome: string; url: string; tamanho: number; tipo: 
 interface Ordem {
   id: string; numero: string; status: string; estadoAtual: string;
   quantidadePlanejada: string | number; unidade: string | null;
-  criadoPor: string | null; dataPrevistaInicio: string | null; dataPrevistaFim: string | null;
+  criadoPor: string | null; atualizadoPor?: string | null; dataPrevistaInicio: string | null; dataPrevistaFim: string | null;
   responsavelColaborador: { nome: string } | null;
   item: { codigo: string; descricao: string } | null;
   fluxoVersao: { versao: number; fluxo: { nome: string } } | null;
@@ -260,6 +261,8 @@ export default function OrdemDetalhePage() {
             </div>
           )}
         </div>
+
+        <Autoria criadoPor={ordem.criadoPor} atualizadoPor={ordem.atualizadoPor} />
       </div>
     </div>
   );

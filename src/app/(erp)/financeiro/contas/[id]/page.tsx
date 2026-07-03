@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import LancamentoForm from "@/components/financeiro/LancamentoForm";
 import DatePicker from "@/components/shared/DatePicker";
+import { Autoria } from "@/components/shared/Autoria";
 import { formatBRL, formatDate } from "@/lib/utils";
 import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2, Plus } from "lucide-react";
 
@@ -52,6 +53,8 @@ type Conta = {
   saldoInicial: string | number;
   saldoAtual: number;
   banco: { id: string; nome: string } | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   extrato: ExtratoLinha[];
 };
 
@@ -197,6 +200,7 @@ export default function ExtratoContaPage() {
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="px-6 py-4 border-b border-border">
                 <h2 className="font-semibold text-foreground">Extrato</h2>
+                <Autoria criadoPor={conta.criadoPor} atualizadoPor={conta.atualizadoPor} className="mt-0.5" />
               </div>
               {conta.extrato.length === 0 ? (
                 <p className="px-6 py-10 text-sm text-muted-foreground text-center">Nenhum lançamento no período.</p>

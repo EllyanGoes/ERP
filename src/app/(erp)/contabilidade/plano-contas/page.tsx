@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { Autoria } from "@/components/shared/Autoria";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -33,6 +34,8 @@ type Conta = {
   fornecedorId: string | null;
   ativo: boolean;
   manual: boolean;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   filhos: Conta[];
 };
 type FlatConta = Omit<Conta, "filhos">;
@@ -326,6 +329,7 @@ function EditarContaButton({ conta, onDone }: { conta: Conta; onDone: () => void
             <input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} className="w-4 h-4 rounded border-border text-info" />
             Conta ativa
           </label>
+          <Autoria criadoPor={conta.criadoPor} atualizadoPor={conta.atualizadoPor} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

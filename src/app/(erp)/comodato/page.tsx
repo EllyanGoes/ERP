@@ -44,6 +44,8 @@ export default async function ComodatoPage() {
     data: m.data.toISOString(),
     documento: m.documento,
     observacoes: m.observacoes,
+    criadoPor: m.criadoPor,
+    atualizadoPor: m.atualizadoPor,
     cliente: m.cliente,
     item: m.item,
   }));

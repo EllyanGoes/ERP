@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { Autoria } from "@/components/shared/Autoria";
 import { formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
@@ -39,6 +40,7 @@ type Necessidade = {
   aprovadoPor: string | null; dataAprovacao: string | null;
   motivoReprovacao: string | null;
   motivoCancelamento: string | null; dataCancelamento: string | null;
+  criadoPor?: string | null; atualizadoPor?: string | null;
   tipoCompra: string | null; motivo: string | null; categoria: string | null;
   projeto: string | null; classificacaoAuxiliar: string | null;
   filialId: string | null; localEstoqueId: string | null; centroCustoId: string | null;
@@ -771,6 +773,7 @@ export default function NecessidadeDetailPage() {
                   </InfoField>
                 </div>
 
+                <Autoria criadoPor={necessidade.criadoPor} atualizadoPor={necessidade.atualizadoPor} />
               </CardContent>
             </Card>
 

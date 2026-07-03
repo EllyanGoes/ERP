@@ -26,7 +26,16 @@ type Recorrencia = {
   contaBancaria: { id: string; nome: string } | null;
   cliente: { id: string; razaoSocial: string } | null;
   fornecedor: { id: string; razaoSocial: string } | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
+
+function autoriaTitle(criadoPor?: string | null, atualizadoPor?: string | null) {
+  const partes = [];
+  if (criadoPor) partes.push(`Criado por ${criadoPor}`);
+  if (atualizadoPor) partes.push(`Atualizado por ${atualizadoPor}`);
+  return partes.length ? partes.join(" · ") : undefined;
+}
 type Opt = { id: string; nome?: string; razaoSocial?: string };
 
 const PERIODO_LABEL: Record<string, string> = {
@@ -102,7 +111,7 @@ export default function RecorrenciasPage() {
               </thead>
               <tbody>
                 {recs.map((r) => (
-                  <tr key={r.id} className={`border-b border-gray-50 hover:bg-muted ${!r.ativo ? "opacity-50" : ""}`}>
+                  <tr key={r.id} title={autoriaTitle(r.criadoPor, r.atualizadoPor)} className={`border-b border-gray-50 hover:bg-muted ${!r.ativo ? "opacity-50" : ""}`}>
                     <td className="px-6 py-3">
                       <p className="font-medium text-foreground">{r.descricao}</p>
                       <p className="text-xs text-muted-foreground">

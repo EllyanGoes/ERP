@@ -180,7 +180,7 @@ export default function LancamentosContabeisPage() {
               const totalD = l.partidas.filter((p) => p.tipo === "DEBITO").reduce((s, p) => s + decimalToNumber(p.valor), 0);
               return (
                 <div key={l.id} id={`lanc-${l.id}`} className={cn("rounded-xl border bg-card overflow-hidden transition-colors", focusId === l.id ? "border-info ring-2 ring-info/50" : "border-border")}>
-                  <div className="flex items-center gap-3 px-5 py-2.5 border-b border-border bg-muted">
+                  <div className="flex items-center gap-3 px-5 py-2.5 border-b border-border bg-muted" title={l.criadoPor ? `Criado por ${l.criadoPor}` : undefined}>
                     {l.numero && <span className="font-mono text-xs text-muted-foreground shrink-0">{l.numero}</span>}
                     <span className="text-xs text-muted-foreground w-20 shrink-0">{formatDate(l.data)}</span>
                     <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium shrink-0", ORIGEM_COR[l.origemTipo] ?? "bg-muted text-muted-foreground")}>

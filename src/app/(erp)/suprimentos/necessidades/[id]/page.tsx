@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { Autoria } from "@/components/shared/Autoria";
 import { formatDate, decimalToNumber } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 
@@ -23,6 +24,8 @@ type Necessidade = {
   aprovadoPor: string | null;
   dataAprovacao: string | null;
   motivoReprovacao: string | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   itens: Array<{
     id: string;
     quantidade: unknown;
@@ -163,6 +166,7 @@ export default function NecessidadeDetailPage() {
                 <p className="text-sm text-foreground mt-1">{necessidade.justificativa}</p>
               </div>
             )}
+            <Autoria criadoPor={necessidade.criadoPor} atualizadoPor={necessidade.atualizadoPor} className="md:col-span-3" />
           </CardContent>
         </Card>
 

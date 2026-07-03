@@ -8,6 +8,7 @@ import {
   Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Autoria } from "@/components/shared/Autoria";
 
 interface Condicao {
   id: string;
@@ -21,6 +22,8 @@ interface Condicao {
   semVencimento: boolean;
   pagamentoAntecipado: boolean;
   ativo: boolean;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 }
 
 type FormState = {
@@ -204,6 +207,7 @@ export default function CondicoesPagamentoPage() {
                           form={form} setForm={setForm} saving={saving} error={error}
                           onSave={save} onCancel={cancel}
                         />
+                        <Autoria criadoPor={r.criadoPor} atualizadoPor={r.atualizadoPor} className="mt-2 px-1" />
                       </td>
                     </tr>
                   )}

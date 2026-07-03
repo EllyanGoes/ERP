@@ -23,6 +23,7 @@ import {
   Folder,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Autoria } from "@/components/shared/Autoria";
 
 const COLLAPSE_KEY = "empresa:centros-custo:collapsed";
 const SEM_GRUPO = "__sem_grupo__";
@@ -44,6 +45,8 @@ type Centro = {
   grupoCentroCusto: { id: string; nome: string } | null;
   ativo: boolean;
   fabril: boolean;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
 };
 
 // ── SelectGrupo ───────────────────────────────────────────────────────────────
@@ -644,6 +647,8 @@ export default function CentrosCustoPage() {
                 {editError}
               </p>
             )}
+
+            <Autoria criadoPor={editItem.criadoPor} atualizadoPor={editItem.atualizadoPor} />
 
             <div className="flex gap-2 justify-end pt-1">
               <Button variant="outline" size="sm" onClick={() => setEditItem(null)} disabled={editSaving}>

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL } from "@/lib/utils";
 
@@ -58,6 +59,8 @@ type Local = {
   ativo: boolean;
   filialId: string | null;
   filial: Filial | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   estoqueItens: EstoqueItem[];
 };
 
@@ -428,6 +431,7 @@ export default function LocalEstoqueDetailPage() {
                   {local.filial.nomeFantasia || local.filial.razaoSocial}
                 </p>
               )}
+              <Autoria criadoPor={local.criadoPor} atualizadoPor={local.atualizadoPor} className="mt-1" />
             </div>
           )}
           <span className={`ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${local.ativo ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"}`}>

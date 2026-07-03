@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
+import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatDate, formatBRL } from "@/lib/utils";
 
@@ -50,6 +51,8 @@ type Req = {
   setor:        { id: string; nome: string } | null;
   almoxarife:   { id: string; nome: string } | null;
   centroCusto:  { id: string; codigo: string; nome: string } | null;
+  criadoPor?: string | null;
+  atualizadoPor?: string | null;
   itens: ItemRow[];
   valorTotal?: number;
 };
@@ -376,6 +379,7 @@ export default function RequisicaoDetailPage() {
               {req.observacoes && <div className="col-span-full"><dt className="text-xs text-muted-foreground font-medium">Observações</dt><dd className="text-foreground mt-0.5">{req.observacoes}</dd></div>}
             </dl>
           )}
+          <Autoria criadoPor={req.criadoPor} atualizadoPor={req.atualizadoPor} className="mt-3" />
         </div>
 
         {/* Items */}

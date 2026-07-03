@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEscToClose } from "@/lib/use-esc-to-close";
+import { Autoria } from "@/components/shared/Autoria";
 
 type Local = { id: string; nome: string };
 type Centro = { id: string; codigo: string; nome: string };
@@ -19,6 +20,7 @@ type Tes = {
   permiteCapitalizar: boolean; geraFinanceiro: boolean; geraFiscal: boolean;
   cfop: string | null; naturezaFiscal: string | null; centroCustoSugeridoId: string | null;
   ativo: boolean;
+  criadoPor?: string | null; atualizadoPor?: string | null;
   almoxarifadoDefault?: Local | null; centroCustoSugerido?: Centro | null;
 };
 
@@ -189,7 +191,7 @@ export default function TiposOperacaoPage() {
       {editingId !== null && (
         <div className="fixed inset-0 z-[9000] flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-10" onClick={cancel}>
           <div className="w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
-            <TesForm form={form} setForm={setForm} saving={saving} error={error} onSave={save} onCancel={cancel} locais={locais} centros={centros} isNew={editingId === "new"} />
+            <TesForm form={form} setForm={setForm} saving={saving} error={error} onSave={save} onCancel={cancel} locais={locais} centros={centros} isNew={editingId === "new"} editando={editingId !== "new" ? rows.find((r) => r.id === editingId) : undefined} />
           </div>
         </div>
       )}
@@ -202,10 +204,10 @@ function Tag({ children, amber }: { children: React.ReactNode; amber?: boolean }
     amber ? "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400" : "bg-muted text-muted-foreground")}>{children}</span>;
 }
 
-function TesForm({ form, setForm, saving, error, onSave, onCancel, locais, centros, isNew }: {
+function TesForm({ form, setForm, saving, error, onSave, onCancel, locais, centros, isNew, editando }: {
   form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>>;
   saving: boolean; error: string | null; onSave: () => void; onCancel: () => void;
-  locais: Local[]; centros: Centro[]; isNew?: boolean;
+  locais: Local[]; centros: Centro[]; isNew?: boolean; editando?: Tes;
 }) {
   const setStr = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setBool = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.checked }));
@@ -219,6 +221,7 @@ function TesForm({ form, setForm, saving, error, onSave, onCancel, locais, centr
   return (
     <div className={cn("rounded-xl border border-info/30 bg-card p-5 space-y-4", isNew && "mb-2")}>
       <p className="text-sm font-semibold text-foreground">{isNew ? "Novo TES" : "Editar TES"}</p>
+      {editando && <Autoria criadoPor={editando.criadoPor} atualizadoPor={editando.atualizadoPor} />}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Código *</label>
           <Input value={form.codigo} onChange={setStr("codigo")} placeholder="Ex.: 1102" autoFocus={isNew} /></div>

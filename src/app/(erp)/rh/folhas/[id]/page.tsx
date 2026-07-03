@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
 import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
 
 type Classif = "MOD" | "MOI" | "ADMIN";
@@ -19,6 +20,7 @@ type Folha = {
   id: string; competencia: string; status: "EM_REVISAO" | "FECHADA" | "CANCELADA";
   arquivoUrl: string | null; arquivoNome: string | null; dataPagamento: string | null;
   totalBruto: string; totalLiquido: string; totalInssRetido: string; totalInssPatronal: string; totalIrrf: string; totalFgts: string;
+  criadoPor?: string | null; atualizadoPor?: string | null;
   itens: Item[];
 };
 type Colab = { id: string; nome: string; classificacaoCusto: Classif | null };
@@ -286,6 +288,8 @@ export default function FolhaDetalhePage() {
             </Button>
           </div>
         )}
+
+        <Autoria criadoPor={folha.criadoPor} atualizadoPor={folha.atualizadoPor} />
       </div>
     </div>
   );
