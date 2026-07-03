@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { salvarNaLixeira } from "@/lib/lixeira";
 import { requireModulo } from "@/lib/permissions";
 import { contaBancariaSchema } from "@/lib/validations/financeiro";
 import { sincronizarContaContabilBanco } from "@/lib/conta-contabil";
@@ -92,6 +93,20 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     await prisma.contaBancaria.update({ where: { id: params.id }, data: { ativo: false } });
     return NextResponse.json({ data: { ok: true, inativada: true } });
   }
-  await prisma.contaBancaria.delete({ where: { id: params.id } });
+  await prisma.$transaction(async (tx) => {
+    const cheia = await tx.contaBancaria.findUnique({ where: { id: params.id } });
+    if (cheia) {
+      await salvarNaLixeira(tx, {
+        empresaId: cheia.empresaId,
+        tipo: "CONTA_BANCARIA",
+        origemId: cheia.id,
+        numero: null,
+        descricao: `${cheia.nome} (${cheia.tipo})`,
+        snapshot: cheia,
+        apagadoPor: auth.session.nome,
+      });
+    }
+    await tx.contaBancaria.delete({ where: { id: params.id } });
+  });
   return NextResponse.json({ data: { ok: true } });
 }

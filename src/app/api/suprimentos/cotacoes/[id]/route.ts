@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { salvarNaLixeira } from "@/lib/lixeira";
 import { getSession } from "@/lib/auth";
 import { reverterEExcluirConferencias, tratarContasPagarDosPedidos, ContaPagarComBaixaError } from "@/lib/compras-cascade";
 
@@ -99,6 +100,26 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   // ABERTAS (409 se alguma tem baixa). Propostas dos fornecedores cascateiam.
   try {
     await prisma.$transaction(async (tx) => {
+      // Snapshot na LIXEIRA antes de apagar (consulta/reconstrução em /admin/lixeira).
+      const cheia = await tx.cotacaoCompra.findUnique({
+        where: { id: params.id },
+        include: {
+          fornecedores: { include: { itens: true } },
+          pedidos: { include: { itens: true } },
+        },
+      });
+      if (cheia) {
+        await salvarNaLixeira(tx, {
+          empresaId: cheia.empresaId,
+          tipo: "COTACAO_COMPRA",
+          origemId: cheia.id,
+          numero: cheia.numero ?? null,
+          descricao: `${cheia.status} · ${cheia.fornecedores.length} proposta(s) · ${cheia.pedidos.length} pedido(s) gerado(s)`,
+          snapshot: cheia,
+          apagadoPor: session.nome,
+        });
+      }
+
       const pedidos = await tx.pedidoCompra.findMany({
         where: { cotacaoId: params.id },
         select: { id: true },

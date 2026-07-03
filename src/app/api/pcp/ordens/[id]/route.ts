@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import type { StatusOrdemProducao } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { salvarNaLixeira } from "@/lib/lixeira";
 import { sanitizarPlanoTransporte } from "@/lib/pcp/plano-transporte";
 
 const STATUS: StatusOrdemProducao[] = ["RASCUNHO", "LIBERADA", "EM_PRODUCAO", "CONCLUIDA", "CANCELADA"];
@@ -111,8 +112,26 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
     if (movs > 0) {
       return NextResponse.json({ error: "OP já apontada (tem movimentação de estoque). Estorne o apontamento antes de excluir." }, { status: 409 });
     }
-    // Etapas (ItemOrdemProducao) e consumos têm cascade; remove a OP direto.
-    await prisma.ordemProducao.delete({ where: { id: params.id } });
+    // Etapas (ItemOrdemProducao) e consumos têm cascade; snapshot na LIXEIRA e
+    // remove a OP (tx: snapshot faz rollback se o delete falhar).
+    await prisma.$transaction(async (tx) => {
+      const cheia = await tx.ordemProducao.findUnique({
+        where: { id: params.id },
+        include: { etapas: true, produtoItens: true, consumos: true, item: { select: { codigo: true, descricao: true } } },
+      });
+      if (cheia) {
+        await salvarNaLixeira(tx, {
+          empresaId: cheia.empresaId,
+          tipo: "ORDEM_PRODUCAO",
+          origemId: cheia.id,
+          numero: cheia.numero,
+          descricao: `${cheia.status} · ${cheia.item?.descricao ?? ""} · ${cheia.etapas.length} etapa(s)`,
+          snapshot: cheia,
+          apagadoPor: auth.session.nome,
+        });
+      }
+      await tx.ordemProducao.delete({ where: { id: params.id } });
+    });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Não foi possível excluir." }, { status: 400 });

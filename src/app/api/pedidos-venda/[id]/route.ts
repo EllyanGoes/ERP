@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { salvarNaLixeira } from "@/lib/lixeira";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
@@ -481,6 +482,30 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   // e o aviso ao usuário ficam na tela (este endpoint só é chamado após o "ok").
   try {
     const resumo = await prismaSemEscopo.$transaction(async (tx) => {
+      // 0) Snapshot na LIXEIRA (documento + o que a cadeia vai apagar) — permite
+      // consulta/reconstrução em /admin/lixeira.
+      const cheio = await tx.pedidoVenda.findUnique({
+        where: { id: pedido.id },
+        include: {
+          itens: { include: { item: { select: { codigo: true, descricao: true } } } },
+          minutas: { include: { itens: true } },
+          contasReceber: true,
+          pagamentos: true,
+          cliente: { select: { razaoSocial: true } },
+        },
+      });
+      if (cheio) {
+        await salvarNaLixeira(tx, {
+          empresaId: pedido.empresaId,
+          tipo: "PEDIDO_VENDA",
+          origemId: pedido.id,
+          numero: pedido.numero,
+          descricao: `${cheio.status} · ${cheio.cliente?.razaoSocial ?? ""} · ${cheio.itens.length} item(ns) · R$ ${Number(cheio.valorTotal).toFixed(2)}`,
+          snapshot: cheio,
+          apagadoPor: auth.session.nome,
+        });
+      }
+
       // Pedidos envolvidos: a venda + o(s) pedido(s) de entrega da origem (à ordem).
       const entregas = await tx.pedidoVenda.findMany({
         where: { pedidoVendaOrigemId: pedido.id },

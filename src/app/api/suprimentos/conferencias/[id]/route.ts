@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { salvarNaLixeira } from "@/lib/lixeira";
 import { getSession } from "@/lib/auth";
 import { recontabilizarConferencia, apagarLancamentosContabeis } from "@/lib/contabilidade";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
@@ -318,6 +319,27 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   // estoque e a contabilidade ficam inflados e o movimento de ENTRADA vira órfão
   // (a FK conferenciaItemId é ON DELETE SET NULL, não apaga o movimento).
   await prisma.$transaction(async (tx) => {
+    // Snapshot na LIXEIRA antes de apagar (consulta/reconstrução em /admin/lixeira).
+    const cheia = await tx.conferenciaCompra.findUnique({
+      where: { id: params.id },
+      include: {
+        itens: { include: { item: { select: { codigo: true, descricao: true } } } },
+        pedido: { select: { numero: true } },
+        fornecedor: { select: { razaoSocial: true } },
+      },
+    });
+    if (cheia) {
+      await salvarNaLixeira(tx, {
+        empresaId: cheia.empresaId,
+        tipo: "CONFERENCIA_COMPRA",
+        origemId: cheia.id,
+        numero: cheia.numero,
+        descricao: `${cheia.status}${cheia.pedido?.numero ? ` · Pedido ${cheia.pedido.numero}` : " · avulsa"}${cheia.fornecedor?.razaoSocial ? ` · ${cheia.fornecedor.razaoSocial}` : ""} · ${cheia.itens.length} item(ns)`,
+        snapshot: cheia,
+        apagadoPor: session.nome,
+      });
+    }
+
     const itemIds = current.itens.map((i) => i.id);
     const movs = itemIds.length
       ? await tx.movimentacaoEstoque.findMany({

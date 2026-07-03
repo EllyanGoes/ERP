@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/relatorio-pcp",
       "schedule": "0 22 * * *"
+    },
+    {
+      "path": "/api/cron/limpar-lixeira",
+      "schedule": "30 6 * * *"
     }
   ],
   "functions": {

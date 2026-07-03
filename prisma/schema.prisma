@@ -3535,3 +3535,27 @@ model ConcorrentePreco {
   @@index([concorrenteId])
   @@index([itemId])
 }
+
+// ── Lixeira de documentos ─────────────────────────────────────────────────────
+// Snapshot COMPLETO gravado no início da transação de cada DELETE destrutivo
+// (documento + filhos + vínculos) — permite consultar e restaurar exclusões
+// acidentais (caso MIN-0201, jul/2026). `tipo` é String livre (aditivo);
+// retenção de 90 dias via cron limpar-lixeira. Restauração marca restauradoEm
+// e o id do documento recriado.
+model Lixeira {
+  id               String    @id @default(cuid())
+  empresaId        String    @default("emp_tramontin")
+  tipo             String // PEDIDO_VENDA | MINUTA | PEDIDO_COMPRA | COTACAO_COMPRA | CONFERENCIA_COMPRA | ORDEM_PRODUCAO | CONTA_BANCARIA
+  origemId         String // id original do documento apagado
+  numero           String? // MIN-0201 / PV-0238… para busca rápida
+  descricao        String? // resumo humano (cliente · itens · valor)
+  snapshot         Json // documento completo serializado (Decimals como string)
+  apagadoPor       String?
+  restauradoEm     DateTime?
+  restauradoComoId String?
+  createdAt        DateTime  @default(now())
+
+  @@index([empresaId, tipo])
+  @@index([createdAt])
+  @@index([numero])
+}

@@ -71,6 +71,7 @@ import {
   Megaphone,
   Target,
   Map as MapIcon,
+  Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -411,6 +412,7 @@ const configModule: Module = {
         { href: "/admin/perfis",      label: "Perfis de Acesso",     icon: ShieldCheck },
         { href: "/admin/empresas",    label: "Empresas do Grupo",    icon: Building2 },
         { href: "/admin/consolidado", label: "Consolidado do Grupo", icon: Building2 },
+        { href: "/admin/lixeira",     label: "Lixeira",              icon: Trash2 },
       ],
     },
   ],

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { salvarNaLixeira } from "@/lib/lixeira";
 import { getSession } from "@/lib/auth";
 import { reverterEExcluirConferencias, tratarContasPagarDosPedidos, ContaPagarComBaixaError } from "@/lib/compras-cascade";
 
@@ -257,6 +258,27 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Snapshot na LIXEIRA antes de apagar (consulta/reconstrução em /admin/lixeira).
+      const cheio = await tx.pedidoCompra.findUnique({
+        where: { id: pedidoId },
+        include: {
+          itens: { include: { item: { select: { codigo: true, descricao: true } } } },
+          conferencia: { include: { itens: true } },
+          fornecedor: { select: { razaoSocial: true } },
+        },
+      });
+      if (cheio) {
+        await salvarNaLixeira(tx, {
+          empresaId: cheio.empresaId,
+          tipo: "PEDIDO_COMPRA",
+          origemId: cheio.id,
+          numero: cheio.numero,
+          descricao: `${cheio.status} · ${cheio.fornecedor?.razaoSocial ?? ""} · ${cheio.itens.length} item(ns) · R$ ${Number(cheio.valorTotal).toFixed(2)}`,
+          snapshot: cheio,
+          apagadoPor: session?.nome ?? null,
+        });
+      }
+
       // CPs do pedido: 409 se alguma tem baixa; senão apaga títulos + lançamentos.
       await tratarContasPagarDosPedidos(tx, [pedidoId]);
       // DE não concluído (PENDENTE/EM_CONFERENCIA): reverte movimentos (se houver)

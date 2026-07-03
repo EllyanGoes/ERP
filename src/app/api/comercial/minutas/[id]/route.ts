@@ -14,6 +14,7 @@ import { resolverLocaisSaida } from "@/lib/local-saida";
 import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
 import { assertSaldoNaoNegativo, SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
 import { faturarEntregasPedido } from "@/lib/contas-receber";
+import { salvarNaLixeira } from "@/lib/lixeira";
 
 // Lançado dentro das transações quando outra requisição mexeu na minuta no meio
 // do caminho (duplo clique, duas abas). Aborta a transação e vira HTTP 409.
@@ -613,6 +614,28 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
     await prisma.$transaction(async (tx) => {
       const num = (d: unknown) => parseFloat(String(d));
+
+      // 0) Snapshot na LIXEIRA (com os dados ainda vivos) — permite restaurar
+      // uma exclusão acidental em /admin/lixeira (caso MIN-0201).
+      const cheia = await tx.minuta.findUnique({
+        where: { id: params.id },
+        include: {
+          itens: true,
+          pedidoVenda: { select: { numero: true, cliente: { select: { razaoSocial: true } } } },
+        },
+      });
+      if (cheia) {
+        const { pedidoVenda: pv, ...minutaSnap } = cheia;
+        await salvarNaLixeira(tx, {
+          empresaId: minuta.empresaId,
+          tipo: "MINUTA",
+          origemId: minuta.id,
+          numero: minuta.numero,
+          descricao: `${cheia.status}${pv?.numero ? ` · Pedido ${pv.numero}` : ""}${pv?.cliente?.razaoSocial ? ` · ${pv.cliente.razaoSocial}` : ""} · ${cheia.itens.length} item(ns)`,
+          snapshot: minutaSnap,
+          apagadoPor: auth.session.nome,
+        });
+      }
 
       // 1) Estorna no estoque o efeito das movimentações da minuta e as remove.
       const movs = await tx.movimentacaoEstoque.findMany({
