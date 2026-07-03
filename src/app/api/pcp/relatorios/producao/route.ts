@@ -51,6 +51,9 @@ export async function GET(req: NextRequest) {
   type ProdutoAgg = { itemId: string; codigo: string; descricao: string; pecas: number; perda: number; ops: number };
   type AreaAgg = { area: string; sequencia: number; pecas: number; perda: number; vagoes: number; vagonetas: number; ops: number; produtos: Map<string, ProdutoAgg> };
   const areas = new Map<string, AreaAgg>();
+  // Série diária por área (gráfico por data). Dia no fuso de Belém (UTC−3).
+  const porDia = new Map<string, { dia: string; area: string; pecas: number; perda: number }>();
+  const diaBelem = (d: Date | null) => (d ? new Date(d.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10) : null);
 
   for (const et of etapas) {
     const chave = et.centroTrabalho ?? et.nome;
@@ -75,6 +78,14 @@ export async function GET(req: NextRequest) {
       p.pecas += pecas;
       p.perda += perda;
       p.ops += 1;
+
+      const dia = diaBelem(et.fimReal);
+      if (dia) {
+        const k = `${dia}|${chave}`;
+        const d = porDia.get(k) ?? porDia.set(k, { dia, area: chave, pecas: 0, perda: 0 }).get(k)!;
+        d.pecas += pecas;
+        d.perda += perda;
+      }
     }
   }
 
@@ -90,5 +101,9 @@ export async function GET(req: NextRequest) {
         .map((p) => ({ ...p, pecas: round(p.pecas), perda: round(p.perda) })),
     }));
 
-  return NextResponse.json({ data });
+  const dias = Array.from(porDia.values())
+    .sort((x, y) => x.dia.localeCompare(y.dia))
+    .map((d) => ({ ...d, pecas: round(d.pecas), perda: round(d.perda) }));
+
+  return NextResponse.json({ data, porDia: dias });
 }

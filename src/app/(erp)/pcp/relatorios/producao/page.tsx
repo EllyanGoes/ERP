@@ -1,22 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import PrintButton from "@/components/shared/PrintButton";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { cn } from "@/lib/utils";
 import { Loader2, Factory, RefreshCw } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList } from "recharts";
+import { ResponsiveContainer, BarChart, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList } from "recharts";
 
-// Cores do gráfico (par validado p/ daltonismo e contraste nos 2 temas):
-// produzido = ciano do PCP; perda = âmbar (mesma semântica das tabelas).
+// Cores dos gráficos (pares validados p/ daltonismo e contraste nos 2 temas):
+// produzido = ciano do PCP; perda = âmbar (tabelas/empilhado); quebra = vermelho (linha).
 const COR_PRODUZIDO = "#0891b2";
 const COR_PERDA = "#d97706";
+const COR_QUEBRA = "#dc2626";
 
 type ProdutoLinha = { itemId: string; codigo: string; descricao: string; pecas: number; perda: number; ops: number };
 type AreaLinha = { area: string; sequencia: number; ops: number; pecas: number; perda: number; vagoes: number | null; vagonetas: number | null; produtos: ProdutoLinha[] };
+type DiaLinha = { dia: string; area: string; pecas: number; perda: number };
 type FluxoOpt = { id: string; nome: string };
 
 const n = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
@@ -35,7 +38,11 @@ export default function RelatorioProducaoPage() {
   const [from, setFrom] = useState(inicioMes());
   const [to, setTo] = useState(hoje());
   const [areas, setAreas] = useState<AreaLinha[] | null>(null);
+  const [porDia, setPorDia] = useState<DiaLinha[]>([]);
   const [carregando, setCarregando] = useState(false);
+  const [aba, setAba] = useState<"grafico" | "areas">("grafico");
+  // Área selecionada no gráfico por data ("" = todas as áreas somadas).
+  const [areaSel, setAreaSel] = usePersistedState("rel-producao-area", "");
 
   useEffect(() => {
     fetch("/api/pcp/fluxos").then((r) => r.json()).then((j) => setFluxos((j.data ?? []).map((f: { id: string; nome: string }) => ({ id: f.id, nome: f.nome })))).catch(() => {});
@@ -51,12 +58,35 @@ export default function RelatorioProducaoPage() {
       const r = await fetch(`/api/pcp/relatorios/producao?${params.toString()}`);
       const j = await r.json();
       setAreas(j.data ?? []);
+      setPorDia(j.porDia ?? []);
     } finally { setCarregando(false); }
   }, [fluxoId, from, to]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const totalPecas = (areas ?? []).reduce((s, a) => s + a.pecas, 0);
   const totalPerda = (areas ?? []).reduce((s, a) => s + a.perda, 0);
+
+  // Série do gráfico por data: um ponto por dia do período (dias sem produção
+  // entram zerados p/ o eixo do tempo ser honesto), filtrada pela área escolhida.
+  const serieDias = useMemo(() => {
+    if (!from || !to) return [];
+    const mapa = new Map<string, { pecas: number; perda: number }>();
+    for (const d of porDia) {
+      if (areaSel && d.area !== areaSel) continue;
+      const cur = mapa.get(d.dia) ?? { pecas: 0, perda: 0 };
+      cur.pecas += d.pecas; cur.perda += d.perda;
+      mapa.set(d.dia, cur);
+    }
+    const out: { dia: string; label: string; producao: number; quebra: number }[] = [];
+    const ini = new Date(`${from}T12:00:00`);
+    const fim = new Date(`${to}T12:00:00`);
+    for (let t = ini.getTime(); t <= fim.getTime() && out.length < 190; t += 86400000) {
+      const iso = new Date(t).toISOString().slice(0, 10);
+      const v = mapa.get(iso);
+      out.push({ dia: iso, label: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, producao: v?.pecas ?? 0, quebra: v?.perda ?? 0 });
+    }
+    return out;
+  }, [porDia, areaSel, from, to]);
 
   return (
     <div>
@@ -86,9 +116,69 @@ export default function RelatorioProducaoPage() {
           <button onClick={carregar} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={carregando ? "w-4 h-4 animate-spin" : "w-4 h-4"} /> Atualizar
           </button>
+          {/* Totais do período, ao lado do Atualizar. */}
+          <div className="flex items-center gap-3 ml-2">
+            <div className="rounded-lg border border-border bg-card px-3 py-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Produzido</p>
+              <p className="text-sm font-bold tabular-nums text-foreground leading-tight">{n(totalPecas)} <span className="text-[10px] font-normal text-muted-foreground">pç</span></p>
+            </div>
+            <div className="rounded-lg border border-border bg-card px-3 py-1">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Perda</p>
+              <p className="text-sm font-bold tabular-nums text-amber-600 leading-tight">{n(totalPerda)} <span className="text-[10px] font-normal text-muted-foreground">pç · {pctPerda(totalPecas, totalPerda)}</span></p>
+            </div>
+          </div>
         </div>
 
-        {/* Área imprimível */}
+        {/* Abas: gráfico por data (1ª) × visão por área (2ª) */}
+        <div className="no-print border-b border-border">
+          <div className="flex gap-0">
+            {([["grafico", "Gráfico"], ["areas", "Por área"]] as const).map(([k, lbl]) => (
+              <button key={k} onClick={() => setAba(k)}
+                className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
+                  aba === k ? "border-cyan-600 text-cyan-700 dark:text-cyan-400" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── ABA GRÁFICO: colunas por data + linha de quebra, por área ─────── */}
+        {aba === "grafico" && (
+          <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2">
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+              {["", ...(areas ?? []).map((a) => a.area)].map((nome) => (
+                <button key={nome || "_todas"} onClick={() => setAreaSel(nome)}
+                  className={cn("px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                    areaSel === nome ? "bg-cyan-600 border-cyan-600 text-white" : "border-border text-muted-foreground hover:bg-muted")}>
+                  {nome || "Todas as áreas"}
+                </button>
+              ))}
+            </div>
+            {serieDias.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-10 text-center">Sem dados no período.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={340}>
+                <ComposedChart data={serieDias} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+                  <CartesianGrid vertical={false} stroke="#94a3b8" strokeOpacity={0.18} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={18} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v: number) => v.toLocaleString("pt-BR", { notation: v >= 10000 ? "compact" : "standard" })} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    cursor={{ fill: "#94a3b8", fillOpacity: 0.08 }}
+                    formatter={(v) => `${Number(v).toLocaleString("pt-BR")} pç`}
+                    labelFormatter={(l) => `Dia ${l}`}
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                  />
+                  <Legend formatter={(v: string) => <span style={{ color: "#64748b", fontSize: 12 }}>{v}</span>} />
+                  <Bar name="Produção" dataKey="producao" fill={COR_PRODUZIDO} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                  <Line name="Quebra" dataKey="quebra" stroke={COR_QUEBRA} strokeWidth={2} dot={{ r: 3, fill: COR_QUEBRA, strokeWidth: 0 }} activeDot={{ r: 4 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        )}
+
+        {/* ── ABA POR ÁREA (imprimível) ─────────────────────────────────────── */}
+        {aba === "areas" && (
         <div className="print-area space-y-4">
           {carregando && areas === null ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
@@ -98,18 +188,6 @@ export default function RelatorioProducaoPage() {
             </div>
           ) : (
             <>
-              {/* Total geral */}
-              <div className="flex flex-wrap gap-3">
-                <div className="rounded-xl border border-border bg-card px-4 py-3 min-w-[12rem]">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Produzido no período</p>
-                  <p className="text-xl font-bold tabular-nums text-foreground">{n(totalPecas)} <span className="text-xs font-normal text-muted-foreground">pç</span></p>
-                </div>
-                <div className="rounded-xl border border-border bg-card px-4 py-3 min-w-[12rem]">
-                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Perda</p>
-                  <p className="text-xl font-bold tabular-nums text-amber-600">{n(totalPerda)} <span className="text-xs font-normal text-muted-foreground">pç · {pctPerda(totalPecas, totalPerda)}</span></p>
-                </div>
-              </div>
-
               {/* Gráfico: produzido × perda por área (barras horizontais empilhadas). */}
               <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2" style={{ breakInside: "avoid" }}>
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Produção por área (pç)</p>
@@ -177,6 +255,7 @@ export default function RelatorioProducaoPage() {
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   );
