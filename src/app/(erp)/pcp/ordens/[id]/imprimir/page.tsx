@@ -7,6 +7,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import PrintButton from "@/components/shared/PrintButton";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
 
 type ProdutoItem = { itemId: string; quantidadePlanejada: string | number; quantidadeReal: string | number | null; unidadeId: string | null; item: { codigo: string; descricao: string; unidade: { sigla: string } | null }; unidade: { sigla: string } | null };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean };
@@ -43,6 +44,9 @@ export default function ImprimirOrdemPage() {
   const [consumo, setConsumo] = useState<ConsumoLinha[] | null>(null);
   const [movimentacao, setMovimentacao] = useState<MovLinha[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  // Grade de apontamento por veículo na folha: opcional (persistido por usuário).
+  // Ex.: 130 vagonetas viram 130 quadrinhos — nem toda área quer isso no papel.
+  const [comApontamento, setComApontamento] = usePersistedState("op-print-apontamento-veiculo", true);
 
   useEffect(() => {
     fetch(`/api/pcp/ordens/${id}`).then((r) => r.json()).then((j) => { if (j?.data) setOrdem(j.data); else setErro(j?.error ?? "Erro"); }).catch(() => setErro("Erro ao carregar"));
@@ -135,7 +139,13 @@ export default function ImprimirOrdemPage() {
       }`}</style>
       <div className="no-print mb-4 flex items-center justify-between gap-2">
         <Link href="/pcp/ordens" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="w-4 h-4" /> Voltar</Link>
-        <PrintButton />
+        <div className="flex items-center gap-4">
+          <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input type="checkbox" checked={comApontamento} onChange={(e) => setComApontamento(e.target.checked)} className="h-4 w-4 accent-cyan-600" />
+            Apontamento por veículo (quadros p/ marcar)
+          </label>
+          <PrintButton />
+        </div>
       </div>
 
       <div className="print-area mx-auto max-w-3xl bg-white text-gray-900 border border-gray-200 rounded-xl p-8">
@@ -256,7 +266,9 @@ export default function ImprimirOrdemPage() {
             </table>
 
             {/* Apontamento por veículo: um quadro por vagão p/ o chão de fábrica
-                marcar cada descarga — a meta do dia é em vagões descarregados. */}
+                marcar cada descarga — a meta do dia é em vagões descarregados.
+                Opcional pelo seletor da barra (comApontamento). */}
+            {comApontamento && (<>
             <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Apontamento por veículo (marque cada {veicSing(linhas[0].veiculo).toLowerCase()} descarregado)</p>
             <div className="mb-5 space-y-3">
               {linhas.map((m, i) => {
@@ -293,6 +305,7 @@ export default function ImprimirOrdemPage() {
                 );
               })}
             </div>
+            </>)}
           </>
           );
         })()}
