@@ -24,6 +24,7 @@ import {
   Wrench, Database, MessageCircle, Workflow, Boxes, FlaskConical, ListChecks, Calculator, BookOpen,
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
   Megaphone, Target, Map as MapIcon,
+  Receipt, Hash, Scale,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -144,6 +145,12 @@ export const ROUTES: RouteEntry[] = [
   { href: "/financeiro/recorrencias",              label: "Recorrências",            group: "Financeiro",     section: "Financeiro",       icon: Repeat,        keywords: "recorrência recorrente mensal aluguel salário fixa" },
   { href: "/financeiro/conciliacao",               label: "Conciliação (OFX)",       group: "Financeiro",     section: "Financeiro",       icon: FileCheck2,    keywords: "conciliação ofx extrato banco importar conciliar" },
   { href: "/fluxo-caixa",                          label: "Fluxo de Caixa",          group: "Financeiro",     section: "Financeiro",       icon: BarChart3 },
+
+  { href: "/fiscal/cadastros/configuracao",        label: "Configuração Fiscal",     group: "Fiscal",         section: "Cadastros",        icon: Settings2, keywords: "fiscal configuração crt regime tributário provedor focus nfe token ambiente homologação produção certificado csc nfce ibs cbs" },
+  { href: "/fiscal/cadastros/series",              label: "Séries Fiscais",          group: "Fiscal",         section: "Cadastros",        icon: Hash, keywords: "fiscal série numeração nota fiscal nfe nfce modelo ambiente próximo número" },
+  { href: "/fiscal/cadastros/grupos-tributacao",   label: "Grupos de Tributação",    group: "Fiscal",         section: "Cadastros",        icon: FolderTree, keywords: "fiscal grupo tributação gaveta fiscal produto família st" },
+  { href: "/fiscal/cadastros/operacoes",           label: "Operações Fiscais",       group: "Fiscal",         section: "Cadastros",        icon: Receipt, keywords: "fiscal operação natureza operação natop venda devolução remessa transferência bonificação" },
+  { href: "/fiscal/cadastros/regras",              label: "Regras de Tributação",    group: "Fiscal",         section: "Cadastros",        icon: Scale, keywords: "fiscal regra tributação cfop cst csosn icms ipi pis cofins alíquota st mva cclasstrib ibs cbs" },
 
   { href: "/rh/folhas",                            label: "Folhas de Pagamento",     group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "folha pagamento salário rh gestão de pessoas holerite inss fgts irrf colaborador" },
   { href: "/rh/diaristas",                         label: "Lançamento de Diárias",   group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "diária diarista diárias rh gestão de pessoas pagamento mão de obra produção fábrica turno" },

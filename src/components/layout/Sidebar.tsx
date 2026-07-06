@@ -68,6 +68,9 @@ import {
   CalendarClock,
   FileCheck2,
   Monitor,
+  Receipt,
+  Hash,
+  Scale,
   Megaphone,
   Target,
   Map as MapIcon,
@@ -310,6 +313,23 @@ const mainModules: Module[] = [
           { href: "/contabilidade/dre", label: "DRE", icon: BarChart3 },
           { href: "/contabilidade/balanco", label: "Balanço Patrimonial", icon: Calculator },
           { href: "/contabilidade/diagnostico", label: "Diagnóstico", icon: Activity },
+        ],
+      },
+    ],
+  },
+  {
+    id: "fiscal",
+    label: "Fiscal",
+    icon: Receipt,
+    sections: [
+      {
+        kind: "Cadastros",
+        items: [
+          { href: "/fiscal/cadastros/configuracao",      label: "Configuração Fiscal",  icon: Settings2 },
+          { href: "/fiscal/cadastros/series",            label: "Séries Fiscais",       icon: Hash },
+          { href: "/fiscal/cadastros/grupos-tributacao", label: "Grupos de Tributação", icon: FolderTree },
+          { href: "/fiscal/cadastros/operacoes",         label: "Operações Fiscais",    icon: FileText },
+          { href: "/fiscal/cadastros/regras",            label: "Regras de Tributação", icon: Scale },
         ],
       },
     ],

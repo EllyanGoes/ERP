@@ -61,6 +61,10 @@ const MODELOS_ESCOPADOS = new Set<string>([
   // como tag de origem). Mesma base de concorrentes/preços/mapa em qualquer empresa.
   "DiariaFolha", "DiariaGrupo", "DiariaItem",
   "Sequencia", "Filial",
+  // Módulo Fiscal (camada oficial isolada — docs/fiscal-prd.md). GrupoTributacao
+  // é cadastro compartilhado (sem empresaId); NotaFiscalItem/Evento escopam via nota.
+  "EmpresaFiscal", "SerieFiscal", "NotaFiscal", "InutilizacaoNumeracao",
+  "DocumentoFiscalRecebido", "OperacaoFiscal", "RegraTributacao",
 ])
 
 // Mapas montados uma vez a partir do dmmf:

@@ -180,6 +180,11 @@ model Cliente {
   longitude              Float?
   geoManual              Boolean                @default(false)
   geoReferencia          String?
+  // ── Fiscal: indicador de IE do destinatário (1 contribuinte, 2 isento,
+  // 9 não contribuinte) + código IBGE do município (cMun da NF-e) ───────────
+  indIE                  Int                    @default(9)
+  codigoMunicipioIBGE    String?
+  suframa                String?
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
   contasReceber          ContaReceber[]
@@ -1512,40 +1517,44 @@ model FormaPagamento {
 }
 
 model Fornecedor {
-  id              String                   @id @default(cuid())
-  tipoPessoa      TipoPessoa               @default(JURIDICA)
-  razaoSocial     String
-  nomeFantasia    String?
-  cpfCnpj         String?                  @unique
-  ie              String?
-  email           String?
-  telefone        String?
-  cep             String?
-  logradouro      String?
-  numero          String?
-  complemento     String?
-  bairro          String?
-  cidade          String?
-  estado          String?
-  ativo           Boolean                  @default(true)
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
-  celular         String?
-  contato         String?
-  observacoes     String?
-  contasPagar     ContaPagar[]
-  compensacoes    Compensacao[]
-  cotacoes        CotacaoFornecedor[]
-  contatos        FornecedorContato[]
-  pedidosCompra   PedidoCompra[]
-  produtos        ProdutoFornecedor[]
-  docEntradas     ConferenciaCompra[]
-  inventarioItens InventarioMaterialItem[]
-  recorrencias    Recorrencia[]
-  contasContabeis ContaContabil[]
-  empresa         Empresa?
-  criadoPor       String? // autoria: carimbado automaticamente pelo proxy de sessão
-  atualizadoPor   String? // autoria: última edição manual (proxy de sessão)
+  id                  String                   @id @default(cuid())
+  tipoPessoa          TipoPessoa               @default(JURIDICA)
+  razaoSocial         String
+  nomeFantasia        String?
+  cpfCnpj             String?                  @unique
+  ie                  String?
+  email               String?
+  telefone            String?
+  cep                 String?
+  logradouro          String?
+  numero              String?
+  complemento         String?
+  bairro              String?
+  cidade              String?
+  estado              String?
+  // Fiscal: indicador de IE (1 contribuinte, 2 isento, 9 não contribuinte) e
+  // código IBGE do município — usados na NF-e de devolução ao fornecedor.
+  indIE               Int                      @default(9)
+  codigoMunicipioIBGE String?
+  ativo               Boolean                  @default(true)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  celular             String?
+  contato             String?
+  observacoes         String?
+  contasPagar         ContaPagar[]
+  compensacoes        Compensacao[]
+  cotacoes            CotacaoFornecedor[]
+  contatos            FornecedorContato[]
+  pedidosCompra       PedidoCompra[]
+  produtos            ProdutoFornecedor[]
+  docEntradas         ConferenciaCompra[]
+  inventarioItens     InventarioMaterialItem[]
+  recorrencias        Recorrencia[]
+  contasContabeis     ContaContabil[]
+  empresa             Empresa?
+  criadoPor           String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor       String? // autoria: última edição manual (proxy de sessão)
 }
 
 model FornecedorContato {
@@ -1588,6 +1597,13 @@ model Item {
   unidadeMedida             UnidadeMedida              @default(UN)
   ncm                       String?
   cest                      String?
+  // ── Fiscal (módulo Fiscal — docs/fiscal-prd.md) ──────────────────────────
+  origem                    Int                        @default(0) // origem da mercadoria NF-e (0-8)
+  gtin                      String? // cEAN
+  gtinTributavel            String? // cEANTrib
+  exTipi                    String?
+  grupoTributacaoId         String? // "gaveta fiscal" — agrupa itens p/ RegraTributacao
+  grupoTributacao           GrupoTributacao?           @relation(fields: [grupoTributacaoId], references: [id])
   precoVenda                Decimal                    @db.Decimal(15, 2)
   precoVendaMedio           Decimal?                   @db.Decimal(15, 2) // média ponderada das vendas reais (base de valoração do acabado enquanto não há custo de produção)
   precoCusto                Decimal?                   @db.Decimal(15, 2)
@@ -3622,4 +3638,317 @@ model Lixeira {
   @@index([empresaId, tipo])
   @@index([createdAt])
   @@index([numero])
+}
+
+// ═══ Módulo Fiscal (camada oficial, ISOLADA do gerencial) ════════════════════
+// PRD: docs/fiscal-prd.md. A NF não movimenta estoque, não gera título e não
+// lança na contabilidade gerencial. Vínculos com pedidos/minutas são MANUAIS e
+// informativos. Impostos calculados automaticamente A PARTIR da NF (motor de
+// RegraTributacao), tudo revisável antes de transmitir.
+
+enum ModeloDocFiscal {
+  NFE
+  NFCE
+  NFSE
+  CTE
+  MDFE
+}
+
+enum StatusNotaFiscal {
+  EM_DIGITACAO // rascunho editável
+  ENVIANDO // número reservado, aguardando provedor (webhook/poll)
+  AUTORIZADA
+  REJEITADA // corrige e reenvia com o MESMO número
+  DENEGADA // número queimado (destinatário irregular)
+  CANCELADA
+  ERRO // falha de comunicação — retry pelo cron
+}
+
+// Configuração fiscal 1:1 com a Empresa (não poluir o model Empresa).
+// Tokens são secrets — NUNCA voltam no GET (mascarados, padrão IntegracaoPagamento).
+model EmpresaFiscal {
+  id                     String    @id @default(cuid())
+  empresaId              String    @unique @default("emp_tramontin")
+  crt                    Int       @default(3) // 1 Simples | 2 Simples excesso | 3 Regime Normal | 4 MEI
+  regimeApuracao         String? // LUCRO_REAL | LUCRO_PRESUMIDO | SIMPLES (informativo)
+  cnaePrincipal          String?
+  codigoMunicipioIBGE    String? // cMunFG
+  provedor               String    @default("FOCUS_NFE")
+  ambiente               String    @default("HOMOLOGACAO") // HOMOLOGACAO | PRODUCAO — por empresa
+  tokenHomologacao       String? // secret
+  tokenProducao          String? // secret
+  provedorEmpresaRef     String? // id da empresa no provedor
+  cscId                  String? // NFC-e
+  cscToken               String? // secret
+  certificadoValidade    DateTime? // A1 hospedado no provedor; aqui só metadados
+  certificadoStatus      String? // OK | VENCENDO | VENCIDO | AUSENTE
+  ultimoNsu              String    @default("0") // cursor da Distribuição DF-e
+  manifestacaoAutomatica Boolean   @default(true) // Ciência automática nos resumos
+  emiteIbsCbs            Boolean   @default(false) // liga grupos IBS/CBS (NT 2025.002)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  criadoPor              String?
+  atualizadoPor          String?
+}
+
+// Numeração fiscal NO BANCO (nunca no provedor — estratégia híbrida): reserva
+// via UPDATE ... RETURNING na mesma transação que cria a NotaFiscal
+// (src/lib/fiscal/numeracao.ts). Séries independentes por ambiente.
+model SerieFiscal {
+  id            String          @id @default(cuid())
+  empresaId     String          @default("emp_tramontin")
+  modelo        ModeloDocFiscal
+  serie         Int
+  ambiente      String // HOMOLOGACAO | PRODUCAO — nunca misturar numeração
+  proximoNumero Int             @default(1)
+  ativo         Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  criadoPor     String?
+  atualizadoPor String?
+
+  @@unique([empresaId, modelo, serie, ambiente])
+}
+
+// Documento fiscal emitido por nós (saída; ou entrada emitida por nós, ex.:
+// devolução a fornecedor). Destinatário e itens são SNAPSHOT (documento
+// imutável); FKs de cliente/pedido são informativas.
+model NotaFiscal {
+  id                String             @id @default(cuid()) // usado como `ref` idempotente no provedor
+  empresaId         String             @default("emp_tramontin")
+  modelo            ModeloDocFiscal    @default(NFE)
+  serie             Int
+  numero            Int
+  ambiente          String // gravado na emissão (auditoria)
+  tipoOperacao      Int                @default(1) // 0=entrada | 1=saída
+  finalidade        Int                @default(1) // 1 normal | 2 complementar | 3 ajuste | 4 devolução
+  operacaoFiscalId  String?
+  naturezaOperacao  String // texto natOp (snapshot)
+  status            StatusNotaFiscal   @default(EM_DIGITACAO)
+  chave             String?            @unique // 44 dígitos
+  protocolo         String?
+  dataEmissao       DateTime           @default(now())
+  dataAutorizacao   DateTime?
+  codigoRejeicao    String?
+  motivoRejeicao    String?
+  clienteId         String? // FK informativa
+  fornecedorId      String? // devolução de compra
+  destSnapshot      Json // nome, cpfCnpj, ie, indIEDest, endereço, cMun — imutável
+  vProdutos         Decimal            @default(0) @db.Decimal(15, 2)
+  vDesconto         Decimal            @default(0) @db.Decimal(15, 2)
+  vFrete            Decimal            @default(0) @db.Decimal(15, 2)
+  vSeguro           Decimal            @default(0) @db.Decimal(15, 2)
+  vOutro            Decimal            @default(0) @db.Decimal(15, 2)
+  vBcIcms           Decimal            @default(0) @db.Decimal(15, 2)
+  vIcms             Decimal            @default(0) @db.Decimal(15, 2)
+  vIcmsSt           Decimal            @default(0) @db.Decimal(15, 2)
+  vIpi              Decimal            @default(0) @db.Decimal(15, 2)
+  vPis              Decimal            @default(0) @db.Decimal(15, 2)
+  vCofins           Decimal            @default(0) @db.Decimal(15, 2)
+  vIbs              Decimal            @default(0) @db.Decimal(15, 2) // NT 2025.002
+  vCbs              Decimal            @default(0) @db.Decimal(15, 2) // NT 2025.002
+  vTotal            Decimal            @default(0) @db.Decimal(15, 2)
+  // Vínculos MANUAIS e informativos ("importar de..." / ação de vincular)
+  pedidoVendaId     String?
+  minutaId          String?
+  devolucaoId       String?
+  pedidoCompraId    String? // NF de entrada nossa (devolução de compra)
+  chaveReferenciada String? // NFref (devolução/complementar)
+  provedorRef       String?
+  xmlUrl            String? // @vercel/blob (guarda própria, 5 anos)
+  danfeUrl          String? // @vercel/blob
+  emailEnviadoEm    DateTime?
+  observacoes       String? // infCpl
+  itens             NotaFiscalItem[]
+  eventos           NotaFiscalEvento[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  criadoPor         String?
+  atualizadoPor     String?
+
+  @@unique([empresaId, modelo, serie, numero, ambiente])
+  @@index([empresaId, status])
+  @@index([pedidoVendaId])
+  @@index([clienteId])
+  @@index([dataEmissao])
+}
+
+model NotaFiscalItem {
+  id              String     @id @default(cuid())
+  notaFiscalId    String
+  ordem           Int // nItem
+  itemId          String? // FK informativa
+  codigo          String // snapshot
+  descricao       String
+  ncm             String
+  cest            String?
+  gtin            String     @default("SEM GTIN")
+  cfop            String
+  unidade         String
+  quantidade      Decimal    @db.Decimal(15, 4)
+  vUnitario       Decimal    @db.Decimal(15, 10) // NF-e aceita 10 casas
+  vDesconto       Decimal    @default(0) @db.Decimal(15, 2)
+  vTotal          Decimal    @db.Decimal(15, 2)
+  origem          Int        @default(0)
+  cstIcms         String? // CST ou CSOSN conforme CRT da empresa
+  aliqIcms        Decimal?   @db.Decimal(7, 4)
+  vBcIcms         Decimal?   @db.Decimal(15, 2)
+  vIcms           Decimal?   @db.Decimal(15, 2)
+  vIcmsSt         Decimal?   @db.Decimal(15, 2)
+  cstIpi          String?
+  vIpi            Decimal?   @db.Decimal(15, 2)
+  cstPis          String?
+  vPis            Decimal?   @db.Decimal(15, 2)
+  cstCofins       String?
+  vCofins         Decimal?   @db.Decimal(15, 2)
+  cClassTrib      String? // reforma tributária
+  vIbs            Decimal?   @db.Decimal(15, 2)
+  vCbs            Decimal?   @db.Decimal(15, 2)
+  tributosJson    Json? // detalhe completo (modBC, pRedBC, ST, gIBS/gCBS…)
+  regraAplicadaId String? // auditoria: qual RegraTributacao sugeriu
+  notaFiscal      NotaFiscal @relation(fields: [notaFiscalId], references: [id], onDelete: Cascade)
+
+  @@index([notaFiscalId])
+}
+
+model NotaFiscalEvento {
+  id            String     @id @default(cuid())
+  notaFiscalId  String
+  tipo          String // CANCELAMENTO | CARTA_CORRECAO
+  sequencia     Int        @default(1) // CC-e: até 20
+  status        String     @default("PENDENTE") // PENDENTE | REGISTRADO | REJEITADO
+  justificativa String? // cancelamento (mín. 15 chars)
+  correcao      String? // texto da CC-e
+  protocolo     String?
+  xmlUrl        String?
+  dataEvento    DateTime   @default(now())
+  criadoPor     String?
+  notaFiscal    NotaFiscal @relation(fields: [notaFiscalId], references: [id], onDelete: Cascade)
+
+  @@index([notaFiscalId])
+}
+
+model InutilizacaoNumeracao {
+  id            String          @id @default(cuid())
+  empresaId     String          @default("emp_tramontin")
+  modelo        ModeloDocFiscal @default(NFE)
+  serie         Int
+  numeroInicial Int
+  numeroFinal   Int
+  justificativa String
+  status        String          @default("PENDENTE") // PENDENTE | REGISTRADA | REJEITADA
+  protocolo     String?
+  xmlUrl        String?
+  createdAt     DateTime        @default(now())
+  criadoPor     String?
+  atualizadoPor String?
+
+  @@index([empresaId])
+}
+
+// Inbox do consultor de entrada (Distribuição DF-e + imports manuais).
+// Vínculo com pedido de compra é MANUAL — sem conferência, sem estoque.
+model DocumentoFiscalRecebido {
+  id             String    @id @default(cuid())
+  empresaId      String    @default("emp_tramontin") // destinatário (CNPJ da empresa)
+  chave          String
+  nsu            String?
+  tipoDocumento  String // NFE | RESUMO_NFE | EVENTO | CTE
+  origem         String    @default("DISTRIBUICAO") // DISTRIBUICAO | IMPORT_XML | IMPORT_CHAVE
+  emitenteCnpj   String
+  emitenteNome   String
+  emitenteUf     String?
+  fornecedorId   String? // sugestão por cpfCnpj — confirmação manual
+  dataEmissao    DateTime?
+  valorTotal     Decimal?  @db.Decimal(15, 2)
+  situacaoSefaz  String? // AUTORIZADA | CANCELADA (evento posterior)
+  manifestacao   String    @default("PENDENTE") // PENDENTE | CIENCIA | CONFIRMADA | DESCONHECIMENTO | NAO_REALIZADA
+  statusVinculo  String    @default("NOVA") // NOVA | VINCULADA | IGNORADA
+  xmlCompleto    Boolean   @default(false) // false = só resumo (Ciência libera o XML)
+  xmlUrl         String? // blob
+  pedidoCompraId String? // vínculo MANUAL
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  criadoPor      String?
+  atualizadoPor  String?
+
+  @@unique([empresaId, chave])
+  @@index([empresaId, statusVinculo])
+  @@index([fornecedorId])
+}
+
+// "Gaveta fiscal" do produto (padrão Protheus): agrupa itens com a mesma
+// tributação p/ não explodir regras por item. Cadastro COMPARTILHADO (sem empresaId).
+model GrupoTributacao {
+  id            String            @id @default(cuid())
+  codigo        String            @unique
+  nome          String // ex.: "Cimento (ST)", "Argamassa", "Revenda geral"
+  ativo         Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  criadoPor     String?
+  atualizadoPor String?
+  itens         Item[]
+  regras        RegraTributacao[]
+}
+
+// Natureza de operação FISCAL (eixo de saída). Separada do TipoOperacao/TES,
+// que segue exclusivo do eixo gerencial de entrada (TES nunca decide destino).
+model OperacaoFiscal {
+  id            String            @id @default(cuid())
+  empresaId     String            @default("emp_tramontin")
+  codigo        String // VENDA, DEVOLUCAO_VENDA, REMESSA, TRANSFERENCIA, BONIFICACAO…
+  descricao     String // vira natOp da nota
+  finalidade    Int               @default(1)
+  tipoOperacao  Int               @default(1) // 0=entrada | 1=saída
+  ativo         Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  criadoPor     String?
+  atualizadoPor String?
+  regras        RegraTributacao[]
+
+  @@unique([empresaId, codigo])
+}
+
+// Regra do motor de tributação: dimensões anuláveis (null = "qualquer") com
+// resolução por pontuação de especificidade — itemId +8, grupo +4, UF +2
+// (dentroEstado +1), tipoContribuinte +1; desempate por prioridade. O seed cria
+// uma regra geral por empresa/operação; sem regra aplicável a emissão FALHA
+// explicitamente (nunca chuta CST). Ver src/lib/fiscal/tributacao.ts.
+model RegraTributacao {
+  id                String           @id @default(cuid())
+  empresaId         String           @default("emp_tramontin") // o regime (CRT) da empresa muda tudo
+  operacaoFiscalId  String
+  ufDestino         String?
+  dentroEstado      Boolean?
+  tipoContribuinte  String? // CONTRIBUINTE | ISENTO | NAO_CONTRIBUINTE
+  grupoTributacaoId String?
+  itemId            String? // exceção pontual (vence o grupo)
+  cfop              String
+  cstIcms           String // CST (CRT 3) ou CSOSN (CRT 1) — validado contra EmpresaFiscal.crt
+  aliqIcms          Decimal?         @db.Decimal(7, 4)
+  pRedBcIcms        Decimal?         @db.Decimal(7, 4)
+  modBcIcms         Int?             @default(3)
+  temSt             Boolean          @default(false)
+  mvaSt             Decimal?         @db.Decimal(7, 4)
+  cstIpi            String?
+  aliqIpi           Decimal?         @db.Decimal(7, 4)
+  cstPis            String?
+  aliqPis           Decimal?         @db.Decimal(7, 4)
+  cstCofins         String?
+  aliqCofins        Decimal?         @db.Decimal(7, 4)
+  cClassTrib        String? // reforma: classificação tributária IBS/CBS
+  cBeneficio        String?
+  mensagemFiscal    String? // infAdProd/infCpl (fundamentação legal)
+  prioridade        Int              @default(0) // desempate manual
+  ativo             Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  criadoPor         String?
+  atualizadoPor     String?
+  operacaoFiscal    OperacaoFiscal   @relation(fields: [operacaoFiscalId], references: [id])
+  grupoTributacao   GrupoTributacao? @relation(fields: [grupoTributacaoId], references: [id])
+
+  @@index([empresaId, operacaoFiscalId])
 }

@@ -112,6 +112,25 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    // Módulo Fiscal — camada oficial de prestação de contas, ISOLADA dos
+    // módulos gerenciais (docs/fiscal-prd.md): NF não movimenta estoque,
+    // financeiro nem contabilidade; vínculos com pedidos são manuais.
+    key: "fiscal",
+    label: "Fiscal",
+    group: "Fiscal",
+    recursos: [
+      { key: "configuracao",      label: "Configuração Fiscal",   acoes: ["ver", "editar"] },
+      { key: "series",            label: "Séries Fiscais",        acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "grupos-tributacao", label: "Grupos de Tributação",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "operacoes",         label: "Operações Fiscais",     acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "regras",            label: "Regras de Tributação",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      // F1/F2 (emissor e consultores) — permissões já previstas
+      { key: "emissao",           label: "Emissão de NF",         acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "saida",             label: "Consultor de Saída",    acoes: ["ver", "editar"] },
+      { key: "entrada",           label: "Consultor de Entrada",  acoes: ["ver", "editar"] },
+    ],
+  },
+  {
     key: "pcm",
     label: "PCM",
     group: "Manutenção",
