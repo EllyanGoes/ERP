@@ -336,26 +336,38 @@ export default function OrdensBoardPage() {
     setCriando(true); setErro(null);
     const produtos = linhas.map((l) => ({ itemId: l.itemId, quantidade: numBR(l.quantidade), unidadeId: l.unidadeId || null }));
     try {
-      const r = novo.editId
-        ? await fetch(`/api/pcp/ordens/${novo.editId}`, {
-            method: "PATCH", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              produtos,
-              dataPrevistaInicio: localInputToIso(novo.inicio), dataPrevistaFim: localInputToIso(novo.fim),
-              responsavelColaboradorId: novo.responsavelId || null, observacao: novo.observacao || null,
-              planoTransporte: novo.planoTransporte ?? null,
-            }),
-          })
-        : await fetch("/api/pcp/ordens/area", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fluxoId, areaNodeId, data, produtos,
-              dataPrevistaInicio: localInputToIso(novo.inicio) ?? undefined, dataPrevistaFim: localInputToIso(novo.fim) ?? undefined,
-              responsavelColaboradorId: novo.responsavelId || undefined, observacao: novo.observacao || undefined,
-              planoTransporte: novo.planoTransporte ?? undefined,
-            }),
-          });
-      const j = await r.json();
+      const salvar = (permitirSaldoNegativo: boolean) =>
+        novo.editId
+          ? fetch(`/api/pcp/ordens/${novo.editId}`, {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                produtos,
+                dataPrevistaInicio: localInputToIso(novo.inicio), dataPrevistaFim: localInputToIso(novo.fim),
+                responsavelColaboradorId: novo.responsavelId || null, observacao: novo.observacao || null,
+                planoTransporte: novo.planoTransporte ?? null,
+                permitirSaldoNegativo,
+              }),
+            })
+          : fetch("/api/pcp/ordens/area", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fluxoId, areaNodeId, data, produtos,
+                dataPrevistaInicio: localInputToIso(novo.inicio) ?? undefined, dataPrevistaFim: localInputToIso(novo.fim) ?? undefined,
+                responsavelColaboradorId: novo.responsavelId || undefined, observacao: novo.observacao || undefined,
+                planoTransporte: novo.planoTransporte ?? undefined,
+              }),
+            });
+      let r = await salvar(false);
+      let j = await r.json();
+      // Estorno da edição deixaria saldo negativo (ex.: WIP já consumido adiante):
+      // mostra os itens e deixa salvar mesmo assim — mesmo fluxo do apontamento.
+      if (r.status === 422 && j?.codigo === "SALDO_NEGATIVO") {
+        const linhasNeg = (j.negativos ?? []).map((ng: { descricao?: string | null; itemId: string; saldoAtual: number; saldoDepois: number }) =>
+          `• ${ng.descricao ?? ng.itemId}: ${Number(ng.saldoAtual).toLocaleString("pt-BR")} → ${Number(ng.saldoDepois).toLocaleString("pt-BR")}`).join("\n");
+        if (!confirm(`O estorno deixa estoque NEGATIVO:\n\n${linhasNeg}\n\nSalvar mesmo assim? (o saldo se ajusta por inventário depois)`)) { setCriando(false); return; }
+        r = await salvar(true);
+        j = await r.json();
+      }
       if (!r.ok) throw new Error(j?.error ?? (novo.editId ? "Erro ao salvar OP" : "Erro ao criar OP"));
       setNovo(null);
       await loadOps();
@@ -575,8 +587,18 @@ export default function OrdensBoardPage() {
     if (!confirm(msg)) return;
     setErro(null);
     try {
-      const r = await fetch(`/api/pcp/ordens/${o.id}`, { method: "DELETE" });
-      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j?.error ?? "Não foi possível excluir"); }
+      let r = await fetch(`/api/pcp/ordens/${o.id}`, { method: "DELETE" });
+      let j = await r.json().catch(() => ({}));
+      // Estorno da exclusão deixaria saldo negativo (ex.: WIP já consumido adiante):
+      // mostra os itens e deixa excluir mesmo assim — mesmo fluxo do apontamento.
+      if (r.status === 422 && j?.codigo === "SALDO_NEGATIVO") {
+        const linhas = (j.negativos ?? []).map((ng: { descricao?: string | null; itemId: string; saldoAtual: number; saldoDepois: number }) =>
+          `• ${ng.descricao ?? ng.itemId}: ${Number(ng.saldoAtual).toLocaleString("pt-BR")} → ${Number(ng.saldoDepois).toLocaleString("pt-BR")}`).join("\n");
+        if (!confirm(`O estorno da ${o.numero} deixa estoque NEGATIVO:\n\n${linhas}\n\nExcluir mesmo assim? (o saldo se ajusta por inventário depois)`)) return;
+        r = await fetch(`/api/pcp/ordens/${o.id}?permitirSaldoNegativo=1`, { method: "DELETE" });
+        j = await r.json().catch(() => ({}));
+      }
+      if (!r.ok) throw new Error(j?.error ?? "Não foi possível excluir");
       await loadOps();
       loadEstoque();
       if (vista === "lista") await loadLista();

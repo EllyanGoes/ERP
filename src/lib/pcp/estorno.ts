@@ -11,10 +11,12 @@ type Tx = Prisma.TransactionClient;
  * TUDO que o apontamento gerou (estoque, movimentos, biomassa, custo-empresa,
  * contábil) e devolve a OP/etapas ao estado pré-apontamento, liberando-a para
  * reapontamento, edição ou exclusão. Lança SaldoNegativoError se desfazer as
- * ENTRADAS deixaria algum saldo negativo (ex.: PA da OP já vendido).
- * Usada pela rota de estorno e pela EDIÇÃO de OP já apontada (correção em cascata).
+ * ENTRADAS deixaria algum saldo negativo (ex.: PA da OP já vendido) — a menos
+ * que `permitirSaldoNegativo` (usuário confirmou no front, mesmo fluxo do
+ * apontamento; essencial p/ limpar OPs erradas quando o saldo JÁ está negativo).
+ * Usada pela rota de estorno e pela EDIÇÃO/EXCLUSÃO de OP já apontada.
  */
-export async function estornarApontamentoOrdem(tx: Tx, p: { ordemId: string; empresaId: string }): Promise<void> {
+export async function estornarApontamentoOrdem(tx: Tx, p: { ordemId: string; empresaId: string; permitirSaldoNegativo?: boolean }): Promise<void> {
   const num = (d: unknown) => parseFloat(String(d));
 
   // 1) Movimentos da OP (consumo de MP/WIP e produção): reverte o saldo por
@@ -35,6 +37,7 @@ export async function estornarApontamentoOrdem(tx: Tx, p: { ordemId: string; emp
   }
   const negativos: ItemSaldoNegativo[] = [];
   for (const [chave, efeito] of Array.from(efeitoPorChave.entries())) {
+    if (p.permitirSaldoNegativo) break;
     if (efeito <= 0) continue; // estorno só reduz saldo onde a OP deu ENTRADA líquida
     const [itemId, localId, dono] = chave.split("|");
     const est = await tx.estoqueItem.findFirst({

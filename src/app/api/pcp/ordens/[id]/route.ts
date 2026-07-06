@@ -97,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const updated = await prisma.$transaction(async (tx) => {
       if (editaProdutos && apontada) {
         // Correção de OP apontada: reverte primeiro tudo que o apontamento gerou.
-        await estornarApontamentoOrdem(tx, { ordemId: params.id, empresaId: ordem.empresaId });
+        await estornarApontamentoOrdem(tx, { ordemId: params.id, empresaId: ordem.empresaId, permitirSaldoNegativo: body.permitirSaldoNegativo === true });
         estornada = true;
       }
       if (editaProdutos) {
@@ -117,9 +117,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // movimentação de estoque) só pode ser excluída por ADMIN: o apontamento é
 // estornado em cascata (estoque, custos, contábil) na mesma transação e a OP
 // vai para a lixeira.
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("pcp");
   if (!auth.ok) return auth.response;
+
+  // Usuário confirmou estornar mesmo deixando saldo negativo (front intercepta o
+  // 422 SALDO_NEGATIVO, mostra os itens e reenvia com o flag na query).
+  const permitirSaldoNegativo = new URL(req.url).searchParams.get("permitirSaldoNegativo") === "1";
 
   try {
     const movs = await prisma.movimentacaoEstoque.count({ where: { ordemProducaoId: params.id } });
@@ -136,7 +140,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       if (!cheia) return;
       // ADMIN excluindo OP apontada: desfaz primeiro tudo que o apontamento gerou.
       if (movs > 0) {
-        await estornarApontamentoOrdem(tx, { ordemId: params.id, empresaId: cheia.empresaId });
+        await estornarApontamentoOrdem(tx, { ordemId: params.id, empresaId: cheia.empresaId, permitirSaldoNegativo });
       }
       await salvarNaLixeira(tx, {
         empresaId: cheia.empresaId,

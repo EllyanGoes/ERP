@@ -83,8 +83,23 @@ export default function OrdemDetalhePage() {
     if (!confirm("Estornar o apontamento desta OP? Desfaz a produção/consumo no estoque e na contabilidade e devolve a OP para LIBERADA.")) return;
     setBusy(true); setErro(null);
     try {
-      const r = await fetch(`/api/pcp/ordens/${id}/estornar`, { method: "POST" });
-      if (!r.ok) { const j = await r.json(); throw new Error(j?.error ?? "Erro"); }
+      const enviar = (permitirSaldoNegativo: boolean) =>
+        fetch(`/api/pcp/ordens/${id}/estornar`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ permitirSaldoNegativo }),
+        });
+      let r = await enviar(false);
+      let j = await r.json().catch(() => ({}));
+      // Estorno deixaria saldo negativo (ex.: WIP já consumido adiante): mostra os
+      // itens e deixa estornar mesmo assim — mesmo fluxo do apontamento.
+      if (r.status === 422 && j?.codigo === "SALDO_NEGATIVO") {
+        const linhas = (j.negativos ?? []).map((ng: { descricao?: string | null; itemId: string; saldoAtual: number; saldoDepois: number }) =>
+          `• ${ng.descricao ?? ng.itemId}: ${Number(ng.saldoAtual).toLocaleString("pt-BR")} → ${Number(ng.saldoDepois).toLocaleString("pt-BR")}`).join("\n");
+        if (!confirm(`O estorno deixa estoque NEGATIVO:\n\n${linhas}\n\nEstornar mesmo assim? (o saldo se ajusta por inventário depois)`)) { setBusy(false); return; }
+        r = await enviar(true);
+        j = await r.json().catch(() => ({}));
+      }
+      if (!r.ok) throw new Error(j?.error ?? "Erro");
       await load();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setBusy(false); }
   }
