@@ -23,6 +23,13 @@ const fmtQty = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits:
 const hoje = () => new Date().toISOString().slice(0, 10);
 const ESTOQUE_KINDS = new Set<NodeKind>(["ESTOQUE_INSUMO", "BUFFER_WIP", "ESTOCAGEM_PA"]);
 
+// Quantidade digitada é pt-BR: "." é milhar e "," é decimal ("1.740" → 1740; "19,5" → 19.5).
+const numBR = (v: string): number => {
+  if (!v.trim()) return 0;
+  const n = Number(v.trim().replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+
 export default function ChaoView() {
   const [dia, setDia] = useState(hoje());
   const [chao, setChao] = useState<ChaoData | null>(null);
@@ -89,12 +96,12 @@ export default function ChaoView() {
   }
 
   async function gerarOP() {
-    if (!opItem || !(Number(opQtd) > 0)) return;
+    if (!opItem || !(numBR(opQtd) > 0)) return;
     setBusy(true); setAviso(null);
     try {
       const j = await fetch("/api/pcp/chao/op", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ etapaNodeId: selId, itens: [{ itemId: opItem.id, quantidade: Number(opQtd) }] }),
+        body: JSON.stringify({ etapaNodeId: selId, itens: [{ itemId: opItem.id, quantidade: numBR(opQtd) }] }),
       }).then((r) => r.json());
       if (j.data?.criadas?.length) {
         setAviso(`OP ${j.data.criadas[0].numero} gerada.`);
@@ -263,7 +270,7 @@ function NodePanel({
             </div>
             <button
               onClick={onGerarOP}
-              disabled={busy || !opItem || !(Number(opQtd) > 0)}
+              disabled={busy || !opItem || !(numBR(opQtd) > 0)}
               className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-cyan-600 text-white px-3 py-2 text-sm font-medium hover:bg-cyan-700 disabled:opacity-50"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />} Gerar OP
