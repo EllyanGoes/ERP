@@ -5,7 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import type { BaseConsumo, CategoriaInsumo, EstadoWIP } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-const BASES: BaseConsumo[] = ["POR_MILHEIRO", "POR_UNIDADE", "POR_CICLO", "POR_VAGAO"];
+const BASES: BaseConsumo[] = ["POR_MILHEIRO", "POR_UNIDADE", "POR_CICLO", "POR_VAGAO", "POR_PALETE"];
 const CATEGORIAS: CategoriaInsumo[] = ["MATERIA_PRIMA", "MISTURA", "EMBALAGEM", "ENERGIA", "OUTRO"];
 const ESTADOS: EstadoWIP[] = ["UMIDO", "SECO", "QUEIMADO", "ACABADO"];
 

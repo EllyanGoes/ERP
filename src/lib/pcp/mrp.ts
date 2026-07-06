@@ -1,10 +1,11 @@
 // MRP — explosão de necessidades a partir do Plano Mestre (MPS) e da Engenharia (BOM).
 // v1: soma a demanda planejada por produto, explode os insumos da BOM e abate o saldo
-// de estoque. UOM de planejamento assumida em milheiro (POR_MILHEIRO ×1; POR_UNIDADE ×1000).
+// de estoque. UOM de planejamento assumida em milheiro (POR_MILHEIRO ×1; POR_UNIDADE ×1000;
+// POR_PALETE ×1000/peças·palete do produto).
 // Gross-up de perda por etapa fica como evolução (as perdas vivem no fluxo).
 
-import type { BaseConsumo } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { pecasPorPalete, baseFatorCusteioMilheiro } from "@/lib/pcp/unidades";
 
 export interface NecessidadeMrp {
   insumoItemId: string;
@@ -26,17 +27,6 @@ export interface ResultadoMrp {
   produtosPlanejados: number;
 }
 
-function baseFator(base: BaseConsumo): number {
-  // demanda assumida em milheiros
-  switch (base) {
-    case "POR_UNIDADE": return 1000;
-    case "POR_MILHEIRO":
-    case "POR_CICLO":
-    case "POR_VAGAO":
-    default:
-      return 1;
-  }
-}
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 export async function calcularMrp(periodo?: string): Promise<ResultadoMrp> {
@@ -55,7 +45,11 @@ export async function calcularMrp(periodo?: string): Promise<ResultadoMrp> {
   // 2. Engenharias (BOM) dos produtos demandados
   const engs = await prisma.engenhariaProduto.findMany({
     where: { itemId: { in: Array.from(demandaPorProduto.keys()) } },
-    include: { insumos: { include: { insumoItem: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } } },
+    include: {
+      // Unidades do PRODUTO p/ saber peças/palete (insumos com base POR_PALETE).
+      item: { select: { itemUnidades: { select: { fatorConversao: true, unidade: { select: { sigla: true } } } } } },
+      insumos: { include: { insumoItem: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } } } },
+    },
   });
   const engByItem = new Map(engs.map((e) => [e.itemId, e]));
 
@@ -68,6 +62,7 @@ export async function calcularMrp(periodo?: string): Promise<ResultadoMrp> {
       semEngenharia.push({ itemId, descricao, quantidade: r3(qtd) });
       continue;
     }
+    const ppp = pecasPorPalete(eng.item?.itemUnidades ?? []); // peças/palete do produto
     for (const ins of eng.insumos) {
       // Converte a quantidade da unidade da linha p/ a unidade-base do insumo.
       let fatorUnidade = 1;
@@ -78,7 +73,8 @@ export async function calcularMrp(periodo?: string): Promise<ResultadoMrp> {
           if (Number.isFinite(f) && f > 0) fatorUnidade = f;
         }
       }
-      const bruta = Number(ins.quantidade) * fatorUnidade * qtd * baseFator(ins.base);
+      // Demanda em milheiros → fator por milheiro (POR_UNIDADE ×1000; POR_PALETE 1000/pç·palete).
+      const bruta = Number(ins.quantidade) * fatorUnidade * qtd * baseFatorCusteioMilheiro(ins.base, ppp);
       const cur = bruto.get(ins.insumoItemId) ?? {
         codigo: ins.insumoItem.codigo,
         descricao: ins.insumoItem.descricao,

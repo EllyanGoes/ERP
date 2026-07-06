@@ -11,20 +11,19 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import PageHeader from "@/components/shared/PageHeader";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin, Search } from "lucide-react";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
 type Unidade = { id: string; sigla: string; isPrincipal?: boolean; fator?: number };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
-type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null };
+type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null; editConcluida?: boolean };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number; pecasPorPalete?: number | null };
 type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
-type Disp = { tipo: "MP" | "WIP"; rendimentoMilheiros?: number | null; saldoWipAnterior?: number; insumos?: { descricao: string; consumoPorMilheiro: number; disponivel: number }[]; aviso?: string };
 type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; local?: string | null; suficiente: boolean };
 // Linha da calculadora de perda: nº de vagões/vagonetas e a carga (peças) por produto
@@ -73,8 +72,19 @@ export default function OrdensBoardPage() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [areaNodeId, setAreaNodeId] = usePersistedState("pcp-area-node", "");
-  // Dia NÃO persiste de propósito: a tela sempre abre em hoje (pedido do Ellyan).
-  const [data, setData] = useState(hoje());
+  // Dia: abre em HOJE a cada sessão (pedido do Ellyan), mas sobrevive à remontagem
+  // da tela dentro da mesma sessão (sessionStorage) — apontar uma OP / trocar de aba
+  // não volta mais o filtro para hoje.
+  const [data, setDataState] = useState(() => {
+    if (typeof window !== "undefined") {
+      try { const v = window.sessionStorage.getItem("pcp-dia"); if (v) return v; } catch { /* ignore */ }
+    }
+    return hoje();
+  });
+  const setData = useCallback((d: string) => {
+    setDataState(d);
+    try { window.sessionStorage.setItem("pcp-dia", d); } catch { /* ignore */ }
+  }, []);
   // Popover do calendário de produção usado como filtro de dia.
   const [calAberto, setCalAberto] = useState(false);
   const calRef = useRef<HTMLDivElement>(null);
@@ -87,6 +97,16 @@ export default function OrdensBoardPage() {
   const [ops, setOps] = useState<BoardOP[]>([]);
   // Visão: board (kanban do dia) × lista (OPs da área agrupadas por dia, no mês).
   const [vista, setVista] = usePersistedState<"board" | "lista">("pcp-vista", "board");
+  // Busca de OPs (número, produto, responsável, observação) — filtra board e lista.
+  const [busca, setBusca] = useState("");
+  const filtrarOps = useCallback((list: BoardOP[]): BoardOP[] => {
+    const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const q = norm(busca.trim());
+    if (!q) return list;
+    return list.filter((o) =>
+      norm([o.numero, o.produto, o.produtoCodigo, o.responsavel, o.observacao, o.criadoPor,
+        ...o.produtos.flatMap((p) => [p.codigo, p.descricao])].filter(Boolean).join(" ")).includes(q));
+  }, [busca]);
   const [escopoLista, setEscopoLista] = usePersistedState<"area" | "todas">("pcp-escopo-lista", "area");
   const [soAbertas, setSoAbertas] = usePersistedState("pcp-so-abertas", false);
   // Lista: segundo agrupamento (dentro do dia) por área, na ordem do fluxo.
@@ -293,6 +313,11 @@ export default function OrdensBoardPage() {
     if (!novo) return;
     const linhas = novo.linhas.filter((l) => l.itemId && Number(l.quantidade) > 0);
     if (!linhas.length) { setErro("Adicione ao menos um produto com quantidade > 0"); return; }
+    // OP já apontada: salvar estorna o apontamento em cascata (estoque, custos,
+    // contábil) e a OP volta a pendente — o operador reaponta com os valores certos.
+    if (novo.editId && novo.editConcluida) {
+      if (!confirm(`A ${novo.editNumero ?? "OP"} já foi APONTADA.\n\nSalvar a correção vai ESTORNAR o apontamento (movimentos de estoque, custos e lançamentos contábeis revertidos em cascata) e a OP volta a pendente para reapontar.\n\nContinuar?`)) return;
+    }
     setCriando(true); setErro(null);
     const produtos = linhas.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade, unidadeId: l.unidadeId || null }));
     try {
@@ -319,6 +344,7 @@ export default function OrdensBoardPage() {
       if (!r.ok) throw new Error(j?.error ?? (novo.editId ? "Erro ao salvar OP" : "Erro ao criar OP"));
       setNovo(null);
       await loadOps();
+      if (novo.editConcluida) loadEstoque(); // estorno mexe nos saldos dos cards
       if (vista === "lista") await loadLista();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setCriando(false); }
   }
@@ -337,6 +363,7 @@ export default function OrdensBoardPage() {
         ? o.planoTransporte.map((r) => ({ veiculo: r.veiculo, nVagoes: String(r.nVagoes), cargas: r.cargas.map((c) => ({ itemId: c.itemId, pecas: String(c.pecas) })) }))
         : null,
       editCriadoPor: o.criadoPor, editResponsavelNome: o.responsavel,
+      editConcluida: o.etapaStatus === "CONCLUIDA",
     });
     setErro(null);
   }
@@ -375,6 +402,23 @@ export default function OrdensBoardPage() {
     if (apontar.produtos.some((p) => !String(apForm.perdas[p.itemId] ?? "").trim())) {
       setErro('Calcular a perda é obrigatório — informe a perda de cada produto (use "Calcular perda" ou digite 0).');
       return;
+    }
+    // Linha em unidade alternativa (PLT no Embalar): peças digitadas no campo de
+    // paletes multiplicam pelo fator (325 pç/palete → milhões no estoque). Real muito
+    // acima do planejado exige confirmação com a conversão à vista.
+    const suspeitos = apontar.produtos.filter((p) => {
+      if ((p.pecasPorUnidade ?? 1) <= 1) return false;
+      const real = Number(apForm.reais[p.itemId] ?? p.planejada) || 0;
+      const plan = Number(p.planejada) || 0;
+      return plan > 0 ? real > plan * 3 : real > 1000;
+    });
+    if (suspeitos.length) {
+      const linhas = suspeitos.map((p) => {
+        const real = Number(apForm.reais[p.itemId] ?? p.planejada) || 0;
+        const ppu = p.pecasPorUnidade ?? 1;
+        return `• ${p.descricao}: ${real.toLocaleString("pt-BR")} ${p.unidade ?? ""} = ${(real * ppu).toLocaleString("pt-BR")} peças (planejado ${Number(p.planejada).toLocaleString("pt-BR")} ${p.unidade ?? ""})`;
+      }).join("\n");
+      if (!confirm(`Confira a UNIDADE — o real está muito acima do planejado:\n\n${linhas}\n\nSe você contou PEÇAS, use a linha "ou por palete" (nº × pç/palete). Apontar mesmo assim?`)) return;
     }
     setApBusy(true); setErro(null);
     try {
@@ -422,9 +466,20 @@ export default function OrdensBoardPage() {
     }
     return acc;
   }
-  // Abre a calculadora: 1 linha "cheia" por produto da OP, capacidade do cadastro.
+  // Abre a calculadora: parte do plano de transporte salvo na OP (o operador só
+  // ajusta o nº de vagões descarregados); sem plano, 1 linha "cheia" por produto
+  // com a capacidade do cadastro.
   function abrirCalcPerda() {
     if (!apontar) return;
+    if (apontar.planoTransporte?.length) {
+      setCalcPerda({
+        rows: apontar.planoTransporte.map((r) => ({
+          veiculo: r.veiculo, nVagoes: String(r.nVagoes),
+          cargas: r.cargas.map((c) => ({ itemId: c.itemId, pecas: String(c.pecas) })),
+        })),
+      });
+      return;
+    }
     const rows: CargaVagaoRow[] = apontar.produtos.map((p) => ({
       veiculo: "VAGAO", nVagoes: "",
       cargas: [{ itemId: p.itemId, pecas: String(capacidades[p.itemId]?.VAGAO ?? "") }],
@@ -551,8 +606,19 @@ export default function OrdensBoardPage() {
           <button onClick={() => { loadOps(); if (vista === "lista") loadLista(); }} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={cn("w-4 h-4", (carregandoOps || carregandoLista) && "animate-spin")} /> Atualizar
           </button>
+          {/* Busca de OPs: filtra os cards do board e a lista (número/produto/responsável) */}
+          <div className="ml-auto relative">
+            <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar OP, produto…"
+              className="h-9 w-52 rounded-lg border border-border bg-card pl-8 pr-7 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500" />
+            {busca && (
+              <button type="button" onClick={() => setBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground" title="Limpar busca">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           {/* Toggle de visão: board (kanban) × lista (por dia) */}
-          <div className="ml-auto flex rounded-lg border border-border p-0.5 text-xs">
+          <div className="flex rounded-lg border border-border p-0.5 text-xs">
             <button type="button" onClick={() => setVista("board")}
               className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors", vista === "board" ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
               <LayoutGrid className="w-3.5 h-3.5" /> Board
@@ -602,7 +668,7 @@ export default function OrdensBoardPage() {
 
             {vista === "lista" ? (
               <ListaPorDia
-                ops={opsLista}
+                ops={filtrarOps(opsLista)}
                 carregando={carregandoLista}
                 mes={data}
                 escopo={escopoLista} onEscopo={setEscopoLista}
@@ -650,15 +716,17 @@ export default function OrdensBoardPage() {
                     <Factory className="w-6 h-6 text-cyan-400 mb-1.5" />
                     <p className="text-xs text-muted-foreground">Nenhuma OP hoje. Crie em &quot;Nova OP&quot;.</p>
                   </div>
+                ) : filtrarOps(ops).length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-8 text-center">Nenhuma OP encontrada para &quot;{busca}&quot;.</p>
                 ) : (
-                  ops.map((o) => {
+                  filtrarOps(ops).map((o) => {
                     const concl = o.etapaStatus === "CONCLUIDA";
                     return (
                       <div key={o.id} className={cn("rounded-lg border bg-card p-2.5", concl ? "border-success/30" : "border-border")}>
                         <div className="flex items-center justify-between gap-2">
                           <button onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600">{o.numero}</button>
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {!concl && <button onClick={(e) => { e.stopPropagation(); abrirEdicao(o); }} className="text-muted-foreground hover:text-cyan-600" title="Editar OP"><Pencil className="w-3.5 h-3.5" /></button>}
+                            <button onClick={(e) => { e.stopPropagation(); abrirEdicao(o); }} className="text-muted-foreground hover:text-cyan-600" title={concl ? "Corrigir OP (estorna o apontamento)" : "Editar OP"}><Pencil className="w-3.5 h-3.5" /></button>
                             <Link href={`/pcp/ordens/${o.id}/imprimir`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
                             {!concl && <button onClick={(e) => { e.stopPropagation(); excluirOP(o); }} className="text-muted-foreground hover:text-danger" title="Excluir OP"><Trash2 className="w-3.5 h-3.5" /></button>}
                             <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
@@ -729,6 +797,11 @@ export default function OrdensBoardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setNovo(null)}>
           <div className="w-full max-w-4xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">{novo.editId ? <Pencil className="w-5 h-5 text-cyan-600" /> : <Plus className="w-5 h-5 text-cyan-600" />} {novo.editId ? `Editar OP ${novo.editNumero ?? ""}` : `Nova OP — ${area.centroTrabalho ?? area.nome}`}</h2>
+            {novo.editConcluida && (
+              <p className="mt-2 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                Esta OP já foi <b>apontada</b>. Ao salvar, o apontamento é <b>estornado em cascata</b> (movimentos de estoque, custos e lançamentos contábeis revertidos) e a OP volta a pendente para reapontar com os valores corrigidos.
+              </p>
+            )}
             {area.produtos.length === 0 ? (
               <p className="text-sm text-muted-foreground mt-3">Esta etapa não tem produto configurado. Defina o produto de saída da operação no editor do fluxo.</p>
             ) : (
@@ -861,7 +934,14 @@ export default function OrdensBoardPage() {
                     <div className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 items-center">
                       <span className="text-xs text-foreground truncate">{pr.descricao}{pr.unidade ? <span className="text-muted-foreground"> ({pr.unidade})</span> : null}</span>
                       <span className="text-xs text-muted-foreground text-right tabular-nums">{Number(pr.planejada)}</span>
-                      <input inputMode="decimal" value={apForm.reais[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, reais: { ...p.reais, [pr.itemId]: e.target.value } }))} className="h-8 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                      <div className="flex flex-col items-end">
+                        <input inputMode="decimal" value={apForm.reais[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, reais: { ...p.reais, [pr.itemId]: e.target.value } }))} className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                        {/* Linha em PLT/alternativa: mostra o equivalente em peças p/ o operador
+                            perceber quando digitou peças num campo de paletes. */}
+                        {(pr.pecasPorUnidade ?? 1) > 1 && (Number(apForm.reais[pr.itemId]) || 0) > 0 && (
+                          <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {((Number(apForm.reais[pr.itemId]) || 0) * (pr.pecasPorUnidade ?? 1)).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} pç</span>
+                        )}
+                      </div>
                       <div className="flex flex-col items-end">
                         <input inputMode="decimal" title="Perda em peças" value={apForm.perdas[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, perdas: { ...p.perdas, [pr.itemId]: e.target.value } }))} className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-amber-500" />
                         {pct && <span className="text-[10px] text-amber-600 tabular-nums leading-tight">{pct}</span>}
@@ -1225,7 +1305,7 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
                   {concl ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
                 </span>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {!concl && <button onClick={() => onEditar(o)} className="text-muted-foreground hover:text-cyan-600" title="Editar OP"><Pencil className="w-3.5 h-3.5" /></button>}
+                  <button onClick={() => onEditar(o)} className="text-muted-foreground hover:text-cyan-600" title={concl ? "Corrigir OP (estorna o apontamento)" : "Editar OP"}><Pencil className="w-3.5 h-3.5" /></button>
                   <Link href={`/pcp/ordens/${o.id}/imprimir`} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
                   {!concl && <button onClick={() => onExcluir(o)} className="text-muted-foreground hover:text-danger" title="Excluir OP"><Trash2 className="w-3.5 h-3.5" /></button>}
                   {!concl && (

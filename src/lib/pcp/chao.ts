@@ -5,7 +5,7 @@
 // - gerarOPsDoDia: rotina diária — gera as OPs do dia conforme o planejado.
 
 import { prisma } from "@/lib/prisma";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph, FlowNode } from "@/lib/pcp/types";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
@@ -99,7 +99,7 @@ export async function criarOPParaProduto(opts: {
       update: { ultimo: { increment: 1 } },
       create: { prefixo: "OP", ultimo: 1 },
     });
-    const numero = generateDocNumber("OP", seq.ultimo);
+    const numero = generateSimpleDocNumber("OP", seq.ultimo);
     return tx.ordemProducao.create({
       data: {
         numero,

@@ -7,6 +7,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
 import { sanitizarPlanoTransporte } from "@/lib/pcp/plano-transporte";
+import { estornarApontamentoOrdem } from "@/lib/pcp/estorno";
+import { respostaSaldoNegativo, SaldoNegativoError } from "@/lib/estoque-guard";
 
 const STATUS: StatusOrdemProducao[] = ["RASCUNHO", "LIBERADA", "EM_PRODUCAO", "CONCLUIDA", "CANCELADA"];
 
@@ -50,7 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const ordem = await prisma.ordemProducao.findUnique({
     where: { id: params.id },
-    select: { id: true, status: true, etapas: { select: { status: true } } },
+    select: { id: true, status: true, empresaId: true, etapas: { select: { status: true } } },
   });
   if (!ordem) return NextResponse.json({ error: "Ordem não encontrada" }, { status: 404 });
 
@@ -69,12 +71,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   // Config do "Planejar por transporte" (vagões): persiste/limpa junto com a edição.
   if ("planoTransporte" in body) data.planoTransporte = sanitizarPlanoTransporte(body.planoTransporte) ?? Prisma.DbNull;
 
-  // Edição dos produtos (substitui as linhas). Só permitida enquanto a OP não foi apontada/concluída.
+  // Edição dos produtos (substitui as linhas). OP já apontada/concluída também pode
+  // ser corrigida: o apontamento anterior é ESTORNADO em cascata (movimentos de
+  // estoque, custo-empresa, biomassa e contábil) dentro da mesma transação, e a OP
+  // volta a pendente para reapontar com os valores corrigidos.
   const editaProdutos = Array.isArray(body.produtos);
+  const apontada = ordem.status === "CONCLUIDA" || ordem.etapas.some((e) => e.status === "CONCLUIDA");
   let produtos: { itemId: string; quantidade: number; unidadeId: string | null }[] = [];
   if (editaProdutos) {
-    if (ordem.status === "CONCLUIDA" || ordem.status === "CANCELADA" || ordem.etapas.some((e) => e.status === "CONCLUIDA")) {
-      return NextResponse.json({ error: "OP já apontada/concluída — não dá para editar os produtos." }, { status: 400 });
+    if (ordem.status === "CANCELADA") {
+      return NextResponse.json({ error: "OP cancelada — não dá para editar os produtos." }, { status: 400 });
     }
     produtos = (body.produtos as Record<string, unknown>[])
       .map((p) => ({ itemId: typeof p.itemId === "string" ? p.itemId : "", quantidade: Number(p.quantidade), unidadeId: typeof p.unidadeId === "string" && p.unidadeId ? p.unidadeId : null }))
@@ -87,15 +93,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   try {
+    let estornada = false;
     const updated = await prisma.$transaction(async (tx) => {
+      if (editaProdutos && apontada) {
+        // Correção de OP apontada: reverte primeiro tudo que o apontamento gerou.
+        await estornarApontamentoOrdem(tx, { ordemId: params.id, empresaId: ordem.empresaId });
+        estornada = true;
+      }
       if (editaProdutos) {
         await tx.ordemProducaoProdutoItem.deleteMany({ where: { ordemProducaoId: params.id } });
         await tx.ordemProducaoProdutoItem.createMany({ data: produtos.map((p) => ({ ordemProducaoId: params.id, itemId: p.itemId, quantidadePlanejada: p.quantidade, unidadeId: p.unidadeId })) });
       }
       return tx.ordemProducao.update({ where: { id: params.id }, data });
-    });
-    return NextResponse.json({ data: updated });
-  } catch {
+    }, { timeout: 60000 });
+    return NextResponse.json({ data: updated, estornada });
+  } catch (e) {
+    if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
     return NextResponse.json({ error: "Não foi possível atualizar." }, { status: 400 });
   }
 }

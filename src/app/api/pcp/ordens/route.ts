@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import type { KindNo, EstadoWIP, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 import { snapshotEtapas } from "@/lib/pcp/snapshot-etapas";
 import type { FlowGraph } from "@/lib/pcp/types";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       update: { ultimo: { increment: 1 } },
       create: { prefixo: "OP", ultimo: 1 },
     });
-    const numero = generateDocNumber("OP", seq.ultimo);
+    const numero = generateSimpleDocNumber("OP", seq.ultimo);
     return tx.ordemProducao.create({
       data: {
         numero,
