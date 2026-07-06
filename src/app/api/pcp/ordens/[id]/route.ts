@@ -113,17 +113,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-// DELETE — remove a ordem (cascade nas etapas e consumos)
+// DELETE — remove a ordem (cascade nas etapas e consumos). OP já apontada (tem
+// movimentação de estoque) só pode ser excluída por ADMIN: o apontamento é
+// estornado em cascata (estoque, custos, contábil) na mesma transação e a OP
+// vai para a lixeira.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("pcp");
   if (!auth.ok) return auth.response;
 
   try {
-    // OP já apontada tem movimentações de estoque; excluir deixaria o saldo
-    // alterado sem a OP (movimentação vira órfã). Bloqueia — precisa estornar antes.
     const movs = await prisma.movimentacaoEstoque.count({ where: { ordemProducaoId: params.id } });
-    if (movs > 0) {
-      return NextResponse.json({ error: "OP já apontada (tem movimentação de estoque). Estorne o apontamento antes de excluir." }, { status: 409 });
+    if (movs > 0 && auth.session.perfil !== "ADMIN") {
+      return NextResponse.json({ error: "OP já apontada (tem movimentação de estoque). Só um administrador pode excluí-la (o apontamento é estornado em cascata)." }, { status: 403 });
     }
     // Etapas (ItemOrdemProducao) e consumos têm cascade; snapshot na LIXEIRA e
     // remove a OP (tx: snapshot faz rollback se o delete falhar).
@@ -132,21 +133,25 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
         where: { id: params.id },
         include: { etapas: true, produtoItens: true, consumos: true, item: { select: { codigo: true, descricao: true } } },
       });
-      if (cheia) {
-        await salvarNaLixeira(tx, {
-          empresaId: cheia.empresaId,
-          tipo: "ORDEM_PRODUCAO",
-          origemId: cheia.id,
-          numero: cheia.numero,
-          descricao: `${cheia.status} · ${cheia.item?.descricao ?? ""} · ${cheia.etapas.length} etapa(s)`,
-          snapshot: cheia,
-          apagadoPor: auth.session.nome,
-        });
+      if (!cheia) return;
+      // ADMIN excluindo OP apontada: desfaz primeiro tudo que o apontamento gerou.
+      if (movs > 0) {
+        await estornarApontamentoOrdem(tx, { ordemId: params.id, empresaId: cheia.empresaId });
       }
+      await salvarNaLixeira(tx, {
+        empresaId: cheia.empresaId,
+        tipo: "ORDEM_PRODUCAO",
+        origemId: cheia.id,
+        numero: cheia.numero,
+        descricao: `${cheia.status} · ${cheia.item?.descricao ?? ""} · ${cheia.etapas.length} etapa(s)`,
+        snapshot: cheia,
+        apagadoPor: auth.session.nome,
+      });
       await tx.ordemProducao.delete({ where: { id: params.id } });
-    });
+    }, { timeout: 60000 });
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (e) {
+    if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
     return NextResponse.json({ error: "Não foi possível excluir." }, { status: 400 });
   }
 }

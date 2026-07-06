@@ -59,6 +59,21 @@ const localInputToIso = (v: string): string | null => {
   const d = new Date(v);
   return isNaN(d.getTime()) ? null : d.toISOString();
 };
+// Quantidades digitadas são pt-BR: "." é MILHAR e "," é DECIMAL ("1.740" → 1740;
+// "19,5" → 19.5). Number() cru lia "5.354" como 5,354 e rejeitava vírgula — foi o
+// que gerou apontamentos milhares de vezes maiores no Embalar.
+const numBR = (v: string | number | null | undefined): number => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (v == null || !String(v).trim()) return 0;
+  const n = Number(String(v).trim().replace(/\./g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+};
+// Número → string de input pt-BR (vírgula decimal, SEM ponto de milhar — inequívoco).
+const fmtQtd = (v: string | number | null | undefined): string => {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return "";
+  return n.toLocaleString("pt-BR", { maximumFractionDigits: 3, useGrouping: false });
+};
 
 export default function OrdensBoardPage() {
   useTabTitle("Fluxo de Produção");
@@ -140,12 +155,12 @@ export default function OrdensBoardPage() {
   function aplicarPorPalete(pr: ProdutoOP, paletesStr: string, pcPltStr: string) {
     setApForm((f) => {
       const next = { ...f, paletes: { ...f.paletes, [pr.itemId]: paletesStr }, pcPlt: { ...f.pcPlt, [pr.itemId]: pcPltStr } };
-      const paletes = Number(paletesStr.replace(",", "."));
-      const pcPlt = Number(pcPltStr.replace(",", "."));
-      if (Number.isFinite(paletes) && paletes > 0 && Number.isFinite(pcPlt) && pcPlt > 0) {
+      const paletes = numBR(paletesStr);
+      const pcPlt = numBR(pcPltStr);
+      if (paletes > 0 && pcPlt > 0) {
         const totalPecas = paletes * pcPlt;
         const real = Math.round((totalPecas / (pr.pecasPorUnidade && pr.pecasPorUnidade > 0 ? pr.pecasPorUnidade : 1)) * 1000) / 1000;
-        next.reais = { ...f.reais, [pr.itemId]: String(real) };
+        next.reais = { ...f.reais, [pr.itemId]: fmtQtd(real) };
       }
       return next;
     });
@@ -266,8 +281,8 @@ export default function OrdensBoardPage() {
   useEffect(() => {
     if (!novo || !fluxoId || !areaNodeId) { setConsumo(null); return; }
     const produtos = novo.linhas
-      .filter((l) => l.itemId && Number(l.quantidade) > 0)
-      .map((l) => ({ itemId: l.itemId, quantidade: Number(l.quantidade), unidadeId: l.unidadeId || null }));
+      .filter((l) => l.itemId && numBR(l.quantidade) > 0)
+      .map((l) => ({ itemId: l.itemId, quantidade: numBR(l.quantidade), unidadeId: l.unidadeId || null }));
     if (!produtos.length) { setConsumo(null); return; }
     setCarregandoConsumo(true);
     const ctrl = new AbortController();
@@ -284,7 +299,7 @@ export default function OrdensBoardPage() {
   useEffect(() => {
     if (!apontar || !fluxoId || !areaNodeId) { setConsumoAp(null); return; }
     const produtos = apontar.produtos
-      .map((p) => ({ itemId: p.itemId, quantidade: Number(apForm.reais[p.itemId] ?? p.planejada), unidadeId: p.unidadeId }))
+      .map((p) => ({ itemId: p.itemId, quantidade: numBR(apForm.reais[p.itemId] ?? p.planejada), unidadeId: p.unidadeId }))
       .filter((p) => p.itemId && p.quantidade > 0);
     if (!produtos.length) { setConsumoAp(null); return; }
     setCarregandoConsumoAp(true);
@@ -311,7 +326,7 @@ export default function OrdensBoardPage() {
 
   async function criarOp() {
     if (!novo) return;
-    const linhas = novo.linhas.filter((l) => l.itemId && Number(l.quantidade) > 0);
+    const linhas = novo.linhas.filter((l) => l.itemId && numBR(l.quantidade) > 0);
     if (!linhas.length) { setErro("Adicione ao menos um produto com quantidade > 0"); return; }
     // OP já apontada: salvar estorna o apontamento em cascata (estoque, custos,
     // contábil) e a OP volta a pendente — o operador reaponta com os valores certos.
@@ -319,7 +334,7 @@ export default function OrdensBoardPage() {
       if (!confirm(`A ${novo.editNumero ?? "OP"} já foi APONTADA.\n\nSalvar a correção vai ESTORNAR o apontamento (movimentos de estoque, custos e lançamentos contábeis revertidos em cascata) e a OP volta a pendente para reapontar.\n\nContinuar?`)) return;
     }
     setCriando(true); setErro(null);
-    const produtos = linhas.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade, unidadeId: l.unidadeId || null }));
+    const produtos = linhas.map((l) => ({ itemId: l.itemId, quantidade: numBR(l.quantidade), unidadeId: l.unidadeId || null }));
     try {
       const r = novo.editId
         ? await fetch(`/api/pcp/ordens/${novo.editId}`, {
@@ -354,7 +369,7 @@ export default function OrdensBoardPage() {
     setNovo({
       editId: o.id, editNumero: o.numero,
       linhas: o.produtos.length
-        ? o.produtos.map((p) => ({ itemId: p.itemId, quantidade: String(Number(p.planejada) || ""), unidadeId: p.unidadeId ?? "" }))
+        ? o.produtos.map((p) => ({ itemId: p.itemId, quantidade: Number(p.planejada) ? fmtQtd(p.planejada) : "", unidadeId: p.unidadeId ?? "" }))
         : [{ itemId: area?.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area?.produtos[0]) }],
       inicio: toLocalInput(o.inicioPrevisto), fim: toLocalInput(o.fimPrevisto),
       responsavelId: o.responsavelColaboradorId ?? "", observacao: o.observacao ?? "",
@@ -370,11 +385,11 @@ export default function OrdensBoardPage() {
 
   async function salvarSaldoInicial() {
     if (!saldoIni) return;
-    if (!saldoIni.itemId || Number(saldoIni.quantidade) <= 0) { setErro("Informe produto e quantidade > 0"); return; }
+    if (!saldoIni.itemId || numBR(saldoIni.quantidade) <= 0) { setErro("Informe produto e quantidade > 0"); return; }
     // Converte para a unidade-base (peças) pelo fator da unidade escolhida.
     const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
     const fator = us.find((u) => u.id === saldoIni.unidadeId)?.fator ?? 1;
-    const quantidadeBase = Number(saldoIni.quantidade) * fator;
+    const quantidadeBase = numBR(saldoIni.quantidade) * fator;
     setSalvandoSaldo(true); setErro(null);
     try {
       const r = await fetch("/api/pcp/ordens/area/saldo-inicial-wip", {
@@ -392,12 +407,17 @@ export default function OrdensBoardPage() {
 
   async function concluir() {
     if (!apontar) return;
-    const itens = apontar.produtos.map((p) => ({
-      itemId: p.itemId,
-      quantidadeReal: apForm.reais[p.itemId] ?? String(p.planejada),
-      qtdPerda: apForm.perdas[p.itemId] || undefined, // perda por produto (peças)
-    }));
-    if (!itens.some((i) => Number(i.quantidadeReal) > 0)) { setErro("Informe a quantidade produzida"); return; }
+    // Quantidades parseadas em pt-BR (numBR) e enviadas como NÚMERO — o servidor
+    // não pode receber "5,354"/"5.354" ambíguo.
+    const itens = apontar.produtos.map((p) => {
+      const perdaStr = String(apForm.perdas[p.itemId] ?? "").trim();
+      return {
+        itemId: p.itemId,
+        quantidadeReal: numBR(apForm.reais[p.itemId] ?? p.planejada),
+        qtdPerda: perdaStr ? numBR(perdaStr) : undefined, // perda por produto (peças)
+      };
+    });
+    if (!itens.some((i) => i.quantidadeReal > 0)) { setErro("Informe a quantidade produzida"); return; }
     // Perda é obrigatória: cada produto precisa ter a perda informada (0 é válido; vazio não).
     if (apontar.produtos.some((p) => !String(apForm.perdas[p.itemId] ?? "").trim())) {
       setErro('Calcular a perda é obrigatório — informe a perda de cada produto (use "Calcular perda" ou digite 0).');
@@ -408,13 +428,13 @@ export default function OrdensBoardPage() {
     // acima do planejado exige confirmação com a conversão à vista.
     const suspeitos = apontar.produtos.filter((p) => {
       if ((p.pecasPorUnidade ?? 1) <= 1) return false;
-      const real = Number(apForm.reais[p.itemId] ?? p.planejada) || 0;
+      const real = numBR(apForm.reais[p.itemId] ?? p.planejada);
       const plan = Number(p.planejada) || 0;
       return plan > 0 ? real > plan * 3 : real > 1000;
     });
     if (suspeitos.length) {
       const linhas = suspeitos.map((p) => {
-        const real = Number(apForm.reais[p.itemId] ?? p.planejada) || 0;
+        const real = numBR(apForm.reais[p.itemId] ?? p.planejada);
         const ppu = p.pecasPorUnidade ?? 1;
         return `• ${p.descricao}: ${real.toLocaleString("pt-BR")} ${p.unidade ?? ""} = ${(real * ppu).toLocaleString("pt-BR")} peças (planejado ${Number(p.planejada).toLocaleString("pt-BR")} ${p.unidade ?? ""})`;
       }).join("\n");
@@ -427,7 +447,7 @@ export default function OrdensBoardPage() {
           method: "POST", headers: { "Content-Type": "application/json" },
           // qtdPerda (etapa) fica a cargo do servidor (soma das perdas por produto); mantém
           // apForm.perda como fallback p/ etapas sem calculadora (1 produto).
-          body: JSON.stringify({ itens, qtdPerda: apForm.perda || undefined, biomassaKg: apForm.biomassa || undefined, vagoes: apForm.vagoes || undefined, vagonetas: apForm.vagonetas || undefined, permitirSaldoNegativo }),
+          body: JSON.stringify({ itens, qtdPerda: apForm.perda.trim() ? numBR(apForm.perda) : undefined, biomassaKg: apForm.biomassa.trim() ? numBR(apForm.biomassa) : undefined, vagoes: apForm.vagoes || undefined, vagonetas: apForm.vagonetas || undefined, permitirSaldoNegativo }),
         });
       let r = await enviar(false);
       let j = await r.json();
@@ -451,16 +471,15 @@ export default function OrdensBoardPage() {
   // ── Calculadora de perda (Embalar) ───────────────────────────────────────────
   // Peças apontadas de um produto = real (na unidade) × peças por unidade (PLT→peças).
   function apontadoPecas(p: ProdutoOP): number {
-    const real = Number(apForm.reais[p.itemId] ?? p.planejada) || 0;
-    return real * (p.pecasPorUnidade ?? 1);
+    return numBR(apForm.reais[p.itemId] ?? p.planejada) * (p.pecasPorUnidade ?? 1);
   }
   // Descarregado (peças) por produto, somando as linhas de vagão (nº × peças/vagão).
   function descarregadoPorProduto(rows: CargaVagaoRow[]): Record<string, number> {
     const acc: Record<string, number> = {};
     for (const row of rows) {
-      const n = Number(row.nVagoes) || 0;
+      const n = numBR(row.nVagoes);
       for (const c of row.cargas) {
-        const pc = Number(c.pecas) || 0;
+        const pc = numBR(c.pecas);
         if (c.itemId && n > 0 && pc > 0) acc[c.itemId] = (acc[c.itemId] ?? 0) + n * pc;
       }
     }
@@ -495,11 +514,11 @@ export default function OrdensBoardPage() {
       const d = desc[p.itemId];
       if (d == null) continue;
       const perda = Math.max(0, Math.round((d - apontadoPecas(p)) * 1000) / 1000);
-      perdas[p.itemId] = String(perda);
+      perdas[p.itemId] = fmtQtd(perda);
     }
     // Total de vagões/vagonetas descarregados (soma o nº de cada linha por tipo).
     const somaVeic = (v: CargaVagaoRow["veiculo"]) =>
-      calcPerda.rows.filter((r) => r.veiculo === v).reduce((s, r) => s + (Number(r.nVagoes) || 0), 0);
+      calcPerda.rows.filter((r) => r.veiculo === v).reduce((s, r) => s + numBR(r.nVagoes), 0);
     const vagoes = somaVeic("VAGAO");
     const vagonetas = somaVeic("VAGONETA");
     setApForm((f) => ({ ...f, perdas, vagoes: vagoes ? String(vagoes) : "", vagonetas: vagonetas ? String(vagonetas) : "" }));
@@ -538,17 +557,22 @@ export default function OrdensBoardPage() {
       const unidadeId = idx >= 0 ? linhas[idx].unidadeId : unidadePadrao(area, prod);
       const fator = prod.unidades.find((u) => u.id === unidadeId)?.fator;
       const qtd = Math.round((pecas / (fator && fator > 0 ? fator : 1)) * 1000) / 1000;
-      if (idx >= 0) linhas[idx] = { ...linhas[idx], quantidade: String(qtd) };
-      else linhas.push({ itemId, quantidade: String(qtd), unidadeId });
+      // fmtQtd: o campo de quantidade é pt-BR — "5,354" (paletes), nunca "5.354",
+      // que o operador lia como cinco mil (era a fonte dos apontamentos gigantes).
+      if (idx >= 0) linhas[idx] = { ...linhas[idx], quantidade: fmtQtd(qtd) };
+      else linhas.push({ itemId, quantidade: fmtQtd(qtd), unidadeId });
     }
     // Guarda a configuração na OP (persistida no salvar) — só linhas completas.
-    const plano = calcPlan.rows.filter((r) => Number(r.nVagoes) > 0 && r.cargas.some((c) => c.itemId && Number(c.pecas) > 0));
+    const plano = calcPlan.rows.filter((r) => numBR(r.nVagoes) > 0 && r.cargas.some((c) => c.itemId && numBR(c.pecas) > 0));
     setNovo({ ...novo, linhas, planoTransporte: plano.length ? plano : null });
     setCalcPlan(null);
   }
 
   async function excluirOP(o: BoardOP) {
-    if (!confirm(`Excluir a OP ${o.numero}? Esta ação é permanente.`)) return;
+    const msg = o.etapaStatus === "CONCLUIDA"
+      ? `Excluir a OP ${o.numero}?\n\nEla já foi APONTADA: o apontamento será ESTORNADO em cascata (movimentos de estoque, custos e lançamentos contábeis revertidos) antes de excluir. Esta ação é permanente.`
+      : `Excluir a OP ${o.numero}? Esta ação é permanente.`;
+    if (!confirm(msg)) return;
     setErro(null);
     try {
       const r = await fetch(`/api/pcp/ordens/${o.id}`, { method: "DELETE" });
@@ -679,7 +703,7 @@ export default function OrdensBoardPage() {
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                 onEditar={(o) => abrirEdicao(o)}
                 onExcluir={(o) => excluirOP(o)}
-                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, paletes: {}, pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])), perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
+                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, Number(p.planejada) ? fmtQtd(p.planejada) : ""])), perdas: {}, paletes: {}, pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])), perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
               />
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
@@ -728,7 +752,7 @@ export default function OrdensBoardPage() {
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button onClick={(e) => { e.stopPropagation(); abrirEdicao(o); }} className="text-muted-foreground hover:text-cyan-600" title={concl ? "Corrigir OP (estorna o apontamento)" : "Editar OP"}><Pencil className="w-3.5 h-3.5" /></button>
                             <Link href={`/pcp/ordens/${o.id}/imprimir`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
-                            {!concl && <button onClick={(e) => { e.stopPropagation(); excluirOP(o); }} className="text-muted-foreground hover:text-danger" title="Excluir OP"><Trash2 className="w-3.5 h-3.5" /></button>}
+                            {(!concl || user?.perfil === "ADMIN") && <button onClick={(e) => { e.stopPropagation(); excluirOP(o); }} className="text-muted-foreground hover:text-danger" title={concl ? "Excluir OP (admin — estorna o apontamento)" : "Excluir OP"}><Trash2 className="w-3.5 h-3.5" /></button>}
                             <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
                               {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
                             </span>
@@ -741,8 +765,8 @@ export default function OrdensBoardPage() {
                         )}
                         <p className="text-[11px] text-muted-foreground">
                           {o.produtos.length > 1
-                            ? o.produtos.map((p) => `${Number(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
-                            : `${Number(o.produtos[0]?.planejada ?? o.quantidade)} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`}
+                            ? o.produtos.map((p) => `${fmtQtd(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
+                            : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`}
                         </p>
                         {(o.responsavel || o.fimPrevisto) && (
                           <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
@@ -753,7 +777,7 @@ export default function OrdensBoardPage() {
                         )}
                         {o.criadoPor && <p className="text-[10px] text-muted-foreground/70 truncate">Programado: {o.criadoPor}</p>}
                         {!concl && (
-                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, String(Number(p.planejada) || "")])), perdas: {}, paletes: {}, pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])), perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
+                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, Number(p.planejada) ? fmtQtd(p.planejada) : ""])), perdas: {}, paletes: {}, pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])), perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
                             className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
                           </button>
@@ -923,23 +947,23 @@ export default function OrdensBoardPage() {
                   <span>Produto</span><span className="text-right">Plan.</span><span className="text-right">Real</span><span className="text-right">Perda *</span>
                 </div>
                 {apontar.produtos.map((pr) => {
-                  const perdaPc = Number(apForm.perdas[pr.itemId] || 0);
+                  const perdaPc = numBR(apForm.perdas[pr.itemId]);
                   const desc = apontadoPecas(pr) + perdaPc; // descarregado = apontado + perda
                   const pct = desc > 0 && perdaPc > 0 ? `${(perdaPc / desc * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
                   const paletesStr = apForm.paletes[pr.itemId] ?? "";
                   const pcPltStr = apForm.pcPlt[pr.itemId] ?? "";
-                  const totPecas = (Number(paletesStr.replace(",", ".")) || 0) * (Number(pcPltStr.replace(",", ".")) || 0);
+                  const totPecas = numBR(paletesStr) * numBR(pcPltStr);
                   return (
                     <div key={pr.itemId} className="border-t border-border/60">
                     <div className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 items-center">
                       <span className="text-xs text-foreground truncate">{pr.descricao}{pr.unidade ? <span className="text-muted-foreground"> ({pr.unidade})</span> : null}</span>
-                      <span className="text-xs text-muted-foreground text-right tabular-nums">{Number(pr.planejada)}</span>
+                      <span className="text-xs text-muted-foreground text-right tabular-nums">{fmtQtd(pr.planejada)}</span>
                       <div className="flex flex-col items-end">
                         <input inputMode="decimal" value={apForm.reais[pr.itemId] ?? ""} onChange={(e) => setApForm((p) => ({ ...p, reais: { ...p.reais, [pr.itemId]: e.target.value } }))} className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                         {/* Linha em PLT/alternativa: mostra o equivalente em peças p/ o operador
                             perceber quando digitou peças num campo de paletes. */}
-                        {(pr.pecasPorUnidade ?? 1) > 1 && (Number(apForm.reais[pr.itemId]) || 0) > 0 && (
-                          <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {((Number(apForm.reais[pr.itemId]) || 0) * (pr.pecasPorUnidade ?? 1)).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} pç</span>
+                        {(pr.pecasPorUnidade ?? 1) > 1 && numBR(apForm.reais[pr.itemId]) > 0 && (
+                          <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {(numBR(apForm.reais[pr.itemId]) * (pr.pecasPorUnidade ?? 1)).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} pç</span>
                         )}
                       </div>
                       <div className="flex flex-col items-end">
@@ -1177,8 +1201,8 @@ export default function OrdensBoardPage() {
                 const sel = us.find((u) => u.id === saldoIni.unidadeId);
                 const base = us.find((u) => u.isPrincipal);
                 if (!sel || sel.isPrincipal || !saldoIni.quantidade) return null;
-                const q = Number(saldoIni.quantidade);
-                if (!Number.isFinite(q)) return null;
+                const q = numBR(saldoIni.quantidade);
+                if (!q) return null;
                 return <p className="-mt-1 text-[11px] text-muted-foreground">= {(q * (sel.fator ?? 1)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {base?.sigla}</p>;
               })()}
               <div>
@@ -1208,6 +1232,9 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
   agruparArea: boolean; onAgruparArea: (v: boolean) => void; ordemAreas: string[];
   onNova: (() => void) | null; onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onExcluir: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
 }) {
+  // Excluir OP concluída é só para ADMIN (o servidor estorna o apontamento em cascata).
+  const { user } = useSession();
+  const perfilAdmin = user?.perfil === "ADMIN";
   const fmtDiaTitulo = (dia: string) => {
     const d = new Date(`${dia}T12:00:00`);
     return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
@@ -1286,7 +1313,7 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
             const concl = o.etapaStatus === "CONCLUIDA";
             const qtdTxt = o.produtos.length > 1
               ? `${o.produtos.length} produtos`
-              : `${Number(o.produtos[0]?.planejada ?? o.quantidade)} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`.trim();
+              : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`.trim();
             return (
               <div key={o.id} className="flex items-center gap-3 px-4 py-2 border-b border-border/50 hover:bg-muted/40 text-sm">
                 <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600 w-24 shrink-0 text-left">{o.numero}</button>
@@ -1307,7 +1334,7 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button onClick={() => onEditar(o)} className="text-muted-foreground hover:text-cyan-600" title={concl ? "Corrigir OP (estorna o apontamento)" : "Editar OP"}><Pencil className="w-3.5 h-3.5" /></button>
                   <Link href={`/pcp/ordens/${o.id}/imprimir`} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
-                  {!concl && <button onClick={() => onExcluir(o)} className="text-muted-foreground hover:text-danger" title="Excluir OP"><Trash2 className="w-3.5 h-3.5" /></button>}
+                  {(!concl || perfilAdmin) && <button onClick={() => onExcluir(o)} className="text-muted-foreground hover:text-danger" title={concl ? "Excluir OP (admin — estorna o apontamento)" : "Excluir OP"}><Trash2 className="w-3.5 h-3.5" /></button>}
                   {!concl && (
                     <button onClick={() => onApontar(o)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-700">
                       <CheckCircle2 className="w-3 h-3" /> Apontar
