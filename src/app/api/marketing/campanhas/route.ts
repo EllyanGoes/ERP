@@ -41,7 +41,19 @@ export async function GET(req: NextRequest) {
   const porPlataforma: Record<string, number> = {};
   for (const g of grupos) porPlataforma[g.plataforma] = g._count._all;
 
-  return NextResponse.json({ data, total, page, limit, contadores: { todos, porPlataforma } });
+  // Investimento dos últimos 30 dias (importado das plataformas de ads) —
+  // uma query agregada só, não N+1 por campanha.
+  const desde = new Date(Date.now() - 30 * 24 * 3600_000);
+  const spendGrupos = await prisma.metricaCampanhaDiaria.groupBy({
+    by: ["campanhaId"],
+    where: { campanhaId: { in: data.map((c) => c.id) }, data: { gte: desde } },
+    _sum: { spend: true },
+  });
+  const spendPorCampanha: Record<string, number> = {};
+  for (const g of spendGrupos) spendPorCampanha[g.campanhaId] = Number(g._sum.spend ?? 0);
+  const dataComSpend = data.map((c) => ({ ...c, spend30d: spendPorCampanha[c.id] ?? 0 }));
+
+  return NextResponse.json({ data: dataComSpend, total, page, limit, contadores: { todos, porPlataforma } });
 }
 
 export async function POST(req: NextRequest) {

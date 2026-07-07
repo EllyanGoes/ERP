@@ -30,6 +30,7 @@ type Campanha = {
   dataInicio: string | null;
   dataFim: string | null;
   ativo: boolean;
+  spend30d?: number;
   _count: { leads: number };
 };
 
@@ -218,6 +219,7 @@ export default function CampanhasPage() {
                   <th className="px-3 py-2.5 font-semibold">UTM Campaign</th>
                   <th className="px-3 py-2.5 font-semibold">Período</th>
                   <th className="px-3 py-2.5 font-semibold text-right">Orçamento</th>
+                  <th className="px-3 py-2.5 font-semibold text-right">Investimento (30d)</th>
                   <th className="px-3 py-2.5 font-semibold text-center">Leads</th>
                   <th className="px-3 py-2.5 w-10"></th>
                 </tr>
@@ -242,6 +244,9 @@ export default function CampanhasPage() {
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
                       {c.orcamento != null && Number(c.orcamento) > 0 ? formatBRL(Number(c.orcamento)) : "—"}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
+                      {c.spend30d != null && c.spend30d > 0 ? formatBRL(c.spend30d) : "—"}
                     </td>
                     <td className="px-3 py-3 text-center tabular-nums text-foreground font-medium">{c._count?.leads ?? 0}</td>
                     <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>

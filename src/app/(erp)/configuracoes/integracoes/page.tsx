@@ -6,7 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
 import {
   Loader2, MessageCircle, Send, Database, ChevronRight,
-  Wifi, WifiOff, HelpCircle, CreditCard, Receipt,
+  Wifi, WifiOff, HelpCircle, CreditCard, Receipt, Megaphone,
 } from "lucide-react";
 
 type ConnStatus = "idle" | "ok" | "error" | "unconfigured";
@@ -38,6 +38,7 @@ export default function IntegracoesPage() {
   const [waProvider, setWaProvider] = useState("Evolution API");
   const [payStatus,  setPayStatus]  = useState<ConnStatus>("idle");
   const [nfeStatus,  setNfeStatus]  = useState<ConnStatus>("idle");
+  const [adsStatus,  setAdsStatus]  = useState<ConnStatus>("idle");
 
   const loadStatuses = useCallback(async () => {
     setLoading(true);
@@ -67,6 +68,13 @@ export default function IntegracoesPage() {
       // Focus NFe (módulo Fiscal): "ok" se o master token da conta está salvo
       setNfeStatus(cfg.fiscal_master_token ? "ok" : "unconfigured");
 
+      // Plataformas de Anúncios: "ok" se qualquer plataforma tem a credencial mínima
+      const temAds =
+        !!(cfg.ads_meta_access_token && cfg.ads_meta_ad_account_id) ||
+        !!(cfg.ads_google_developer_token && cfg.ads_google_refresh_token && cfg.ads_google_customer_id) ||
+        !!(cfg.ads_tiktok_access_token && cfg.ads_tiktok_advertiser_id);
+      setAdsStatus(temAds ? "ok" : "unconfigured");
+
       // Pagamento (maquininha): "ok" se alguma empresa tem a cobrança ativa
       try {
         const pay = await fetch("/api/configuracoes/integracoes/pagamento").then((r) => r.json());
@@ -79,6 +87,7 @@ export default function IntegracoesPage() {
       setDbStatus("unconfigured");
       setPayStatus("unconfigured");
       setNfeStatus("unconfigured");
+      setAdsStatus("unconfigured");
     } finally {
       setLoading(false);
     }
@@ -142,6 +151,16 @@ export default function IntegracoesPage() {
       badge:   "NF-e / SEFAZ",
       badgeCn: "bg-violet-50 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-100",
       status:  nfeStatus,
+    },
+    {
+      href:    "/configuracoes/integracoes/ads",
+      icon:    <Megaphone className="w-5 h-5 text-fuchsia-600 dark:text-fuchsia-400" />,
+      bg:      "bg-fuchsia-50 dark:bg-fuchsia-500/15 border-fuchsia-100",
+      title:   "Plataformas de Anúncios",
+      desc:    "Importação diária de investimento e métricas das campanhas de marketing",
+      badge:   "Meta · Google · TikTok",
+      badgeCn: "bg-fuchsia-50 dark:bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-400 border-fuchsia-100",
+      status:  adsStatus,
     },
   ];
 

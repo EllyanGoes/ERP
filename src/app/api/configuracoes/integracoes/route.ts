@@ -38,6 +38,17 @@ const MANAGED_KEYS = [
   // secret do webhook de retorno de emissão.
   "fiscal_master_token",
   "fiscal_webhook_secret",
+  // Plataformas de Anúncios (Marketing F5): credenciais para importar spend/
+  // impressões/cliques das campanhas com idExterno via cron diário.
+  "ads_meta_access_token",
+  "ads_meta_ad_account_id",
+  "ads_google_developer_token",
+  "ads_google_client_id",
+  "ads_google_client_secret",
+  "ads_google_refresh_token",
+  "ads_google_customer_id",
+  "ads_tiktok_access_token",
+  "ads_tiktok_advertiser_id",
 ] as const;
 
 // Chaves cujo valor nunca sai do servidor. O GET devolve a máscara quando há
@@ -53,6 +64,11 @@ const SECRET_KEYS: readonly string[] = [
   "tg_bot_token",
   "fiscal_master_token",
   "fiscal_webhook_secret",
+  "ads_meta_access_token",
+  "ads_google_developer_token",
+  "ads_google_client_secret",
+  "ads_google_refresh_token",
+  "ads_tiktok_access_token",
 ];
 
 const SECRET_MASK = "••••••••";

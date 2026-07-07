@@ -92,6 +92,7 @@ export default function CampanhaForm({
       utmSource: data.utmSource || null,
       utmMedium: data.utmMedium || null,
       utmCampaign: data.utmCampaign || null,
+      idExterno: data.idExterno?.trim() || null,
       orcamento: data.orcamento || null,
       dataInicio: data.dataInicio || null,
       dataFim: data.dataFim || null,
@@ -234,6 +235,20 @@ export default function CampanhaForm({
                 </FormItem>
               )} />
             </div>
+
+            <FormField control={form.control} name="idExterno" render={({ field }) => (
+              <FormItem>
+                <FormLabel className={labelCls}>ID da campanha na plataforma</FormLabel>
+                <FormControl>
+                  <Input {...field} value={field.value ?? ""} className="h-10 border-border font-mono" placeholder="Ex.: 120210000000000000" />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Necessário para importar investimento/métricas automaticamente
+                  (Meta/Google/TikTok — configure as credenciais em Integrações).
+                </p>
+                <FormMessage />
+              </FormItem>
+            )} />
           </div>
         </div>
 
