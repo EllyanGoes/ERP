@@ -65,6 +65,19 @@ export async function GET(req: NextRequest) {
       empresas: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
       usuario: { select: { id: true, nome: true, email: true } },
       setor:   { select: { id: true, nome: true } },
+      // ?comEscala=1 → vigências da escala de trabalho (p/ preencher horários
+      // na folha de diárias pela escala vigente do colaborador).
+      ...(searchParams.get("comEscala") === "1"
+        ? {
+            escalas: {
+              orderBy: { data: "desc" as const },
+              select: {
+                data: true,
+                horario: { select: { faixas: { orderBy: { ordem: "asc" as const }, select: { horaInicial: true, horaFinal: true } } } },
+              },
+            },
+          }
+        : {}),
     },
     orderBy: { nome: "asc" },
   })

@@ -5,6 +5,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { Clock, Plus, Pencil, Trash2, Loader2, X, Save, Search } from "lucide-react";
@@ -143,58 +144,63 @@ export default function HorariosTrabalhoPage() {
           <Input placeholder="Buscar horários..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
 
-        {formOpen && (
-          <div className="border border-border rounded-xl p-5 bg-card space-y-4 shadow-sm">
-            <h3 className="font-semibold text-sm text-foreground">{editingId ? "Editar Horário" : "Novo Horário"}</h3>
-            {formError && (
-              <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{formError}</p>
-            )}
+        <Dialog open={formOpen} onOpenChange={setFormOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editingId ? "Editar Horário" : "Novo Horário"}</DialogTitle>
+            </DialogHeader>
 
-            <div className="space-y-1.5">
-              <Label>Nome<span className="text-red-500 ml-0.5">*</span></Label>
-              <Input value={fNome} onChange={(e) => setFNome(e.target.value)} placeholder="Ex: HORÁRIO PADRÃO" autoFocus />
-            </div>
+            <div className="space-y-4">
+              {formError && (
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{formError}</p>
+              )}
 
-            <div className="space-y-2">
-              <div className="grid grid-cols-[7rem_7rem_6rem_2rem] gap-2 text-xs text-muted-foreground uppercase tracking-wide px-1">
-                <span>Hora inicial</span><span>Hora final</span><span>Tempo</span><span />
+              <div className="space-y-1.5">
+                <Label>Nome<span className="text-red-500 ml-0.5">*</span></Label>
+                <Input value={fNome} onChange={(e) => setFNome(e.target.value)} placeholder="Ex: HORÁRIO PADRÃO" />
               </div>
-              {fFaixas.map((f, i) => {
-                const d = duracao(f);
-                return (
-                  <div key={i} className="grid grid-cols-[7rem_7rem_6rem_2rem] gap-2 items-center">
-                    <Input value={f.horaInicial} inputMode="numeric" placeholder="08:00" onChange={(e) => setFFaixas((fs) => fs.map((x, j) => j === i ? { ...x, horaInicial: mHora(e.target.value) } : x))} className="h-9 text-center" />
-                    <Input value={f.horaFinal} inputMode="numeric" placeholder="12:00" onChange={(e) => setFFaixas((fs) => fs.map((x, j) => j === i ? { ...x, horaFinal: mHora(e.target.value) } : x))} className="h-9 text-center" />
-                    <span className="text-sm text-muted-foreground tabular-nums text-center">{d !== null ? fmtMin(d) : "—"}</span>
-                    <button onClick={() => setFFaixas((fs) => fs.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-danger justify-self-center" title="Remover faixa">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                );
-              })}
-              <div className="flex items-center justify-between">
-                <Button variant="outline" size="sm" onClick={() => setFFaixas((fs) => [...fs, { horaInicial: "", horaFinal: "" }])}>
-                  <Plus className="w-4 h-4 mr-1.5" /> Adicionar faixa
-                </Button>
-                {totalForm > 0 && <span className="text-xs text-muted-foreground">Total: <span className="font-semibold tabular-nums">{fmtMin(totalForm)}</span></span>}
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-[1fr_1fr_5rem_2rem] gap-2 text-xs text-muted-foreground uppercase tracking-wide px-1">
+                  <span>Hora inicial</span><span>Hora final</span><span>Tempo</span><span />
+                </div>
+                {fFaixas.map((f, i) => {
+                  const d = duracao(f);
+                  return (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_5rem_2rem] gap-2 items-center">
+                      <Input value={f.horaInicial} inputMode="numeric" placeholder="08:00" onChange={(e) => setFFaixas((fs) => fs.map((x, j) => j === i ? { ...x, horaInicial: mHora(e.target.value) } : x))} className="h-9 text-center min-w-0" />
+                      <Input value={f.horaFinal} inputMode="numeric" placeholder="12:00" onChange={(e) => setFFaixas((fs) => fs.map((x, j) => j === i ? { ...x, horaFinal: mHora(e.target.value) } : x))} className="h-9 text-center min-w-0" />
+                      <span className="text-sm text-muted-foreground tabular-nums text-center">{d !== null ? fmtMin(d) : "—"}</span>
+                      <button onClick={() => setFFaixas((fs) => fs.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-danger justify-self-center" title="Remover faixa">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center justify-between">
+                  <Button variant="outline" size="sm" onClick={() => setFFaixas((fs) => [...fs, { horaInicial: "", horaFinal: "" }])}>
+                    <Plus className="w-4 h-4 mr-1.5" /> Adicionar faixa
+                  </Button>
+                  {totalForm > 0 && <span className="text-xs text-muted-foreground">Total: <span className="font-semibold tabular-nums">{fmtMin(totalForm)}</span></span>}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input id="h-ativo" type="checkbox" checked={fAtivo} onChange={(e) => setFAtivo(e.target.checked)} className="rounded" />
+                <Label htmlFor="h-ativo" className="cursor-pointer">Ativo</Label>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input id="h-ativo" type="checkbox" checked={fAtivo} onChange={(e) => setFAtivo(e.target.checked)} className="rounded" />
-              <Label htmlFor="h-ativo" className="cursor-pointer">Ativo</Label>
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={() => setFormOpen(false)} disabled={saving}>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>
                 <X className="w-4 h-4 mr-1" /> Cancelar
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={saving}>
+              <Button onClick={handleSave} disabled={saving}>
                 {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Salvar</>}
               </Button>
-            </div>
-          </div>
-        )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {deleteId && (
           <div className="border border-danger/30 rounded-xl p-4 bg-danger/10 space-y-3">

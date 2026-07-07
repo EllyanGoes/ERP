@@ -44,7 +44,15 @@ export async function POST(req: NextRequest) {
     if (ids.length) {
       const colabs = await tx.colaborador.findMany({
         where: { id: { in: ids } },
-        select: { id: true, valorDiaria: true, setor: { select: { nome: true } } },
+        select: {
+          id: true, valorDiaria: true, setor: { select: { nome: true } },
+          // Escala de trabalho vigente na data da folha (faixa 1 = manhã, 2 = tarde).
+          escalas: {
+            where: { data: { lte: f.data } },
+            orderBy: { data: "desc" }, take: 1,
+            select: { horario: { select: { faixas: { orderBy: { ordem: "asc" }, select: { horaInicial: true, horaFinal: true } } } } },
+          },
+        },
         orderBy: { nome: "asc" },
       });
       type C = (typeof colabs)[number];
@@ -57,13 +65,18 @@ export async function POST(req: NextRequest) {
       for (const [setor, lista] of Array.from(porSetor.entries()).sort((a, z) => a[0].localeCompare(z[0]))) {
         const grupo = await tx.diariaGrupo.create({ data: { folhaId: f.id, setor: setor || null, turno, ordem: go++ } });
         await tx.diariaItem.createMany({
-          data: lista.map((c, i) => ({
-            grupoId: grupo.id, colaboradorId: c.id, ordem: i,
-            // Valor base da diária do cadastro + escala padrão já preenchida.
-            valor: c.valorDiaria ?? 0,
-            manha: turno === "DIA" ? "08:00 - 12:00" : null,
-            tarde: turno === "DIA" ? "13:00 - 17:00" : null,
-          })),
+          data: lista.map((c, i) => {
+            // Horários da escala vigente do colaborador; sem escala, cai no
+            // padrão do turno Dia (Noite fica em branco).
+            const faixas = c.escalas[0]?.horario.faixas ?? [];
+            const fmt = (x: { horaInicial: string; horaFinal: string }) => `${x.horaInicial} - ${x.horaFinal}`;
+            return {
+              grupoId: grupo.id, colaboradorId: c.id, ordem: i,
+              valor: c.valorDiaria ?? 0,
+              manha: faixas[0] ? fmt(faixas[0]) : (turno === "DIA" ? "08:00 - 12:00" : null),
+              tarde: faixas[1] ? fmt(faixas[1]) : (faixas[0] ? null : (turno === "DIA" ? "13:00 - 17:00" : null)),
+            };
+          }),
         });
       }
     }

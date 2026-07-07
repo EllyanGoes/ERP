@@ -18,8 +18,11 @@ type GrupoRow = { _key: string; tipo: string; setor: string; turno: string; iten
 
 const TURNOS = [{ v: "DIA", l: "Dia" }, { v: "NOITE", l: "Noite" }];
 const key = () => Math.random().toString(36).slice(2);
-// Escala padrão já preenchida (o usuário ajusta quando diferir).
-const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", manha: "08:00 - 12:00", tarde: "13:00 - 17:00", horasExcedente: "", servico: "", valor: "" });
+// Escala padrão já preenchida (substituída pela escala vigente do colaborador
+// quando ele é escolhido; o usuário ajusta quando diferir).
+const DEF_MANHA = "08:00 - 12:00";
+const DEF_TARDE = "13:00 - 17:00";
+const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", manha: DEF_MANHA, tarde: DEF_TARDE, horasExcedente: "", servico: "", valor: "" });
 // O bloco é POR SETOR: quem está dentro dele estava nesse setor nessa diária.
 // tipo segue no modelo (default DIVERSAS) mas não é mais editável na tela.
 const novoGrupo = (): GrupoRow => ({ _key: key(), tipo: "DIVERSAS", setor: "", turno: "DIA", itens: [novoItem()] });
@@ -54,6 +57,9 @@ export default function DiariaDetailPage() {
   const [setorPorColab, setSetorPorColab] = useState<Map<string, string>>(new Map());
   // Valor base da diária do cadastro (pré-preenche o valor ao escolher a pessoa).
   const [valorPorColab, setValorPorColab] = useState<Map<string, number>>(new Map());
+  // Vigências da escala de trabalho por colaborador (ordenadas desc por data).
+  type EscalaCli = { data: string; faixas: { horaInicial: string; horaFinal: string }[] };
+  const [escalasPorColab, setEscalasPorColab] = useState<Map<string, EscalaCli[]>>(new Map());
   // Visualização: lista corrida (setor como coluna, padrão) ou agrupada por setor.
   const [agruparPorSetor, setAgruparPorSetor] = usePersistedState("diarias.folha.agruparPorSetor", false);
   // Folha assinada escaneada (upload após a coleta de assinaturas)
@@ -64,7 +70,7 @@ export default function DiariaDetailPage() {
   const carregar = useCallback(async () => {
     const [rf, rc, rs] = await Promise.all([
       fetch(`/api/rh/diaristas/${id}`),
-      fetch("/api/empresa/colaboradores?ativo=true"),
+      fetch("/api/empresa/colaboradores?ativo=true&comEscala=1"),
       fetch("/api/empresa/setores"),
     ]);
     if (rf.ok) {
@@ -88,10 +94,14 @@ export default function DiariaDetailPage() {
     }
     if (rc.ok) {
       const jc = await rc.json();
-      const lista: { id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null; valorDiaria?: string | number | null }[] = jc.data ?? jc ?? [];
+      const lista: {
+        id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null; valorDiaria?: string | number | null;
+        escalas?: { data: string; horario: { faixas: { horaInicial: string; horaFinal: string }[] } }[];
+      }[] = jc.data ?? jc ?? [];
       setColabs(lista.map((c) => ({ value: c.id, label: c.nome })));
       setSetorPorColab(new Map(lista.filter((c) => c.setor?.nome).map((c) => [c.id, c.setor!.nome])));
       setValorPorColab(new Map(lista.filter((c) => c.valorDiaria != null && Number(c.valorDiaria) > 0).map((c) => [c.id, Number(c.valorDiaria)])));
+      setEscalasPorColab(new Map(lista.map((c) => [c.id, (c.escalas ?? []).map((e) => ({ data: e.data.slice(0, 10), faixas: e.horario?.faixas ?? [] }))])));
     }
     if (rs.ok) {
       const js = await rs.json();
@@ -146,11 +156,28 @@ export default function DiariaDetailPage() {
     });
   }
 
-  // Ao escolher o colaborador: preenche o valor com a diária base do cadastro
-  // (se a linha ainda não tem valor).
+  // Escala vigente do colaborador na data da folha (faixa 1 = manhã, 2 = tarde).
+  function faixasVigentes(colaboradorId: string): { manha?: string; tarde?: string } {
+    const escs = escalasPorColab.get(colaboradorId) ?? [];
+    const vig = escs.find((e) => !data || e.data <= data) ?? escs[0];
+    if (!vig || vig.faixas.length === 0) return {};
+    const fmt = (f: { horaInicial: string; horaFinal: string }) => `${f.horaInicial} - ${f.horaFinal}`;
+    return { manha: fmt(vig.faixas[0]), ...(vig.faixas[1] ? { tarde: fmt(vig.faixas[1]) } : {}) };
+  }
+
+  // Ao escolher o colaborador: preenche o valor com a diária base do cadastro e
+  // os horários com a escala vigente (só onde a linha ainda está no padrão/vazia).
   function patchColab(it: ItemRow, colaboradorId: string): Partial<ItemRow> {
     const v = valorPorColab.get(colaboradorId);
-    return { colaboradorId, ...(!num(it.valor) && v ? { valor: String(v).replace(".", ",") } : {}) };
+    const esc = faixasVigentes(colaboradorId);
+    const manhaPadrao = !it.manha || it.manha === DEF_MANHA;
+    const tardePadrao = !it.tarde || it.tarde === DEF_TARDE;
+    return {
+      colaboradorId,
+      ...(!num(it.valor) && v ? { valor: String(v).replace(".", ",") } : {}),
+      ...(esc.manha && manhaPadrao ? { manha: esc.manha } : {}),
+      ...(esc.manha && tardePadrao ? { tarde: esc.tarde ?? "" } : {}),
+    };
   }
 
   // Lista corrida: ao escolher o colaborador, se a linha ainda não tem setor,
