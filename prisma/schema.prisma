@@ -238,6 +238,7 @@ model Colaborador {
   folhaItens                 FolhaItem[]
   diariaItens                DiariaItem[]
   ordensProducaoResponsavel  OrdemProducao[]      @relation("OrdemProducaoResponsavel")
+  ordensProducaoEquipe       OrdemProducaoEquipe[]
   usuario                    Usuario?             @relation(fields: [usuarioId], references: [id])
   filiais                    Filial[]
   // Empresas em que o colaborador está presente — define onde ele aparece nos
@@ -2885,6 +2886,7 @@ model OrdemProducao {
   consumos                 ConsumoBiomassa[]
   movimentacoes            MovimentacaoEstoque[]
   anexos                   OrdemProducaoAnexo[]
+  equipe                   OrdemProducaoEquipe[]
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   atualizadoPor String? // autoria: última edição manual (proxy de sessão)
@@ -2894,6 +2896,20 @@ model OrdemProducao {
   @@index([itemId])
   @@index([fluxoVersaoId])
   @@index([empresaId])
+}
+
+// Equipe da OP: colaboradores que estavam na produção no dia. A OP é do DIA
+// (uma só, com todas as pessoas), não por pessoa — o responsável continua no
+// campo próprio; aqui fica o restante da equipe.
+model OrdemProducaoEquipe {
+  id              String        @id @default(cuid())
+  ordemProducaoId String
+  colaboradorId   String
+  ordemProducao   OrdemProducao @relation(fields: [ordemProducaoId], references: [id], onDelete: Cascade)
+  colaborador     Colaborador   @relation(fields: [colaboradorId], references: [id])
+
+  @@unique([ordemProducaoId, colaboradorId])
+  @@index([colaboradorId])
 }
 
 // Arquivos anexados à OP (ex.: OP escaneada/assinada como comprovação). Vercel Blob.

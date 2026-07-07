@@ -23,6 +23,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       item: { select: { id: true, codigo: true, descricao: true } },
       fluxoVersao: { select: { versao: true, fluxo: { select: { id: true, nome: true } } } },
       responsavelColaborador: { select: { nome: true } },
+      equipe: { select: { colaborador: { select: { id: true, nome: true } } } },
       produtoItens: {
         select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true, unidadeId: true,
           item: { select: { codigo: true, descricao: true, unidade: { select: { sigla: true } } } }, unidade: { select: { sigla: true } } },
@@ -70,6 +71,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ("responsavelColaboradorId" in body) data.responsavelColaboradorId = typeof body.responsavelColaboradorId === "string" && body.responsavelColaboradorId ? body.responsavelColaboradorId : null;
   // Config do "Planejar por transporte" (vagões): persiste/limpa junto com a edição.
   if ("planoTransporte" in body) data.planoTransporte = sanitizarPlanoTransporte(body.planoTransporte) ?? Prisma.DbNull;
+  // Equipe do dia (colaboradores da produção): substitui o conjunto quando enviada.
+  const editaEquipe = Array.isArray(body.equipeIds);
+  const equipeIds = editaEquipe
+    ? Array.from(new Set((body.equipeIds as unknown[]).filter((v): v is string => typeof v === "string" && !!v)))
+    : [];
 
   // Edição dos produtos (substitui as linhas). OP já apontada/concluída também pode
   // ser corrigida: o apontamento anterior é ESTORNADO em cascata (movimentos de
@@ -103,6 +109,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       if (editaProdutos) {
         await tx.ordemProducaoProdutoItem.deleteMany({ where: { ordemProducaoId: params.id } });
         await tx.ordemProducaoProdutoItem.createMany({ data: produtos.map((p) => ({ ordemProducaoId: params.id, itemId: p.itemId, quantidadePlanejada: p.quantidade, unidadeId: p.unidadeId })) });
+      }
+      if (editaEquipe) {
+        await tx.ordemProducaoEquipe.deleteMany({ where: { ordemProducaoId: params.id } });
+        if (equipeIds.length) {
+          await tx.ordemProducaoEquipe.createMany({ data: equipeIds.map((colaboradorId) => ({ ordemProducaoId: params.id, colaboradorId })) });
+        }
       }
       return tx.ordemProducao.update({ where: { id: params.id }, data });
     }, { timeout: 60000 });

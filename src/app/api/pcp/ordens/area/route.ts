@@ -61,6 +61,11 @@ export async function POST(req: NextRequest) {
   const dataPrevistaInicio = parseDt(body.dataPrevistaInicio);
   const dataPrevistaFim = parseDt(body.dataPrevistaFim);
   const responsavelColaboradorId = typeof body.responsavelColaboradorId === "string" && body.responsavelColaboradorId ? body.responsavelColaboradorId : null;
+  // Equipe do dia: colaboradores que estavam na produção (a OP é do DIA, com
+  // todas as pessoas — não uma OP por pessoa). O responsável fica no campo próprio.
+  const equipeIds = Array.isArray(body.equipeIds)
+    ? Array.from(new Set((body.equipeIds as unknown[]).filter((v): v is string => typeof v === "string" && !!v)))
+    : [];
   // Config do "Planejar por transporte" (vagões) — persiste p/ reabrir/imprimir.
   const planoTransporte = sanitizarPlanoTransporte(body.planoTransporte);
 
@@ -89,6 +94,7 @@ export async function POST(req: NextRequest) {
         produtoItens: {
           create: produtos.map((p) => ({ itemId: p.itemId, quantidadePlanejada: p.quantidade, unidadeId: p.unidadeId })),
         },
+        ...(equipeIds.length ? { equipe: { create: equipeIds.map((colaboradorId) => ({ colaboradorId })) } } : {}),
         etapas: {
           create: [{
             nodeId: area.nodeId,

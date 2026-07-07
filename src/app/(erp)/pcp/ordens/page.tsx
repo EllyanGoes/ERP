@@ -18,13 +18,13 @@ type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: s
 type Unidade = { id: string; sigla: string; isPrincipal?: boolean; fator?: number };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
-type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null; editConcluida?: boolean;
+type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; equipeIds?: string[]; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null; editConcluida?: boolean;
   // Correção do APONTAMENTO (aba "Apontamento" da edição de OP concluída): real na
   // unidade da linha e perda em peças, por produto — reapontados após o estorno.
   apReais?: Record<string, string>; apPerdas?: Record<string, string>; apVagoes?: string; apVagonetas?: string;
   apPaletes?: Record<string, string>; apPcPlt?: Record<string, string> };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; perda?: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number; pecasPorPalete?: number | null };
-type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; equipe?: { id: string; nome: string }[]; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
@@ -388,6 +388,7 @@ export default function OrdensBoardPage() {
                 produtos,
                 dataPrevistaInicio: localInputToIso(novo.inicio), dataPrevistaFim: localInputToIso(novo.fim),
                 responsavelColaboradorId: novo.responsavelId || null, observacao: novo.observacao || null,
+                equipeIds: novo.equipeIds ?? [],
                 planoTransporte: novo.planoTransporte ?? null,
                 permitirSaldoNegativo,
               }),
@@ -398,6 +399,7 @@ export default function OrdensBoardPage() {
                 fluxoId, areaNodeId, data, produtos,
                 dataPrevistaInicio: localInputToIso(novo.inicio) ?? undefined, dataPrevistaFim: localInputToIso(novo.fim) ?? undefined,
                 responsavelColaboradorId: novo.responsavelId || undefined, observacao: novo.observacao || undefined,
+                equipeIds: novo.equipeIds ?? [],
                 planoTransporte: novo.planoTransporte ?? undefined,
               }),
             });
@@ -463,6 +465,7 @@ export default function OrdensBoardPage() {
         ? o.planoTransporte.map((r) => ({ veiculo: r.veiculo, nVagoes: String(r.nVagoes), cargas: r.cargas.map((c) => ({ itemId: c.itemId, pecas: String(c.pecas) })) }))
         : null,
       editCriadoPor: o.criadoPor, editResponsavelNome: o.responsavel,
+      equipeIds: (o.equipe ?? []).map((e) => e.id),
       editConcluida: o.etapaStatus === "CONCLUIDA",
       // Apontamento gravado (real na unidade da linha + perda em peças) — pré-carrega
       // a aba "Apontamento" p/ corrigir e reapontar após o estorno.
@@ -892,10 +895,11 @@ export default function OrdensBoardPage() {
                             ? o.produtos.map((p) => `${fmtQtd(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
                             : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`}
                         </p>
-                        {(o.responsavel || o.fimPrevisto) && (
+                        {(o.responsavel || o.fimPrevisto || (o.equipe?.length ?? 0) > 0) && (
                           <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                             {o.responsavel && <span>👤 {o.responsavel}</span>}
-                            {o.responsavel && o.fimPrevisto && " · "}
+                            {(o.equipe?.length ?? 0) > 0 && <span title={o.equipe!.map((e) => e.nome).join(", ")}>{o.responsavel ? " · " : ""}👥 {o.equipe!.length} pessoa(s)</span>}
+                            {(o.responsavel || (o.equipe?.length ?? 0) > 0) && o.fimPrevisto && " · "}
                             {o.fimPrevisto && <span>até {new Date(o.fimPrevisto).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
                           </p>
                         )}
@@ -1088,6 +1092,37 @@ export default function OrdensBoardPage() {
                           : <>Mostrando só quem atua em <b>{area.nome}</b> (definido em Colaboradores → Áreas de operação).</>}
                       </p>
                     )}
+                    {/* Equipe do dia: a OP é do DIA com todas as pessoas da produção
+                        (não uma OP por pessoa) — clique para marcar quem estava. */}
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">
+                        Equipe do dia{(novo.equipeIds?.length ?? 0) > 0 ? <span className="text-cyan-600"> · {novo.equipeIds!.length} pessoa(s)</span> : null}
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                        {(() => {
+                          // Colaboradores da etapa + os já salvos na equipe (mesmo fora da etapa).
+                          const base = [...colaboradoresDaArea];
+                          for (const id of novo.equipeIds ?? []) {
+                            if (!base.some((c) => c.id === id)) {
+                              const c = colaboradores.find((x) => x.id === id);
+                              if (c) base.push(c);
+                            }
+                          }
+                          if (!base.length) return <span className="text-[11px] text-muted-foreground">Nenhum colaborador da etapa.</span>;
+                          return base.map((c) => {
+                            const sel = novo.equipeIds?.includes(c.id) ?? false;
+                            return (
+                              <button key={c.id} type="button"
+                                onClick={() => setNovo({ ...novo, equipeIds: sel ? (novo.equipeIds ?? []).filter((id) => id !== c.id) : [...(novo.equipeIds ?? []), c.id] })}
+                                className={cn("px-2 py-0.5 rounded-full text-[11px] border transition-colors",
+                                  sel ? "bg-cyan-600 border-cyan-600 text-white" : "border-border text-muted-foreground hover:bg-muted")}>
+                                {c.nome}
+                              </button>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1553,6 +1588,7 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
                   <p className="text-[11px] text-muted-foreground truncate">
                     {qtdTxt}
                     {o.responsavel && <> · 👤 {o.responsavel}</>}
+                    {(o.equipe?.length ?? 0) > 0 && <span title={o.equipe!.map((e) => e.nome).join(", ")}> · 👥 {o.equipe!.length}</span>}
                     {o.fimPrevisto && <> · até {new Date(o.fimPrevisto).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</>}
                   </p>
                 </div>

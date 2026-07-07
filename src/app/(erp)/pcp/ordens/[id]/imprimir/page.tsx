@@ -18,6 +18,7 @@ type Ordem = {
   dataPrevistaInicio: string | null; dataPrevistaFim: string | null;
   criadoPor: string | null;
   responsavelColaborador: { nome: string } | null;
+  equipe?: { colaborador: { nome: string } }[];
   item: { codigo: string; descricao: string } | null;
   fluxoVersao: { fluxo: { id: string; nome: string } } | null;
   produtoItens: ProdutoItem[];
@@ -169,6 +170,14 @@ export default function ImprimirOrdemPage() {
           <Campo rotulo="Responsável" valor={ordem.responsavelColaborador?.nome ?? "—"} />
           <Campo rotulo="Programado por" valor={ordem.criadoPor ?? "—"} />
         </div>
+
+        {/* Equipe do dia: todos que estavam na produção (a OP é do dia, não por pessoa). */}
+        {(ordem.equipe?.length ?? 0) > 0 && (
+          <div className="mb-5">
+            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Equipe do dia ({ordem.equipe!.length})</p>
+            <p className="text-sm">{ordem.equipe!.map((e) => e.colaborador.nome).join(" · ")}</p>
+          </div>
+        )}
 
         <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Produtos</p>
         <table className="w-full text-sm border border-gray-300 mb-5">

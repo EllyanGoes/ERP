@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
       id: true, numero: true, status: true, quantidadePlanejada: true, unidade: true, criadoPor: true, createdAt: true,
       dataPrevistaInicio: true, dataPrevistaFim: true, observacao: true, responsavelColaboradorId: true, planoTransporte: true,
       responsavelColaborador: { select: { nome: true } },
+      equipe: { select: { colaborador: { select: { id: true, nome: true } } } },
       item: { select: { codigo: true, descricao: true } },
       produtoItens: {
         select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true, qtdPerda: true, unidadeId: true,
@@ -63,6 +64,7 @@ export async function GET(req: NextRequest) {
     criadoPor: o.criadoPor ?? null,
     responsavel: o.responsavelColaborador?.nome ?? null,
     responsavelColaboradorId: o.responsavelColaboradorId ?? null,
+    equipe: o.equipe.map((e) => ({ id: e.colaborador.id, nome: e.colaborador.nome })),
     observacao: o.observacao ?? null,
     planoTransporte: o.planoTransporte ?? null,
     inicioPrevisto: o.dataPrevistaInicio,
