@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import {
   Layers,
   Plus,
@@ -15,6 +16,9 @@ import {
   X,
   Save,
   Search,
+  ChevronRight,
+  ChevronDown,
+  CornerDownRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,8 +29,11 @@ type Setor = {
   nome: string;
   descricao: string | null;
   ativo: boolean;
+  paiId: string | null;
   _count: { colaboradores: number };
 };
+
+type SetorNode = Setor & { filhos: SetorNode[] };
 
 // ── Field helper ──────────────────────────────────────────────────────────────
 
@@ -50,12 +57,15 @@ export default function SetoresPage() {
   const [setores, setSetores]   = useState<Setor[]>([]);
   const [loading, setLoading]   = useState(true);
   const [search,  setSearch]    = useState("");
+  // Nós recolhidos na árvore (filhos ocultos), como no plano de contas.
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(new Set());
 
   // Form state (shared create/edit)
   const [formOpen,    setFormOpen]    = useState(false);
   const [editingId,   setEditingId]   = useState<string | null>(null);
   const [fNome,       setFNome]       = useState("");
   const [fDescricao,  setFDescricao]  = useState("");
+  const [fPaiId,      setFPaiId]      = useState("");
   const [fAtivo,      setFAtivo]      = useState(true);
   const [saving,      setSaving]      = useState(false);
   const [formError,   setFormError]   = useState("");
@@ -75,10 +85,41 @@ export default function SetoresPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function openCreate() {
+  // Árvore a partir da lista plana (pai → filhos), ordenada por nome em cada nível.
+  const arvore = useMemo(() => {
+    const nodes = new Map<string, SetorNode>(setores.map((s) => [s.id, { ...s, filhos: [] }]));
+    const raizes: SetorNode[] = [];
+    for (const n of Array.from(nodes.values())) {
+      const pai = n.paiId ? nodes.get(n.paiId) : null;
+      if (pai) pai.filhos.push(n);
+      else raizes.push(n);
+    }
+    const ordenar = (ns: SetorNode[]) => { ns.sort((a, b) => a.nome.localeCompare(b.nome)); ns.forEach((x) => ordenar(x.filhos)); };
+    ordenar(raizes);
+    return raizes;
+  }, [setores]);
+
+  // Descendentes do setor em edição (não podem ser escolhidos como pai).
+  const descendentesDoEditado = useMemo(() => {
+    if (!editingId) return new Set<string>();
+    const filhosDe = new Map<string, string[]>();
+    for (const s of setores) {
+      if (s.paiId) filhosDe.set(s.paiId, [...(filhosDe.get(s.paiId) ?? []), s.id]);
+    }
+    const out = new Set<string>();
+    const pilha = [editingId];
+    while (pilha.length) {
+      const cur = pilha.pop()!;
+      for (const f of filhosDe.get(cur) ?? []) { if (!out.has(f)) { out.add(f); pilha.push(f); } }
+    }
+    return out;
+  }, [editingId, setores]);
+
+  function openCreate(paiId?: string) {
     setEditingId(null);
     setFNome("");
     setFDescricao("");
+    setFPaiId(paiId ?? "");
     setFAtivo(true);
     setFormError("");
     setFormOpen(true);
@@ -88,6 +129,7 @@ export default function SetoresPage() {
     setEditingId(s.id);
     setFNome(s.nome);
     setFDescricao(s.descricao ?? "");
+    setFPaiId(s.paiId ?? "");
     setFAtivo(s.ativo);
     setFormError("");
     setFormOpen(true);
@@ -102,7 +144,7 @@ export default function SetoresPage() {
       const res    = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome: fNome.trim(), descricao: fDescricao.trim() || null, ativo: fAtivo }),
+        body: JSON.stringify({ nome: fNome.trim(), descricao: fDescricao.trim() || null, ativo: fAtivo, paiId: fPaiId || null }),
       });
       const json = await res.json();
       if (!res.ok) { setFormError(json.error || "Erro ao salvar"); return; }
@@ -131,9 +173,90 @@ export default function SetoresPage() {
     }
   }
 
+  const buscando = search.trim().length > 0;
   const filtered = setores.filter((s) =>
     s.nome.toLowerCase().includes(search.toLowerCase())
   );
+
+  function toggleRecolhido(id: string) {
+    setRecolhidos((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }
+
+  // Linha do setor (usada na árvore e na busca plana).
+  function linha(s: Setor, nivel: number, temFilhos: boolean) {
+    const recolhido = recolhidos.has(s.id);
+    return (
+      <div className="flex items-center justify-between px-4 py-2.5 bg-card hover:bg-muted transition-colors">
+        <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: `${nivel * 18}px` }}>
+          {temFilhos ? (
+            <button onClick={() => toggleRecolhido(s.id)} className="text-muted-foreground hover:text-foreground shrink-0" title={recolhido ? "Expandir" : "Recolher"}>
+              {recolhido ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          ) : nivel > 0 ? (
+            <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+          ) : (
+            <span className="w-4 shrink-0" />
+          )}
+          <div className={cn(
+            "w-2 h-2 rounded-full shrink-0",
+            s.ativo ? "bg-emerald-400" : "bg-muted-foreground/30"
+          )} />
+          <div className="min-w-0">
+            <p className={cn("text-sm text-foreground truncate", temFilhos ? "font-semibold" : "font-medium")}>{s.nome}</p>
+            {s.descricao && (
+              <p className="text-xs text-muted-foreground truncate">{s.descricao}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-4 shrink-0 ml-4">
+          <span className="text-xs text-muted-foreground">
+            {s._count.colaboradores} colaborador{s._count.colaboradores !== 1 ? "es" : ""}
+          </span>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              title="Adicionar subsetor"
+              onClick={() => openCreate(s.id)}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => openEdit(s)}
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-red-400 hover:text-danger hover:bg-danger/10"
+              onClick={() => { setDeleteId(s.id); setDeleteError(""); }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderNo(n: SetorNode, nivel: number): React.ReactNode {
+    const recolhido = recolhidos.has(n.id);
+    return (
+      <div key={n.id}>
+        {linha(n, nivel, n.filhos.length > 0)}
+        {!recolhido && n.filhos.map((f) => renderNo(f, nivel + 1))}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -141,7 +264,7 @@ export default function SetoresPage() {
         title="Setores"
         breadcrumbs={[{ label: "Empresa" }, { label: "Setores" }]}
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={() => openCreate()}>
             <Plus className="w-4 h-4 mr-1" /> Novo Setor
           </Button>
         }
@@ -179,6 +302,21 @@ export default function SetoresPage() {
                 onChange={(e) => setFNome(e.target.value)}
                 placeholder="Ex: Compras, TI, RH..."
                 autoFocus
+              />
+            </Field>
+
+            <Field label="Setor pai">
+              <ComboboxWithCreate
+                value={fPaiId}
+                onChange={(v) => setFPaiId(v)}
+                noneLabel="— raiz (sem pai) —"
+                placeholder="Setor pai..."
+                menuMinWidth={280}
+                triggerClassName="h-9 rounded-lg"
+                options={setores
+                  .filter((s) => s.id !== editingId && !descendentesDoEditado.has(s.id))
+                  .sort((a, b) => a.nome.localeCompare(b.nome))
+                  .map((s) => ({ value: s.id, label: s.nome }))}
               />
             </Field>
 
@@ -243,12 +381,12 @@ export default function SetoresPage() {
           </div>
         )}
 
-        {/* List */}
+        {/* Árvore (ou lista plana quando há busca) */}
         {loading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : setores.length === 0 || (buscando && filtered.length === 0) ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Layers className="w-12 h-12 text-gray-200 mb-3" />
             <p className="text-muted-foreground font-medium">Nenhum setor encontrado</p>
@@ -256,48 +394,9 @@ export default function SetoresPage() {
           </div>
         ) : (
           <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
-            {filtered.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between px-4 py-3 bg-card hover:bg-muted transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={cn(
-                    "w-2 h-2 rounded-full shrink-0",
-                    s.ativo ? "bg-emerald-400" : "bg-muted"
-                  )} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{s.nome}</p>
-                    {s.descricao && (
-                      <p className="text-xs text-muted-foreground truncate">{s.descricao}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 shrink-0 ml-4">
-                  <span className="text-xs text-muted-foreground">
-                    {s._count.colaboradores} colaborador{s._count.colaboradores !== 1 ? "es" : ""}
-                  </span>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0"
-                      onClick={() => openEdit(s)}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-red-400 hover:text-danger hover:bg-danger/10"
-                      onClick={() => { setDeleteId(s.id); setDeleteError(""); }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {buscando
+              ? filtered.map((s) => <div key={s.id}>{linha(s, 0, false)}</div>)
+              : arvore.map((n) => renderNo(n, 0))}
           </div>
         )}
       </div>

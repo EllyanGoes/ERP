@@ -385,11 +385,17 @@ model Setor {
   nome                 String
   descricao            String?
   ativo                Boolean              @default(true)
+  // Hierarquia em árvore (como o plano de contas): setor pai → subsetores.
+  paiId                String?
+  pai                  Setor?               @relation("SetorPai", fields: [paiId], references: [id])
+  filhos               Setor[]              @relation("SetorPai")
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   colaboradores        Colaborador[]
   solicitacoesCompra   NecessidadeCompra[]
   requisicoesMateriais RequisicaoMaterial[]
+
+  @@index([paiId])
 }
 
 model CondicaoPagamento {

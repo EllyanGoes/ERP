@@ -24,10 +24,14 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const body = await req.json();
-  const { nome, descricao } = body;
+  const { nome, descricao, paiId } = body;
 
   if (!nome?.trim()) {
     return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 });
+  }
+  if (paiId) {
+    const pai = await prisma.setor.findUnique({ where: { id: paiId }, select: { id: true } });
+    if (!pai) return NextResponse.json({ error: "Setor pai não encontrado" }, { status: 400 });
   }
 
   const setor = await prisma.setor.create({
@@ -35,6 +39,7 @@ export async function POST(req: NextRequest) {
       id: crypto.randomUUID(),
       nome: nome.trim(),
       descricao: descricao?.trim() || null,
+      paiId: paiId || null,
     },
   });
 
