@@ -27,7 +27,10 @@ export async function GET(_: NextRequest, { params }: Ctx) {
   return NextResponse.json({ data: folha });
 }
 
-type ItemIn = { colaboradorId: string; servico?: string | null; valor?: number | string | null };
+type ItemIn = {
+  colaboradorId: string; servico?: string | null; valor?: number | string | null;
+  manha?: string | null; tarde?: string | null; horasExcedente?: string | null;
+};
 type GrupoIn = { tipo?: string; setor?: string | null; turno?: string; itens?: ItemIn[] };
 
 // Salva a folha inteira (cabeçalho + blocos + itens) por substituição. Recalcula
@@ -71,6 +74,9 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
           data: itensValidos.map((it, i) => ({
             grupoId: grupo.id, colaboradorId: it.colaboradorId,
             servico: (it.servico ?? "").trim() || null, valor: num(it.valor), ordem: i,
+            manha: (it.manha ?? "").trim() || null,
+            tarde: (it.tarde ?? "").trim() || null,
+            horasExcedente: (it.horasExcedente ?? "").trim() || null,
           })),
         });
       }

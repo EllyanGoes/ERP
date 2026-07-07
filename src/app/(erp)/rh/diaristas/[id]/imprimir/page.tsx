@@ -1,9 +1,10 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useTabTitle } from "@/lib/tabs-context";
 
-type Item = { servico: string | null; valor: string; colaborador: { nome: string } | null };
+type Item = { servico: string | null; manha: string | null; tarde: string | null; horasExcedente: string | null; valor: string; colaborador: { nome: string } | null };
 type Grupo = { tipo: string; setor: string | null; turno: string; itens: Item[] };
 type Folha = { data: string; turno?: string; observacoes: string | null; grupos: Grupo[] };
 
@@ -14,6 +15,8 @@ const num = (v: string) => { const n = parseFloat(String(v)); return Number.isFi
 // preenche os horários e assina; o escaneado volta pelo botão de upload da folha.
 export default function ImprimirDiarias() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  useTabTitle("Imprimir Diárias");
   const [folha, setFolha] = useState<Folha | null>(null);
 
   useEffect(() => {
@@ -54,7 +57,8 @@ export default function ImprimirDiarias() {
     <div className="bg-white text-black mx-auto" style={{ width: "277mm", padding: "6mm", fontFamily: "Arial, sans-serif", fontSize: 10 }}>
       <style>{`@media print { @page { size: A4 landscape; margin: 6mm; } .noprint { display: none; } } table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #000; padding: 2px 5px; }`}</style>
 
-      <div className="noprint mb-3 text-right">
+      <div className="noprint mb-3 flex justify-end gap-2">
+        <button onClick={() => router.push(`/rh/diaristas/${id}`)} className="border border-gray-400 rounded px-3 py-1 text-sm">Voltar</button>
         <button onClick={() => window.print()} className="border border-gray-400 rounded px-3 py-1 text-sm">Imprimir / Salvar PDF</button>
       </div>
 
@@ -70,9 +74,9 @@ export default function ImprimirDiarias() {
                 <tr key={`${gi}-${i}`} style={{ height: 22 }}>
                   <td style={{ textAlign: "center" }}>{i + 1}</td>
                   <td style={{ textTransform: "uppercase", fontWeight: "bold" }}>{it.colaborador?.nome ?? ""}</td>
-                  <td />
-                  <td />
-                  <td />
+                  <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.manha ?? ""}</td>
+                  <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.tarde ?? ""}</td>
+                  <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.horasExcedente ?? ""}</td>
                   <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.servico ?? ""}</td>
                   <td style={{ textAlign: "right" }}>{num(it.valor) > 0 ? brl(num(it.valor)) : ""}</td>
                   <td />

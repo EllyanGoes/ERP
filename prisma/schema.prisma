@@ -367,6 +367,10 @@ model DiariaItem {
   grupoId       String
   colaboradorId String
   servico       String? // descrição do serviço (ex.: "MOTORISTA 120/8*8")
+  // Colunas da planilha de assinatura (texto livre, ex.: "08:00 ÀS 12:00")
+  manha          String?
+  tarde          String?
+  horasExcedente String?
   valor         Decimal     @default(0) @db.Decimal(15, 2)
   ordem         Int         @default(0)
   grupo         DiariaGrupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)

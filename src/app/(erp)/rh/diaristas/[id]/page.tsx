@@ -12,12 +12,12 @@ import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users, Upload, FileCheck2 } from "lucide-react";
 
-type ItemRow = { _key: string; colaboradorId: string; servico: string; valor: string };
+type ItemRow = { _key: string; colaboradorId: string; manha: string; tarde: string; horasExcedente: string; servico: string; valor: string };
 type GrupoRow = { _key: string; tipo: string; setor: string; turno: string; itens: ItemRow[] };
 
 const TURNOS = [{ v: "DIA", l: "Dia" }, { v: "NOITE", l: "Noite" }];
 const key = () => Math.random().toString(36).slice(2);
-const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", servico: "", valor: "" });
+const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", manha: "", tarde: "", horasExcedente: "", servico: "", valor: "" });
 // O bloco é POR SETOR: quem está dentro dele estava nesse setor nessa diária.
 // tipo segue no modelo (default DIVERSAS) mas não é mais editável na tela.
 const novoGrupo = (): GrupoRow => ({ _key: key(), tipo: "DIVERSAS", setor: "", turno: "DIA", itens: [novoItem()] });
@@ -58,16 +58,20 @@ export default function DiariaDetailPage() {
       setCriadoPor(f.criadoPor ?? null);
       setArquivoAssinado(f.arquivoAssinadoNome ?? null);
       setGrupos(
-        (f.grupos ?? []).map((g: { tipo: string; setor: string | null; turno: string; itens: { colaboradorId: string; servico: string | null; valor: string }[] }) => ({
+        (f.grupos ?? []).map((g: { tipo: string; setor: string | null; turno: string; itens: { colaboradorId: string; servico: string | null; manha: string | null; tarde: string | null; horasExcedente: string | null; valor: string }[] }) => ({
           _key: key(), tipo: g.tipo, setor: g.setor ?? "", turno: g.turno,
-          itens: (g.itens ?? []).map((it) => ({ _key: key(), colaboradorId: it.colaboradorId, servico: it.servico ?? "", valor: String(it.valor ?? "") })),
+          itens: (g.itens ?? []).map((it) => ({
+            _key: key(), colaboradorId: it.colaboradorId,
+            manha: it.manha ?? "", tarde: it.tarde ?? "", horasExcedente: it.horasExcedente ?? "",
+            servico: it.servico ?? "", valor: String(it.valor ?? ""),
+          })),
         })),
       );
     }
     if (rc.ok) {
       const jc = await rc.json();
       const lista: { id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null }[] = jc.data ?? jc ?? [];
-      setColabs(lista.map((c) => ({ value: c.id, label: c.nome, code: c.cargo ?? c.setor?.nome ?? undefined })));
+      setColabs(lista.map((c) => ({ value: c.id, label: c.nome })));
     }
     if (rs.ok) {
       const js = await rs.json();
@@ -111,7 +115,13 @@ export default function DiariaDetailPage() {
     setSalvando(true);
     const body = {
       data, turno: turnoFolha, observacoes, status: novoStatus ?? status,
-      grupos: grupos.map((g) => ({ tipo: g.tipo, setor: g.setor, turno: g.turno, itens: g.itens.filter((it) => it.colaboradorId).map((it) => ({ colaboradorId: it.colaboradorId, servico: it.servico, valor: num(it.valor) })) })),
+      grupos: grupos.map((g) => ({
+        tipo: g.tipo, setor: g.setor, turno: g.turno,
+        itens: g.itens.filter((it) => it.colaboradorId).map((it) => ({
+          colaboradorId: it.colaboradorId, servico: it.servico, valor: num(it.valor),
+          manha: it.manha, tarde: it.tarde, horasExcedente: it.horasExcedente,
+        })),
+      })),
     };
     const res = await fetch(`/api/rh/diaristas/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setSalvando(false);
@@ -128,7 +138,7 @@ export default function DiariaDetailPage() {
         actions={
           <div className="flex items-center gap-2">
             <span className={cn("text-[11px] font-medium px-2 py-1 rounded-full", bloqueado ? "bg-success/15 text-success" : "bg-info/15 text-info")}>{bloqueado ? "Fechada" : "Aberta"}</span>
-            <Button variant="outline" onClick={() => window.open(`/rh/diaristas/${id}/imprimir`, "_blank")} className="gap-2"><Printer className="h-4 w-4" /> Baixar PDF</Button>
+            <Button variant="outline" onClick={() => router.push(`/rh/diaristas/${id}/imprimir`)} className="gap-2"><Printer className="h-4 w-4" /> Baixar PDF</Button>
             <input ref={fileRef} type="file" accept=".pdf,image/*" className="hidden" onChange={enviarAssinada} />
             {arquivoAssinado && (
               <a href={`/api/rh/diaristas/${id}/arquivo`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-success hover:underline" title={arquivoAssinado}>
@@ -205,14 +215,18 @@ export default function DiariaDetailPage() {
                 {!bloqueado && <button onClick={() => setGrupos((gs) => gs.filter((x) => x._key !== g._key))} className="text-muted-foreground hover:text-danger" title="Remover bloco"><X className="h-4 w-4" /></button>}
               </div>
 
+              {/* Mesmas colunas da planilha impressa (menos Assinatura). */}
               <div className="divide-y divide-border">
-                <div className="grid grid-cols-[2rem_1.4fr_2fr_7rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
-                  <span>#</span><span>Nome</span><span>Serviços</span><span className="text-right">Valor</span><span />
+                <div className="grid grid-cols-[2rem_1.6fr_6.5rem_6.5rem_5.5rem_1.3fr_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                  <span>#</span><span>Nome</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor</span><span />
                 </div>
                 {g.itens.map((it, i) => (
-                  <div key={it._key} className="grid grid-cols-[2rem_1.4fr_2fr_7rem_2rem] gap-2 px-4 py-2 items-center">
+                  <div key={it._key} className="grid grid-cols-[2rem_1.6fr_6.5rem_6.5rem_5.5rem_1.3fr_6.5rem_2rem] gap-2 px-4 py-2 items-center">
                     <span className="text-xs text-muted-foreground">{i + 1}</span>
                     <ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, { colaboradorId: v })} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." triggerClassName="h-9 rounded-lg" />
+                    <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: e.target.value })} placeholder="08:00 ÀS 12:00" className="h-9 border-border text-center" />
+                    <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: e.target.value })} placeholder="13:00 ÀS 17:00" className="h-9 border-border text-center" />
+                    <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center" />
                     <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border" />
                     <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border" />
                     {!bloqueado && <button onClick={() => setGrupos((gs) => gs.map((x) => (x._key === g._key ? { ...x, itens: x.itens.length > 1 ? x.itens.filter((y) => y._key !== it._key) : x.itens } : x)))} className="text-muted-foreground hover:text-danger flex justify-center"><Trash2 className="h-4 w-4" /></button>}
