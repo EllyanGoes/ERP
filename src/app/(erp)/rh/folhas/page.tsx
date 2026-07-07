@@ -111,7 +111,8 @@ export default function FolhasPage() {
                         <span className="text-muted-foreground">—</span>
                       ) : f.itensPendentes > 0 ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-warning/15 text-warning border-warning/30 tabular-nums">
-                          {Math.round((f.itensPendentes / f._count.itens) * 100)}% a classificar ({f.itensPendentes} de {f._count.itens})
+                          {/* floor p/ nunca exibir 100% enquanto houver pendência */}
+                          {Math.floor(((f._count.itens - f.itensPendentes) / f._count.itens) * 100)}% classificado (faltam {f.itensPendentes})
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-success/15 text-success border-success/30 tabular-nums">
