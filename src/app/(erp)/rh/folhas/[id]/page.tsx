@@ -5,8 +5,9 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
-import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus, CopyCheck } from "lucide-react";
+import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus, CopyCheck, Calculator } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import InssConfigDialog, { calcularInssProgressivo, type FaixaInss } from "@/components/rh/InssConfigDialog";
 import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
 
@@ -39,6 +40,7 @@ export default function FolhaDetalhePage() {
   const [salvando, setSalvando] = useState(false);
   const [fechando, setFechando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
+  const [inssOpen, setInssOpen] = useState(false);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [removidos, setRemovidos] = useState<string[]>([]);
@@ -123,8 +125,29 @@ export default function FolhaDetalhePage() {
       const j = await r.json();
       if (!r.ok) { setErro(j.error || "Falha ao aplicar os vínculos"); return; }
       const d = j.data;
-      setAviso(`Parâmetro aplicado: ${d.colaboradoresAtualizados} colaborador(es) atualizados no cadastro, ${d.vinculados} item(ns) vinculados e ${d.reclassificados} reclassificados em ${d.folhas} outra(s) folha(s).`);
+      const partes = [
+        `${d.colaboradoresAtualizados} colaborador(es) atualizados no cadastro`,
+        `${d.vinculados} item(ns) vinculados`,
+        `${d.reclassificados} reclassificados`,
+        `${d.jaCorretos} já estavam corretos`,
+      ];
+      const faltam = (d.semCorrespondencia ?? []) as string[];
+      setAviso(
+        `Parâmetro aplicado em ${d.folhas} outra(s) folha(s): ${partes.join(", ")}.` +
+        (faltam.length ? ` Sem correspondência nesta folha (vincule manualmente ou cadastre o colaborador): ${faltam.join(", ")}.` : ""),
+      );
     } finally { setAplicando(false); }
+  }
+
+  // Recalcula o INSS retido de todos os itens a partir do bruto, com a tabela
+  // progressiva configurada no dialog. Só mexe no estado — o usuário revisa e salva.
+  function calcularInssDaFolha(faixas: FaixaInss[]) {
+    setFolha((prev) => prev ? {
+      ...prev,
+      itens: prev.itens.map((i) => ({ ...i, inssRetido: calcularInssProgressivo(N(i.bruto), faixas).toFixed(2) })),
+    } : prev);
+    setErro("");
+    setAviso('INSS recalculado a partir do bruto de cada item — confira os valores e clique em "Salvar revisão".');
   }
 
   async function fechar() {
@@ -155,6 +178,11 @@ export default function FolhaDetalhePage() {
         action={
           <div className="flex items-center gap-2">
             {folha.arquivoUrl && <a href={`/api/rh/folhas/${id}/arquivo`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-info hover:underline"><FileText className="w-4 h-4" /> PDF</a>}
+            {folha.itens.length > 0 && (
+              <Button variant="outline" onClick={() => setInssOpen(true)} title="Configurar a tabela progressiva e recalcular o INSS dos itens">
+                <Calculator className="w-4 h-4 mr-2" /> INSS
+              </Button>
+            )}
             {folha.itens.some((i) => i.colaboradorId) && (
               <Button variant="outline" onClick={aplicarVinculos} disabled={aplicando} title="Grava matrícula + classificação no cadastro e aplica às demais folhas em revisão">
                 {aplicando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CopyCheck className="w-4 h-4 mr-2" />}
@@ -316,6 +344,8 @@ export default function FolhaDetalhePage() {
 
         <Autoria criadoPor={folha.criadoPor} atualizadoPor={folha.atualizadoPor} />
       </div>
+
+      <InssConfigDialog open={inssOpen} onOpenChange={setInssOpen} onCalcular={calcularInssDaFolha} podeCalcular={editavel} />
     </div>
   );
 }

@@ -48,7 +48,8 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     },
   });
 
-  let colaboradoresAtualizados = 0, vinculados = 0, reclassificados = 0;
+  let colaboradoresAtualizados = 0, vinculados = 0, reclassificados = 0, jaCorretos = 0;
+  const semCorrespondencia: string[] = [];
   await prisma.$transaction(async (tx) => {
     for (const it of ref.itens) {
       await tx.colaborador.update({
@@ -68,10 +69,16 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
         const r = it.colaboradorId
           ? porColaborador.get(it.colaboradorId)
           : (it.matricula?.trim() ? porMatricula.get(it.matricula.trim()) : null) ?? porNome.get(norm(it.nome));
-        if (!r) continue;
+        if (!r) {
+          // Sem vínculo e sem correspondência na folha parâmetro (ex.: demitido
+          // antes da competência de referência) — precisa de vínculo manual.
+          if (!it.colaboradorId) semCorrespondencia.push(it.nome);
+          else jaCorretos++;
+          continue;
+        }
         const setVinculo = !it.colaboradorId;
         const setClassif = it.classificacao !== r.classificacao;
-        if (!setVinculo && !setClassif) continue;
+        if (!setVinculo && !setClassif) { jaCorretos++; continue; }
         await tx.folhaItem.update({
           where: { id: it.id },
           data: {
@@ -87,6 +94,10 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
 
   return NextResponse.json({
     ok: true,
-    data: { colaboradoresAtualizados, folhas: outras.length, vinculados, reclassificados },
+    data: {
+      colaboradoresAtualizados, folhas: outras.length, vinculados, reclassificados, jaCorretos,
+      // Nomes únicos, p/ o usuário saber quem falta cadastrar/vincular.
+      semCorrespondencia: Array.from(new Set(semCorrespondencia)),
+    },
   });
 }
