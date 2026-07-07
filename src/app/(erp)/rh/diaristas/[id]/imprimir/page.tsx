@@ -18,6 +18,8 @@ export default function ImprimirDiarias() {
   const router = useRouter();
   useTabTitle("Imprimir Diárias");
   const [folha, setFolha] = useState<Folha | null>(null);
+  // Impressão agrupada por setor (um quadro por bloco) ou corrida (tudo junto).
+  const [agruparPorSetor, setAgruparPorSetor] = useState(true);
 
   useEffect(() => {
     fetch(`/api/rh/diaristas/${id}`).then((r) => r.json()).then((j) => setFolha(j.data)).catch(() => {});
@@ -57,7 +59,11 @@ export default function ImprimirDiarias() {
     <div className="bg-white text-black mx-auto" style={{ width: "277mm", padding: "6mm", fontFamily: "Arial, sans-serif", fontSize: 10 }}>
       <style>{`@media print { @page { size: A4 landscape; margin: 6mm; } .noprint { display: none; } } table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #000; padding: 2px 5px; }`}</style>
 
-      <div className="noprint mb-3 flex justify-end gap-2">
+      <div className="noprint mb-3 flex items-center justify-end gap-3">
+        <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+          <input type="checkbox" checked={agruparPorSetor} onChange={(e) => setAgruparPorSetor(e.target.checked)} />
+          Agrupar por setor
+        </label>
         <button onClick={() => router.push(`/rh/diaristas/${id}`)} className="border border-gray-400 rounded px-3 py-1 text-sm">Voltar</button>
         <button onClick={() => window.print()} className="border border-gray-400 rounded px-3 py-1 text-sm">Imprimir / Salvar PDF</button>
       </div>
@@ -67,23 +73,41 @@ export default function ImprimirDiarias() {
           <tr><th colSpan={8} style={{ textAlign: "center", fontWeight: "bold" }}>DIÁRIAS ({folha.turno === "NOITE" ? "NOITE" : "DIA"}) - {dataExt}</th></tr>
         </thead>
         <tbody>
-          {folha.grupos.map((g, gi) => (
-            <Fragment key={gi}>
-              {headerBloco(g)}
-              {g.itens.map((it, i) => (
-                <tr key={`${gi}-${i}`} style={{ height: 22 }}>
+          {agruparPorSetor ? (
+            folha.grupos.map((g, gi) => (
+              <Fragment key={gi}>
+                {headerBloco(g)}
+                {g.itens.map((it, i) => (
+                  <tr key={`${gi}-${i}`} style={{ height: 22 }}>
+                    <td style={{ textAlign: "center" }}>{i + 1}</td>
+                    <td style={{ textTransform: "uppercase", fontWeight: "bold" }}>{it.colaborador?.nome ?? ""}</td>
+                    <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.manha ?? ""}</td>
+                    <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.tarde ?? ""}</td>
+                    <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.horasExcedente ?? ""}</td>
+                    <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.servico ?? ""}</td>
+                    <td style={{ textAlign: "right" }}>{num(it.valor) > 0 ? brl(num(it.valor)) : ""}</td>
+                    <td />
+                  </tr>
+                ))}
+              </Fragment>
+            ))
+          ) : (
+            <Fragment>
+              {headerBloco({ tipo: "", setor: null, turno: folha.turno ?? "DIA", itens: [] })}
+              {folha.grupos.flatMap((g) => g.itens.map((it) => ({ g, it }))).map(({ g, it }, i) => (
+                <tr key={i} style={{ height: 22 }}>
                   <td style={{ textAlign: "center" }}>{i + 1}</td>
                   <td style={{ textTransform: "uppercase", fontWeight: "bold" }}>{it.colaborador?.nome ?? ""}</td>
                   <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.manha ?? ""}</td>
                   <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.tarde ?? ""}</td>
                   <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.horasExcedente ?? ""}</td>
-                  <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.servico ?? ""}</td>
+                  <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.servico || g.setor || ""}</td>
                   <td style={{ textAlign: "right" }}>{num(it.valor) > 0 ? brl(num(it.valor)) : ""}</td>
                   <td />
                 </tr>
               ))}
             </Fragment>
-          ))}
+          )}
           <tr style={{ fontWeight: "bold" }}>
             <td colSpan={6} style={{ textAlign: "right" }}>TOTAL GERAL — {totalPessoas} PESSOA{totalPessoas !== 1 ? "S" : ""}</td>
             <td style={{ textAlign: "right" }}>{brl(totalGeral)}</td>
