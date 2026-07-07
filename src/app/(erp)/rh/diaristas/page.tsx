@@ -22,7 +22,7 @@ type Folha = {
   qtdeBlocos: number;
 };
 
-type Colab = { id: string; nome: string; setor: { nome: string } | null };
+type Colab = { id: string; nome: string; setor: { nome: string } | null; tipoColaborador?: "FUNCIONARIO" | "PRESTADOR" };
 
 // Ex.: "07/04/2026 - terça-feira"
 const fmtData = (iso: string) => {
@@ -43,6 +43,8 @@ export default function DiaristasPage() {
   const [turno, setTurno] = useState<"DIA" | "NOITE">("DIA");
   const [colabs, setColabs] = useState<Colab[]>([]);
   const [busca, setBusca] = useState("");
+  const [filtroSetor, setFiltroSetor] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
   const [sel, setSel] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -57,7 +59,7 @@ export default function DiaristasPage() {
   function abrirNovo() {
     setData(new Date().toISOString().slice(0, 10));
     setTurno("DIA");
-    setSel(new Set()); setBusca("");
+    setSel(new Set()); setBusca(""); setFiltroSetor(""); setFiltroTipo("");
     setNovoOpen(true);
     if (colabs.length === 0) {
       fetch("/api/empresa/colaboradores?ativo=true")
@@ -69,11 +71,19 @@ export default function DiaristasPage() {
     }
   }
 
+  const setoresDisponiveis = useMemo(
+    () => Array.from(new Set(colabs.map((c) => c.setor?.nome).filter((s): s is string => !!s))).sort((a, b) => a.localeCompare(b)),
+    [colabs],
+  );
+
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    if (!q) return colabs;
-    return colabs.filter((c) => c.nome.toLowerCase().includes(q) || (c.setor?.nome ?? "").toLowerCase().includes(q));
-  }, [colabs, busca]);
+    return colabs.filter((c) =>
+      (!q || c.nome.toLowerCase().includes(q) || (c.setor?.nome ?? "").toLowerCase().includes(q)) &&
+      (!filtroSetor || c.setor?.nome === filtroSetor) &&
+      (!filtroTipo || (c.tipoColaborador ?? "FUNCIONARIO") === filtroTipo),
+    );
+  }, [colabs, busca, filtroSetor, filtroTipo]);
 
   const toggle = (id: string) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
@@ -210,6 +220,26 @@ export default function DiaristasPage() {
                 placeholder="Buscar por nome ou setor..."
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
               />
+            </div>
+
+            <div className="flex gap-2">
+              <select
+                value={filtroSetor}
+                onChange={(e) => setFiltroSetor(e.target.value)}
+                className="h-9 flex-1 min-w-0 rounded-lg border border-border bg-card px-2 text-sm"
+              >
+                <option value="">Todos os setores</option>
+                {setoresDisponiveis.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <select
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value)}
+                className="h-9 flex-1 min-w-0 rounded-lg border border-border bg-card px-2 text-sm"
+              >
+                <option value="">Todos os tipos</option>
+                <option value="FUNCIONARIO">Funcionário</option>
+                <option value="PRESTADOR">Prestador</option>
+              </select>
             </div>
 
             <div className="border border-border rounded-lg max-h-72 overflow-y-auto divide-y divide-border">
