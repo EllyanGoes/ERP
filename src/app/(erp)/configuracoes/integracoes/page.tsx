@@ -6,7 +6,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { cn } from "@/lib/utils";
 import {
   Loader2, MessageCircle, Send, Database, ChevronRight,
-  Wifi, WifiOff, HelpCircle, CreditCard,
+  Wifi, WifiOff, HelpCircle, CreditCard, Receipt,
 } from "lucide-react";
 
 type ConnStatus = "idle" | "ok" | "error" | "unconfigured";
@@ -37,6 +37,7 @@ export default function IntegracoesPage() {
   const [dbStatus,   setDbStatus]   = useState<ConnStatus>("idle");
   const [waProvider, setWaProvider] = useState("Evolution API");
   const [payStatus,  setPayStatus]  = useState<ConnStatus>("idle");
+  const [nfeStatus,  setNfeStatus]  = useState<ConnStatus>("idle");
 
   const loadStatuses = useCallback(async () => {
     setLoading(true);
@@ -63,6 +64,9 @@ export default function IntegracoesPage() {
       // DB Engeman
       setDbStatus(!!(cfg.db_engeman_host && cfg.db_engeman_name && cfg.db_engeman_user) ? "ok" : "unconfigured");
 
+      // Focus NFe (módulo Fiscal): "ok" se o master token da conta está salvo
+      setNfeStatus(cfg.fiscal_master_token ? "ok" : "unconfigured");
+
       // Pagamento (maquininha): "ok" se alguma empresa tem a cobrança ativa
       try {
         const pay = await fetch("/api/configuracoes/integracoes/pagamento").then((r) => r.json());
@@ -74,6 +78,7 @@ export default function IntegracoesPage() {
       setTgStatus("unconfigured");
       setDbStatus("unconfigured");
       setPayStatus("unconfigured");
+      setNfeStatus("unconfigured");
     } finally {
       setLoading(false);
     }
@@ -128,12 +133,21 @@ export default function IntegracoesPage() {
       badgeCn: "bg-success/10 text-success border-success/30",
       status:  payStatus,
     },
+    {
+      href:    "/configuracoes/integracoes/focus-nfe",
+      icon:    <Receipt className="w-5 h-5 text-violet-600 dark:text-violet-400" />,
+      bg:      "bg-violet-50 dark:bg-violet-500/15 border-violet-100",
+      title:   "Focus NFe",
+      desc:    "Emissão e consulta de documentos fiscais — provedor do módulo Fiscal",
+      badge:   "NF-e / SEFAZ",
+      badgeCn: "bg-violet-50 dark:bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-100",
+      status:  nfeStatus,
+    },
   ];
 
   const comingSoon = [
     { icon: "🔄", name: "ERP Externo / SAP",  desc: "Sincronização de pedidos e estoque" },
     { icon: "🚚", name: "Transportadoras",     desc: "Rastreamento e cotação de frete" },
-    { icon: "📄", name: "NF-e / SEFAZ",        desc: "Emissão e consulta de notas fiscais" },
   ];
 
   return (

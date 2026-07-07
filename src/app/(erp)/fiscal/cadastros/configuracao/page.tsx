@@ -219,7 +219,7 @@ export default function ConfiguracaoFiscalPage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 O certificado digital A1 (.pfx) fica hospedado no provedor. A sincronização usa o master token
-                da conta (Configuração <code>fiscal_master_token</code>) e grava os tokens de emissão da empresa.
+                da conta (Configurações → Integrações → Focus NFe) e grava os tokens de emissão da empresa.
               </p>
             </div>
 

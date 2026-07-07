@@ -33,6 +33,11 @@ const MANAGED_KEYS = [
   "tg_chat_pedidos_label",
   "tg_chat_pcp",
   "tg_chat_pcp_label",
+  // Focus NFe (módulo Fiscal): master token da CONTA (registra empresas e
+  // devolve os tokens de emissão por empresa, gravados em EmpresaFiscal) e
+  // secret do webhook de retorno de emissão.
+  "fiscal_master_token",
+  "fiscal_webhook_secret",
 ] as const;
 
 // Chaves cujo valor nunca sai do servidor. O GET devolve a máscara quando há
@@ -46,6 +51,8 @@ const SECRET_KEYS: readonly string[] = [
   "wa_zapi_security_token",
   "db_engeman_password",
   "tg_bot_token",
+  "fiscal_master_token",
+  "fiscal_webhook_secret",
 ];
 
 const SECRET_MASK = "••••••••";
