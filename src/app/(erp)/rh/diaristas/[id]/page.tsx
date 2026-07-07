@@ -37,6 +37,17 @@ const mascaraHora = (raw: string) => {
   return `${d.slice(0, 2)}:${d.slice(2, 4)} - ${d.slice(4, 6)}:${d.slice(6)}`;
 };
 
+// Minutos de uma faixa "HH:MM - HH:MM" (vira o dia quando a final é menor).
+const faixaMin = (s: string): number | null => {
+  const m = (s || "").match(/^(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const ini = +m[1] * 60 + +m[2], fim = +m[3] * 60 + +m[4];
+  return (fim - ini + 1440) % 1440;
+};
+const fmtMin = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+// Jornada padrão (8h) quando o colaborador não tem escala cadastrada.
+const JORNADA_PADRAO_MIN = 8 * 60;
+
 export default function DiariaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -157,12 +168,38 @@ export default function DiariaDetailPage() {
   }
 
   // Escala vigente do colaborador na data da folha (faixa 1 = manhã, 2 = tarde).
-  function faixasVigentes(colaboradorId: string): { manha?: string; tarde?: string } {
+  function escalaVigente(colaboradorId: string) {
     const escs = escalasPorColab.get(colaboradorId) ?? [];
-    const vig = escs.find((e) => !data || e.data <= data) ?? escs[0];
+    return escs.find((e) => !data || e.data <= data) ?? escs[0] ?? null;
+  }
+
+  function faixasVigentes(colaboradorId: string): { manha?: string; tarde?: string } {
+    const vig = escalaVigente(colaboradorId);
     if (!vig || vig.faixas.length === 0) return {};
     const fmt = (f: { horaInicial: string; horaFinal: string }) => `${f.horaInicial} - ${f.horaFinal}`;
     return { manha: fmt(vig.faixas[0]), ...(vig.faixas[1] ? { tarde: fmt(vig.faixas[1]) } : {}) };
+  }
+
+  // Jornada base (minutos) da escala vigente; sem escala, 8h do padrão.
+  function jornadaBaseMin(colaboradorId: string): number {
+    const vig = escalaVigente(colaboradorId);
+    if (!vig || vig.faixas.length === 0) return JORNADA_PADRAO_MIN;
+    return vig.faixas.reduce((a, f) => a + (faixaMin(`${f.horaInicial} - ${f.horaFinal}`) ?? 0), 0);
+  }
+
+  // Q. H. Excedente = horas digitadas (manhã+tarde) − jornada da escala.
+  function calcExcedente(manha: string, tarde: string, colaboradorId: string): string {
+    const trabalhado = (faixaMin(manha) ?? 0) + (faixaMin(tarde) ?? 0);
+    if (trabalhado === 0) return "";
+    const exc = trabalhado - jornadaBaseMin(colaboradorId);
+    return exc > 0 ? fmtMin(exc) : "";
+  }
+
+  // Patch de manhã/tarde com o excedente recalculado a partir do par resultante.
+  function patchHora(it: ItemRow, patch: Partial<ItemRow>): Partial<ItemRow> {
+    const manha = patch.manha ?? it.manha;
+    const tarde = patch.tarde ?? it.tarde;
+    return { ...patch, horasExcedente: calcExcedente(manha, tarde, it.colaboradorId) };
   }
 
   // Ao escolher o colaborador: preenche o valor com a diária base do cadastro e
@@ -172,11 +209,13 @@ export default function DiariaDetailPage() {
     const esc = faixasVigentes(colaboradorId);
     const manhaPadrao = !it.manha || it.manha === DEF_MANHA;
     const tardePadrao = !it.tarde || it.tarde === DEF_TARDE;
+    const manha = esc.manha && manhaPadrao ? esc.manha : it.manha;
+    const tarde = esc.manha && tardePadrao ? (esc.tarde ?? "") : it.tarde;
     return {
       colaboradorId,
       ...(!num(it.valor) && v ? { valor: String(v).replace(".", ",") } : {}),
-      ...(esc.manha && manhaPadrao ? { manha: esc.manha } : {}),
-      ...(esc.manha && tardePadrao ? { tarde: esc.tarde ?? "" } : {}),
+      manha, tarde,
+      horasExcedente: calcExcedente(manha, tarde, colaboradorId),
     };
   }
 
@@ -312,8 +351,8 @@ export default function DiariaDetailPage() {
                   <span className="text-xs text-muted-foreground">{i + 1}</span>
                   <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => aoEscolherColabLista(g._key, it, v, g.setor)} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
                   <div className="min-w-0"><ComboboxWithCreate value={g.setor} onChange={(v) => moverItemParaSetor(g._key, it._key, v)} options={setorOptions} disabled={bloqueado} placeholder="Setor..." noneLabel="— sem setor —" menuMinWidth={260} triggerClassName={cn("h-9 rounded-lg", !g.setor && "border-warning/50")} /></div>
-                  <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: mascaraHora(e.target.value) })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
-                  <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: mascaraHora(e.target.value) })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
+                  <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { manha: mascaraHora(e.target.value) }))} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
+                  <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { tarde: mascaraHora(e.target.value) }))} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                   <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
@@ -367,8 +406,8 @@ export default function DiariaDetailPage() {
                   <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.6fr)_8rem_8rem_5rem_minmax(0,1.3fr)_6rem_2rem] gap-2 px-4 py-2 items-center">
                     <span className="text-xs text-muted-foreground">{i + 1}</span>
                     <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, patchColab(it, v))} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
-                    <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: mascaraHora(e.target.value) })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
-                    <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: mascaraHora(e.target.value) })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
+                    <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { manha: mascaraHora(e.target.value) }))} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
+                    <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { tarde: mascaraHora(e.target.value) }))} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                     <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
