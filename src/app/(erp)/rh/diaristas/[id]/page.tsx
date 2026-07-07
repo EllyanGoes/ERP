@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import ComboboxWithCreate, { type ComboboxOption } from "@/components/shared/Com
 import { Autoria } from "@/components/shared/Autoria";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users } from "lucide-react";
+import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users, Upload, FileCheck2 } from "lucide-react";
 
 type ItemRow = { _key: string; colaboradorId: string; servico: string; valor: string };
 type GrupoRow = { _key: string; tipo: string; setor: string; turno: string; itens: ItemRow[] };
@@ -37,6 +37,10 @@ export default function DiariaDetailPage() {
   const [criadoPor, setCriadoPor] = useState<string | null>(null);
   const [colabs, setColabs] = useState<ComboboxOption[]>([]);
   const [setores, setSetores] = useState<ComboboxOption[]>([]);
+  // Folha assinada escaneada (upload após a coleta de assinaturas)
+  const [arquivoAssinado, setArquivoAssinado] = useState<string | null>(null);
+  const [enviandoArquivo, setEnviandoArquivo] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const carregar = useCallback(async () => {
     const [rf, rc, rs] = await Promise.all([
@@ -50,6 +54,7 @@ export default function DiariaDetailPage() {
       setObservacoes(f.observacoes ?? "");
       setStatus(f.status ?? "ABERTA");
       setCriadoPor(f.criadoPor ?? null);
+      setArquivoAssinado(f.arquivoAssinadoNome ?? null);
       setGrupos(
         (f.grupos ?? []).map((g: { tipo: string; setor: string | null; turno: string; itens: { colaboradorId: string; servico: string | null; valor: string }[] }) => ({
           _key: key(), tipo: g.tipo, setor: g.setor ?? "", turno: g.turno,
@@ -82,6 +87,24 @@ export default function DiariaDetailPage() {
     setGrupos((gs) => gs.map((g) => (g._key === gk ? { ...g, itens: g.itens.map((it) => (it._key === ik ? { ...it, ...patch } : it)) } : g)));
   }
 
+  // Upload do escaneado assinado pelos diaristas (substitui o anterior).
+  async function enviarAssinada(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEnviandoArquivo(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/rh/diaristas/${id}/arquivo`, { method: "POST", body: fd });
+      const j = await res.json();
+      if (!res.ok) { alert(j.error || "Falha ao enviar o arquivo"); return; }
+      setArquivoAssinado(file.name);
+    } finally {
+      setEnviandoArquivo(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   async function salvar(novoStatus?: string) {
     setSalvando(true);
     const body = {
@@ -104,6 +127,15 @@ export default function DiariaDetailPage() {
           <div className="flex items-center gap-2">
             <span className={cn("text-[11px] font-medium px-2 py-1 rounded-full", bloqueado ? "bg-success/15 text-success" : "bg-info/15 text-info")}>{bloqueado ? "Fechada" : "Aberta"}</span>
             <Button variant="outline" onClick={() => window.open(`/rh/diaristas/${id}/imprimir`, "_blank")} className="gap-2"><Printer className="h-4 w-4" /> Baixar PDF</Button>
+            <input ref={fileRef} type="file" accept=".pdf,image/*" className="hidden" onChange={enviarAssinada} />
+            {arquivoAssinado && (
+              <a href={`/api/rh/diaristas/${id}/arquivo`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-success hover:underline" title={arquivoAssinado}>
+                <FileCheck2 className="h-4 w-4" /> Assinada
+              </a>
+            )}
+            <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={enviandoArquivo} className="gap-2" title="Subir a folha escaneada com as assinaturas dos diaristas">
+              {enviandoArquivo ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {arquivoAssinado ? "Substituir assinada" : "Enviar assinada"}
+            </Button>
             {!bloqueado ? (
               <>
                 <Button variant="outline" onClick={() => salvar()} disabled={salvando} className="gap-2">{salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar</Button>

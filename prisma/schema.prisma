@@ -330,6 +330,10 @@ model DiariaFolha {
   observacoes String?
   status      String        @default("ABERTA") // ABERTA | FECHADA
   total       Decimal       @default(0) @db.Decimal(15, 2)
+  // Folha assinada pelos diaristas (PDF/imagem escaneada subida após a coleta
+  // das assinaturas — o "Baixar PDF" gera a planilha p/ assinatura).
+  arquivoAssinadoUrl  String?
+  arquivoAssinadoNome String?
   criadoPor   String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
