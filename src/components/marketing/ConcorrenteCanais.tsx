@@ -182,7 +182,7 @@ export default function ConcorrenteCanais({
       <div className="px-5 py-3 border-b border-border bg-muted flex items-center justify-between gap-3">
         <div>
           <h2 className="font-bold text-sm text-foreground uppercase tracking-wide flex items-center gap-2"><Share2 className="h-4 w-4" /> Canais de aquisição</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Por onde o concorrente capta clientes. A <b>loja física</b> é um canal geolocalizado (vai pro mapa).</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Por onde o competidor capta clientes. A <b>loja física</b> é um canal geolocalizado (vai pro mapa).</p>
         </div>
         <Button type="button" onClick={abrirNovo} className="h-9 gap-1.5 shrink-0"><Plus className="h-4 w-4" /> Adicionar canal</Button>
       </div>

@@ -14,7 +14,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     where: { id: params.id },
     select: { logradouro: true, numero: true, bairro: true, cidade: true, estado: true, cep: true },
   });
-  if (!c) return NextResponse.json({ error: "Concorrente não encontrado" }, { status: 404 });
+  if (!c) return NextResponse.json({ error: "Competidor não encontrado" }, { status: 404 });
 
   const geo = await geocodificarEndereco(c);
   if (!geo) {

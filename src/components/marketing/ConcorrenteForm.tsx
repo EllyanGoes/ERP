@@ -140,7 +140,7 @@ export default function ConcorrenteForm({
   }
 
   const { confirmCreated, dialog } = useCreateFlow({
-    entity: "concorrente",
+    entity: "competidor",
     onNew: () => form.reset({ tipoPessoa: "JURIDICA", ehFornecedor: false, ehRevendedor: true, ativo: true }),
     viewHref: (id) => `/marketing/inteligencia-comercial/${id}`,
   });
@@ -173,7 +173,7 @@ export default function ConcorrenteForm({
         }
       } else {
         const json = await res.json().catch(() => ({}));
-        setServerError(json.error ?? "Erro ao salvar concorrente. Tente novamente.");
+        setServerError(json.error ?? "Erro ao salvar competidor. Tente novamente.");
       }
     } catch {
       setServerError("Erro de conexão. Tente novamente.");
@@ -192,8 +192,8 @@ export default function ConcorrenteForm({
           <div className="p-5">
             <p className="text-xs text-muted-foreground mb-2">
               {editando
-                ? "Se este concorrente é atendido por uma empresa do grupo (está na nossa base de clientes), vincule ao cliente para marcá-lo como Parceiro. Não sobrescreve os dados já preenchidos."
-                : "Esse concorrente também é seu cliente? Selecione para preencher os dados automaticamente (você ajusta a categoria abaixo). Ao vincular, ele ganha a tag Parceiro."}
+                ? "Se este competidor é atendido por uma empresa do grupo (está na nossa base de clientes), vincule ao cliente para marcá-lo como Parceiro. Não sobrescreve os dados já preenchidos."
+                : "Esse competidor também é seu cliente? Selecione para preencher os dados automaticamente (você ajusta a categoria abaixo). Ao vincular, ele ganha a tag Parceiro."}
             </p>
             <ComboboxWithCreate
               options={clientes}
@@ -207,9 +207,9 @@ export default function ConcorrenteForm({
 
         {/* ── Categoria ──────────────────────────────────────────────────── */}
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-          <SectionTitle>Categoria do Concorrente</SectionTitle>
+          <SectionTitle>Categoria do Competidor</SectionTitle>
           <div className="p-5">
-            <p className="text-xs text-muted-foreground mb-3">Marque como o concorrente atua. Pode ser ambos.</p>
+            <p className="text-xs text-muted-foreground mb-3">Marque como o competidor atua. Pode ser ambos.</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
                 type="button"
@@ -437,7 +437,7 @@ export default function ConcorrenteForm({
                 <FormField control={form.control} name="observacoes" render={({ field }) => (
                   <FormItem className="flex-1 flex flex-col">
                     <FormControl className="flex-1">
-                      <Textarea {...field} value={field.value ?? ""} placeholder="Observações sobre o concorrente..." className="resize-none border-border h-full min-h-[80px]" />
+                      <Textarea {...field} value={field.value ?? ""} placeholder="Observações sobre o competidor..." className="resize-none border-border h-full min-h-[80px]" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -458,7 +458,7 @@ export default function ConcorrenteForm({
 
         <div className="flex gap-3 pt-1">
           <Button type="submit" disabled={form.formState.isSubmitting} className="font-semibold">
-            {form.formState.isSubmitting ? "Salvando..." : concorrente ? "Salvar Alterações" : "Cadastrar Concorrente"}
+            {form.formState.isSubmitting ? "Salvando..." : concorrente ? "Salvar Alterações" : "Cadastrar Competidor"}
           </Button>
           {(onCancel || !concorrente) && (
             <Button type="button" variant="outline" onClick={() => (onCancel ? onCancel() : router.back())} className="border-border text-muted-foreground">

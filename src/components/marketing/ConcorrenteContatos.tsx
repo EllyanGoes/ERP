@@ -56,7 +56,7 @@ export default function ConcorrenteContatos({
       <div className="px-5 py-3 border-b border-border bg-muted flex items-center justify-between gap-3">
         <div>
           <h2 className="font-bold text-sm text-foreground uppercase tracking-wide flex items-center gap-2"><Users className="h-4 w-4" /> Contatos</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Pessoas de contato no concorrente (vendedor, gerente, dono...).</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Pessoas de contato no competidor (vendedor, gerente, dono...).</p>
         </div>
         <Button type="button" onClick={adicionar} disabled={salvando === "novo"} className="h-9 gap-1.5 shrink-0">
           {salvando === "novo" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Adicionar contato

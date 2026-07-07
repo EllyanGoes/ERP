@@ -10,7 +10,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Garante que o concorrente existe (e está no escopo da empresa).
   const concorrente = await prisma.concorrente.findUnique({ where: { id: params.id }, select: { id: true } });
-  if (!concorrente) return NextResponse.json({ error: "Concorrente não encontrado" }, { status: 404 });
+  if (!concorrente) return NextResponse.json({ error: "Competidor não encontrado" }, { status: 404 });
 
   const body = await req.json();
   const parsed = concorrentePrecoSchema.safeParse(body);

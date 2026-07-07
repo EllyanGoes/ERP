@@ -164,7 +164,7 @@ export default function ConcorrentePrecos({
               <th className="px-5 py-2 font-semibold">Produto</th>
               <th className="px-3 py-2 font-semibold">Cond. pagamento</th>
               <th className="px-3 py-2 font-semibold">Entrega/Retirada</th>
-              <th className="px-3 py-2 font-semibold text-right">Preço concorrente</th>
+              <th className="px-3 py-2 font-semibold text-right">Preço competidor</th>
               <th className="px-3 py-2 font-semibold text-right">Nosso preço</th>
               <th className="px-3 py-2 font-semibold text-right">Diferença</th>
               <th className="px-3 py-2"></th>
@@ -207,15 +207,15 @@ export default function ConcorrentePrecos({
         </table>
       )}
       <div className="px-5 py-2 text-[11px] text-muted-foreground border-t border-border">
-        Diferença positiva (verde) = concorrente mais caro que nós. Negativa (vermelho) = concorrente mais barato.
+        Diferença positiva (verde) = competidor mais caro que nós. Negativa (vermelho) = competidor mais barato.
       </div>
 
-      {/* Popup — novo preço de concorrente */}
+      {/* Popup — novo preço de competidor */}
       {aberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAberto(false)}>
           <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="h-5 w-5 text-blue-600" /> Novo preço de concorrente</h3>
+              <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="h-5 w-5 text-blue-600" /> Novo preço de competidor</h3>
               <button onClick={() => setAberto(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
 
@@ -239,7 +239,7 @@ export default function ConcorrentePrecos({
 
               <div className="grid grid-cols-12 gap-3 items-end">
                 <div className="col-span-3">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Preço conc.</label>
+                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Preço comp.</label>
                   <Input value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="0,00" inputMode="decimal" className="h-10 border-border" />
                 </div>
                 <div className="col-span-3">

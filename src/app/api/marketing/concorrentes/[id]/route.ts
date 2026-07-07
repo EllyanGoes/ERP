@@ -17,7 +17,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       canais: { orderBy: { createdAt: "asc" } },
     },
   });
-  if (!concorrente) return NextResponse.json({ error: "Concorrente não encontrado" }, { status: 404 });
+  if (!concorrente) return NextResponse.json({ error: "Competidor não encontrado" }, { status: 404 });
   return NextResponse.json({ data: concorrente });
 }
 
@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const existe = await prisma.concorrente.findUnique({ where: { id: params.id }, select: { id: true } });
-  if (!existe) return NextResponse.json({ error: "Concorrente não encontrado" }, { status: 404 });
+  if (!existe) return NextResponse.json({ error: "Competidor não encontrado" }, { status: 404 });
 
   const concorrente = await prisma.concorrente.update({
     where: { id: params.id },

@@ -54,13 +54,13 @@ const CARDS = [
     href: "/marketing/inteligencia-comercial",
     icon: Target,
     title: "Inteligência Comercial (IC)",
-    desc: "Cadastre concorrentes de mercado, categorize (fornecedor/revendedor), registre endereço e mapeie os preços praticados por produto.",
+    desc: "Cadastre competidores de mercado, categorize (fornecedor/revendedor), registre endereço e mapeie os preços praticados por produto.",
   },
   {
     href: "/marketing/inteligencia-comercial/mapa",
     icon: MapIcon,
     title: "Geomarketing",
-    desc: "Visualize a localização dos concorrentes no mapa.",
+    desc: "Visualize a localização dos competidores no mapa.",
   },
 ];
 

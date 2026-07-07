@@ -47,7 +47,7 @@ export default function RelatorioPrecosMercadoPage() {
     <div>
       <PageHeader
         title="Preço de Mercado por Produto"
-        subtitle="Preço médio praticado pelos concorrentes, comparado ao nosso preço de venda"
+        subtitle="Preço médio praticado pelos competidores, comparado ao nosso preço de venda"
         breadcrumbs={[
           { label: "Marketing" },
           { label: "Inteligência Comercial", href: "/marketing/inteligencia-comercial" },
@@ -73,14 +73,14 @@ export default function RelatorioPrecosMercadoPage() {
             <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted"><BarChart3 className="h-6 w-6 text-muted-foreground" /></div>
               <p className="text-sm font-medium text-foreground">Sem dados de preço</p>
-              <p className="text-sm text-muted-foreground">Cadastre preços de concorrentes para ver o preço médio de mercado.</p>
+              <p className="text-sm text-muted-foreground">Cadastre preços de competidores para ver o preço médio de mercado.</p>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
                   <th className="px-5 py-2.5 font-semibold">Produto</th>
-                  <th className="px-3 py-2.5 font-semibold text-center">Conc.</th>
+                  <th className="px-3 py-2.5 font-semibold text-center">Comp.</th>
                   <th className="px-3 py-2.5 font-semibold text-right">Menor</th>
                   <th className="px-3 py-2.5 font-semibold text-right">Média mercado</th>
                   <th className="px-3 py-2.5 font-semibold text-right">Maior</th>

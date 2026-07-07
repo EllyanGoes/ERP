@@ -66,7 +66,7 @@ export default function ConcorrenteDetailPage() {
   }
 
   async function excluir() {
-    if (!confirm("Inativar este concorrente? Ele sai das listas e do mapa, mas o histórico de preços é mantido.")) return;
+    if (!confirm("Inativar este competidor? Ele sai das listas e do mapa, mas o histórico de preços é mantido.")) return;
     await fetch(`/api/marketing/concorrentes/${id}`, { method: "DELETE" });
     router.push("/marketing/inteligencia-comercial");
   }
@@ -75,7 +75,7 @@ export default function ConcorrenteDetailPage() {
     return <div className="flex items-center justify-center py-24 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
   if (!data) {
-    return <div className="px-8 py-16 text-center text-muted-foreground">Concorrente não encontrado.</div>;
+    return <div className="px-8 py-16 text-center text-muted-foreground">Competidor não encontrado.</div>;
   }
 
   const TABS: { key: Aba; label: string }[] = [

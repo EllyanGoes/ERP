@@ -67,7 +67,7 @@ export default function ImportarParaConcorrente({ clienteId }: { clienteId: stri
               <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><Target className="h-4 w-4 text-fuchsia-600" /> Mapear na Inteligência Comercial</h3>
               <button onClick={() => setAberto(false)} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
-            <p className="text-xs text-muted-foreground mb-4">Como este concorrente atua? Marque uma ou mais categorias.</p>
+            <p className="text-xs text-muted-foreground mb-4">Como este competidor atua? Marque uma ou mais categorias.</p>
 
             <div className="grid grid-cols-2 gap-2">
               {CATEGORIAS.map(({ key, label, Icon, cor }) => {

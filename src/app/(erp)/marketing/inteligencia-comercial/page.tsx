@@ -73,7 +73,7 @@ export default function InteligenciaComercialPage() {
 
   async function localizarTodos() {
     setGeoBusy(true);
-    setGeoMsg("Localizando concorrentes pelo endereço...");
+    setGeoMsg("Localizando competidores pelo endereço...");
     const acc = { localizados: 0, falhas: 0, semEndereco: 0, processados: 0 };
     let cursor: string | null = null;
     try {
@@ -102,7 +102,7 @@ export default function InteligenciaComercialPage() {
       } while (cursor);
 
       if (acc.processados === 0) {
-        setGeoMsg("Nenhum concorrente pendente de localização.");
+        setGeoMsg("Nenhum competidor pendente de localização.");
       } else {
         setGeoMsg(
           `${acc.localizados} localizado(s)` +
@@ -123,7 +123,7 @@ export default function InteligenciaComercialPage() {
     <div>
       <PageHeader
         title="Inteligência Comercial"
-        subtitle="Concorrentes de mercado, categoria, endereço e mapeamento de preços"
+        subtitle="Competidores de mercado, categoria, endereço e mapeamento de preços"
         actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={localizarTodos} disabled={geoBusy} className="gap-2">
@@ -135,7 +135,7 @@ export default function InteligenciaComercialPage() {
             <Link href="/marketing/inteligencia-comercial/mapa">
               <Button variant="outline" className="gap-2"><MapIcon className="h-4 w-4" /> Mapa (geomarketing)</Button>
             </Link>
-            <Button onClick={() => setOpenDrawer(true)} className="gap-2"><Plus className="h-4 w-4" /> Novo Concorrente</Button>
+            <Button onClick={() => setOpenDrawer(true)} className="gap-2"><Plus className="h-4 w-4" /> Novo Competidor</Button>
           </div>
         }
       />
@@ -182,15 +182,15 @@ export default function InteligenciaComercialPage() {
           ) : lista.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted"><Tag className="h-6 w-6 text-muted-foreground" /></div>
-              <p className="text-sm font-medium text-foreground">Nenhum concorrente cadastrado</p>
-              <p className="text-sm text-muted-foreground">Comece cadastrando um concorrente de mercado.</p>
-              <Button onClick={() => setOpenDrawer(true)} className="mt-2 gap-2"><Plus className="h-4 w-4" /> Novo Concorrente</Button>
+              <p className="text-sm font-medium text-foreground">Nenhum competidor cadastrado</p>
+              <p className="text-sm text-muted-foreground">Comece cadastrando um competidor de mercado.</p>
+              <Button onClick={() => setOpenDrawer(true)} className="mt-2 gap-2"><Plus className="h-4 w-4" /> Novo Competidor</Button>
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
-                  <th className="px-5 py-2.5 font-semibold">Concorrente</th>
+                  <th className="px-5 py-2.5 font-semibold">Competidor</th>
                   <th className="px-3 py-2.5 font-semibold">Categoria</th>
                   <th className="px-3 py-2.5 font-semibold">Bairro</th>
                   <th className="px-3 py-2.5 font-semibold">Localização</th>
@@ -239,7 +239,7 @@ export default function InteligenciaComercialPage() {
         </div>
       </div>
 
-      <CreateDrawer open={openDrawer} onOpenChange={setOpenDrawer} title="Cadastrar Concorrente" width="xl" onCreated={carregar}>
+      <CreateDrawer open={openDrawer} onOpenChange={setOpenDrawer} title="Cadastrar Competidor" width="xl" onCreated={carregar}>
         <ConcorrenteForm />
       </CreateDrawer>
     </div>

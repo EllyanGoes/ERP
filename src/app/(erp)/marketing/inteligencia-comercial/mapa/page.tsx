@@ -22,7 +22,7 @@ export default function GeomarketingPage() {
     <div className="flex flex-col h-[calc(100vh-var(--tabbar-h,0px))]">
       <PageHeader
         title="Geomarketing"
-        subtitle="Mapa de localização dos concorrentes"
+        subtitle="Mapa de localização dos competidores"
         breadcrumbs={[
           { label: "Marketing" },
           { label: "Inteligência Comercial", href: "/marketing/inteligencia-comercial" },

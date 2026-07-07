@@ -254,7 +254,7 @@ export default function ConcorrentesMap() {
       {pontos.length === 0 && (
         <div className="absolute inset-0 z-[400] flex items-center justify-center pointer-events-none">
           <div className="bg-card/95 border border-border rounded-lg px-4 py-3 text-sm text-muted-foreground shadow pointer-events-auto">
-            Nenhum concorrente georreferenciado ainda. Cadastre o endereço e use “Localizar no mapa”.
+            Nenhum competidor georreferenciado ainda. Cadastre o endereço e use “Localizar no mapa”.
           </div>
         </div>
       )}

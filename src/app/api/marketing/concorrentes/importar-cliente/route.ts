@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   });
   if (existente) {
     return NextResponse.json(
-      { error: "Este cliente já está cadastrado como concorrente.", concorrenteId: existente.id },
+      { error: "Este cliente já está cadastrado como competidor.", concorrenteId: existente.id },
       { status: 409 },
     );
   }
