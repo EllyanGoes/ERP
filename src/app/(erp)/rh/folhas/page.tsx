@@ -95,7 +95,7 @@ export default function FolhasPage() {
                   <th className="text-center px-4 py-3 font-semibold">Colaboradores</th>
                   <th className="text-right px-4 py-3 font-semibold">Bruto</th>
                   <th className="text-right px-4 py-3 font-semibold">Líquido</th>
-                  <th className="text-center px-4 py-3 font-semibold">A classificar</th>
+                  <th className="text-center px-4 py-3 font-semibold">Classificação</th>
                   <th className="text-center px-4 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
@@ -111,11 +111,11 @@ export default function FolhasPage() {
                         <span className="text-muted-foreground">—</span>
                       ) : f.itensPendentes > 0 ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-warning/15 text-warning border-warning/30 tabular-nums">
-                          {Math.round((f.itensPendentes / f._count.itens) * 100)}% ({f.itensPendentes} de {f._count.itens})
+                          {Math.round((f.itensPendentes / f._count.itens) * 100)}% a classificar ({f.itensPendentes} de {f._count.itens})
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-success/15 text-success border-success/30 tabular-nums">
-                          0%
+                          100% classificado
                         </span>
                       )}
                     </td>
