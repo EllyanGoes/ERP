@@ -196,14 +196,15 @@ export default function DiariaDetailPage() {
     return vig.faixas.reduce((a, f) => a + (faixaMin(`${f.horaInicial} - ${f.horaFinal}`) ?? 0), 0);
   }
 
-  // Valor total = diária base + excedente × valor-hora (valor-hora = diária ÷ jornada).
+  // Diária final = valor hora × horas trabalhadas — proporcional p/ MAIS e p/
+  // MENOS (saiu mais cedo, recebe menos). Sem horários preenchidos, usa a
+  // jornada da escala (+ excedente digitado à mão).
   function calcTotalItem(it: ItemRow): number {
-    const base = num(it.valor);
-    if (base <= 0) return 0;
-    const jornada = jornadaBaseMin(it.colaboradorId);
-    const valorHora = jornada > 0 ? base / (jornada / 60) : 0;
-    const total = base + (excedenteMin(it.horasExcedente) / 60) * valorHora;
-    return Math.round(total * 100) / 100;
+    const valorHora = num(it.valor);
+    if (valorHora <= 0) return 0;
+    const trabalhado = (faixaMin(it.manha) ?? 0) + (faixaMin(it.tarde) ?? 0);
+    const horasMin = trabalhado > 0 ? trabalhado : jornadaBaseMin(it.colaboradorId) + excedenteMin(it.horasExcedente);
+    return Math.round(valorHora * (horasMin / 60) * 100) / 100;
   }
 
   const totalGeral = grupos.reduce((s, g) => s + g.itens.reduce((a, it) => a + (it.colaboradorId ? calcTotalItem(it) : 0), 0), 0);
@@ -226,7 +227,10 @@ export default function DiariaDetailPage() {
   // Ao escolher o colaborador: preenche o valor com a diária base do cadastro e
   // os horários com a escala vigente (só onde a linha ainda está no padrão/vazia).
   function patchColab(it: ItemRow, colaboradorId: string): Partial<ItemRow> {
-    const v = valorPorColab.get(colaboradorId);
+    // Valor hora derivado da diária base do cadastro ÷ jornada da escala.
+    const base = valorPorColab.get(colaboradorId);
+    const jornada = jornadaBaseMin(colaboradorId);
+    const valorHora = base && jornada > 0 ? Math.round((base / (jornada / 60)) * 100) / 100 : null;
     const esc = faixasVigentes(colaboradorId);
     const manhaPadrao = !it.manha || it.manha === DEF_MANHA;
     const tardePadrao = !it.tarde || it.tarde === DEF_TARDE;
@@ -234,7 +238,7 @@ export default function DiariaDetailPage() {
     const tarde = esc.manha && tardePadrao ? (esc.tarde ?? "") : it.tarde;
     return {
       colaboradorId,
-      ...(!num(it.valor) && v ? { valor: String(v).replace(".", ",") } : {}),
+      ...(!num(it.valor) && valorHora ? { valor: String(valorHora).replace(".", ",") } : {}),
       manha, tarde,
       horasExcedente: calcExcedente(manha, tarde, colaboradorId),
     };
@@ -366,7 +370,7 @@ export default function DiariaDetailPage() {
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="divide-y divide-border">
               <div className="grid grid-cols-[2rem_minmax(0,1.4fr)_minmax(0,1fr)_7.5rem_7.5rem_5rem_minmax(0,1fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
-                <span>#</span><span>Nome</span><span>Setor</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Diária</span><span className="text-right">Total</span><span />
+                <span>#</span><span>Nome</span><span>Setor</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor hora</span><span className="text-right">Diária</span><span />
               </div>
               {grupos.flatMap((g) => g.itens.map((it) => ({ g, it }))).map(({ g, it }, i) => (
                 <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.4fr)_minmax(0,1fr)_7.5rem_7.5rem_5rem_minmax(0,1fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 items-center">
@@ -378,7 +382,7 @@ export default function DiariaDetailPage() {
                   <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                   <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
-                  <span className="text-sm font-semibold tabular-nums text-right" title="Diária + horas excedentes × valor-hora">{formatBRL(calcTotalItem(it))}</span>
+                  <span className="text-sm font-semibold tabular-nums text-right" title="Valor hora × horas trabalhadas">{formatBRL(calcTotalItem(it))}</span>
                   {!bloqueado && <button onClick={() => setGrupos((gs) => gs.map((x) => (x._key === g._key ? { ...x, itens: x.itens.filter((y) => y._key !== it._key) } : x)).filter((x) => x.itens.length > 0))} className="text-muted-foreground hover:text-danger flex justify-center"><Trash2 className="h-4 w-4" /></button>}
                 </div>
               ))}
@@ -423,7 +427,7 @@ export default function DiariaDetailPage() {
               {/* Mesmas colunas da planilha impressa (menos Assinatura). */}
               <div className="divide-y divide-border">
                 <div className="grid grid-cols-[2rem_minmax(0,1.5fr)_7.5rem_7.5rem_5rem_minmax(0,1.2fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
-                  <span>#</span><span>Nome</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Diária</span><span className="text-right">Total</span><span />
+                  <span>#</span><span>Nome</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor hora</span><span className="text-right">Diária</span><span />
                 </div>
                 {g.itens.map((it, i) => (
                   <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.5fr)_7.5rem_7.5rem_5rem_minmax(0,1.2fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 items-center">
@@ -434,7 +438,7 @@ export default function DiariaDetailPage() {
                     <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                     <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
-                    <span className="text-sm font-semibold tabular-nums text-right" title="Diária + horas excedentes × valor-hora">{formatBRL(calcTotalItem(it))}</span>
+                    <span className="text-sm font-semibold tabular-nums text-right" title="Valor hora × horas trabalhadas">{formatBRL(calcTotalItem(it))}</span>
                     {!bloqueado && <button onClick={() => setGrupos((gs) => gs.map((x) => (x._key === g._key ? { ...x, itens: x.itens.length > 1 ? x.itens.filter((y) => y._key !== it._key) : x.itens } : x)))} className="text-muted-foreground hover:text-danger flex justify-center"><Trash2 className="h-4 w-4" /></button>}
                   </div>
                 ))}

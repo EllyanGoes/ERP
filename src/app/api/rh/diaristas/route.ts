@@ -70,10 +70,19 @@ export async function POST(req: NextRequest) {
             // padrão do turno Dia (Noite fica em branco).
             const faixas = c.escalas[0]?.horario.faixas ?? [];
             const fmt = (x: { horaInicial: string; horaFinal: string }) => `${x.horaInicial} - ${x.horaFinal}`;
+            // valor = VALOR HORA (diária base do cadastro ÷ jornada da escala);
+            // valorTotal = diária cheia (hora × jornada) — recalculada na tela
+            // quando os horários mudarem.
+            const toMin = (h: string) => { const m = h.match(/^(\d{2}):(\d{2})$/); return m ? +m[1] * 60 + +m[2] : 0; };
+            const jornadaMin = faixas.length
+              ? faixas.reduce((a, x) => a + ((toMin(x.horaFinal) - toMin(x.horaInicial) + 1440) % 1440), 0)
+              : 8 * 60;
+            const base = Number(c.valorDiaria ?? 0);
+            const valorHora = jornadaMin > 0 ? Math.round((base / (jornadaMin / 60)) * 100) / 100 : 0;
             return {
               grupoId: grupo.id, colaboradorId: c.id, ordem: i,
-              valor: c.valorDiaria ?? 0,
-              valorTotal: c.valorDiaria ?? 0,
+              valor: valorHora,
+              valorTotal: base,
               manha: faixas[0] ? fmt(faixas[0]) : (turno === "DIA" ? "08:00 - 12:00" : null),
               tarde: faixas[1] ? fmt(faixas[1]) : (faixas[0] ? null : (turno === "DIA" ? "13:00 - 17:00" : null)),
             };
