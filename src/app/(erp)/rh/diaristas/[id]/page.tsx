@@ -31,6 +31,7 @@ export default function DiariaDetailPage() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [data, setData] = useState("");
+  const [turnoFolha, setTurnoFolha] = useState<"DIA" | "NOITE">("DIA");
   const [observacoes, setObservacoes] = useState("");
   const [status, setStatus] = useState("ABERTA");
   const [grupos, setGrupos] = useState<GrupoRow[]>([]);
@@ -51,6 +52,7 @@ export default function DiariaDetailPage() {
     if (rf.ok) {
       const { data: f } = await rf.json();
       setData(f.data?.slice(0, 10) ?? "");
+      setTurnoFolha(f.turno === "NOITE" ? "NOITE" : "DIA");
       setObservacoes(f.observacoes ?? "");
       setStatus(f.status ?? "ABERTA");
       setCriadoPor(f.criadoPor ?? null);
@@ -108,7 +110,7 @@ export default function DiariaDetailPage() {
   async function salvar(novoStatus?: string) {
     setSalvando(true);
     const body = {
-      data, observacoes, status: novoStatus ?? status,
+      data, turno: turnoFolha, observacoes, status: novoStatus ?? status,
       grupos: grupos.map((g) => ({ tipo: g.tipo, setor: g.setor, turno: g.turno, itens: g.itens.filter((it) => it.colaboradorId).map((it) => ({ colaboradorId: it.colaboradorId, servico: it.servico, valor: num(it.valor) })) })),
     };
     const res = await fetch(`/api/rh/diaristas/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -154,6 +156,18 @@ export default function DiariaDetailPage() {
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Data</label>
             <DatePicker value={data} disabled={bloqueado} onChange={(v) => setData(v)} className="w-48" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Turno</label>
+            <select
+              value={turnoFolha}
+              disabled={bloqueado}
+              onChange={(e) => setTurnoFolha(e.target.value as "DIA" | "NOITE")}
+              className="h-10 rounded-lg border border-border bg-card px-3 text-sm disabled:opacity-60"
+            >
+              <option value="DIA">Dia</option>
+              <option value="NOITE">Noite</option>
+            </select>
           </div>
           <div className="flex-1 min-w-[200px]">
             <label className="block text-xs font-medium text-muted-foreground mb-1">Observações</label>

@@ -30,11 +30,13 @@ export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}));
   if (!b.data) return NextResponse.json({ error: "Informe a data da folha." }, { status: 400 });
   const ids: string[] = Array.isArray(b.colaboradorIds) ? b.colaboradorIds.filter((x: unknown) => typeof x === "string") : [];
+  const turno = b.turno === "NOITE" ? "NOITE" : "DIA";
 
   const folha = await prisma.$transaction(async (tx) => {
     const f = await tx.diariaFolha.create({
       data: {
         data: new Date(`${String(b.data).slice(0, 10)}T12:00:00`),
+        turno,
         observacoes: b.observacoes?.trim() || null,
         criadoPor: auth.session.nome ?? null,
       },
@@ -52,7 +54,7 @@ export async function POST(req: NextRequest) {
       }
       let go = 0;
       for (const [setor, lista] of Array.from(porSetor.entries()).sort((a, z) => a[0].localeCompare(z[0]))) {
-        const grupo = await tx.diariaGrupo.create({ data: { folhaId: f.id, setor: setor || null, ordem: go++ } });
+        const grupo = await tx.diariaGrupo.create({ data: { folhaId: f.id, setor: setor || null, turno, ordem: go++ } });
         await tx.diariaItem.createMany({ data: lista.map((cid, i) => ({ grupoId: grupo.id, colaboradorId: cid, ordem: i })) });
       }
     }

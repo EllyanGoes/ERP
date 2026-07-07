@@ -53,6 +53,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
       where: { id: params.id },
       data: {
         ...(b.data ? { data: new Date(`${String(b.data).slice(0, 10)}T12:00:00`) } : {}),
+        ...(b.turno === "DIA" || b.turno === "NOITE" ? { turno: b.turno } : {}),
         observacoes: b.observacoes?.trim() || null,
         ...(b.status ? { status: b.status } : {}),
         total,

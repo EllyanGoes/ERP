@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { Fragment, useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,12 @@ import DatePicker from "@/components/shared/DatePicker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { CalendarDays, Plus, Loader2, Users, Trash2, Search } from "lucide-react";
+import { CalendarDays, Plus, Loader2, Users, Trash2, Search, Sun, Moon } from "lucide-react";
 
 type Folha = {
   id: string;
   data: string;
+  turno: string;
   status: string;
   total: number | string;
   observacoes: string | null;
@@ -39,6 +40,7 @@ export default function DiaristasPage() {
   // Popup de novo lançamento: data + pré-seleção dos colaboradores
   const [novoOpen, setNovoOpen] = useState(false);
   const [data, setData] = useState(new Date().toISOString().slice(0, 10));
+  const [turno, setTurno] = useState<"DIA" | "NOITE">("DIA");
   const [colabs, setColabs] = useState<Colab[]>([]);
   const [busca, setBusca] = useState("");
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -54,6 +56,7 @@ export default function DiaristasPage() {
 
   function abrirNovo() {
     setData(new Date().toISOString().slice(0, 10));
+    setTurno("DIA");
     setSel(new Set()); setBusca("");
     setNovoOpen(true);
     if (colabs.length === 0) {
@@ -74,11 +77,21 @@ export default function DiaristasPage() {
 
   const toggle = (id: string) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
+  // Lista agrupada por data (a API já devolve em ordem decrescente).
+  const porData = useMemo(() => {
+    const m = new Map<string, Folha[]>();
+    for (const f of folhas) {
+      const k = f.data.slice(0, 10);
+      m.set(k, [...(m.get(k) ?? []), f]);
+    }
+    return Array.from(m.entries());
+  }, [folhas]);
+
   async function criar() {
     setCriando(true);
     const res = await fetch("/api/rh/diaristas", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data, colaboradorIds: Array.from(sel) }),
+      body: JSON.stringify({ data, turno, colaboradorIds: Array.from(sel) }),
     });
     setCriando(false);
     if (res.ok) { const j = await res.json(); setNovoOpen(false); router.push(`/rh/diaristas/${j.data.id}`); }
@@ -116,7 +129,7 @@ export default function DiaristasPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Data</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Turno</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Pessoas</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Total</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
@@ -124,20 +137,35 @@ export default function DiaristasPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {folhas.map((f) => (
-                  <tr key={f.id} onClick={() => router.push(`/rh/diaristas/${f.id}`)} className="hover:bg-info/10 cursor-pointer">
-                    <td className="px-4 py-3 font-medium text-foreground">{fmtData(f.data)}</td>
-                    <td className="px-4 py-3 text-center text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {f.qtdePessoas}</span></td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-foreground">{formatBRL(Number(f.total))}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", f.status === "FECHADA" ? "bg-success/15 text-success" : "bg-info/15 text-info")}>
-                        {f.status === "FECHADA" ? "Fechada" : "Aberta"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button onClick={(e) => excluir(f.id, e)} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="h-4 w-4" /></button>
-                    </td>
-                  </tr>
+                {porData.map(([dia, lista]) => (
+                  <Fragment key={dia}>
+                    <tr className="bg-muted/60">
+                      <td colSpan={5} className="px-4 py-2 font-semibold text-foreground">{fmtData(dia)}</td>
+                    </tr>
+                    {lista.map((f) => (
+                      <tr key={f.id} onClick={() => router.push(`/rh/diaristas/${f.id}`)} className="hover:bg-info/10 cursor-pointer">
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
+                            f.turno === "NOITE" ? "bg-violet-500/15 text-violet-600 dark:text-violet-400" : "bg-warning/15 text-warning",
+                          )}>
+                            {f.turno === "NOITE" ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
+                            {f.turno === "NOITE" ? "Noite" : "Dia"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {f.qtdePessoas}</span></td>
+                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-foreground">{formatBRL(Number(f.total))}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", f.status === "FECHADA" ? "bg-success/15 text-success" : "bg-info/15 text-info")}>
+                            {f.status === "FECHADA" ? "Fechada" : "Aberta"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button onClick={(e) => excluir(f.id, e)} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="h-4 w-4" /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -156,9 +184,22 @@ export default function DiaristasPage() {
           </DialogHeader>
 
           <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Data</label>
-              <DatePicker value={data} onChange={(v) => setData(v)} className="w-44" />
+            <div className="flex items-end gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Data</label>
+                <DatePicker value={data} onChange={(v) => setData(v)} className="w-44" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Turno</label>
+                <select
+                  value={turno}
+                  onChange={(e) => setTurno(e.target.value as "DIA" | "NOITE")}
+                  className="h-9 rounded-lg border border-border bg-card px-3 text-sm"
+                >
+                  <option value="DIA">Dia</option>
+                  <option value="NOITE">Noite</option>
+                </select>
+              </div>
             </div>
 
             <div className="relative">

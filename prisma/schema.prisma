@@ -327,6 +327,8 @@ model DiariaFolha {
   id          String        @id @default(cuid())
   empresaId   String        @default("emp_tramontin")
   data        DateTime      @db.Date
+  // Turno do lançamento (DIA | NOITE) — pode haver um de cada por data.
+  turno       String        @default("DIA")
   observacoes String?
   status      String        @default("ABERTA") // ABERTA | FECHADA
   total       Decimal       @default(0) @db.Decimal(15, 2)

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 
 type Item = { servico: string | null; valor: string; colaborador: { nome: string } | null };
 type Grupo = { tipo: string; setor: string | null; turno: string; itens: Item[] };
-type Folha = { data: string; observacoes: string | null; grupos: Grupo[] };
+type Folha = { data: string; turno?: string; observacoes: string | null; grupos: Grupo[] };
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const num = (v: string) => { const n = parseFloat(String(v)); return Number.isFinite(n) ? n : 0; };
@@ -60,7 +60,7 @@ export default function ImprimirDiarias() {
 
       <table>
         <thead>
-          <tr><th colSpan={8} style={{ textAlign: "center", fontWeight: "bold" }}>DIÁRIAS - {dataExt}</th></tr>
+          <tr><th colSpan={8} style={{ textAlign: "center", fontWeight: "bold" }}>DIÁRIAS ({folha.turno === "NOITE" ? "NOITE" : "DIA"}) - {dataExt}</th></tr>
         </thead>
         <tbody>
           {folha.grupos.map((g, gi) => (
