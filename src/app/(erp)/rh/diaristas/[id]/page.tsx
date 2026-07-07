@@ -24,6 +24,15 @@ const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", manha: "", ta
 const novoGrupo = (): GrupoRow => ({ _key: key(), tipo: "DIVERSAS", setor: "", turno: "DIA", itens: [novoItem()] });
 const num = (v: string) => { const n = parseFloat((v || "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
 
+// Máscara progressiva do horário: digitar "10001400" vira "10:00 - 14:00".
+const mascaraHora = (raw: string) => {
+  const d = raw.replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}:${d.slice(2)}`;
+  if (d.length <= 6) return `${d.slice(0, 2)}:${d.slice(2, 4)} - ${d.slice(4)}`;
+  return `${d.slice(0, 2)}:${d.slice(2, 4)} - ${d.slice(4, 6)}:${d.slice(6)}`;
+};
+
 export default function DiariaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -211,6 +220,24 @@ export default function DiariaDetailPage() {
       />
 
       <div className="px-8 pb-10 space-y-5">
+        {/* Alternância de visualização — logo abaixo dos botões do header */}
+        <div className="flex justify-end -mt-2">
+          <div className="inline-flex rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => setAgruparPorSetor(false)}
+              className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium", !agruparPorSetor ? "bg-info/15 text-info" : "bg-card text-muted-foreground hover:text-foreground")}
+            >
+              <List className="h-3.5 w-3.5" /> Lista corrida
+            </button>
+            <button
+              onClick={() => setAgruparPorSetor(true)}
+              className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-l border-border", agruparPorSetor ? "bg-info/15 text-info" : "bg-card text-muted-foreground hover:text-foreground")}
+            >
+              <Rows3 className="h-3.5 w-3.5" /> Por setor
+            </button>
+          </div>
+        </div>
+
         {/* Cabeçalho */}
         <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card p-4">
           <div>
@@ -235,24 +262,6 @@ export default function DiariaDetailPage() {
           </div>
         </div>
 
-        {/* Alternância: lista corrida (padrão, setor como coluna) × agrupado por setor */}
-        <div className="flex justify-end">
-          <div className="inline-flex rounded-lg border border-border overflow-hidden">
-            <button
-              onClick={() => setAgruparPorSetor(false)}
-              className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium", !agruparPorSetor ? "bg-info/15 text-info" : "bg-card text-muted-foreground hover:text-foreground")}
-            >
-              <List className="h-3.5 w-3.5" /> Lista corrida
-            </button>
-            <button
-              onClick={() => setAgruparPorSetor(true)}
-              className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-l border-border", agruparPorSetor ? "bg-info/15 text-info" : "bg-card text-muted-foreground hover:text-foreground")}
-            >
-              <Rows3 className="h-3.5 w-3.5" /> Por setor
-            </button>
-          </div>
-        </div>
-
         {/* Lista corrida: todas as pessoas numa tabela só, setor como coluna. */}
         {!agruparPorSetor && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -265,8 +274,8 @@ export default function DiariaDetailPage() {
                   <span className="text-xs text-muted-foreground">{i + 1}</span>
                   <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => aoEscolherColabLista(g._key, it._key, v, g.setor)} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
                   <div className="min-w-0"><ComboboxWithCreate value={g.setor} onChange={(v) => moverItemParaSetor(g._key, it._key, v)} options={setorOptions} disabled={bloqueado} placeholder="Setor..." noneLabel="— sem setor —" menuMinWidth={260} triggerClassName={cn("h-9 rounded-lg", !g.setor && "border-warning/50")} /></div>
-                  <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: e.target.value })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
-                  <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: e.target.value })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
+                  <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: mascaraHora(e.target.value) })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
+                  <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: mascaraHora(e.target.value) })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                   <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
@@ -320,8 +329,8 @@ export default function DiariaDetailPage() {
                   <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.6fr)_8rem_8rem_5rem_minmax(0,1.3fr)_6rem_2rem] gap-2 px-4 py-2 items-center">
                     <span className="text-xs text-muted-foreground">{i + 1}</span>
                     <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, { colaboradorId: v })} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
-                    <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: e.target.value })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
-                    <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: e.target.value })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
+                    <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: mascaraHora(e.target.value) })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
+                    <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: mascaraHora(e.target.value) })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                     <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
