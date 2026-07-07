@@ -87,7 +87,8 @@ export async function POST(req: NextRequest) {
   for (const l of linhas) {
     const it = byItem.get(l.itemId);
     if (!it) continue;
-    const qtdBase = l.quantidade * fatorConv(l.unidadeId, it.itemUnidades);
+    // Peças são unidades: conversão da linha arredonda PARA CIMA (espelha o apontamento).
+    const qtdBase = Math.ceil(l.quantidade * fatorConv(l.unidadeId, it.itemUnidades));
     const ppp = pecasPorPalete(it.itemUnidades); // peças/palete do produto (p/ POR_PALETE)
     const insumos = it.engenhariaProduto?.insumos ?? [];
     // Áreas com produto de saída ou sem estado de WIP (ex.: Preparação→Mistura): toda a BOM.
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
     for (const l of linhas) {
       const it = byItem.get(l.itemId);
       if (!it) continue;
-      const qtdBase = l.quantidade * fatorConv(l.unidadeId, it.itemUnidades);
+      const qtdBase = Math.ceil(l.quantidade * fatorConv(l.unidadeId, it.itemUnidades));
       // O PEP/WIP é contado na unidade-PRINCIPAL do produto (peça = UN), não em milheiros:
       // qtdBase já vem em peças (qtd × fator da unidade escolhida).
       const wipSigla = it.itemUnidades.find((u) => u.isPrincipal)?.unidade?.sigla ?? "UN";

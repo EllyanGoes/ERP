@@ -174,6 +174,10 @@ export default function OrdensBoardPage() {
   }
   // Aba do dialog de EDIÇÃO de OP concluída: dados do planejado × correção do apontamento.
   const [abaEd, setAbaEd] = useState<"plan" | "apont">("plan");
+  // Busca do seletor de equipe (limpa ao abrir/fechar o dialog).
+  const [buscaEquipe, setBuscaEquipe] = useState("");
+  const novoAberto = novo != null;
+  useEffect(() => { setBuscaEquipe(""); }, [novoAberto]);
 
   // Apontamento POR PALETE: nº de paletes × pç/palete → quantidade real na
   // unidade da linha (÷ pecasPorUnidade; linha em PLT vira nº de paletes puro).
@@ -487,7 +491,7 @@ export default function OrdensBoardPage() {
     const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
     const un = us.find((u) => u.id === saldoIni.unidadeId);
     const fator = un?.fator ?? 1;
-    const quantidadeBase = numBR(saldoIni.quantidade) * fator;
+    const quantidadeBase = Math.ceil(numBR(saldoIni.quantidade) * fator); // peças inteiras
     // Unidade ≠ peças com valor alto: confirma mostrando a conversão — "32.000" em
     // milheiro é 32.000.000 pç (foi assim que nasceu um saldo inicial de 32 milhões).
     if (fator > 1 && quantidadeBase >= 100000) {
@@ -576,8 +580,9 @@ export default function OrdensBoardPage() {
   // edição de OP concluída (novo.apReais/apPerdas). O contexto ativo entrega a
   // lista de produtos com o apontado em peças e recebe as perdas calculadas.
   // Peças apontadas de um produto = real (na unidade) × peças por unidade (PLT→peças).
+  // Peças são UNIDADES: arredonda para cima (não existe fração de peça).
   function apontadoPecas(p: ProdutoOP): number {
-    return numBR(apForm.reais[p.itemId] ?? p.planejada) * (p.pecasPorUnidade ?? 1);
+    return Math.ceil(numBR(apForm.reais[p.itemId] ?? p.planejada) * (p.pecasPorUnidade ?? 1));
   }
   // Produtos do contexto ativo da calculadora: {itemId, descricao, apontado em peças}.
   function calcPerdaProdutos(): { itemId: string; descricao: string; ap: number }[] {
@@ -587,7 +592,7 @@ export default function OrdensBoardPage() {
         const prod = area.produtos.find((p) => p.id === l.itemId);
         const un = prod?.unidades.find((u) => u.id === l.unidadeId);
         const fator = un?.fator && un.fator > 0 ? un.fator : 1;
-        return { itemId: l.itemId, descricao: prod?.descricao ?? l.itemId, ap: numBR(novo.apReais?.[l.itemId]) * fator };
+        return { itemId: l.itemId, descricao: prod?.descricao ?? l.itemId, ap: Math.ceil(numBR(novo.apReais?.[l.itemId]) * fator) };
       });
     }
     return [];
@@ -982,7 +987,7 @@ export default function OrdensBoardPage() {
                       const prod = area.produtos.find((p) => p.id === l.itemId);
                       const un = prod?.unidades.find((u) => u.id === l.unidadeId);
                       const fator = un?.fator && un.fator > 0 ? un.fator : 1;
-                      const realPc = numBR(novo.apReais?.[l.itemId]) * fator;
+                      const realPc = Math.ceil(numBR(novo.apReais?.[l.itemId]) * fator);
                       const perdaPc = numBR(novo.apPerdas?.[l.itemId]);
                       const pct = realPc > 0 && perdaPc > 0 ? `${(perdaPc / realPc * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
                       const pcPltCad = prod?.unidades.find((u) => u.sigla.toUpperCase() === "PLT")?.fator ?? null;
@@ -1092,36 +1097,75 @@ export default function OrdensBoardPage() {
                           : <>Mostrando só quem atua em <b>{area.nome}</b> (definido em Colaboradores → Áreas de operação).</>}
                       </p>
                     )}
-                    {/* Equipe do dia: a OP é do DIA com todas as pessoas da produção
-                        (não uma OP por pessoa) — clique para marcar quem estava. */}
+                    {/* Equipe do dia: a OP é do DIA com todas as pessoas da produção (não uma
+                        OP por pessoa). Muita gente passa pelo setor → só os SELECIONADOS viram
+                        chips; os demais entram por busca ou pelo atalho "todos da etapa". */}
                     <div className="mt-2">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">
-                        Equipe do dia{(novo.equipeIds?.length ?? 0) > 0 ? <span className="text-cyan-600"> · {novo.equipeIds!.length} pessoa(s)</span> : null}
-                      </label>
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                        {(() => {
-                          // Colaboradores da etapa + os já salvos na equipe (mesmo fora da etapa).
-                          const base = [...colaboradoresDaArea];
-                          for (const id of novo.equipeIds ?? []) {
-                            if (!base.some((c) => c.id === id)) {
-                              const c = colaboradores.find((x) => x.id === id);
-                              if (c) base.push(c);
-                            }
-                          }
-                          if (!base.length) return <span className="text-[11px] text-muted-foreground">Nenhum colaborador da etapa.</span>;
-                          return base.map((c) => {
-                            const sel = novo.equipeIds?.includes(c.id) ?? false;
-                            return (
-                              <button key={c.id} type="button"
-                                onClick={() => setNovo({ ...novo, equipeIds: sel ? (novo.equipeIds ?? []).filter((id) => id !== c.id) : [...(novo.equipeIds ?? []), c.id] })}
-                                className={cn("px-2 py-0.5 rounded-full text-[11px] border transition-colors",
-                                  sel ? "bg-cyan-600 border-cyan-600 text-white" : "border-border text-muted-foreground hover:bg-muted")}>
-                                {c.nome}
-                              </button>
-                            );
-                          });
-                        })()}
-                      </div>
+                      {(() => {
+                        const selIds = novo.equipeIds ?? [];
+                        const nomeDe = (id: string) => colaboradores.find((c) => c.id === id)?.nome ?? id;
+                        const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+                        const candidatos = colaboradoresDaArea.filter((c) => !selIds.includes(c.id));
+                        const filtrados = buscaEquipe.trim()
+                          ? candidatos.filter((c) => norm(c.nome).includes(norm(buscaEquipe.trim())))
+                          : candidatos;
+                        const mostrarLista = buscaEquipe.trim() !== "" || candidatos.length <= 8;
+                        return (
+                          <>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                Equipe do dia{selIds.length > 0 ? <span className="text-cyan-600"> · {selIds.length} pessoa(s)</span> : null}
+                              </label>
+                              <div className="flex items-center gap-2 text-[11px]">
+                                {candidatos.length > 0 && (
+                                  <button type="button" className="text-cyan-600 hover:underline"
+                                    onClick={() => setNovo({ ...novo, equipeIds: Array.from(new Set([...selIds, ...colaboradoresDaArea.map((c) => c.id)])) })}>
+                                    + todos da etapa ({colaboradoresDaArea.length})
+                                  </button>
+                                )}
+                                {selIds.length > 0 && (
+                                  <button type="button" className="text-muted-foreground hover:underline" onClick={() => setNovo({ ...novo, equipeIds: [] })}>limpar</button>
+                                )}
+                              </div>
+                            </div>
+                            {selIds.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mb-1.5 max-h-20 overflow-y-auto">
+                                {selIds.map((id) => (
+                                  <span key={id} className="inline-flex items-center gap-1 rounded-full bg-cyan-600 text-white pl-2 pr-1 py-0.5 text-[11px]">
+                                    {nomeDe(id)}
+                                    <button type="button" title="Remover da equipe"
+                                      onClick={() => setNovo({ ...novo, equipeIds: selIds.filter((x) => x !== id) })}
+                                      className="rounded-full hover:bg-cyan-700 p-0.5"><X className="w-3 h-3" /></button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {colaboradoresDaArea.length === 0 ? (
+                              <p className="text-[11px] text-muted-foreground">Nenhum colaborador da etapa.</p>
+                            ) : (
+                              <>
+                                <input value={buscaEquipe} onChange={(e) => setBuscaEquipe(e.target.value)}
+                                  placeholder={`Buscar colaborador… (${candidatos.length} disponíveis)`}
+                                  className="h-8 w-full rounded-lg border border-border px-2.5 text-xs bg-card focus:outline-none focus:ring-1 focus:ring-cyan-500" />
+                                {mostrarLista && filtrados.length > 0 && (
+                                  <div className="mt-1 max-h-28 overflow-y-auto rounded-lg border border-border divide-y divide-border/60">
+                                    {filtrados.slice(0, 30).map((c) => (
+                                      <button key={c.id} type="button"
+                                        onClick={() => { setNovo({ ...novo, equipeIds: [...selIds, c.id] }); setBuscaEquipe(""); }}
+                                        className="w-full text-left px-2.5 py-1.5 text-xs text-foreground hover:bg-muted">
+                                        + {c.nome}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                {buscaEquipe.trim() !== "" && filtrados.length === 0 && (
+                                  <p className="mt-1 text-[11px] text-muted-foreground">Ninguém encontrado para “{buscaEquipe}”.</p>
+                                )}
+                              </>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1224,7 +1268,7 @@ export default function OrdensBoardPage() {
                         {/* Linha em PLT/alternativa: mostra o equivalente em peças p/ o operador
                             perceber quando digitou peças num campo de paletes. */}
                         {(pr.pecasPorUnidade ?? 1) > 1 && numBR(apForm.reais[pr.itemId]) > 0 && (
-                          <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {(numBR(apForm.reais[pr.itemId]) * (pr.pecasPorUnidade ?? 1)).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} pç</span>
+                          <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {Math.ceil(numBR(apForm.reais[pr.itemId]) * (pr.pecasPorUnidade ?? 1)).toLocaleString("pt-BR")} pç</span>
                         )}
                       </div>
                       <div className="flex flex-col items-end">

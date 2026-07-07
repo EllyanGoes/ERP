@@ -81,12 +81,13 @@ export async function GET(req: NextRequest) {
       // Real na unidade da linha → peças (fator do ItemUnidade; principal = 1).
       const iu = pi.unidadeId ? pi.item.itemUnidades.find((u) => u.unidadeId === pi.unidadeId) : null;
       const fator = iu && !iu.isPrincipal && iu.fatorConversao != null && Number(iu.fatorConversao) > 0 ? Number(iu.fatorConversao) : 1;
-      const pecas = (Number(pi.quantidadeReal) || 0) * fator;
+      // Peças e paletes são UNIDADES: arredonda PARA CIMA (palete parcial conta como palete).
+      const pecas = Math.ceil((Number(pi.quantidadeReal) || 0) * fator);
       const perda = Number(pi.qtdPerda) || 0;
       if (pecas <= 0 && perda <= 0) continue;
       // Paletes produzidos = peças ÷ peças/palete do produto (ItemUnidade PLT).
       const iuPlt = pi.item.itemUnidades.find((u) => /^PLT$/i.test(u.unidade?.sigla ?? "") && u.fatorConversao != null && Number(u.fatorConversao) > 0);
-      const paletes = iuPlt ? pecas / Number(iuPlt.fatorConversao) : 0;
+      const paletes = iuPlt ? Math.ceil(pecas / Number(iuPlt.fatorConversao)) : 0;
       a.pecas += pecas;
       a.paletes += paletes;
       a.perda += perda;

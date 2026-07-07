@@ -83,9 +83,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const itensProd: Prod[] = ordem.produtoItens.length
     ? ordem.produtoItens.map((pi) => {
         const real = realMap.get(pi.itemId) ?? Number(pi.quantidadePlanejada);
-        return { piId: pi.id, itemId: pi.itemId, codigo: pi.item.codigo, descricao: pi.item.descricao, realLinha: real, qtdBase: real * fatorBase(pi) };
+        // Peças são UNIDADES: a conversão da linha (ex.: PLT × pç/palete) arredonda
+        // PARA CIMA — sem movimentos de estoque com fração de peça (8.299,85 pç).
+        return { piId: pi.id, itemId: pi.itemId, codigo: pi.item.codigo, descricao: pi.item.descricao, realLinha: real, qtdBase: Math.ceil(real * fatorBase(pi)) };
       })
-    : (ordem.itemId && qtdLegado ? [{ piId: null, itemId: ordem.itemId, codigo: "", descricao: "", realLinha: qtdLegado, qtdBase: qtdLegado }] : []);
+    : (ordem.itemId && qtdLegado ? [{ piId: null, itemId: ordem.itemId, codigo: "", descricao: "", realLinha: qtdLegado, qtdBase: Math.ceil(qtdLegado) }] : []);
   const ativos = itensProd.filter((p) => p.qtdBase > 0);
   if (!ativos.length) return NextResponse.json({ error: "Informe a quantidade produzida de ao menos um produto." }, { status: 400 });
   const totalBase = ativos.reduce((s, p) => s + p.qtdBase, 0);

@@ -57,7 +57,8 @@ export async function POST(req: NextRequest) {
   for (const l of linhas) {
     const it = byItem.get(l.itemId);
     if (!it) continue;
-    const pecas = l.quantidade * fator(l.unidadeId, it.itemUnidades);
+    // Peças são unidades: arredonda para cima (espelha o apontamento).
+    const pecas = Math.ceil(l.quantidade * fator(l.unidadeId, it.itemUnidades));
     for (const veiculo of veiculos) {
       const cap = capDe(l.itemId, veiculo);
       if (cap <= 0) continue;
