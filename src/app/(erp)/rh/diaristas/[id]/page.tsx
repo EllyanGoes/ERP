@@ -116,12 +116,12 @@ export default function DiariaDetailPage() {
     if (rc.ok) {
       const jc = await rc.json();
       const lista: {
-        id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null; valorDiaria?: string | number | null;
+        id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null; valorHora?: string | number | null;
         escalas?: { data: string; horario: { faixas: { horaInicial: string; horaFinal: string }[] } }[];
       }[] = jc.data ?? jc ?? [];
       setColabs(lista.map((c) => ({ value: c.id, label: c.nome })));
       setSetorPorColab(new Map(lista.filter((c) => c.setor?.nome).map((c) => [c.id, c.setor!.nome])));
-      setValorPorColab(new Map(lista.filter((c) => c.valorDiaria != null && Number(c.valorDiaria) > 0).map((c) => [c.id, Number(c.valorDiaria)])));
+      setValorPorColab(new Map(lista.filter((c) => c.valorHora != null && Number(c.valorHora) > 0).map((c) => [c.id, Number(c.valorHora)])));
       setEscalasPorColab(new Map(lista.map((c) => [c.id, (c.escalas ?? []).map((e) => ({ data: e.data.slice(0, 10), faixas: e.horario?.faixas ?? [] }))])));
     }
     if (rs.ok) {
@@ -225,10 +225,8 @@ export default function DiariaDetailPage() {
   // Ao escolher o colaborador: preenche o valor com a diária base do cadastro e
   // os horários com a escala vigente (só onde a linha ainda está no padrão/vazia).
   function patchColab(it: ItemRow, colaboradorId: string): Partial<ItemRow> {
-    // Valor hora derivado da diária base do cadastro ÷ jornada da escala.
-    const base = valorPorColab.get(colaboradorId);
-    const jornada = jornadaBaseMin(colaboradorId);
-    const valorHora = base && jornada > 0 ? Math.round((base / (jornada / 60)) * 100) / 100 : null;
+    // Valor hora vem direto do cadastro do colaborador (editável na linha).
+    const valorHora = valorPorColab.get(colaboradorId) ?? null;
     const esc = faixasVigentes(colaboradorId);
     const manhaPadrao = !it.manha || it.manha === DEF_MANHA;
     const tardePadrao = !it.tarde || it.tarde === DEF_TARDE;

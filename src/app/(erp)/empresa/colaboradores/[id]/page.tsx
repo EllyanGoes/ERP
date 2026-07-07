@@ -49,7 +49,7 @@ type Colaborador = {
   telegramChatId:  string | null;
   cargo:           string | null;
   classificacaoCusto: "MOD" | "MOI" | "ADMIN" | null;
-  valorDiaria:     string | number | null;
+  valorHora:     string | number | null;
   tipoColaborador: "FUNCIONARIO" | "PRESTADOR";
   matricula:       string | null;
   setorId:         string | null;
@@ -271,7 +271,7 @@ export default function ColaboradorDetailPage() {
     setEClassificacaoCusto(colaborador.classificacaoCusto ?? "");
     setETipoColaborador(colaborador.tipoColaborador ?? "FUNCIONARIO");
     setEMatricula(colaborador.matricula ?? "");
-    setEValorDiaria(colaborador.valorDiaria != null ? String(Number(colaborador.valorDiaria)).replace(".", ",") : "");
+    setEValorDiaria(colaborador.valorHora != null ? String(Number(colaborador.valorHora)).replace(".", ",") : "");
     setEDataAdmissao(colaborador.dataAdmissao ? colaborador.dataAdmissao.slice(0, 10) : "");
     setEDataDemissao(colaborador.dataDemissao ? colaborador.dataDemissao.slice(0, 10) : "");
     setEFilialIds(colaborador.filiais.map((f) => f.id));
@@ -321,7 +321,7 @@ export default function ColaboradorDetailPage() {
           classificacaoCusto: eClassificacaoCusto || null,
           tipoColaborador: eTipoColaborador,
           matricula:      eMatricula.trim() || null,
-          valorDiaria:    eValorDiaria.trim() ? parseFloat(eValorDiaria.replace(/\./g, "").replace(",", ".")) || null : null,
+          valorHora:    eValorDiaria.trim() ? parseFloat(eValorDiaria.replace(/\./g, "").replace(",", ".")) || null : null,
           setorId:      eSetorId       || null,
           dataAdmissao: eDataAdmissao || null,
           dataDemissao: eDataDemissao || null,
@@ -578,8 +578,8 @@ export default function ColaboradorDetailPage() {
                     <Field label="Matrícula (folha)">
                       <Input value={eMatricula} onChange={(e) => setEMatricula(e.target.value)} placeholder="Ex: 010543" />
                     </Field>
-                    <Field label="Valor da diária (R$)" hint="Base usada nos lançamentos de diárias">
-                      <Input value={eValorDiaria} onChange={(e) => setEValorDiaria(e.target.value)} inputMode="decimal" placeholder="Ex: 120,00" />
+                    <Field label="Valor da hora (R$)" hint="Puxado no lançamento de diárias (pode ser alterado lá)">
+                      <Input value={eValorDiaria} onChange={(e) => setEValorDiaria(e.target.value)} inputMode="decimal" placeholder="Ex: 10,00" />
                     </Field>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -681,8 +681,8 @@ export default function ColaboradorDetailPage() {
                     {colaborador.classificacaoCusto ? CLASSIF_LABEL[colaborador.classificacaoCusto] : null}
                   </InfoField>
                   <InfoField label="Matrícula (folha)">{colaborador.matricula}</InfoField>
-                  <InfoField label="Valor da diária">
-                    {colaborador.valorDiaria != null ? formatBRL(Number(colaborador.valorDiaria)) : null}
+                  <InfoField label="Valor da hora">
+                    {colaborador.valorHora != null ? formatBRL(Number(colaborador.valorHora)) : null}
                   </InfoField>
                   <InfoField label="Data de Admissão">
                     {colaborador.dataAdmissao ? formatDate(colaborador.dataAdmissao) : null}

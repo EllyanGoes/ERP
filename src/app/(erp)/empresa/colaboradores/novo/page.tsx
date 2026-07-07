@@ -61,7 +61,7 @@ export default function NovoColaboradorPage() {
   const [classificacaoCusto, setClassificacaoCusto] = useState("");
   const [tipoColaborador, setTipoColaborador] = useState("FUNCIONARIO");
   const [matricula, setMatricula] = useState("");
-  const [valorDiaria, setValorDiaria] = useState("");
+  const [valorHora, setValorDiaria] = useState("");
   const [dataAdmissao, setDataAdmissao] = useState("");
   const [filialIds,    setFilialIds]    = useState<string[]>([]);
   const [empresaIds,   setEmpresaIds]   = useState<string[]>([]);
@@ -136,7 +136,7 @@ export default function NovoColaboradorPage() {
           classificacaoCusto: classificacaoCusto || null,
           tipoColaborador,
           matricula:    matricula.trim() || null,
-          valorDiaria:  valorDiaria.trim() ? parseFloat(valorDiaria.replace(/\./g, "").replace(",", ".")) || null : null,
+          valorHora:  valorHora.trim() ? parseFloat(valorHora.replace(/\./g, "").replace(",", ".")) || null : null,
           dataAdmissao: dataAdmissao || null,
           filialIds,
           empresaIds,
@@ -285,8 +285,8 @@ export default function NovoColaboradorPage() {
               <Field label="Matrícula (folha)">
                 <Input value={matricula} onChange={(e) => setMatricula(e.target.value)} placeholder="Ex: 010543" />
               </Field>
-              <Field label="Valor da diária (R$)" hint="Base usada nos lançamentos de diárias">
-                <Input value={valorDiaria} onChange={(e) => setValorDiaria(e.target.value)} inputMode="decimal" placeholder="Ex: 120,00" />
+              <Field label="Valor da hora (R$)" hint="Puxado no lançamento de diárias (pode ser alterado lá)">
+                <Input value={valorHora} onChange={(e) => setValorDiaria(e.target.value)} inputMode="decimal" placeholder="Ex: 10,00" />
               </Field>
             </div>
 
