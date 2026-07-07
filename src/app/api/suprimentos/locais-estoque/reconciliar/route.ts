@@ -15,7 +15,8 @@ export async function POST() {
   }
 
   const empresaId = auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID;
-  const resultados = await reconciliarEstoqueAoFisico(empresaId, { criadoPor: auth.session.sub });
+  // criadoPor é campo de exibição (nome), não id — o cron passa "cron" aqui.
+  const resultados = await reconciliarEstoqueAoFisico(empresaId, { criadoPor: auth.session.nome ?? null });
 
   const ajustados = resultados.filter((r) => r.tipo !== "ok");
   return NextResponse.json({
