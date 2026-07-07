@@ -119,11 +119,10 @@ export async function notifyApontamentoPcp(etapaId: string): Promise<void> {
     const cargas = op.item?.cargasVeiculo;
     const vgConf = ehConformacao(et.nome) ? equivVeiculo(unBase, cargas, "VAGONETA") : null;
     const vgSec = ehSecagem(et.nome) ? equivVeiculo(unBase, cargas, "VAGAO") : null;
-    // Na Embalagem: quebra com % (perda/descarregado) e vagões descarregados.
-    const desc = saida + perda; // descarregado = apontado + quebra
+    // Na Embalagem: quebra com % sobre o APONTADO REAL (produzido) e vagões descarregados.
     const linhaQuebra = perda > 0 || emb
       ? (emb
-          ? `🧱 Quebra: ${escMD(fmtNum(perda))} un${desc > 0 ? ` \\(${escMD(fmtPct((perda / desc) * 100))}%\\)` : ""}`
+          ? `🧱 Quebra: ${escMD(fmtNum(perda))} un${saida > 0 ? ` \\(${escMD(fmtPct((perda / saida) * 100))}%\\)` : ""}`
           : (perda > 0 ? `♻️ Perda: ${escMD(fmtNum(perda))}` : null))
       : null;
     const linhas = [

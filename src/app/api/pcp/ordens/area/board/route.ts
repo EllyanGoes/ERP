@@ -43,11 +43,11 @@ export async function GET(req: NextRequest) {
       responsavelColaborador: { select: { nome: true } },
       item: { select: { codigo: true, descricao: true } },
       produtoItens: {
-        select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true, unidadeId: true,
+        select: { itemId: true, quantidadePlanejada: true, quantidadeReal: true, qtdPerda: true, unidadeId: true,
           item: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { sigla: true } } } } } },
           unidade: { select: { sigla: true } } },
       },
-      etapas: { where: { nodeId: areaNodeId }, select: { status: true, qtdSaida: true, qtdPerda: true }, take: 1 },
+      etapas: { where: { nodeId: areaNodeId }, select: { status: true, qtdSaida: true, qtdPerda: true, vagoes: true, vagonetas: true }, take: 1 },
     },
   });
 
@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
         descricao: pi.item.descricao,
         planejada: pi.quantidadePlanejada,
         real: pi.quantidadeReal,
+        perda: pi.qtdPerda, // perda apontada por produto (peças) — p/ corrigir apontamento na edição
         unidade: pi.unidade?.sigla ?? null,
         unidadeId: pi.unidadeId ?? null,
         pecasPorUnidade,
@@ -97,6 +98,8 @@ export async function GET(req: NextRequest) {
     etapaStatus: o.etapas[0]?.status ?? "PENDENTE",
     qtdSaida: o.etapas[0]?.qtdSaida ?? null,
     qtdPerda: o.etapas[0]?.qtdPerda ?? null,
+    vagoes: o.etapas[0]?.vagoes ?? null,
+    vagonetas: o.etapas[0]?.vagonetas ?? null,
   }));
 
   return NextResponse.json({ data: data_ });

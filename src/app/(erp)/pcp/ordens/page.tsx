@@ -18,9 +18,12 @@ type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: s
 type Unidade = { id: string; sigla: string; isPrincipal?: boolean; fator?: number };
 type Produto = { id: string; codigo: string; descricao: string; unidades: Unidade[] };
 type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
-type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null; editConcluida?: boolean };
-type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number; pecasPorPalete?: number | null };
-type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null; editConcluida?: boolean;
+  // Correção do APONTAMENTO (aba "Apontamento" da edição de OP concluída): real na
+  // unidade da linha e perda em peças, por produto — reapontados após o estorno.
+  apReais?: Record<string, string>; apPerdas?: Record<string, string>; apVagoes?: string; apVagonetas?: string };
+type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; perda?: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number; pecasPorPalete?: number | null };
+type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
@@ -149,6 +152,27 @@ export default function OrdensBoardPage() {
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
   const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; paletes: Record<string, string>; pcPlt: Record<string, string>; perda: string; biomassa: string; vagoes: string; vagonetas: string }>({ reais: {}, perdas: {}, paletes: {}, pcPlt: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" });
+  // Vagões/vagonetas do plano de transporte salvo — default do apontamento (o gráfico
+  // do relatório mostra vagões descarregados; sem isso, quem não usa a calculadora
+  // de perda apontava com vagões vazios e o dia saía com 0 vagões).
+  const vagoesDoPlano = (o: BoardOP, veiculo: "VAGAO" | "VAGONETA"): string => {
+    const s = (o.planoTransporte ?? []).filter((r) => r.veiculo === veiculo).reduce((acc, r) => acc + (Number(r.nVagoes) || 0), 0);
+    return s > 0 ? String(s) : "";
+  };
+  // Abre o modal de apontar com o form pré-preenchido (real = planejado; vagões do plano).
+  function abrirApontar(o: BoardOP) {
+    setApontar(o);
+    setApForm({
+      reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, Number(p.planejada) ? fmtQtd(p.planejada) : ""])),
+      perdas: {}, paletes: {},
+      pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])),
+      perda: "", biomassa: "",
+      vagoes: vagoesDoPlano(o, "VAGAO"), vagonetas: vagoesDoPlano(o, "VAGONETA"),
+    });
+    setErro(null);
+  }
+  // Aba do dialog de EDIÇÃO de OP concluída: dados do planejado × correção do apontamento.
+  const [abaEd, setAbaEd] = useState<"plan" | "apont">("plan");
 
   // Apontamento POR PALETE: nº de paletes × pç/palete → quantidade real na
   // unidade da linha (÷ pecasPorUnidade; linha em PLT vira nº de paletes puro).
@@ -329,9 +353,9 @@ export default function OrdensBoardPage() {
     const linhas = novo.linhas.filter((l) => l.itemId && numBR(l.quantidade) > 0);
     if (!linhas.length) { setErro("Adicione ao menos um produto com quantidade > 0"); return; }
     // OP já apontada: salvar estorna o apontamento em cascata (estoque, custos,
-    // contábil) e a OP volta a pendente — o operador reaponta com os valores certos.
+    // contábil) e REAPONTA com os valores da aba Apontamento (real + perda).
     if (novo.editId && novo.editConcluida) {
-      if (!confirm(`A ${novo.editNumero ?? "OP"} já foi APONTADA.\n\nSalvar a correção vai ESTORNAR o apontamento (movimentos de estoque, custos e lançamentos contábeis revertidos em cascata) e a OP volta a pendente para reapontar.\n\nContinuar?`)) return;
+      if (!confirm(`A ${novo.editNumero ?? "OP"} já foi APONTADA.\n\nSalvar a correção vai ESTORNAR o apontamento em cascata (movimentos de estoque, custos e lançamentos contábeis revertidos) e REAPONTAR com os valores da aba "Apontamento".\n\nContinuar?`)) return;
     }
     setCriando(true); setErro(null);
     const produtos = linhas.map((l) => ({ itemId: l.itemId, quantidade: numBR(l.quantidade), unidadeId: l.unidadeId || null }));
@@ -369,9 +393,38 @@ export default function OrdensBoardPage() {
         j = await r.json();
       }
       if (!r.ok) throw new Error(j?.error ?? (novo.editId ? "Erro ao salvar OP" : "Erro ao criar OP"));
+      // OP concluída: reaponta com os valores da aba "Apontamento" (real + perda por
+      // produto; vagões preservados). Se falhar, a OP fica pendente p/ apontar na mão.
+      if (novo.editId && novo.editConcluida) {
+        const itens = linhas.map((l) => ({
+          itemId: l.itemId,
+          quantidadeReal: numBR(novo.apReais?.[l.itemId] ?? l.quantidade),
+          qtdPerda: numBR(novo.apPerdas?.[l.itemId] ?? "0"),
+        }));
+        const reapontar = (permitirSaldoNegativo: boolean) =>
+          fetch(`/api/pcp/ordens/${novo.editId}/concluir-area`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ itens, vagoes: novo.apVagoes || undefined, vagonetas: novo.apVagonetas || undefined, permitirSaldoNegativo }),
+          });
+        let r2 = await reapontar(false);
+        let j2 = await r2.json();
+        if (r2.status === 422 && j2?.codigo === "SALDO_NEGATIVO") {
+          const linhasNeg = (j2.negativos ?? []).map((ng: { descricao?: string | null; itemId: string; saldoAtual: number; saldoDepois: number }) =>
+            `• ${ng.descricao ?? ng.itemId}: ${Number(ng.saldoAtual).toLocaleString("pt-BR")} → ${Number(ng.saldoDepois).toLocaleString("pt-BR")}`).join("\n");
+          if (confirm(`O reapontamento deixa estoque NEGATIVO:\n\n${linhasNeg}\n\nApontar mesmo assim?`)) {
+            r2 = await reapontar(true);
+            j2 = await r2.json();
+          }
+        }
+        if (!r2.ok) {
+          setErro(`Correção salva e apontamento estornado, mas o REAPONTAMENTO falhou: ${j2?.error ?? "erro"}. A OP ficou pendente — aponte manualmente.`);
+          await loadOps(); loadEstoque(); if (vista === "lista") await loadLista();
+          return;
+        }
+      }
       setNovo(null);
       await loadOps();
-      if (novo.editConcluida) loadEstoque(); // estorno mexe nos saldos dos cards
+      if (novo.editConcluida) loadEstoque(); // estorno/reapontamento mexem nos saldos dos cards
       if (vista === "lista") await loadLista();
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setCriando(false); }
   }
@@ -391,7 +444,16 @@ export default function OrdensBoardPage() {
         : null,
       editCriadoPor: o.criadoPor, editResponsavelNome: o.responsavel,
       editConcluida: o.etapaStatus === "CONCLUIDA",
+      // Apontamento gravado (real na unidade da linha + perda em peças) — pré-carrega
+      // a aba "Apontamento" p/ corrigir e reapontar após o estorno.
+      ...(o.etapaStatus === "CONCLUIDA" ? {
+        apReais: Object.fromEntries(o.produtos.map((p) => [p.itemId, Number(p.real ?? p.planejada) ? fmtQtd(p.real ?? p.planejada) : ""])),
+        apPerdas: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.perda != null ? fmtQtd(p.perda) : "0"])),
+        apVagoes: o.vagoes ? String(o.vagoes) : vagoesDoPlano(o, "VAGAO"),
+        apVagonetas: o.vagonetas ? String(o.vagonetas) : vagoesDoPlano(o, "VAGONETA"),
+      } : {}),
     });
+    setAbaEd("plan");
     setErro(null);
   }
 
@@ -731,7 +793,7 @@ export default function OrdensBoardPage() {
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                 onEditar={(o) => abrirEdicao(o)}
                 onExcluir={(o) => excluirOP(o)}
-                onApontar={(o) => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, Number(p.planejada) ? fmtQtd(p.planejada) : ""])), perdas: {}, paletes: {}, pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])), perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
+                onApontar={(o) => abrirApontar(o)}
               />
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
@@ -805,7 +867,7 @@ export default function OrdensBoardPage() {
                         )}
                         {o.criadoPor && <p className="text-[10px] text-muted-foreground/70 truncate">Programado: {o.criadoPor}</p>}
                         {!concl && (
-                          <button onClick={() => { setApontar(o); setApForm({ reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, Number(p.planejada) ? fmtQtd(p.planejada) : ""])), perdas: {}, paletes: {}, pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])), perda: "", biomassa: "", vagoes: "", vagonetas: "" }); setErro(null); }}
+                          <button onClick={() => abrirApontar(o)}
                             className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
                             <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
                           </button>
@@ -851,11 +913,76 @@ export default function OrdensBoardPage() {
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">{novo.editId ? <Pencil className="w-5 h-5 text-cyan-600" /> : <Plus className="w-5 h-5 text-cyan-600" />} {novo.editId ? `Editar OP ${novo.editNumero ?? ""}` : `Nova OP — ${area.centroTrabalho ?? area.nome}`}</h2>
             {novo.editConcluida && (
               <p className="mt-2 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-                Esta OP já foi <b>apontada</b>. Ao salvar, o apontamento é <b>estornado em cascata</b> (movimentos de estoque, custos e lançamentos contábeis revertidos) e a OP volta a pendente para reapontar com os valores corrigidos.
+                Esta OP já foi <b>apontada</b>. Ao salvar, o apontamento é <b>estornado em cascata</b> (estoque, custos e contábil revertidos) e <b>reapontado</b> com os valores da aba <b>Apontamento</b>.
               </p>
+            )}
+            {/* Abas da edição de OP concluída: dados planejados × correção do apontamento */}
+            {novo.editConcluida && (
+              <div className="mt-3 flex gap-0 border-b border-border">
+                {([["plan", "Planejado"], ["apont", "Apontamento"]] as const).map(([k, lbl]) => (
+                  <button key={k} type="button" onClick={() => setAbaEd(k)}
+                    className={cn("px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                      abaEd === k ? "border-cyan-600 text-cyan-700 dark:text-cyan-400" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
             )}
             {area.produtos.length === 0 ? (
               <p className="text-sm text-muted-foreground mt-3">Esta etapa não tem produto configurado. Defina o produto de saída da operação no editor do fluxo.</p>
+            ) : novo.editConcluida && abaEd === "apont" ? (
+              <>
+                {/* ── ABA APONTAMENTO: corrige real/perda por produto (reapontado ao salvar) ── */}
+                <div className="mt-4 rounded-lg border border-border overflow-hidden">
+                  <div className="grid grid-cols-[1fr_7rem_7rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
+                    <span>Produto</span><span className="text-right">Real</span><span className="text-right">Perda (pç)</span>
+                  </div>
+                  {novo.linhas.filter((l) => l.itemId).map((l) => {
+                    const prod = area.produtos.find((p) => p.id === l.itemId);
+                    const un = prod?.unidades.find((u) => u.id === l.unidadeId);
+                    const fator = un?.fator && un.fator > 0 ? un.fator : 1;
+                    const realPc = numBR(novo.apReais?.[l.itemId]) * fator;
+                    const perdaPc = numBR(novo.apPerdas?.[l.itemId]);
+                    const pct = realPc > 0 && perdaPc > 0 ? `${(perdaPc / realPc * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
+                    return (
+                      <div key={l.itemId} className="grid grid-cols-[1fr_7rem_7rem] gap-2 px-3 py-2 items-center border-t border-border/60">
+                        <span className="text-xs text-foreground truncate">{prod?.descricao ?? l.itemId}{un ? <span className="text-muted-foreground"> ({un.sigla})</span> : null}</span>
+                        <div className="flex flex-col items-end">
+                          <input inputMode="decimal" value={novo.apReais?.[l.itemId] ?? ""}
+                            onChange={(e) => setNovo({ ...novo, apReais: { ...(novo.apReais ?? {}), [l.itemId]: e.target.value } })}
+                            className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                          {fator > 1 && realPc > 0 && <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {realPc.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} pç</span>}
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <input inputMode="decimal" value={novo.apPerdas?.[l.itemId] ?? ""}
+                            onChange={(e) => setNovo({ ...novo, apPerdas: { ...(novo.apPerdas ?? {}), [l.itemId]: e.target.value } })}
+                            className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                          {pct && <span className="text-[10px] text-amber-600 tabular-nums leading-tight">{pct}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 flex items-end gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Vagões descarregados</label>
+                    <input inputMode="numeric" value={novo.apVagoes ?? ""} onChange={(e) => setNovo({ ...novo, apVagoes: e.target.value })}
+                      className="h-9 w-32 rounded-lg border border-border px-3 text-sm text-right tabular-nums bg-card" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Vagonetas</label>
+                    <input inputMode="numeric" value={novo.apVagonetas ?? ""} onChange={(e) => setNovo({ ...novo, apVagonetas: e.target.value })}
+                      className="h-9 w-32 rounded-lg border border-border px-3 text-sm text-right tabular-nums bg-card" />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground pb-1">Perda em peças · % sobre o real apontado. Produtos/quantidades planejadas ficam na aba Planejado.</p>
+                </div>
+                <div className="mt-5 flex items-center justify-end gap-2">
+                  <button onClick={() => setNovo(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+                  <button onClick={criarOp} disabled={criando} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50">
+                    {criando ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Salvar
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 <div className="mt-4 flex flex-col lg:flex-row gap-5">
@@ -976,8 +1103,8 @@ export default function OrdensBoardPage() {
                 </div>
                 {apontar.produtos.map((pr) => {
                   const perdaPc = numBR(apForm.perdas[pr.itemId]);
-                  const desc = apontadoPecas(pr) + perdaPc; // descarregado = apontado + perda
-                  const pct = desc > 0 && perdaPc > 0 ? `${(perdaPc / desc * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
+                  const ap = apontadoPecas(pr); // % de perda sobre o APONTADO REAL
+                  const pct = ap > 0 && perdaPc > 0 ? `${(perdaPc / ap * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
                   const paletesStr = apForm.paletes[pr.itemId] ?? "";
                   const pcPltStr = apForm.pcPlt[pr.itemId] ?? "";
                   const totPecas = numBR(paletesStr) * numBR(pcPltStr);
@@ -1092,7 +1219,8 @@ export default function OrdensBoardPage() {
                 const d = desc[p.itemId] ?? 0;
                 const ap = apontadoPecas(p);
                 const perda = Math.max(0, Math.round((d - ap) * 1000) / 1000);
-                const pct = d > 0 ? `${(perda / d * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—";
+                // % de perda sobre o APONTADO REAL, não sobre o descarregado/planejado.
+                const pct = ap > 0 && perda > 0 ? `${(perda / ap * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—";
                 return (
                   <div key={p.itemId} className="grid grid-cols-[1fr_5rem_5rem_5rem_3.5rem] gap-2 px-3 py-1.5 items-center border-t border-border/60 text-xs tabular-nums">
                     <span className="text-foreground truncate">{p.descricao}</span>

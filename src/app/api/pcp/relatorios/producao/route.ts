@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
           produtoItens: {
             select: {
               itemId: true, quantidadeReal: true, unidadeId: true, qtdPerda: true,
-              item: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
+              item: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { sigla: true } } } } } },
             },
           },
         },
@@ -48,23 +48,23 @@ export async function GET(req: NextRequest) {
     orderBy: { fimReal: "asc" },
   });
 
-  type ProdutoAgg = { itemId: string; codigo: string; descricao: string; pecas: number; perda: number; ops: number };
-  type AreaAgg = { area: string; sequencia: number; pecas: number; perda: number; vagoes: number; vagonetas: number; ops: number; produtos: Map<string, ProdutoAgg> };
+  type ProdutoAgg = { itemId: string; codigo: string; descricao: string; pecas: number; paletes: number; perda: number; ops: number };
+  type AreaAgg = { area: string; sequencia: number; pecas: number; paletes: number; perda: number; vagoes: number; vagonetas: number; ops: number; produtos: Map<string, ProdutoAgg> };
   const areas = new Map<string, AreaAgg>();
   // Série diária por área (gráfico por data). Dia no fuso de Belém (UTC−3).
-  const porDia = new Map<string, { dia: string; area: string; pecas: number; perda: number; veiculos: number }>();
+  const porDia = new Map<string, { dia: string; area: string; pecas: number; paletes: number; perda: number; veiculos: number }>();
   const diaBelem = (d: Date | null) => (d ? new Date(d.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10) : null);
   const diaDe = (dia: string, area: string) => {
     const k = `${dia}|${area}`;
-    return porDia.get(k) ?? porDia.set(k, { dia, area, pecas: 0, perda: 0, veiculos: 0 }).get(k)!;
+    return porDia.get(k) ?? porDia.set(k, { dia, area, pecas: 0, paletes: 0, perda: 0, veiculos: 0 }).get(k)!;
   };
   // Resumo por OP (pop-up do dia no gráfico): uma linha por etapa concluída.
-  const opsDia: { dia: string; area: string; id: string; numero: string; hora: string | null; apontadoPor: string | null; pecas: number; perda: number; veiculos: number; produtos: string }[] = [];
+  const opsDia: { dia: string; area: string; id: string; numero: string; hora: string | null; apontadoPor: string | null; pecas: number; paletes: number; perda: number; veiculos: number; produtos: string }[] = [];
 
   for (const et of etapas) {
     const chave = et.centroTrabalho ?? et.nome;
     let a = areas.get(chave);
-    if (!a) { a = { area: chave, sequencia: et.sequencia, pecas: 0, perda: 0, vagoes: 0, vagonetas: 0, ops: 0, produtos: new Map() }; areas.set(chave, a); }
+    if (!a) { a = { area: chave, sequencia: et.sequencia, pecas: 0, paletes: 0, perda: 0, vagoes: 0, vagonetas: 0, ops: 0, produtos: new Map() }; areas.set(chave, a); }
     a.sequencia = Math.min(a.sequencia, et.sequencia);
     a.ops += 1;
     a.vagoes += et.vagoes ?? 0;
@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     const diaEtapa = diaBelem(et.fimReal);
     if (diaEtapa) diaDe(diaEtapa, chave).veiculos += (et.vagoes ?? 0) + (et.vagonetas ?? 0);
 
-    let opPecas = 0, opPerda = 0;
+    let opPecas = 0, opPaletes = 0, opPerda = 0;
     const opProdutos: string[] = [];
 
     for (const pi of et.ordemProducao.produtoItens) {
@@ -84,11 +84,16 @@ export async function GET(req: NextRequest) {
       const pecas = (Number(pi.quantidadeReal) || 0) * fator;
       const perda = Number(pi.qtdPerda) || 0;
       if (pecas <= 0 && perda <= 0) continue;
+      // Paletes produzidos = peças ÷ peças/palete do produto (ItemUnidade PLT).
+      const iuPlt = pi.item.itemUnidades.find((u) => /^PLT$/i.test(u.unidade?.sigla ?? "") && u.fatorConversao != null && Number(u.fatorConversao) > 0);
+      const paletes = iuPlt ? pecas / Number(iuPlt.fatorConversao) : 0;
       a.pecas += pecas;
+      a.paletes += paletes;
       a.perda += perda;
       let p = a.produtos.get(pi.itemId);
-      if (!p) { p = { itemId: pi.itemId, codigo: pi.item.codigo, descricao: pi.item.descricao, pecas: 0, perda: 0, ops: 0 }; a.produtos.set(pi.itemId, p); }
+      if (!p) { p = { itemId: pi.itemId, codigo: pi.item.codigo, descricao: pi.item.descricao, pecas: 0, paletes: 0, perda: 0, ops: 0 }; a.produtos.set(pi.itemId, p); }
       p.pecas += pecas;
+      p.paletes += paletes;
       p.perda += perda;
       p.ops += 1;
 
@@ -96,9 +101,11 @@ export async function GET(req: NextRequest) {
       if (dia) {
         const d = diaDe(dia, chave);
         d.pecas += pecas;
+        d.paletes += paletes;
         d.perda += perda;
       }
       opPecas += pecas;
+      opPaletes += paletes;
       opPerda += perda;
       opProdutos.push(`${Math.round(pecas).toLocaleString("pt-BR")}× ${pi.item.descricao}`);
     }
@@ -108,7 +115,7 @@ export async function GET(req: NextRequest) {
         dia: diaEtapa, area: chave, id: et.ordemProducao.id, numero: et.ordemProducao.numero,
         hora: et.fimReal ? new Date(et.fimReal.getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16) : null,
         apontadoPor: et.apontadoPor ?? null,
-        pecas: Math.round(opPecas * 1000) / 1000, perda: Math.round(opPerda * 1000) / 1000,
+        pecas: Math.round(opPecas * 1000) / 1000, paletes: Math.round(opPaletes * 10) / 10, perda: Math.round(opPerda * 1000) / 1000,
         veiculos: (et.vagoes ?? 0) + (et.vagonetas ?? 0),
         produtos: opProdutos.join(" · "),
       });
@@ -120,16 +127,16 @@ export async function GET(req: NextRequest) {
     .sort((x, y) => x.sequencia - y.sequencia)
     .map((a) => ({
       area: a.area, sequencia: a.sequencia, ops: a.ops,
-      pecas: round(a.pecas), perda: round(a.perda),
+      pecas: round(a.pecas), paletes: Math.round(a.paletes * 10) / 10, perda: round(a.perda),
       vagoes: a.vagoes || null, vagonetas: a.vagonetas || null,
       produtos: Array.from(a.produtos.values())
         .sort((x, y) => y.pecas - x.pecas)
-        .map((p) => ({ ...p, pecas: round(p.pecas), perda: round(p.perda) })),
+        .map((p) => ({ ...p, pecas: round(p.pecas), paletes: Math.round(p.paletes * 10) / 10, perda: round(p.perda) })),
     }));
 
   const dias = Array.from(porDia.values())
     .sort((x, y) => x.dia.localeCompare(y.dia))
-    .map((d) => ({ ...d, pecas: round(d.pecas), perda: round(d.perda) }));
+    .map((d) => ({ ...d, pecas: round(d.pecas), paletes: Math.round(d.paletes * 10) / 10, perda: round(d.perda) }));
 
   return NextResponse.json({ data, porDia: dias, ops: opsDia });
 }
