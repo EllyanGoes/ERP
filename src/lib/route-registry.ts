@@ -153,7 +153,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/fiscal/cadastros/regras",              label: "Regras de Tributação",    group: "Fiscal",         section: "Cadastros",        icon: Scale, keywords: "fiscal regra tributação cfop cst csosn icms ipi pis cofins alíquota st mva cclasstrib ibs cbs" },
 
   { href: "/rh/folhas",                            label: "Folhas de Pagamento",     group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "folha pagamento salário rh gestão de pessoas holerite inss fgts irrf colaborador" },
-  { href: "/rh/diaristas",                         label: "Lançamento de Diárias",   group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "diária diarista diárias rh gestão de pessoas pagamento mão de obra produção fábrica turno" },
+  { href: "/rh/diaristas",                         label: "Diárias",                 group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "diária diarista diárias lançamento rh gestão de pessoas pagamento mão de obra produção fábrica turno" },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },

@@ -99,7 +99,7 @@ export default function DiariaDetailPage() {
     <div>
       <PageHeader
         title="Folha de Diárias"
-        breadcrumbs={[{ label: "Gestão de Pessoas" }, { label: "Lançamento de Diárias", href: "/rh/diaristas" }, { label: data ? new Date(`${data}T12:00:00`).toLocaleDateString("pt-BR") : "Folha" }]}
+        breadcrumbs={[{ label: "Gestão de Pessoas" }, { label: "Diárias", href: "/rh/diaristas" }, { label: data ? new Date(`${data}T12:00:00`).toLocaleDateString("pt-BR") : "Folha" }]}
         actions={
           <div className="flex items-center gap-2">
             <span className={cn("text-[11px] font-medium px-2 py-1 rounded-full", bloqueado ? "bg-success/15 text-success" : "bg-info/15 text-info")}>{bloqueado ? "Fechada" : "Aberta"}</span>

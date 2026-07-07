@@ -349,7 +349,7 @@ const mainModules: Module[] = [
         kind: "Processos",
         items: [
           { href: "/rh/folhas", label: "Folhas de Pagamento", icon: FileText },
-          { href: "/rh/diaristas", label: "Lançamento de Diárias", icon: CalendarDays },
+          { href: "/rh/diaristas", label: "Diárias", icon: CalendarDays },
         ],
       },
     ],

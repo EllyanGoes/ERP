@@ -20,20 +20,43 @@ export async function GET() {
   return NextResponse.json({ data });
 }
 
-// Cria uma folha de diárias para uma data (vazia, edita-se em seguida).
+// Cria uma folha de diárias para uma data. Se vierem colaboradorIds
+// (pré-seleção do popup), já monta os blocos POR SETOR do cadastro, com um
+// item (valor 0) por colaborador — os valores/serviços são editados em seguida.
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("rh");
   if (!auth.ok) return auth.response;
 
   const b = await req.json().catch(() => ({}));
   if (!b.data) return NextResponse.json({ error: "Informe a data da folha." }, { status: 400 });
+  const ids: string[] = Array.isArray(b.colaboradorIds) ? b.colaboradorIds.filter((x: unknown) => typeof x === "string") : [];
 
-  const folha = await prisma.diariaFolha.create({
-    data: {
-      data: new Date(`${String(b.data).slice(0, 10)}T12:00:00`),
-      observacoes: b.observacoes?.trim() || null,
-      criadoPor: auth.session.nome ?? null,
-    },
+  const folha = await prisma.$transaction(async (tx) => {
+    const f = await tx.diariaFolha.create({
+      data: {
+        data: new Date(`${String(b.data).slice(0, 10)}T12:00:00`),
+        observacoes: b.observacoes?.trim() || null,
+        criadoPor: auth.session.nome ?? null,
+      },
+    });
+    if (ids.length) {
+      const colabs = await tx.colaborador.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, setor: { select: { nome: true } } },
+        orderBy: { nome: "asc" },
+      });
+      const porSetor = new Map<string, string[]>();
+      for (const c of colabs) {
+        const s = c.setor?.nome ?? "";
+        porSetor.set(s, [...(porSetor.get(s) ?? []), c.id]);
+      }
+      let go = 0;
+      for (const [setor, lista] of Array.from(porSetor.entries()).sort((a, z) => a[0].localeCompare(z[0]))) {
+        const grupo = await tx.diariaGrupo.create({ data: { folhaId: f.id, setor: setor || null, ordem: go++ } });
+        await tx.diariaItem.createMany({ data: lista.map((cid, i) => ({ grupoId: grupo.id, colaboradorId: cid, ordem: i })) });
+      }
+    }
+    return f;
   });
   return NextResponse.json({ data: folha }, { status: 201 });
 }
