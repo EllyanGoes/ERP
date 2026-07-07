@@ -400,8 +400,14 @@ export default function OrdensBoardPage() {
     if (!saldoIni.itemId || numBR(saldoIni.quantidade) <= 0) { setErro("Informe produto e quantidade > 0"); return; }
     // Converte para a unidade-base (peças) pelo fator da unidade escolhida.
     const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
-    const fator = us.find((u) => u.id === saldoIni.unidadeId)?.fator ?? 1;
+    const un = us.find((u) => u.id === saldoIni.unidadeId);
+    const fator = un?.fator ?? 1;
     const quantidadeBase = numBR(saldoIni.quantidade) * fator;
+    // Unidade ≠ peças com valor alto: confirma mostrando a conversão — "32.000" em
+    // milheiro é 32.000.000 pç (foi assim que nasceu um saldo inicial de 32 milhões).
+    if (fator > 1 && quantidadeBase >= 100000) {
+      if (!confirm(`Confira a UNIDADE: ${numBR(saldoIni.quantidade).toLocaleString("pt-BR")} ${un?.sigla ?? ""} = ${quantidadeBase.toLocaleString("pt-BR")} peças.\n\nLançar mesmo assim?`)) return;
+    }
     setSalvandoSaldo(true); setErro(null);
     try {
       const r = await fetch("/api/pcp/ordens/area/saldo-inicial-wip", {
