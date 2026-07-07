@@ -18,7 +18,8 @@ type GrupoRow = { _key: string; tipo: string; setor: string; turno: string; iten
 
 const TURNOS = [{ v: "DIA", l: "Dia" }, { v: "NOITE", l: "Noite" }];
 const key = () => Math.random().toString(36).slice(2);
-const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", manha: "", tarde: "", horasExcedente: "", servico: "", valor: "" });
+// Escala padrão já preenchida (o usuário ajusta quando diferir).
+const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", manha: "08:00 - 12:00", tarde: "13:00 - 17:00", horasExcedente: "", servico: "", valor: "" });
 // O bloco é POR SETOR: quem está dentro dele estava nesse setor nessa diária.
 // tipo segue no modelo (default DIVERSAS) mas não é mais editável na tela.
 const novoGrupo = (): GrupoRow => ({ _key: key(), tipo: "DIVERSAS", setor: "", turno: "DIA", itens: [novoItem()] });
@@ -51,6 +52,8 @@ export default function DiariaDetailPage() {
   // Setor do cadastro de cada colaborador (p/ posicionar a pessoa no bloco certo
   // quando adicionada pela visualização em lista).
   const [setorPorColab, setSetorPorColab] = useState<Map<string, string>>(new Map());
+  // Valor base da diária do cadastro (pré-preenche o valor ao escolher a pessoa).
+  const [valorPorColab, setValorPorColab] = useState<Map<string, number>>(new Map());
   // Visualização: lista corrida (setor como coluna, padrão) ou agrupada por setor.
   const [agruparPorSetor, setAgruparPorSetor] = usePersistedState("diarias.folha.agruparPorSetor", false);
   // Folha assinada escaneada (upload após a coleta de assinaturas)
@@ -85,9 +88,10 @@ export default function DiariaDetailPage() {
     }
     if (rc.ok) {
       const jc = await rc.json();
-      const lista: { id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null }[] = jc.data ?? jc ?? [];
+      const lista: { id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null; valorDiaria?: string | number | null }[] = jc.data ?? jc ?? [];
       setColabs(lista.map((c) => ({ value: c.id, label: c.nome })));
       setSetorPorColab(new Map(lista.filter((c) => c.setor?.nome).map((c) => [c.id, c.setor!.nome])));
+      setValorPorColab(new Map(lista.filter((c) => c.valorDiaria != null && Number(c.valorDiaria) > 0).map((c) => [c.id, Number(c.valorDiaria)])));
     }
     if (rs.ok) {
       const js = await rs.json();
@@ -142,13 +146,20 @@ export default function DiariaDetailPage() {
     });
   }
 
+  // Ao escolher o colaborador: preenche o valor com a diária base do cadastro
+  // (se a linha ainda não tem valor).
+  function patchColab(it: ItemRow, colaboradorId: string): Partial<ItemRow> {
+    const v = valorPorColab.get(colaboradorId);
+    return { colaboradorId, ...(!num(it.valor) && v ? { valor: String(v).replace(".", ",") } : {}) };
+  }
+
   // Lista corrida: ao escolher o colaborador, se a linha ainda não tem setor,
   // move p/ o setor do cadastro dele (mesma regra da criação pelo popup).
-  function aoEscolherColabLista(gk: string, ik: string, colaboradorId: string, setorAtual: string) {
-    upItem(gk, ik, { colaboradorId });
+  function aoEscolherColabLista(gk: string, it: ItemRow, colaboradorId: string, setorAtual: string) {
+    upItem(gk, it._key, patchColab(it, colaboradorId));
     if (!setorAtual) {
       const s = setorPorColab.get(colaboradorId);
-      if (s) moverItemParaSetor(gk, ik, s);
+      if (s) moverItemParaSetor(gk, it._key, s);
     }
   }
 
@@ -272,7 +283,7 @@ export default function DiariaDetailPage() {
               {grupos.flatMap((g) => g.itens.map((it) => ({ g, it }))).map(({ g, it }, i) => (
                 <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,1.1fr)_8rem_8rem_5rem_minmax(0,1.2fr)_6rem_2rem] gap-2 px-4 py-2 items-center">
                   <span className="text-xs text-muted-foreground">{i + 1}</span>
-                  <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => aoEscolherColabLista(g._key, it._key, v, g.setor)} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
+                  <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => aoEscolherColabLista(g._key, it, v, g.setor)} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
                   <div className="min-w-0"><ComboboxWithCreate value={g.setor} onChange={(v) => moverItemParaSetor(g._key, it._key, v)} options={setorOptions} disabled={bloqueado} placeholder="Setor..." noneLabel="— sem setor —" menuMinWidth={260} triggerClassName={cn("h-9 rounded-lg", !g.setor && "border-warning/50")} /></div>
                   <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: mascaraHora(e.target.value) })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: mascaraHora(e.target.value) })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
@@ -328,7 +339,7 @@ export default function DiariaDetailPage() {
                 {g.itens.map((it, i) => (
                   <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.6fr)_8rem_8rem_5rem_minmax(0,1.3fr)_6rem_2rem] gap-2 px-4 py-2 items-center">
                     <span className="text-xs text-muted-foreground">{i + 1}</span>
-                    <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, { colaboradorId: v })} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
+                    <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, patchColab(it, v))} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
                     <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: mascaraHora(e.target.value) })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: mascaraHora(e.target.value) })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />

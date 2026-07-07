@@ -219,6 +219,8 @@ model Colaborador {
   setorId                    String?
   // Classificação de custo para o fechamento da folha (rateio MOD/MOI/admin).
   classificacaoCusto         ClassificacaoCusto?
+  // Valor base da diária — pré-preenche o valor no lançamento de diárias.
+  valorDiaria                Decimal?             @db.Decimal(15, 2)
   // Vínculo: funcionário (folha de pagamento) ou prestador (lançamento de diaristas).
   tipoColaborador            TipoColaborador      @default(FUNCIONARIO)
   dataAdmissao               DateTime?

@@ -44,18 +44,27 @@ export async function POST(req: NextRequest) {
     if (ids.length) {
       const colabs = await tx.colaborador.findMany({
         where: { id: { in: ids } },
-        select: { id: true, setor: { select: { nome: true } } },
+        select: { id: true, valorDiaria: true, setor: { select: { nome: true } } },
         orderBy: { nome: "asc" },
       });
-      const porSetor = new Map<string, string[]>();
+      type C = (typeof colabs)[number];
+      const porSetor = new Map<string, C[]>();
       for (const c of colabs) {
         const s = c.setor?.nome ?? "";
-        porSetor.set(s, [...(porSetor.get(s) ?? []), c.id]);
+        porSetor.set(s, [...(porSetor.get(s) ?? []), c]);
       }
       let go = 0;
       for (const [setor, lista] of Array.from(porSetor.entries()).sort((a, z) => a[0].localeCompare(z[0]))) {
         const grupo = await tx.diariaGrupo.create({ data: { folhaId: f.id, setor: setor || null, turno, ordem: go++ } });
-        await tx.diariaItem.createMany({ data: lista.map((cid, i) => ({ grupoId: grupo.id, colaboradorId: cid, ordem: i })) });
+        await tx.diariaItem.createMany({
+          data: lista.map((c, i) => ({
+            grupoId: grupo.id, colaboradorId: c.id, ordem: i,
+            // Valor base da diária do cadastro + escala padrão já preenchida.
+            valor: c.valorDiaria ?? 0,
+            manha: turno === "DIA" ? "08:00 - 12:00" : null,
+            tarde: turno === "DIA" ? "13:00 - 17:00" : null,
+          })),
+        });
       }
     }
     return f;
