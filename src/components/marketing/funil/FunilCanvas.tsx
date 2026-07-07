@@ -10,7 +10,6 @@ import {
   useNodesState,
   useEdgesState,
   useReactFlow,
-  MarkerType,
   ConnectionLineType,
   type Connection,
 } from "@xyflow/react";
@@ -20,8 +19,10 @@ import DatePicker from "@/components/shared/DatePicker";
 import type { TipoFunilNo } from "@/lib/validations/marketing-funil";
 import { nodeTypes } from "./nodes";
 import { edgeTypes } from "./edges";
+import { calcularForecast, contarSaidas, taxaEfetivaAresta } from "./forecast";
 import Toolbar, { type StatusFunil } from "./Toolbar";
 import NoConfigSheet from "./NoConfigSheet";
+import ForecastPanel from "./ForecastPanel";
 import LancamentoManualDrawer from "./LancamentoManualDrawer";
 import {
   metricaBase,
@@ -224,8 +225,12 @@ function CanvasInner({ funil }: { funil: FunilDetalhe }) {
   }, [modo, carregarMetricas]);
 
   const analise = modo === "analise";
+  const forecastMode = modo === "forecast";
 
-  const campanhaNomePorId = useMemo(() => new Map(campanhas.map((c) => [c.id, c.nome])), [campanhas]);
+  // Projeção recalculada client-side a cada mudança de nós/arestas.
+  const forecast = useMemo(() => (forecastMode ? calcularForecast(nodes, edges) : null), [forecastMode, nodes, edges]);
+
+  const campanhaPorId = useMemo(() => new Map(campanhas.map((c) => [c.id, c])), [campanhas]);
   const etapaNomePorId = useMemo(() => new Map(etapas.map((e) => [e.id, e.nome])), [etapas]);
 
   // Métricas do nó: agregado da API; nó de etapa sem agregado cai no
@@ -246,32 +251,73 @@ function CanvasInner({ funil }: { funil: FunilDetalhe }) {
 
   const nodesView = useMemo(
     () =>
-      nodes.map((n) => ({
-        ...n,
-        data: {
-          ...n.data,
-          _analise: analise,
-          _metricas: analise ? metricasDoNo(n) : null,
-          _campanhaNome: n.data.campanhaId ? campanhaNomePorId.get(n.data.campanhaId) ?? null : null,
-          _etapaNome: n.data.etapaLeadId ? etapaNomePorId.get(n.data.etapaLeadId) ?? null : null,
-        },
-      })),
-    [nodes, analise, metricasDoNo, campanhaNomePorId, etapaNomePorId],
+      nodes.map((n) => {
+        const camp = n.data.campanhaId ? campanhaPorId.get(n.data.campanhaId) ?? null : null;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            _analise: analise,
+            _metricas: analise ? metricasDoNo(n) : null,
+            _campanhaNome: camp?.nome ?? null,
+            _etapaNome: n.data.etapaLeadId ? etapaNomePorId.get(n.data.etapaLeadId) ?? null : null,
+            _modoForecast: forecastMode,
+            _forecast: forecastMode ? forecast?.porNo[n.id] ?? null : null,
+            _investimento: camp?.orcamento != null ? Number(camp.orcamento) : null,
+          },
+        };
+      }),
+    [nodes, analise, forecastMode, forecast, metricasDoNo, campanhaPorId, etapaNomePorId],
   );
 
   const edgesView = useMemo(() => {
+    // Modo forecast: taxa efetiva (explícita ou default de saída única),
+    // pessoas projetadas na aresta e marcação de ciclos ignorados.
+    if (forecastMode && forecast) {
+      const saidas = contarSaidas(edges);
+      const ignoradas = new Set(forecast.arestasIgnoradas);
+      return edges.map((e) => {
+        const taxaEf = taxaEfetivaAresta(e, saidas.get(e.source) ?? 0);
+        const ignorada = ignoradas.has(e.id);
+        const fluxoSource = forecast.porNo[e.source]?.fluxo ?? 0;
+        const data: FunilEdgeData = {
+          ...e.data,
+          _taxa: null,
+          _readonly: true,
+          _modoForecast: true,
+          _taxaEfetiva: taxaEf,
+          _semTaxa: taxaEf == null,
+          _ignorada: ignorada,
+          _pessoas: taxaEf == null || ignorada ? null : (fluxoSource * taxaEf) / 100,
+        };
+        return { ...e, data };
+      });
+    }
     const basePorNo = new Map(nodesView.map((n) => [n.id, metricaBase(n.data._metricas)]));
     return edges.map((e) => {
       let taxa: number | null = null;
+      let pessoas: number | null = null;
       if (analise) {
         const deBase = basePorNo.get(e.source) ?? 0;
         const paraBase = basePorNo.get(e.target) ?? 0;
-        if (deBase > 0 && paraBase > 0) taxa = (paraBase / deBase) * 100;
+        if (deBase > 0 && paraBase > 0) {
+          taxa = (paraBase / deBase) * 100;
+          pessoas = paraBase;
+        }
       }
-      const data: FunilEdgeData = { ...e.data, _taxa: taxa, _readonly: analise };
+      const data: FunilEdgeData = {
+        ...e.data,
+        _taxa: taxa,
+        _readonly: analise,
+        _modoForecast: false,
+        _taxaEfetiva: null,
+        _semTaxa: false,
+        _ignorada: false,
+        _pessoas: pessoas,
+      };
       return { ...e, data };
     });
-  }, [edges, nodesView, analise]);
+  }, [edges, nodesView, analise, forecastMode, forecast]);
 
   // ── Edição ──
   const onConnect = useCallback(
@@ -326,8 +372,8 @@ function CanvasInner({ funil }: { funil: FunilDetalhe }) {
         onStatus={(s) => void salvarMeta({ status: s })}
         onModo={(m) => {
           setModo(m);
-          if (m === "analise") setSelectedId(null);
-          else setLancandoNoId(null);
+          if (m !== "desenho") setSelectedId(null);
+          if (m !== "analise") setLancandoNoId(null);
         }}
         onAtualizarMetricas={() => void carregarMetricas()}
         onAddNode={addNode}
@@ -356,6 +402,8 @@ function CanvasInner({ funil }: { funil: FunilDetalhe }) {
       />
 
       <div className="flex-1 min-h-0 relative" ref={wrapperRef}>
+        {/* fluxo de bolinhas das arestas (vide edges.tsx) */}
+        <style>{`@keyframes mkt-funil-flow { to { stroke-dashoffset: -8.1; } }`}</style>
         <ReactFlow
           nodes={nodesView}
           edges={edgesView}
@@ -364,7 +412,7 @@ function CanvasInner({ funil }: { funil: FunilDetalhe }) {
           onConnect={onConnect}
           onNodeClick={(_, n) => {
             if (analise) setLancandoNoId(n.id);
-            else setSelectedId(n.id);
+            else if (modo === "desenho") setSelectedId(n.id);
           }}
           onPaneClick={() => {
             setSelectedId(null);
@@ -372,12 +420,12 @@ function CanvasInner({ funil }: { funil: FunilDetalhe }) {
           }}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          defaultEdgeOptions={{ type: "funil", markerEnd: { type: MarkerType.ArrowClosed, color: "#94a3b8", width: 18, height: 18 } }}
-          connectionLineType={ConnectionLineType.SmoothStep}
+          defaultEdgeOptions={{ type: "funil" }}
+          connectionLineType={ConnectionLineType.Bezier}
           connectionRadius={36}
           nodesDraggable={!analise}
-          nodesConnectable={!analise}
-          deleteKeyCode={analise ? null : ["Backspace", "Delete"]}
+          nodesConnectable={modo === "desenho"}
+          deleteKeyCode={modo === "desenho" ? ["Backspace", "Delete"] : null}
           fitView
           proOptions={{ hideAttribution: true }}
         >
@@ -393,7 +441,9 @@ function CanvasInner({ funil }: { funil: FunilDetalhe }) {
           </div>
         )}
 
-        {selected && !analise && (
+        {forecastMode && <ForecastPanel resultado={forecast} nodes={nodes} edges={edges} campanhas={campanhas} />}
+
+        {selected && modo === "desenho" && (
           <NoConfigSheet
             tipo={selected.data.tipo}
             data={selected.data}

@@ -1,5 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import type { FunilNoData, TipoFunilNo } from "@/lib/validations/marketing-funil";
+import type { NoForecast } from "./forecast";
 
 // Métricas agregadas de um nó no período analisado (vem de /metricas).
 export type NoMetricas = {
@@ -17,20 +18,29 @@ export type FunilNodeData = FunilNoData & {
   _campanhaNome?: string | null;
   _etapaNome?: string | null;
   _analise?: boolean;
+  _modoForecast?: boolean;
+  _forecast?: NoForecast | null; // fluxo/receita projetados (modo forecast)
+  _investimento?: number | null; // orçamento da campanha vinculada (nós FONTE)
 };
 
 export type FunilEdgeData = {
-  taxa?: number | null; // reservado p/ forecast (Fase 2)
+  taxa?: number | null; // taxa do forecast (persiste no canvas)
   _taxa?: number | null; // taxa aproximada calculada no modo análise
   _readonly?: boolean;
+  _modoForecast?: boolean;
+  _taxaEfetiva?: number | null; // taxa explícita ou default (100% em saída única)
+  _semTaxa?: boolean; // sem taxa em source com múltiplas saídas → "definir %"
+  _ignorada?: boolean; // aresta ignorada por fechar ciclo
+  _pessoas?: number | null; // fluxo que passa pela aresta (forecast/análise)
 };
 
 export type FunilFlowNode = Node<FunilNodeData>;
 export type FunilFlowEdge = Edge<FunilEdgeData>;
 
-export type ModoCanvas = "desenho" | "analise";
+export type ModoCanvas = "desenho" | "forecast" | "analise";
 
-export type CampanhaOpt = { id: string; nome: string; plataforma: string };
+// orcamento vem serializado da API (Decimal → string); use Number() p/ somar.
+export type CampanhaOpt = { id: string; nome: string; plataforma: string; orcamento?: string | number | null };
 export type EtapaLeadOpt = { id: string; nome: string; ordem: number; cor: string | null; ganho: boolean };
 
 export type MetricasFunil = {

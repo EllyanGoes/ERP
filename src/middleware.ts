@@ -15,8 +15,10 @@ const COOKIE_NAME = "erp_session";
 //                     fazem getSession() e respondem 401 sozinhos
 //   /api/cron/*     → protegidas por CRON_SECRET (Authorization: Bearer)
 //   /api/webhooks/* → validam o segredo do provedor (Telegram/Meta)
+//   /api/t/*        → tracking de marketing (snippet + ingestão): valida
+//                     siteId ativo + Origin na allowlist de SiteRastreado
 // Qualquer OUTRA rota /api/* agora exige um JWT de sessão válido.
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks"];
+const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));

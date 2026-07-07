@@ -120,16 +120,20 @@ export default function Toolbar({
           <LineChart className="w-3 h-3" /> Análise
         </button>
         <button
-          disabled
-          title="Em breve — Fase 2"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md text-muted-foreground/50 cursor-not-allowed"
+          onClick={() => onModo("forecast")}
+          title="Simule volumes e taxas de conversão"
+          className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md", modo === "forecast" ? "bg-violet-600 text-white font-medium" : "text-muted-foreground hover:bg-muted")}
         >
           <TrendingUp className="w-3 h-3" /> Forecast
         </button>
       </div>
 
-      {/* Paleta (desenho) / período (análise) */}
-      {modo === "desenho" ? (
+      {/* Paleta (desenho) / dica (forecast) / período (análise) */}
+      {modo === "forecast" ? (
+        <p className="text-xs text-muted-foreground">
+          Digite o volume mensal nas fontes e as taxas (%) nas conexões — a projeção recalcula na hora.
+        </p>
+      ) : modo === "desenho" ? (
         <div className="flex items-center gap-1">
           {PALETTE.map((p) => {
             const st = NODE_STYLE[p.tipo];

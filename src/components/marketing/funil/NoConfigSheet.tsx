@@ -82,6 +82,22 @@ export default function NoConfigSheet({ tipo, data, campanhas, etapas, onChange,
                 Vincule para puxar as métricas da campanha automaticamente.
               </p>
             </div>
+            <div>
+              <label className={labelCls}>Volume projetado (período)</label>
+              <input
+                className={inputCls}
+                inputMode="decimal"
+                value={data.volume == null ? "" : String(data.volume)}
+                onChange={(e) => {
+                  const v = e.target.value.replace(",", ".").trim();
+                  if (v === "") { onChange({ volume: null }); return; }
+                  const n = Number(v);
+                  if (Number.isFinite(n) && n >= 0) onChange({ volume: n });
+                }}
+                placeholder="entrada mensal estimada desta fonte"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Alimenta o modo forecast (também editável no próprio nó).</p>
+            </div>
           </>
         )}
 
@@ -111,19 +127,40 @@ export default function NoConfigSheet({ tipo, data, campanhas, etapas, onChange,
         )}
 
         {tipo === "ETAPA_OFFLINE" && (
-          <div>
-            <label className={labelCls}>Etapa de lead</label>
-            <select
-              className={inputCls}
-              value={data.etapaLeadId ?? ""}
-              onChange={(e) => onChange({ etapaLeadId: e.target.value || null })}
-            >
-              <option value="">—</option>
-              {etapas.map((et) => (
-                <option key={et.id} value={et.id}>{et.nome}{et.ganho ? " (ganho)" : ""}</option>
-              ))}
-            </select>
-          </div>
+          <>
+            <div>
+              <label className={labelCls}>Etapa de lead</label>
+              <select
+                className={inputCls}
+                value={data.etapaLeadId ?? ""}
+                onChange={(e) => onChange({ etapaLeadId: e.target.value || null })}
+              >
+                <option value="">—</option>
+                {etapas.map((et) => (
+                  <option key={et.id} value={et.id}>{et.nome}{et.ganho ? " (ganho)" : ""}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Vínculo ERP (métricas automáticas)</label>
+              <select
+                className={inputCls}
+                value={data.vinculoErp?.tipo ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onChange({ vinculoErp: v ? { tipo: v as "PEDIDO_VENDA" | "CLIENTE_NOVO" } : null });
+                }}
+              >
+                <option value="">— sem vínculo —</option>
+                <option value="PEDIDO_VENDA">Pedidos de venda (qtde + receita)</option>
+                <option value="CLIENTE_NOVO">Clientes novos (qtde)</option>
+              </select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Agregado diariamente pelo sistema (fonte ERP no modo análise). Pedidos
+                cancelados e orçamentos ficam de fora.
+              </p>
+            </div>
+          </>
         )}
 
         <div>
@@ -140,7 +177,7 @@ export default function NoConfigSheet({ tipo, data, campanhas, etapas, onChange,
             }}
             placeholder="ticket médio deste nó"
           />
-          <p className="text-[10px] text-muted-foreground mt-1">Usado na receita projetada do forecast (Fase 2).</p>
+          <p className="text-[10px] text-muted-foreground mt-1">Usado na receita projetada do modo forecast.</p>
         </div>
 
         <button

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { matchUrlPattern } from "@/lib/tracking/agrega";
 
 type MetricasNo = {
   visitantes: number;
@@ -120,5 +121,124 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
   }
 
-  return NextResponse.json({ data: { nos, leadsPorEtapa } });
+  // ── Path-analysis (Fase 4) — taxas reais das arestas, on-demand (?path=1) ──
+  // Calculado dos eventos crus (não do agregado): para cada aresta cujos dois
+  // nós são PAGINA/ACAO com matching configurado, mede quantos visitantes que
+  // casaram o source casaram o target DEPOIS (createdAt maior).
+  let arestas:
+    | Record<
+        string,
+        { source: string; target: string; visitantesSource: number; visitantesAmbos: number; taxaReal: number }
+      >
+    | null
+    | undefined;
+  let avisoPath: string | undefined;
+
+  if (searchParams.get("path") === "1") {
+    // Período: default últimos 30 dias; capado em 35 (eventos crus têm
+    // retenção de 90d, mas a análise em memória precisa de limite).
+    const MAX_DIAS_PATH = 35;
+    const fimPath = ate ? new Date(new Date(`${ate.slice(0, 10)}T00:00:00.000-03:00`).getTime() + 24 * 3600_000) : new Date();
+    const inicioPath = de
+      ? new Date(`${de.slice(0, 10)}T00:00:00.000-03:00`)
+      : new Date(fimPath.getTime() - 30 * 24 * 3600_000);
+
+    if (fimPath.getTime() - inicioPath.getTime() > MAX_DIAS_PATH * 24 * 3600_000) {
+      arestas = null;
+      avisoPath = `Path-analysis limitado a ${MAX_DIAS_PATH} dias — reduza o período do filtro.`;
+    } else {
+      const funil = await prisma.funil.findUnique({
+        where: { id: params.id },
+        select: {
+          canvas: true,
+          nos: {
+            where: { ativo: true, tipo: { in: ["PAGINA", "ACAO"] } },
+            select: { noId: true, tipo: true, config: true },
+          },
+        },
+      });
+
+      // Nós "casáveis" com eventos: PAGINA com urlPatterns / ACAO com eventoNome.
+      const casaveis = new Map<
+        string,
+        { tipo: string; patterns: string[]; eventoNome: string | null }
+      >();
+      for (const n of funil?.nos ?? []) {
+        const cfg = n.config as { urlPatterns?: string[]; eventoNome?: string } | null;
+        if (n.tipo === "PAGINA") {
+          const patterns = (cfg?.urlPatterns ?? []).filter(Boolean);
+          if (patterns.length) casaveis.set(n.noId, { tipo: n.tipo, patterns, eventoNome: null });
+        } else {
+          const eventoNome = cfg?.eventoNome?.trim();
+          if (eventoNome) casaveis.set(n.noId, { tipo: n.tipo, patterns: [], eventoNome: eventoNome.toLowerCase() });
+        }
+      }
+
+      const edges = (
+        (funil?.canvas as { edges?: { id: string; source: string; target: string }[] } | null)?.edges ?? []
+      ).filter((e) => casaveis.has(e.source) && casaveis.has(e.target));
+
+      arestas = {};
+      if (edges.length > 0) {
+        // Eventos do período uma vez só (TrackingEvento não é escopado;
+        // prismaSemEscopo segue o padrão do agrega.ts).
+        const eventos = await prismaSemEscopo.trackingEvento.findMany({
+          where: { createdAt: { gte: inicioPath, lt: fimPath } },
+          select: { visitanteId: true, path: true, nome: true, tipo: true, createdAt: true },
+          orderBy: { createdAt: "asc" },
+        });
+
+        // Por visitante+nó, guarda o primeiro e o último instante de match:
+        // existe source→target em sequência ⟺ min(source) < max(target).
+        const listaCasaveis: [string, { tipo: string; patterns: string[]; eventoNome: string | null }][] = [];
+        casaveis.forEach((def, noId) => listaCasaveis.push([noId, def]));
+        const porVisitante = new Map<string, Map<string, { min: number; max: number }>>();
+        for (const e of eventos) {
+          for (const [noId, def] of listaCasaveis) {
+            const casa =
+              def.tipo === "PAGINA"
+                ? e.tipo === "pageview" && def.patterns.some((p) => matchUrlPattern(p, e.path))
+                : e.tipo === "evento" && (e.nome ?? "").toLowerCase() === def.eventoNome;
+            if (!casa) continue;
+            let doVisitante = porVisitante.get(e.visitanteId);
+            if (!doVisitante) porVisitante.set(e.visitanteId, (doVisitante = new Map()));
+            const t = e.createdAt.getTime();
+            const atual = doVisitante.get(noId);
+            if (!atual) doVisitante.set(noId, { min: t, max: t });
+            else {
+              if (t < atual.min) atual.min = t;
+              if (t > atual.max) atual.max = t;
+            }
+          }
+        }
+
+        for (const edge of edges) {
+          let visitantesSource = 0;
+          let visitantesAmbos = 0;
+          porVisitante.forEach((doVisitante) => {
+            const s = doVisitante.get(edge.source);
+            if (!s) return;
+            visitantesSource++;
+            const t = doVisitante.get(edge.target);
+            if (t && t.max > s.min) visitantesAmbos++;
+          });
+          arestas[edge.id] = {
+            source: edge.source,
+            target: edge.target,
+            visitantesSource,
+            visitantesAmbos,
+            taxaReal: visitantesSource > 0 ? visitantesAmbos / visitantesSource : 0,
+          };
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({
+    data: {
+      nos,
+      leadsPorEtapa,
+      ...(arestas !== undefined ? { arestas, ...(avisoPath ? { avisoPath } : {}) } : {}),
+    },
+  });
 }
