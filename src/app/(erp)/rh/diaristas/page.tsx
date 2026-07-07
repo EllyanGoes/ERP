@@ -37,8 +37,8 @@ export default function DiaristasPage() {
   const [folhas, setFolhas] = useState<Folha[]>([]);
   const [loading, setLoading] = useState(true);
   const [criando, setCriando] = useState(false);
-  // Preferência do usuário: lista agrupada por dia ou corrida.
-  const [agruparPorDia, setAgruparPorDia] = usePersistedState("diarias.agruparPorDia", true);
+  // Preferência do usuário: lista agrupada por dia ou corrida (padrão: corrida).
+  const [agruparPorDia, setAgruparPorDia] = usePersistedState("diarias.agruparPorDia", false);
 
   // Popup de novo lançamento: data + pré-seleção dos colaboradores
   const [novoOpen, setNovoOpen] = useState(false);

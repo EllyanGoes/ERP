@@ -10,7 +10,8 @@ import ComboboxWithCreate, { type ComboboxOption } from "@/components/shared/Com
 import { Autoria } from "@/components/shared/Autoria";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users, Upload, FileCheck2 } from "lucide-react";
+import { usePersistedState } from "@/lib/use-persisted-state";
+import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users, Upload, FileCheck2, Rows3, List } from "lucide-react";
 
 type ItemRow = { _key: string; colaboradorId: string; manha: string; tarde: string; horasExcedente: string; servico: string; valor: string };
 type GrupoRow = { _key: string; tipo: string; setor: string; turno: string; itens: ItemRow[] };
@@ -38,6 +39,11 @@ export default function DiariaDetailPage() {
   const [criadoPor, setCriadoPor] = useState<string | null>(null);
   const [colabs, setColabs] = useState<ComboboxOption[]>([]);
   const [setores, setSetores] = useState<ComboboxOption[]>([]);
+  // Setor do cadastro de cada colaborador (p/ posicionar a pessoa no bloco certo
+  // quando adicionada pela visualização em lista).
+  const [setorPorColab, setSetorPorColab] = useState<Map<string, string>>(new Map());
+  // Visualização: lista corrida (setor como coluna, padrão) ou agrupada por setor.
+  const [agruparPorSetor, setAgruparPorSetor] = usePersistedState("diarias.folha.agruparPorSetor", false);
   // Folha assinada escaneada (upload após a coleta de assinaturas)
   const [arquivoAssinado, setArquivoAssinado] = useState<string | null>(null);
   const [enviandoArquivo, setEnviandoArquivo] = useState(false);
@@ -72,6 +78,7 @@ export default function DiariaDetailPage() {
       const jc = await rc.json();
       const lista: { id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null }[] = jc.data ?? jc ?? [];
       setColabs(lista.map((c) => ({ value: c.id, label: c.nome })));
+      setSetorPorColab(new Map(lista.filter((c) => c.setor?.nome).map((c) => [c.id, c.setor!.nome])));
     }
     if (rs.ok) {
       const js = await rs.json();
@@ -88,9 +95,52 @@ export default function DiariaDetailPage() {
   const totalGeral = useMemo(() => grupos.reduce((s, g) => s + g.itens.reduce((a, it) => a + (it.colaboradorId ? num(it.valor) : 0), 0), 0), [grupos]);
   const totalPessoas = useMemo(() => grupos.reduce((s, g) => s + g.itens.filter((it) => it.colaboradorId).length, 0), [grupos]);
 
+  // Opções de setor da coluna (cadastro + setores em texto livre de folhas antigas).
+  const setorOptions = useMemo(() => {
+    const extras = Array.from(new Set(grupos.map((g) => g.setor).filter((s) => s && !setores.some((o) => o.value === s))));
+    return [...extras.map((s) => ({ value: s, label: s })), ...setores];
+  }, [grupos, setores]);
+
   function upGrupo(gk: string, patch: Partial<GrupoRow>) { setGrupos((gs) => gs.map((g) => (g._key === gk ? { ...g, ...patch } : g))); }
   function upItem(gk: string, ik: string, patch: Partial<ItemRow>) {
     setGrupos((gs) => gs.map((g) => (g._key === gk ? { ...g, itens: g.itens.map((it) => (it._key === ik ? { ...it, ...patch } : it)) } : g)));
+  }
+
+  // Lista corrida: mover a pessoa p/ o bloco do setor escolhido (cria o bloco
+  // se não existir; blocos que ficarem vazios somem).
+  function moverItemParaSetor(gk: string, ik: string, setorNome: string) {
+    setGrupos((gs) => {
+      const origem = gs.find((g) => g._key === gk);
+      const item = origem?.itens.find((it) => it._key === ik);
+      if (!origem || !item || origem.setor === setorNome) return gs;
+      let saida = gs.map((g) => (g._key === gk ? { ...g, itens: g.itens.filter((it) => it._key !== ik) } : g));
+      const destino = saida.find((g) => g.setor === setorNome);
+      if (destino) {
+        saida = saida.map((g) => (g._key === destino._key ? { ...g, itens: [...g.itens, item] } : g));
+      } else {
+        saida = [...saida, { _key: key(), tipo: "DIVERSAS", setor: setorNome, turno: turnoFolha, itens: [item] }];
+      }
+      return saida.filter((g) => g.itens.length > 0);
+    });
+  }
+
+  // Lista corrida: nova pessoa entra num bloco "sem setor" (define depois na coluna).
+  function addItemLista() {
+    setGrupos((gs) => {
+      const semSetor = gs.find((g) => !g.setor);
+      if (semSetor) return gs.map((g) => (g._key === semSetor._key ? { ...g, itens: [...g.itens, novoItem()] } : g));
+      return [...gs, { _key: key(), tipo: "DIVERSAS", setor: "", turno: turnoFolha, itens: [novoItem()] }];
+    });
+  }
+
+  // Lista corrida: ao escolher o colaborador, se a linha ainda não tem setor,
+  // move p/ o setor do cadastro dele (mesma regra da criação pelo popup).
+  function aoEscolherColabLista(gk: string, ik: string, colaboradorId: string, setorAtual: string) {
+    upItem(gk, ik, { colaboradorId });
+    if (!setorAtual) {
+      const s = setorPorColab.get(colaboradorId);
+      if (s) moverItemParaSetor(gk, ik, s);
+    }
   }
 
   // Upload do escaneado assinado pelos diaristas (substitui o anterior).
@@ -189,8 +239,58 @@ export default function DiariaDetailPage() {
           </div>
         </div>
 
-        {/* Blocos */}
-        {grupos.map((g) => {
+        {/* Alternância: lista corrida (padrão, setor como coluna) × agrupado por setor */}
+        <div className="flex justify-end">
+          <div className="inline-flex rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => setAgruparPorSetor(false)}
+              className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium", !agruparPorSetor ? "bg-info/15 text-info" : "bg-card text-muted-foreground hover:text-foreground")}
+            >
+              <List className="h-3.5 w-3.5" /> Lista corrida
+            </button>
+            <button
+              onClick={() => setAgruparPorSetor(true)}
+              className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-l border-border", agruparPorSetor ? "bg-info/15 text-info" : "bg-card text-muted-foreground hover:text-foreground")}
+            >
+              <Rows3 className="h-3.5 w-3.5" /> Por setor
+            </button>
+          </div>
+        </div>
+
+        {/* Lista corrida: todas as pessoas numa tabela só, setor como coluna. */}
+        {!agruparPorSetor && (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="divide-y divide-border">
+              <div className="grid grid-cols-[2rem_1.5fr_1.1fr_6.5rem_6.5rem_5.5rem_1.2fr_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                <span>#</span><span>Nome</span><span>Setor</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor</span><span />
+              </div>
+              {grupos.flatMap((g) => g.itens.map((it) => ({ g, it }))).map(({ g, it }, i) => (
+                <div key={it._key} className="grid grid-cols-[2rem_1.5fr_1.1fr_6.5rem_6.5rem_5.5rem_1.2fr_6.5rem_2rem] gap-2 px-4 py-2 items-center">
+                  <span className="text-xs text-muted-foreground">{i + 1}</span>
+                  <ComboboxWithCreate value={it.colaboradorId} onChange={(v) => aoEscolherColabLista(g._key, it._key, v, g.setor)} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." triggerClassName="h-9 rounded-lg" />
+                  <ComboboxWithCreate value={g.setor} onChange={(v) => moverItemParaSetor(g._key, it._key, v)} options={setorOptions} disabled={bloqueado} placeholder="Setor..." noneLabel="— sem setor —" menuMinWidth={260} triggerClassName={cn("h-9 rounded-lg", !g.setor && "border-warning/50")} />
+                  <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: e.target.value })} placeholder="08:00 ÀS 12:00" className="h-9 border-border text-center" />
+                  <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: e.target.value })} placeholder="13:00 ÀS 17:00" className="h-9 border-border text-center" />
+                  <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center" />
+                  <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border" />
+                  <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border" />
+                  {!bloqueado && <button onClick={() => setGrupos((gs) => gs.map((x) => (x._key === g._key ? { ...x, itens: x.itens.filter((y) => y._key !== it._key) } : x)).filter((x) => x.itens.length > 0))} className="text-muted-foreground hover:text-danger flex justify-center"><Trash2 className="h-4 w-4" /></button>}
+                </div>
+              ))}
+              {grupos.every((g) => g.itens.length === 0) && grupos.length === 0 && (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma pessoa lançada.</div>
+              )}
+            </div>
+            {!bloqueado && (
+              <div className="px-4 py-2 border-t border-border">
+                <button onClick={addItemLista} className="inline-flex items-center gap-1 text-xs text-cyan-600 hover:text-cyan-700"><Plus className="h-3.5 w-3.5" /> Adicionar pessoa</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Agrupado por setor: um bloco por setor. */}
+        {agruparPorSetor && grupos.map((g) => {
           const subtotal = g.itens.reduce((a, it) => a + (it.colaboradorId ? num(it.valor) : 0), 0);
           return (
             <div key={g._key} className="rounded-xl border border-border bg-card overflow-hidden">
@@ -242,10 +342,10 @@ export default function DiariaDetailPage() {
           );
         })}
 
-        {!bloqueado && (
+        {agruparPorSetor && !bloqueado && (
           <Button variant="outline" onClick={() => setGrupos((gs) => [...gs, novoGrupo()])} className="gap-2 border-dashed"><Plus className="h-4 w-4" /> Adicionar bloco</Button>
         )}
-        {grupos.length === 0 && (
+        {agruparPorSetor && grupos.length === 0 && (
           <div className="text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground">
             <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />Nenhum bloco. Clique em &quot;Adicionar bloco&quot; para começar.
           </div>
