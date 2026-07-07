@@ -7,7 +7,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  UserCheck, Plus, Search, Loader2, Phone,
+  UserCheck, Plus, Search, Loader2, Phone, ListChecks,
 } from "lucide-react";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
@@ -165,8 +165,13 @@ export default function ColaboradoresPage() {
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState("");
   const [filtroAtivo, setFiltroAtivo] = useState<"" | "true" | "false">("");
+  // Modo de seleção em massa: os checkboxes só aparecem depois do botão
+  // "Classificar em massa" — fora dele a tabela fica limpa.
+  const [selecionando, setSelecionando] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [classificando, setClassificando] = useState(false);
+
+  const sairDaSelecao = () => { setSelecionando(false); setSel(new Set()); };
 
   const toggleSel = (id: string) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
@@ -296,6 +301,13 @@ export default function ColaboradoresPage() {
             <option value="true">Ativos</option>
             <option value="false">Inativos</option>
           </select>
+          <Button
+            variant={selecionando ? "default" : "outline"}
+            onClick={() => (selecionando ? sairDaSelecao() : setSelecionando(true))}
+          >
+            <ListChecks className="w-4 h-4 mr-2" />
+            {selecionando ? "Concluir seleção" : "Classificar em massa"}
+          </Button>
           {semClassif > 0 && sel.size === 0 && (
             <span className="ml-auto text-xs text-warning bg-warning/10 px-2.5 py-1.5 rounded-lg">
               {semClassif} sem classificação de custo
@@ -319,7 +331,7 @@ export default function ColaboradoresPage() {
                 <span className="text-xs text-muted-foreground">Tipo:</span>
                 <button onClick={() => classificarTipo("FUNCIONARIO")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25">Funcionário <span className="opacity-60">(folha)</span></button>
                 <button onClick={() => classificarTipo("PRESTADOR")} className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25">Prestador <span className="opacity-60">(diaristas)</span></button>
-                <button onClick={() => setSel(new Set())} className="text-xs text-muted-foreground hover:text-foreground ml-1">Cancelar</button>
+                <button onClick={sairDaSelecao} className="text-xs text-muted-foreground hover:text-foreground ml-1">Cancelar</button>
               </div>
             )}
           </div>
@@ -341,10 +353,12 @@ export default function ColaboradoresPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted border-b border-border">
                 <tr>
-                  <th className="w-10 px-3 py-3">
-                    <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos}
-                      className="w-4 h-4 rounded border-border align-middle" title="Selecionar todos" />
-                  </th>
+                  {selecionando && (
+                    <th className="w-10 px-3 py-3">
+                      <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos}
+                        className="w-4 h-4 rounded border-border align-middle" title="Selecionar todos" />
+                    </th>
+                  )}
                   {orderedCols.map((col) => (
                     <th key={col.id} className={col.thClass}>{col.label}</th>
                   ))}
@@ -354,13 +368,15 @@ export default function ColaboradoresPage() {
                 {colaboradores.map((c) => (
                   <tr
                     key={c.id}
-                    onClick={() => router.push(`/empresa/colaboradores/${c.id}`)}
+                    onClick={() => (selecionando ? toggleSel(c.id) : router.push(`/empresa/colaboradores/${c.id}`))}
                     className={cn("hover:bg-muted/60 cursor-pointer transition-colors", sel.has(c.id) && "bg-info/5")}
                   >
-                    <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={sel.has(c.id)} onChange={() => toggleSel(c.id)}
-                        className="w-4 h-4 rounded border-border align-middle" />
-                    </td>
+                    {selecionando && (
+                      <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={sel.has(c.id)} onChange={() => toggleSel(c.id)}
+                          className="w-4 h-4 rounded border-border align-middle" />
+                      </td>
+                    )}
                     {orderedCols.map((col) => (
                       <td key={col.id} className={col.tdClass}>{col.render(c)}</td>
                     ))}
