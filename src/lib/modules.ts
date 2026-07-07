@@ -163,6 +163,7 @@ export const MODULOS: ModuloDef[] = [
     recursos: [
       { key: "folhas", label: "Folhas de Pagamento", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "diaristas", label: "Diárias", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "horarios", label: "Horários de Trabalho", acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {

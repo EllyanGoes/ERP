@@ -154,6 +154,7 @@ export const ROUTES: RouteEntry[] = [
 
   { href: "/rh/folhas",                            label: "Folhas de Pagamento",     group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "folha pagamento salário rh gestão de pessoas holerite inss fgts irrf colaborador" },
   { href: "/rh/diaristas",                         label: "Diárias",                 group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "diária diarista diárias lançamento rh gestão de pessoas pagamento mão de obra produção fábrica turno" },
+  { href: "/rh/horarios",                          label: "Horários de Trabalho",    group: "Gestão de Pessoas", section: "Cadastros",        icon: Users, keywords: "horário escala trabalho turno jornada expediente rh gestão de pessoas" },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },

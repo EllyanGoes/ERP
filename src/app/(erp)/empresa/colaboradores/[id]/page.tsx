@@ -25,6 +25,14 @@ type Usuario   = { id: string; nome: string; email: string };
 type SetorOpt  = { id: string; nome: string; ativo: boolean };
 type EtapaInfo = { id: string; ordem: number; nome: string | null; fluxo: { id: string; nome: string } };
 
+type FaixaHorario = { horaInicial: string; horaFinal: string };
+type Escala = {
+  id: string;
+  data: string;
+  horario: { id: string; nome: string; faixas: FaixaHorario[] };
+};
+type HorarioOpt = { id: string; nome: string; ativo: boolean; faixas: FaixaHorario[] };
+
 type Diaria = {
   id: string; folhaId: string; data: string; status: string;
   setor: string | null; turno: string; servico: string | null; valor: number;
@@ -103,7 +111,15 @@ export default function ColaboradorDetailPage() {
   const [error,   setError]           = useState("");
 
   // Abas (mesmo padrão do cadastro de produtos)
-  const [tab, setTab] = useState<"pessoais" | "funcionais" | "diarias" | "aprovacoes" | "observacoes">("pessoais");
+  const [tab, setTab] = useState<"pessoais" | "funcionais" | "escala" | "diarias" | "aprovacoes" | "observacoes">("pessoais");
+
+  // Escala de trabalho (vigências: a partir de <data>, segue <horário>)
+  const [escalas, setEscalas] = useState<Escala[]>([]);
+  const [horarios, setHorarios] = useState<HorarioOpt[]>([]);
+  const [eEscalaData, setEEscalaData] = useState(new Date().toISOString().slice(0, 10));
+  const [eEscalaHorarioId, setEEscalaHorarioId] = useState("");
+  const [escalaSalvando, setEscalaSalvando] = useState(false);
+  const [escalaErro, setEscalaErro] = useState("");
 
   // Histórico de diárias do colaborador (folhas de diaristas)
   const [diarias, setDiarias] = useState<Diaria[]>([]);
@@ -164,7 +180,35 @@ export default function ColaboradorDetailPage() {
       .then((r) => r.json())
       .then((j) => { setDiarias(Array.isArray(j.data) ? j.data : []); setDiariasTotal(j.total ?? 0); })
       .catch(() => setDiarias([]));
+    fetch(`/api/empresa/colaboradores/${id}/escalas`)
+      .then((r) => r.json())
+      .then((j) => setEscalas(Array.isArray(j.data) ? j.data : []))
+      .catch(() => setEscalas([]));
+    fetch("/api/rh/horarios")
+      .then((r) => r.json())
+      .then((j) => setHorarios(Array.isArray(j.data) ? j.data : []))
+      .catch(() => setHorarios([]));
   }, [id]);
+
+  async function adicionarEscala() {
+    if (!eEscalaHorarioId) { setEscalaErro("Escolha o horário de trabalho."); return; }
+    setEscalaSalvando(true); setEscalaErro("");
+    try {
+      const res = await fetch(`/api/empresa/colaboradores/${id}/escalas`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ horarioId: eEscalaHorarioId, data: eEscalaData }),
+      });
+      const j = await res.json();
+      if (!res.ok) { setEscalaErro(j.error || "Erro ao adicionar"); return; }
+      setEscalas((prev) => [j.data, ...prev].sort((a, b) => b.data.localeCompare(a.data)));
+      setEEscalaHorarioId("");
+    } finally { setEscalaSalvando(false); }
+  }
+
+  async function removerEscala(escalaId: string) {
+    await fetch(`/api/empresa/colaboradores/${id}/escalas?escalaId=${escalaId}`, { method: "DELETE" });
+    setEscalas((prev) => prev.filter((e) => e.id !== escalaId));
+  }
 
   useEffect(() => {
     if (colaborador) {
@@ -289,6 +333,7 @@ export default function ColaboradorDetailPage() {
   const TABS = [
     { key: "pessoais",    label: "Dados Pessoais" },
     { key: "funcionais",  label: "Dados Funcionais" },
+    { key: "escala",      label: `Escala de Trabalho (${escalas.length})` },
     { key: "diarias",     label: `Diárias (${diarias.length})` },
     { key: "aprovacoes",  label: `Aprovações (${colaborador.etapasAprovacao?.length ?? 0})` },
     { key: "observacoes", label: "Observações" },
@@ -630,6 +675,77 @@ export default function ColaboradorDetailPage() {
                     ) : null}
                   </InfoField>
                 </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Aba: Escala de trabalho (a partir de <data> segue <horário>) */}
+        {tab === "escala" && (
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">A partir de</p>
+                  <DatePicker value={eEscalaData} onChange={(v) => setEEscalaData(v)} className="w-44" />
+                </div>
+                <div className="flex-1 min-w-[240px]">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Horário de trabalho</p>
+                  <ComboboxWithCreate
+                    value={eEscalaHorarioId}
+                    onChange={(v) => setEEscalaHorarioId(v)}
+                    placeholder="Escolher horário..."
+                    noneLabel="— selecionar —"
+                    menuMinWidth={320}
+                    triggerClassName="h-9 rounded-lg"
+                    options={horarios.filter((h) => h.ativo).map((h) => ({
+                      value: h.id,
+                      label: `${h.nome} — ${h.faixas.map((f) => `[${f.horaInicial} - ${f.horaFinal}]`).join(" ")}`,
+                    }))}
+                  />
+                </div>
+                <Button onClick={adicionarEscala} disabled={escalaSalvando}>
+                  {escalaSalvando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Pencil className="w-4 h-4 mr-1.5 hidden" />}
+                  Adicionar
+                </Button>
+              </div>
+              {escalaErro && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{escalaErro}</p>}
+              {horarios.length === 0 && (
+                <p className="text-xs text-muted-foreground">Nenhum horário cadastrado — crie em Gestão de Pessoas → Horários de Trabalho.</p>
+              )}
+
+              {escalas.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma escala definida para este colaborador.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-muted-foreground uppercase tracking-wider border-b border-border">
+                    <tr>
+                      <th className="text-left py-2 pr-4 font-semibold">A partir de</th>
+                      <th className="text-left py-2 pr-4 font-semibold">Horário</th>
+                      <th className="text-left py-2 pr-4 font-semibold">Faixas</th>
+                      <th className="w-10" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {escalas.map((e, i) => (
+                      <tr key={e.id} className={cn(i === 0 && "bg-success/5")}>
+                        <td className="py-2.5 pr-4 font-medium text-foreground whitespace-nowrap">
+                          {new Date(`${e.data.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR")}
+                          {i === 0 && <span className="ml-2 text-[10px] font-semibold uppercase text-success">vigente</span>}
+                        </td>
+                        <td className="py-2.5 pr-4">{e.horario.nome}</td>
+                        <td className="py-2.5 pr-4 text-muted-foreground tabular-nums">
+                          {e.horario.faixas.map((f) => `[${f.horaInicial} - ${f.horaFinal}]`).join(" ")}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <button onClick={() => removerEscala(e.id)} className="text-muted-foreground hover:text-danger" title="Remover">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </CardContent>
           </Card>

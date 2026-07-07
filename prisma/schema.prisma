@@ -248,6 +248,45 @@ model Colaborador {
   requisicoesComoSolicitante RequisicaoMaterial[] @relation("RM_Solicitante")
   requisicoesComoAlmoxarife  RequisicaoMaterial[] @relation("RM_Almoxarife")
   inventarios                InventarioMaterial[]
+  escalas                    ColaboradorEscala[]
+}
+
+// ── Escala de trabalho ───────────────────────────────────────────────────────
+// Horário de trabalho (modelo p/ a escala): faixas de hora do dia
+// (ex.: HORÁRIO PADRÃO = 08:00-12:00 + 13:30-17:30).
+model HorarioTrabalho {
+  id        String                 @id @default(cuid())
+  nome      String
+  ativo     Boolean                @default(true)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  faixas    HorarioTrabalhoFaixa[]
+  escalas   ColaboradorEscala[]
+}
+
+model HorarioTrabalhoFaixa {
+  id          String          @id @default(cuid())
+  horarioId   String
+  horaInicial String // "08:00"
+  horaFinal   String // "12:00"
+  ordem       Int             @default(0)
+  horario     HorarioTrabalho @relation(fields: [horarioId], references: [id], onDelete: Cascade)
+
+  @@index([horarioId])
+}
+
+// Escala do colaborador: a partir de `data` ele segue o horário indicado
+// (histórico de vigências, como no sistema anterior).
+model ColaboradorEscala {
+  id            String          @id @default(cuid())
+  colaboradorId String
+  horarioId     String
+  data          DateTime        @db.Date
+  createdAt     DateTime        @default(now())
+  colaborador   Colaborador     @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  horario       HorarioTrabalho @relation(fields: [horarioId], references: [id])
+
+  @@index([colaboradorId, data])
 }
 
 // Classificação de custo do colaborador para o fechamento da folha:

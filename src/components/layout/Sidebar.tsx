@@ -343,6 +343,7 @@ const mainModules: Module[] = [
         kind: "Cadastros",
         items: [
           { href: "/empresa/colaboradores", label: "Colaboradores", icon: UserCog },
+          { href: "/rh/horarios", label: "Horários de Trabalho", icon: CalendarDays },
         ],
       },
       {
