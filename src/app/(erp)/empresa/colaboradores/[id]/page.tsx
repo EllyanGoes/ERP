@@ -11,10 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn, formatDate, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import {
-  Pencil, Trash2, Loader2, AlertTriangle, Save, X, Phone, UserCheck,
+  Pencil, Trash2, Loader2, AlertTriangle, Save, X, Phone, UserCheck, Share2, Search,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -120,6 +121,17 @@ export default function ColaboradorDetailPage() {
   const [eEscalaHorarioId, setEEscalaHorarioId] = useState("");
   const [escalaSalvando, setEscalaSalvando] = useState(false);
   const [escalaErro, setEscalaErro] = useState("");
+  const [escalaAviso, setEscalaAviso] = useState("");
+
+  // Compartilhar uma vigência com outros colaboradores (aplicação em lote)
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareData, setShareData] = useState("");
+  const [shareHorarioId, setShareHorarioId] = useState("");
+  const [shareBusca, setShareBusca] = useState("");
+  const [shareSel, setShareSel] = useState<Set<string>>(new Set());
+  const [shareColabs, setShareColabs] = useState<{ id: string; nome: string; setor: { nome: string } | null }[]>([]);
+  const [shareSaving, setShareSaving] = useState(false);
+  const [shareErro, setShareErro] = useState("");
 
   // Histórico de diárias do colaborador (folhas de diaristas)
   const [diarias, setDiarias] = useState<Diaria[]>([]);
@@ -208,6 +220,35 @@ export default function ColaboradorDetailPage() {
   async function removerEscala(escalaId: string) {
     await fetch(`/api/empresa/colaboradores/${id}/escalas?escalaId=${escalaId}`, { method: "DELETE" });
     setEscalas((prev) => prev.filter((e) => e.id !== escalaId));
+  }
+
+  // Abre o popup para aplicar a vigência (horário + data) a outros colaboradores.
+  function abrirCompartilhar(e: Escala) {
+    setShareData(e.data.slice(0, 10));
+    setShareHorarioId(e.horario.id);
+    setShareSel(new Set()); setShareBusca(""); setShareErro(""); setEscalaAviso("");
+    setShareOpen(true);
+    if (shareColabs.length === 0) {
+      fetch("/api/empresa/colaboradores?ativo=true")
+        .then((r) => r.json())
+        .then((j) => setShareColabs(Array.isArray(j) ? j : (j.data ?? [])))
+        .catch(() => setShareColabs([]));
+    }
+  }
+
+  async function compartilharEscala() {
+    if (shareSel.size === 0) { setShareErro("Selecione ao menos um colaborador."); return; }
+    setShareSaving(true); setShareErro("");
+    try {
+      const res = await fetch("/api/empresa/colaboradores/escalas-lote", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ horarioId: shareHorarioId, data: shareData, colaboradorIds: Array.from(shareSel) }),
+      });
+      const j = await res.json();
+      if (!res.ok) { setShareErro(j.error || "Erro ao compartilhar"); return; }
+      setShareOpen(false);
+      setEscalaAviso(`Escala aplicada a ${j.data.criadas} colaborador(es)${j.data.puladas ? ` (${j.data.puladas} já tinham essa vigência)` : ""}.`);
+    } finally { setShareSaving(false); }
   }
 
   useEffect(() => {
@@ -710,6 +751,7 @@ export default function ColaboradorDetailPage() {
                 </Button>
               </div>
               {escalaErro && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{escalaErro}</p>}
+              {escalaAviso && <p className="text-sm text-success bg-success/10 border border-success/30 rounded-lg px-3 py-2">{escalaAviso}</p>}
               {horarios.length === 0 && (
                 <p className="text-xs text-muted-foreground">Nenhum horário cadastrado — crie em Gestão de Pessoas → Horários de Trabalho.</p>
               )}
@@ -737,7 +779,10 @@ export default function ColaboradorDetailPage() {
                         <td className="py-2.5 pr-4 text-muted-foreground tabular-nums">
                           {e.horario.faixas.map((f) => `[${f.horaInicial} - ${f.horaFinal}]`).join(" ")}
                         </td>
-                        <td className="py-2.5 text-right">
+                        <td className="py-2.5 text-right whitespace-nowrap">
+                          <button onClick={() => abrirCompartilhar(e)} className="text-muted-foreground hover:text-info mr-2" title="Compartilhar esta escala com outros colaboradores">
+                            <Share2 className="w-4 h-4" />
+                          </button>
                           <button onClick={() => removerEscala(e.id)} className="text-muted-foreground hover:text-danger" title="Remover">
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -854,6 +899,72 @@ export default function ColaboradorDetailPage() {
           <p>Atualizado em: {formatDate(colaborador.updatedAt)}</p>
         </div>
       </div>
+
+      {/* Compartilhar escala com outros colaboradores */}
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Compartilhar escala</DialogTitle>
+            <DialogDescription>
+              Aplica {horarios.find((h) => h.id === shareHorarioId)?.nome ?? "o horário"} a partir de{" "}
+              {shareData ? new Date(`${shareData}T12:00:00`).toLocaleDateString("pt-BR") : "—"} aos colaboradores selecionados.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">A partir de</p>
+              <DatePicker value={shareData} onChange={(v) => setShareData(v)} className="w-44" />
+            </div>
+
+            {shareErro && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{shareErro}</p>}
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                value={shareBusca}
+                onChange={(e) => setShareBusca(e.target.value)}
+                placeholder="Buscar por nome ou setor..."
+                className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              />
+            </div>
+
+            <div className="border border-border rounded-lg max-h-64 overflow-y-auto divide-y divide-border">
+              {shareColabs.length === 0 ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : (
+                shareColabs
+                  .filter((c) => c.id !== id)
+                  .filter((c) => {
+                    const q = shareBusca.trim().toLowerCase();
+                    return !q || c.nome.toLowerCase().includes(q) || (c.setor?.nome ?? "").toLowerCase().includes(q);
+                  })
+                  .map((c) => (
+                    <label key={c.id} className={cn("flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-muted", shareSel.has(c.id) && "bg-info/5")}>
+                      <input
+                        type="checkbox"
+                        checked={shareSel.has(c.id)}
+                        onChange={() => setShareSel((prev) => { const n = new Set(prev); n.has(c.id) ? n.delete(c.id) : n.add(c.id); return n; })}
+                        className="w-4 h-4 rounded border-border"
+                      />
+                      <span className="text-sm font-medium text-foreground flex-1 min-w-0 truncate">{c.nome}</span>
+                      {c.setor?.nome && <span className="text-xs text-muted-foreground shrink-0">{c.setor.nome}</span>}
+                    </label>
+                  ))
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{shareSel.size} selecionado{shareSel.size !== 1 ? "s" : ""}</p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareOpen(false)} disabled={shareSaving}>Cancelar</Button>
+            <Button onClick={compartilharEscala} disabled={shareSaving || shareSel.size === 0}>
+              {shareSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2" />}
+              Aplicar{shareSel.size > 0 ? ` (${shareSel.size})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete modal */}
       {showDelete && (
