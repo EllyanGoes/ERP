@@ -21,7 +21,8 @@ type LinhaOP = { itemId: string; quantidade: string; unidadeId: string };
 type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: string; observacao: string; planoTransporte?: CargaVagaoRow[] | null; editId?: string | null; editNumero?: string; editCriadoPor?: string | null; editResponsavelNome?: string | null; editConcluida?: boolean;
   // Correção do APONTAMENTO (aba "Apontamento" da edição de OP concluída): real na
   // unidade da linha e perda em peças, por produto — reapontados após o estorno.
-  apReais?: Record<string, string>; apPerdas?: Record<string, string>; apVagoes?: string; apVagonetas?: string };
+  apReais?: Record<string, string>; apPerdas?: Record<string, string>; apVagoes?: string; apVagonetas?: string;
+  apPaletes?: Record<string, string>; apPcPlt?: Record<string, string> };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; perda?: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number; pecasPorPalete?: number | null };
 type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
@@ -337,6 +338,25 @@ export default function OrdensBoardPage() {
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [apontar, apForm.reais, fluxoId, areaNodeId]);
 
+  // Consumo previsto na ABA APONTAMENTO da edição de OP concluída (usa o real corrigido).
+  useEffect(() => {
+    if (apontar || !novo?.editConcluida || abaEd !== "apont" || !fluxoId || !areaNodeId) return;
+    const produtos = novo.linhas
+      .filter((l) => l.itemId)
+      .map((l) => ({ itemId: l.itemId, quantidade: numBR(novo.apReais?.[l.itemId] ?? l.quantidade), unidadeId: l.unidadeId || null }))
+      .filter((p) => p.quantidade > 0);
+    if (!produtos.length) { setConsumoAp(null); return; }
+    setCarregandoConsumoAp(true);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      fetch("/api/pcp/ordens/area/consumo-previsto", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fluxoId, areaNodeId, produtos }), signal: ctrl.signal,
+      }).then((r) => r.json()).then((j) => setConsumoAp(j.data ?? [])).catch(() => {}).finally(() => setCarregandoConsumoAp(false));
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [apontar, novo, abaEd, fluxoId, areaNodeId]);
+
   // Capacidades cadastradas (peças/veículo por produto) p/ a calculadora de perda.
   useEffect(() => {
     fetch("/api/pcp/cargas-movimentacao").then((r) => r.json()).then((j) => {
@@ -549,9 +569,25 @@ export default function OrdensBoardPage() {
   }
 
   // ── Calculadora de perda (Embalar) ───────────────────────────────────────────
+  // Serve DOIS contextos: o modal de Apontar (apForm) e a aba "Apontamento" da
+  // edição de OP concluída (novo.apReais/apPerdas). O contexto ativo entrega a
+  // lista de produtos com o apontado em peças e recebe as perdas calculadas.
   // Peças apontadas de um produto = real (na unidade) × peças por unidade (PLT→peças).
   function apontadoPecas(p: ProdutoOP): number {
     return numBR(apForm.reais[p.itemId] ?? p.planejada) * (p.pecasPorUnidade ?? 1);
+  }
+  // Produtos do contexto ativo da calculadora: {itemId, descricao, apontado em peças}.
+  function calcPerdaProdutos(): { itemId: string; descricao: string; ap: number }[] {
+    if (apontar) return apontar.produtos.map((p) => ({ itemId: p.itemId, descricao: p.descricao, ap: apontadoPecas(p) }));
+    if (novo?.editConcluida && area) {
+      return novo.linhas.filter((l) => l.itemId).map((l) => {
+        const prod = area.produtos.find((p) => p.id === l.itemId);
+        const un = prod?.unidades.find((u) => u.id === l.unidadeId);
+        const fator = un?.fator && un.fator > 0 ? un.fator : 1;
+        return { itemId: l.itemId, descricao: prod?.descricao ?? l.itemId, ap: numBR(novo.apReais?.[l.itemId]) * fator };
+      });
+    }
+    return [];
   }
   // Descarregado (peças) por produto, somando as linhas de vagão (nº × peças/vagão).
   function descarregadoPorProduto(rows: CargaVagaoRow[]): Record<string, number> {
@@ -567,41 +603,39 @@ export default function OrdensBoardPage() {
   }
   // Abre a calculadora: parte do plano de transporte salvo na OP (o operador só
   // ajusta o nº de vagões descarregados); sem plano, 1 linha "cheia" por produto
-  // com a capacidade do cadastro.
+  // com a capacidade do cadastro. Funciona no Apontar e na aba Apontamento da edição.
   function abrirCalcPerda() {
-    if (!apontar) return;
-    if (apontar.planoTransporte?.length) {
-      setCalcPerda({
-        rows: apontar.planoTransporte.map((r) => ({
-          veiculo: r.veiculo, nVagoes: String(r.nVagoes),
-          cargas: r.cargas.map((c) => ({ itemId: c.itemId, pecas: String(c.pecas) })),
-        })),
-      });
-      return;
-    }
-    const rows: CargaVagaoRow[] = apontar.produtos.map((p) => ({
+    const plano = apontar?.planoTransporte?.length
+      ? apontar.planoTransporte.map((r) => ({ veiculo: r.veiculo, nVagoes: String(r.nVagoes), cargas: r.cargas.map((c) => ({ itemId: c.itemId, pecas: String(c.pecas) })) }))
+      : (!apontar && novo?.planoTransporte?.length ? novo.planoTransporte.map((r) => ({ ...r, cargas: r.cargas.map((c) => ({ ...c })) })) : null);
+    if (plano) { setCalcPerda({ rows: plano }); return; }
+    const rows: CargaVagaoRow[] = calcPerdaProdutos().map((p) => ({
       veiculo: "VAGAO", nVagoes: "",
       cargas: [{ itemId: p.itemId, pecas: String(capacidades[p.itemId]?.VAGAO ?? "") }],
     }));
     setCalcPerda({ rows: rows.length ? rows : [{ veiculo: "VAGAO", nVagoes: "", cargas: [{ itemId: "", pecas: "" }] }] });
   }
-  // Grava a perda por produto (descarregado − apontado, nunca < 0) e fecha.
+  // Grava a perda por produto (descarregado − apontado, nunca < 0) e fecha —
+  // no apForm (Apontar) ou no novo.apPerdas (aba Apontamento da edição).
   function aplicarCalcPerda() {
-    if (!calcPerda || !apontar) return;
+    if (!calcPerda) return;
     const desc = descarregadoPorProduto(calcPerda.rows);
-    const perdas: Record<string, string> = { ...apForm.perdas };
-    for (const p of apontar.produtos) {
+    const perdas: Record<string, string> = {};
+    for (const p of calcPerdaProdutos()) {
       const d = desc[p.itemId];
       if (d == null) continue;
-      const perda = Math.max(0, Math.round((d - apontadoPecas(p)) * 1000) / 1000);
-      perdas[p.itemId] = fmtQtd(perda);
+      perdas[p.itemId] = fmtQtd(Math.max(0, Math.round((d - p.ap) * 1000) / 1000));
     }
     // Total de vagões/vagonetas descarregados (soma o nº de cada linha por tipo).
     const somaVeic = (v: CargaVagaoRow["veiculo"]) =>
       calcPerda.rows.filter((r) => r.veiculo === v).reduce((s, r) => s + numBR(r.nVagoes), 0);
     const vagoes = somaVeic("VAGAO");
     const vagonetas = somaVeic("VAGONETA");
-    setApForm((f) => ({ ...f, perdas, vagoes: vagoes ? String(vagoes) : "", vagonetas: vagonetas ? String(vagonetas) : "" }));
+    if (apontar) {
+      setApForm((f) => ({ ...f, perdas: { ...f.perdas, ...perdas }, vagoes: vagoes ? String(vagoes) : "", vagonetas: vagonetas ? String(vagonetas) : "" }));
+    } else if (novo?.editConcluida) {
+      setNovo({ ...novo, apPerdas: { ...(novo.apPerdas ?? {}), ...perdas }, apVagoes: vagoes ? String(vagoes) : "", apVagonetas: vagonetas ? String(vagonetas) : "" });
+    }
     setCalcPerda(null);
   }
 
@@ -932,49 +966,86 @@ export default function OrdensBoardPage() {
               <p className="text-sm text-muted-foreground mt-3">Esta etapa não tem produto configurado. Defina o produto de saída da operação no editor do fluxo.</p>
             ) : novo.editConcluida && abaEd === "apont" ? (
               <>
-                {/* ── ABA APONTAMENTO: corrige real/perda por produto (reapontado ao salvar) ── */}
-                <div className="mt-4 rounded-lg border border-border overflow-hidden">
-                  <div className="grid grid-cols-[1fr_7rem_7rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
-                    <span>Produto</span><span className="text-right">Real</span><span className="text-right">Perda (pç)</span>
+                {/* ── ABA APONTAMENTO: mesma visualização do modal de Apontar (Plan./Real/Perda,
+                    por palete, calculadora de vagões e consumo previsto) — reapontado ao salvar. ── */}
+                <div className="mt-4 flex flex-col lg:flex-row gap-4">
+                <div className="flex-1 min-w-0 space-y-3">
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
+                      <span>Produto</span><span className="text-right">Plan.</span><span className="text-right">Real</span><span className="text-right">Perda *</span>
+                    </div>
+                    {novo.linhas.filter((l) => l.itemId).map((l) => {
+                      const prod = area.produtos.find((p) => p.id === l.itemId);
+                      const un = prod?.unidades.find((u) => u.id === l.unidadeId);
+                      const fator = un?.fator && un.fator > 0 ? un.fator : 1;
+                      const realPc = numBR(novo.apReais?.[l.itemId]) * fator;
+                      const perdaPc = numBR(novo.apPerdas?.[l.itemId]);
+                      const pct = realPc > 0 && perdaPc > 0 ? `${(perdaPc / realPc * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
+                      const pcPltCad = prod?.unidades.find((u) => u.sigla.toUpperCase() === "PLT")?.fator ?? null;
+                      const paletesStr = novo.apPaletes?.[l.itemId] ?? "";
+                      const pcPltStr = novo.apPcPlt?.[l.itemId] ?? (pcPltCad ? String(pcPltCad) : "");
+                      const totPecas = numBR(paletesStr) * numBR(pcPltStr);
+                      // Apontamento POR PALETE: nº × pç/palete → real na unidade da linha.
+                      const porPalete = (pal: string, pp: string) => {
+                        const tp = numBR(pal) * numBR(pp);
+                        setNovo({
+                          ...novo,
+                          apPaletes: { ...(novo.apPaletes ?? {}), [l.itemId]: pal },
+                          apPcPlt: { ...(novo.apPcPlt ?? {}), [l.itemId]: pp },
+                          ...(tp > 0 ? { apReais: { ...(novo.apReais ?? {}), [l.itemId]: fmtQtd(Math.round((tp / fator) * 1000) / 1000) } } : {}),
+                        });
+                      };
+                      return (
+                        <div key={l.itemId} className="border-t border-border/60">
+                          <div className="grid grid-cols-[1fr_3.5rem_4rem_4.75rem] gap-2 px-3 py-1.5 items-center">
+                            <span className="text-xs text-foreground truncate">{prod?.descricao ?? l.itemId}{un ? <span className="text-muted-foreground"> ({un.sigla})</span> : null}</span>
+                            <span className="text-xs text-muted-foreground text-right tabular-nums">{l.quantidade || "—"}</span>
+                            <div className="flex flex-col items-end">
+                              <input inputMode="decimal" value={novo.apReais?.[l.itemId] ?? ""}
+                                onChange={(e) => setNovo({ ...novo, apReais: { ...(novo.apReais ?? {}), [l.itemId]: e.target.value } })}
+                                className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                              {fator > 1 && realPc > 0 && <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {realPc.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} pç</span>}
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <input inputMode="decimal" title="Perda em peças" value={novo.apPerdas?.[l.itemId] ?? ""}
+                                onChange={(e) => setNovo({ ...novo, apPerdas: { ...(novo.apPerdas ?? {}), [l.itemId]: e.target.value } })}
+                                className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                              {pct && <span className="text-[10px] text-amber-600 tabular-nums leading-tight">{pct}</span>}
+                            </div>
+                          </div>
+                          {/* Apontar POR PALETE: nº × pç/palete calcula o Real automaticamente. */}
+                          <div className="flex items-center gap-1.5 px-3 pb-1.5 text-[11px] text-muted-foreground">
+                            <span>ou por palete:</span>
+                            <input inputMode="numeric" placeholder="nº" value={paletesStr} onChange={(e) => porPalete(e.target.value, pcPltStr)} className="h-6 w-14 rounded border border-border px-1.5 text-[11px] text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                            <span>×</span>
+                            <input inputMode="numeric" placeholder="pç/plt" title="Peças por palete (do cadastro; editável)" value={pcPltStr} onChange={(e) => porPalete(paletesStr, e.target.value)} className="h-6 w-16 rounded border border-border px-1.5 text-[11px] text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                            <span>pç/palete</span>
+                            {totPecas > 0 && <span className="text-emerald-600 font-medium tabular-nums">= {totPecas.toLocaleString("pt-BR")} pç</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {novo.linhas.filter((l) => l.itemId).map((l) => {
-                    const prod = area.produtos.find((p) => p.id === l.itemId);
-                    const un = prod?.unidades.find((u) => u.id === l.unidadeId);
-                    const fator = un?.fator && un.fator > 0 ? un.fator : 1;
-                    const realPc = numBR(novo.apReais?.[l.itemId]) * fator;
-                    const perdaPc = numBR(novo.apPerdas?.[l.itemId]);
-                    const pct = realPc > 0 && perdaPc > 0 ? `${(perdaPc / realPc * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : null;
-                    return (
-                      <div key={l.itemId} className="grid grid-cols-[1fr_7rem_7rem] gap-2 px-3 py-2 items-center border-t border-border/60">
-                        <span className="text-xs text-foreground truncate">{prod?.descricao ?? l.itemId}{un ? <span className="text-muted-foreground"> ({un.sigla})</span> : null}</span>
-                        <div className="flex flex-col items-end">
-                          <input inputMode="decimal" value={novo.apReais?.[l.itemId] ?? ""}
-                            onChange={(e) => setNovo({ ...novo, apReais: { ...(novo.apReais ?? {}), [l.itemId]: e.target.value } })}
-                            className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                          {fator > 1 && realPc > 0 && <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {realPc.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} pç</span>}
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <input inputMode="decimal" value={novo.apPerdas?.[l.itemId] ?? ""}
-                            onChange={(e) => setNovo({ ...novo, apPerdas: { ...(novo.apPerdas ?? {}), [l.itemId]: e.target.value } })}
-                            className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-amber-500" />
-                          {pct && <span className="text-[10px] text-amber-600 tabular-nums leading-tight">{pct}</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <div className="flex items-end gap-3 flex-wrap">
+                    <button type="button" onClick={abrirCalcPerda} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20">
+                      <Calculator className="w-3.5 h-3.5" /> Calcular perda
+                    </button>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Vagões descarregados</label>
+                      <input inputMode="numeric" value={novo.apVagoes ?? ""} onChange={(e) => setNovo({ ...novo, apVagoes: e.target.value })}
+                        className="h-9 w-28 rounded-lg border border-border px-3 text-sm text-right tabular-nums bg-card" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Vagonetas</label>
+                      <input inputMode="numeric" value={novo.apVagonetas ?? ""} onChange={(e) => setNovo({ ...novo, apVagonetas: e.target.value })}
+                        className="h-9 w-28 rounded-lg border border-border px-3 text-sm text-right tabular-nums bg-card" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Perda em peças · % sobre o real apontado. Produtos/quantidades planejadas ficam na aba Planejado.</p>
                 </div>
-                <div className="mt-3 flex items-end gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Vagões descarregados</label>
-                    <input inputMode="numeric" value={novo.apVagoes ?? ""} onChange={(e) => setNovo({ ...novo, apVagoes: e.target.value })}
-                      className="h-9 w-32 rounded-lg border border-border px-3 text-sm text-right tabular-nums bg-card" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Vagonetas</label>
-                    <input inputMode="numeric" value={novo.apVagonetas ?? ""} onChange={(e) => setNovo({ ...novo, apVagonetas: e.target.value })}
-                      className="h-9 w-32 rounded-lg border border-border px-3 text-sm text-right tabular-nums bg-card" />
-                  </div>
-                  <p className="text-[11px] text-muted-foreground pb-1">Perda em peças · % sobre o real apontado. Produtos/quantidades planejadas ficam na aba Planejado.</p>
+                <div className="lg:w-72 shrink-0">
+                  <ConsumoEstoque consumo={consumoAp} carregando={carregandoConsumoAp} />
+                </div>
                 </div>
                 <div className="mt-5 flex items-center justify-end gap-2">
                   <button onClick={() => setNovo(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
@@ -1173,7 +1244,8 @@ export default function OrdensBoardPage() {
       )}
 
       {/* Calculadora de perda — vagões descarregados (descarregado − apontado, por produto) */}
-      {calcPerda && apontar && (() => {
+      {calcPerda && (apontar || (novo?.editConcluida && area)) && (() => {
+        const ctxProds = calcPerdaProdutos(); // Apontar OU aba Apontamento da edição
         const desc = descarregadoPorProduto(calcPerda.rows);
         const setRows = (rows: CargaVagaoRow[]) => setCalcPerda({ rows });
         const upRow = (i: number, patch: Partial<CargaVagaoRow>) => setRows(calcPerda.rows.map((r, j) => j === i ? { ...r, ...patch } : r));
@@ -1200,7 +1272,7 @@ export default function OrdensBoardPage() {
                     <div key={k} className="flex items-center gap-2 pl-1">
                       <select value={c.itemId} onChange={(e) => { const id = e.target.value; const cap = capacidades[id]?.[row.veiculo]; upCarga(i, k, { itemId: id, ...(!c.pecas && cap != null ? { pecas: String(cap) } : {}) }); }} className="h-8 flex-1 min-w-0 rounded-md border border-border px-1.5 text-xs bg-card">
                         <option value="">Produto…</option>
-                        {apontar.produtos.map((p) => <option key={p.itemId} value={p.itemId}>{p.descricao}</option>)}
+                        {ctxProds.map((p) => <option key={p.itemId} value={p.itemId}>{p.descricao}</option>)}
                       </select>
                       <input inputMode="numeric" placeholder="peças/vagão" value={c.pecas} onChange={(e) => upCarga(i, k, { pecas: e.target.value })} className="h-8 w-28 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card" />
                       {row.cargas.length > 1 && <button type="button" onClick={() => upRow(i, { cargas: row.cargas.filter((_, m) => m !== k) })} className="text-muted-foreground/60 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>}
@@ -1215,9 +1287,9 @@ export default function OrdensBoardPage() {
               <div className="grid grid-cols-[1fr_5rem_5rem_5rem_3.5rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
                 <span>Produto</span><span className="text-right">Descarreg.</span><span className="text-right">Apontado</span><span className="text-right">Perda</span><span className="text-right">%</span>
               </div>
-              {apontar.produtos.map((p) => {
+              {ctxProds.map((p) => {
                 const d = desc[p.itemId] ?? 0;
-                const ap = apontadoPecas(p);
+                const ap = p.ap;
                 const perda = Math.max(0, Math.round((d - ap) * 1000) / 1000);
                 // % de perda sobre o APONTADO REAL, não sobre o descarregado/planejado.
                 const pct = ap > 0 && perda > 0 ? `${(perda / ap * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%` : "—";
