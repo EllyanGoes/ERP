@@ -257,19 +257,19 @@ export default function DiariaDetailPage() {
         {!agruparPorSetor && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="divide-y divide-border">
-              <div className="grid grid-cols-[2rem_1.5fr_1.1fr_6.5rem_6.5rem_5.5rem_1.2fr_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
+              <div className="grid grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,1.1fr)_8rem_8rem_5rem_minmax(0,1.2fr)_6rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
                 <span>#</span><span>Nome</span><span>Setor</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor</span><span />
               </div>
               {grupos.flatMap((g) => g.itens.map((it) => ({ g, it }))).map(({ g, it }, i) => (
-                <div key={it._key} className="grid grid-cols-[2rem_1.5fr_1.1fr_6.5rem_6.5rem_5.5rem_1.2fr_6.5rem_2rem] gap-2 px-4 py-2 items-center">
+                <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,1.1fr)_8rem_8rem_5rem_minmax(0,1.2fr)_6rem_2rem] gap-2 px-4 py-2 items-center">
                   <span className="text-xs text-muted-foreground">{i + 1}</span>
-                  <ComboboxWithCreate value={it.colaboradorId} onChange={(v) => aoEscolherColabLista(g._key, it._key, v, g.setor)} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." triggerClassName="h-9 rounded-lg" />
-                  <ComboboxWithCreate value={g.setor} onChange={(v) => moverItemParaSetor(g._key, it._key, v)} options={setorOptions} disabled={bloqueado} placeholder="Setor..." noneLabel="— sem setor —" menuMinWidth={260} triggerClassName={cn("h-9 rounded-lg", !g.setor && "border-warning/50")} />
-                  <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: e.target.value })} placeholder="08:00 ÀS 12:00" className="h-9 border-border text-center" />
-                  <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: e.target.value })} placeholder="13:00 ÀS 17:00" className="h-9 border-border text-center" />
-                  <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center" />
-                  <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border" />
-                  <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border" />
+                  <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => aoEscolherColabLista(g._key, it._key, v, g.setor)} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
+                  <div className="min-w-0"><ComboboxWithCreate value={g.setor} onChange={(v) => moverItemParaSetor(g._key, it._key, v)} options={setorOptions} disabled={bloqueado} placeholder="Setor..." noneLabel="— sem setor —" menuMinWidth={260} triggerClassName={cn("h-9 rounded-lg", !g.setor && "border-warning/50")} /></div>
+                  <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: e.target.value })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
+                  <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: e.target.value })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
+                  <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
+                  <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
+                  <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
                   {!bloqueado && <button onClick={() => setGrupos((gs) => gs.map((x) => (x._key === g._key ? { ...x, itens: x.itens.filter((y) => y._key !== it._key) } : x)).filter((x) => x.itens.length > 0))} className="text-muted-foreground hover:text-danger flex justify-center"><Trash2 className="h-4 w-4" /></button>}
                 </div>
               ))}
@@ -313,18 +313,18 @@ export default function DiariaDetailPage() {
 
               {/* Mesmas colunas da planilha impressa (menos Assinatura). */}
               <div className="divide-y divide-border">
-                <div className="grid grid-cols-[2rem_1.6fr_6.5rem_6.5rem_5.5rem_1.3fr_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_8rem_8rem_5rem_minmax(0,1.3fr)_6rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
                   <span>#</span><span>Nome</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor</span><span />
                 </div>
                 {g.itens.map((it, i) => (
-                  <div key={it._key} className="grid grid-cols-[2rem_1.6fr_6.5rem_6.5rem_5.5rem_1.3fr_6.5rem_2rem] gap-2 px-4 py-2 items-center">
+                  <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.6fr)_8rem_8rem_5rem_minmax(0,1.3fr)_6rem_2rem] gap-2 px-4 py-2 items-center">
                     <span className="text-xs text-muted-foreground">{i + 1}</span>
-                    <ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, { colaboradorId: v })} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." triggerClassName="h-9 rounded-lg" />
-                    <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: e.target.value })} placeholder="08:00 ÀS 12:00" className="h-9 border-border text-center" />
-                    <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: e.target.value })} placeholder="13:00 ÀS 17:00" className="h-9 border-border text-center" />
-                    <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center" />
-                    <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border" />
-                    <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border" />
+                    <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, { colaboradorId: v })} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
+                    <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { manha: e.target.value })} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
+                    <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { tarde: e.target.value })} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
+                    <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
+                    <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
+                    <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
                     {!bloqueado && <button onClick={() => setGrupos((gs) => gs.map((x) => (x._key === g._key ? { ...x, itens: x.itens.length > 1 ? x.itens.filter((y) => y._key !== it._key) : x.itens } : x)))} className="text-muted-foreground hover:text-danger flex justify-center"><Trash2 className="h-4 w-4" /></button>}
                   </div>
                 ))}
