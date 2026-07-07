@@ -87,7 +87,9 @@ export default function InssConfigDialog({ open, onOpenChange, onCalcular, podeC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      {/* sm:max-w-lg: o default do DialogContent é sm:max-w-sm — sem o prefixo
+          sm: a classe perde e a grade das faixas estoura p/ fora do popup. */}
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Cálculo do INSS</DialogTitle>
           <DialogDescription>
@@ -111,12 +113,12 @@ export default function InssConfigDialog({ open, onOpenChange, onCalcular, podeC
                   <input
                     inputMode="decimal" value={f.ate}
                     onChange={(e) => setFaixas((fs) => fs.map((x, j) => j === i ? { ...x, ate: e.target.value } : x))}
-                    className="h-9 rounded-md border border-border bg-card px-2 text-sm text-right tabular-nums"
+                    className="w-full min-w-0 h-9 rounded-md border border-border bg-card px-2 text-sm text-right tabular-nums"
                   />
                   <input
                     inputMode="decimal" value={f.aliquota}
                     onChange={(e) => setFaixas((fs) => fs.map((x, j) => j === i ? { ...x, aliquota: e.target.value } : x))}
-                    className="h-9 rounded-md border border-border bg-card px-2 text-sm text-right tabular-nums"
+                    className="w-full min-w-0 h-9 rounded-md border border-border bg-card px-2 text-sm text-right tabular-nums"
                   />
                   <button onClick={() => setFaixas((fs) => fs.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-danger justify-self-center" title="Remover faixa">
                     <Trash2 className="w-4 h-4" />

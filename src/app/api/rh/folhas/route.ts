@@ -54,8 +54,10 @@ export async function POST(req: NextRequest) {
   // Competência provisória (agora) — a extração ajusta para o 1º dia da competência real.
   const folha = await prisma.folhaPagamento.create({
     data: {
+      // criadoPor fica por conta do proxy de sessão, que carimba o NOME do
+      // usuário (passar session.sub aqui gravava o id e o rodapé exibia o id cru).
       empresaId, competencia: new Date(), status: "EM_REVISAO",
-      arquivoUrl: blob.url, arquivoNome: file.name, criadoPor: auth.session.sub,
+      arquivoUrl: blob.url, arquivoNome: file.name,
     },
     select: { id: true },
   });
