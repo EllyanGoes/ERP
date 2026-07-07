@@ -49,7 +49,7 @@ export default function ImprimirDiarias() {
         <th style={{ ...azul, width: "21%" }}>NOME</th>
         <th style={{ ...azul, width: "10%" }}>MANHÃ<br />{noite ? "—" : "08:00 - 12:00"}</th>
         <th style={{ ...azul, width: "10%" }}>TARDE<br />{noite ? "—" : "13:00 - 17:00"}</th>
-        <th style={{ ...azul, width: "8%" }}>Q. HORAS<br />EXCEDENTE</th>
+        <th style={{ ...azul, width: "8%" }}>DURAÇÃO<br />(HORAS)</th>
         <th style={{ ...azul, width: "20%" }}>{(g.setor || "SETOR/SERVIÇO").toUpperCase()}{noite ? " - NOITE" : ""}</th>
         <th style={{ ...azul, width: "9%" }}>VALOR</th>
         <th style={{ ...azul, width: "19%" }}>ASSINATURA</th>

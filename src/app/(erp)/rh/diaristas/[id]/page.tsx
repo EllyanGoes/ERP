@@ -48,8 +48,8 @@ const fmtMin = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")
 // Jornada padrão (8h) quando o colaborador não tem escala cadastrada.
 const JORNADA_PADRAO_MIN = 8 * 60;
 
-// Minutos do campo Q. H. Excedente: aceita "HH:MM" ou horas simples ("2", "1,5").
-const excedenteMin = (s: string): number => {
+// Minutos do campo Duração: aceita "HH:MM" ou horas simples ("2", "7,5").
+const duracaoMin = (s: string): number => {
   const t = (s || "").trim();
   let m = t.match(/^(\d{1,2}):(\d{2})$/);
   if (m) return +m[1] * 60 + +m[2];
@@ -197,31 +197,29 @@ export default function DiariaDetailPage() {
   }
 
   // Diária final = valor hora × horas trabalhadas — proporcional p/ MAIS e p/
-  // MENOS (saiu mais cedo, recebe menos). Sem horários preenchidos, usa a
-  // jornada da escala (+ excedente digitado à mão).
+  // MENOS (saiu mais cedo, recebe menos). Sem horários preenchidos, vale a
+  // Duração digitada à mão; sem nada, a jornada da escala.
   function calcTotalItem(it: ItemRow): number {
     const valorHora = num(it.valor);
     if (valorHora <= 0) return 0;
     const trabalhado = (faixaMin(it.manha) ?? 0) + (faixaMin(it.tarde) ?? 0);
-    const horasMin = trabalhado > 0 ? trabalhado : jornadaBaseMin(it.colaboradorId) + excedenteMin(it.horasExcedente);
+    const horasMin = trabalhado > 0 ? trabalhado : (duracaoMin(it.horasExcedente) || jornadaBaseMin(it.colaboradorId));
     return Math.round(valorHora * (horasMin / 60) * 100) / 100;
   }
 
   const totalGeral = grupos.reduce((s, g) => s + g.itens.reduce((a, it) => a + (it.colaboradorId ? calcTotalItem(it) : 0), 0), 0);
 
-  // Q. H. Excedente = horas digitadas (manhã+tarde) − jornada da escala.
-  function calcExcedente(manha: string, tarde: string, colaboradorId: string): string {
+  // Duração = horas trabalhadas (manhã + tarde), em HH:MM.
+  function calcDuracao(manha: string, tarde: string): string {
     const trabalhado = (faixaMin(manha) ?? 0) + (faixaMin(tarde) ?? 0);
-    if (trabalhado === 0) return "";
-    const exc = trabalhado - jornadaBaseMin(colaboradorId);
-    return exc > 0 ? fmtMin(exc) : "";
+    return trabalhado > 0 ? fmtMin(trabalhado) : "";
   }
 
-  // Patch de manhã/tarde com o excedente recalculado a partir do par resultante.
+  // Patch de manhã/tarde com a duração recalculada a partir do par resultante.
   function patchHora(it: ItemRow, patch: Partial<ItemRow>): Partial<ItemRow> {
     const manha = patch.manha ?? it.manha;
     const tarde = patch.tarde ?? it.tarde;
-    return { ...patch, horasExcedente: calcExcedente(manha, tarde, it.colaboradorId) };
+    return { ...patch, horasExcedente: calcDuracao(manha, tarde) };
   }
 
   // Ao escolher o colaborador: preenche o valor com a diária base do cadastro e
@@ -240,7 +238,7 @@ export default function DiariaDetailPage() {
       colaboradorId,
       ...(!num(it.valor) && valorHora ? { valor: String(valorHora).replace(".", ",") } : {}),
       manha, tarde,
-      horasExcedente: calcExcedente(manha, tarde, colaboradorId),
+      horasExcedente: calcDuracao(manha, tarde),
     };
   }
 
@@ -370,7 +368,7 @@ export default function DiariaDetailPage() {
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="divide-y divide-border">
               <div className="grid grid-cols-[2rem_minmax(0,1.4fr)_minmax(0,1fr)_7.5rem_7.5rem_5rem_minmax(0,1fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
-                <span>#</span><span>Nome</span><span>Setor</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor hora</span><span className="text-right">Diária</span><span />
+                <span>#</span><span>Nome</span><span>Setor</span><span>Manhã</span><span>Tarde</span><span>Duração</span><span>Serviço</span><span className="text-right">Valor hora</span><span className="text-right">Diária</span><span />
               </div>
               {grupos.flatMap((g) => g.itens.map((it) => ({ g, it }))).map(({ g, it }, i) => (
                 <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.4fr)_minmax(0,1fr)_7.5rem_7.5rem_5rem_minmax(0,1fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 items-center">
@@ -379,7 +377,7 @@ export default function DiariaDetailPage() {
                   <div className="min-w-0"><ComboboxWithCreate value={g.setor} onChange={(v) => moverItemParaSetor(g._key, it._key, v)} options={setorOptions} disabled={bloqueado} placeholder="Setor..." noneLabel="— sem setor —" menuMinWidth={260} triggerClassName={cn("h-9 rounded-lg", !g.setor && "border-warning/50")} /></div>
                   <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { manha: mascaraHora(e.target.value) }))} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { tarde: mascaraHora(e.target.value) }))} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
-                  <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
+                  <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="08:00" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                   <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
                   <span className="text-sm font-semibold tabular-nums text-right" title="Valor hora × horas trabalhadas">{formatBRL(calcTotalItem(it))}</span>
@@ -427,7 +425,7 @@ export default function DiariaDetailPage() {
               {/* Mesmas colunas da planilha impressa (menos Assinatura). */}
               <div className="divide-y divide-border">
                 <div className="grid grid-cols-[2rem_minmax(0,1.5fr)_7.5rem_7.5rem_5rem_minmax(0,1.2fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
-                  <span>#</span><span>Nome</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor hora</span><span className="text-right">Diária</span><span />
+                  <span>#</span><span>Nome</span><span>Manhã</span><span>Tarde</span><span>Duração</span><span>Serviço</span><span className="text-right">Valor hora</span><span className="text-right">Diária</span><span />
                 </div>
                 {g.itens.map((it, i) => (
                   <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.5fr)_7.5rem_7.5rem_5rem_minmax(0,1.2fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 items-center">
@@ -435,7 +433,7 @@ export default function DiariaDetailPage() {
                     <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, patchColab(it, v))} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
                     <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { manha: mascaraHora(e.target.value) }))} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.tarde} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { tarde: mascaraHora(e.target.value) }))} placeholder="13:00 - 17:00" className="h-9 border-border text-center min-w-0" />
-                    <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
+                    <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="08:00" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                     <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
                     <span className="text-sm font-semibold tabular-nums text-right" title="Valor hora × horas trabalhadas">{formatBRL(calcTotalItem(it))}</span>
