@@ -196,6 +196,7 @@ model Cliente {
   movimentacoesTerceiros MovimentacaoEstoque[]  @relation("MovimentacoesTerceiros")
   recorrencias           Recorrencia[]
   contasContabeis        ContaContabil[]
+  leads                  Lead[]
   empresa                Empresa?
   criadoPor              String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor          String? // autoria: última edição manual (proxy de sessão)
@@ -412,7 +413,10 @@ model DiariaItem {
   manha          String?
   tarde          String?
   horasExcedente String?
+  // valor = diária base; valorTotal = diária + excedente × valor-hora (é o
+  // que soma no total da folha e sai no PDF).
   valor         Decimal     @default(0) @db.Decimal(15, 2)
+  valorTotal    Decimal     @default(0) @db.Decimal(15, 2)
   ordem         Int         @default(0)
   grupo         DiariaGrupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
   colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
@@ -1486,6 +1490,10 @@ model Empresa {
   concorrentes              Concorrente[]
   concorrentePrecos         ConcorrentePreco[]
   parametrosCusteio         ParametroCusteio[]
+  funis                     Funil[]
+  campanhas                 Campanha[]
+  leadsMarketing            Lead[]
+  lancamentosMetrica        LancamentoManualMetrica[]
 }
 
 model EnderecoEstoque {
@@ -2172,6 +2180,7 @@ model PedidoVenda {
   pagamentos              PedidoVendaPagamento[]
   minutas                 Minuta[]
   movimentacoesVendaOrdem MovimentacaoEstoque[]  @relation("MovimentacoesVendaOrdem")
+  leads                   Lead[]
 
   empresa              Empresa       @relation("PedidoVendaEmpresa", fields: [empresaId], references: [id])
   estoqueOrigemEmpresa Empresa?      @relation("PedidoVendaEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
@@ -3671,6 +3680,299 @@ model ConcorrentePreco {
   @@index([empresaId])
   @@index([concorrenteId])
   @@index([itemId])
+}
+
+// ── Marketing: Funis, Campanhas, Leads e Tracking (PRD docs/marketing-funis-prd.md) ──
+// Como a Inteligência Comercial, TODOS estes models são compartilhados pelo
+// grupo (fora de MODELOS_ESCOPADOS); empresaId é só tag de origem.
+
+enum StatusFunil {
+  RASCUNHO
+  ATIVO
+  ARQUIVADO
+}
+
+model Funil {
+  id              String      @id @default(cuid())
+  empresaId       String      @default("emp_tramontin")
+  nome            String
+  descricao       String?
+  status          StatusFunil @default(RASCUNHO)
+  // Grafo do React Flow ({ nodes, edges }) — desenho livre, sem joins.
+  // O espelho consultável dos nós é FunilNo, sincronizado no save.
+  canvas          Json        @default("{\"nodes\":[],\"edges\":[]}")
+  // Parâmetros globais de forecast (período, volume padrão).
+  forecast        Json?
+  ativo           Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  criadoPor       String?
+  atualizadoPor   String?
+  empresa         Empresa     @relation(fields: [empresaId], references: [id])
+  nos             FunilNo[]
+  leads           Lead[]
+  lancamentos     LancamentoManualMetrica[]
+  metricasDiarias MetricaNoDiaria[]
+
+  @@index([status])
+  @@index([ativo])
+}
+
+enum TipoFunilNo {
+  FONTE
+  PAGINA
+  ACAO
+  ETAPA_OFFLINE
+}
+
+// Espelho flat dos nós do canvas — escrito SOMENTE pelo PUT do funil (mesma
+// transação do save). Soft-delete (ativo=false) preserva métricas de nós
+// removidos do desenho. `config` copia o node.data relevante p/ matching:
+//   PAGINA        → { urlPatterns: ["/lp-promo*"] }
+//   ACAO          → { eventoNome: "form_submit" }
+//   FONTE         → { plataforma, campanhaId? }
+//   ETAPA_OFFLINE → { etapaLeadId?, vinculoErp? }
+model FunilNo {
+  id      String      @id @default(cuid())
+  funilId String
+  noId    String // id do node no JSON do React Flow (estável entre saves)
+  tipo    TipoFunilNo
+  rotulo  String
+  config  Json?
+  ativo   Boolean     @default(true)
+  funil   Funil       @relation(fields: [funilId], references: [id], onDelete: Cascade)
+
+  @@unique([funilId, noId])
+  @@index([tipo])
+}
+
+// Campanha de aquisição. `plataforma` é String (não enum) p/ novos canais sem
+// migração — padrão ConcorrenteCanal.tipo. utmCampaign é a chave do matching
+// UTM→campanha na ingestão do tracking (case-insensitive).
+model Campanha {
+  id            String    @id @default(cuid())
+  empresaId     String    @default("emp_tramontin")
+  nome          String
+  plataforma    String // META | GOOGLE | TIKTOK | ORGANICO | INDICACAO | WHATSAPP | OUTRO
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  idExterno     String? // id da campanha na plataforma de ads (Fase 5)
+  orcamento     Decimal?  @db.Decimal(15, 2)
+  dataInicio    DateTime?
+  dataFim       DateTime?
+  observacoes   String?
+  ativo         Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  criadoPor     String?
+  atualizadoPor String?
+  empresa       Empresa   @relation(fields: [empresaId], references: [id])
+  leads         Lead[]
+  sessoes       TrackingSessao[]
+  metricasAds   MetricaCampanhaDiaria[]
+
+  @@index([utmCampaign])
+  @@index([plataforma])
+  @@index([ativo])
+}
+
+// Pipeline de leads configurável (colunas do kanban) — global ao grupo.
+model EtapaLead {
+  id    String  @id @default(cuid())
+  nome  String
+  ordem Int     @default(0)
+  cor   String? // hex da coluna no kanban
+  ganho Boolean @default(false) // etapa terminal de sucesso
+  ativo Boolean @default(true)
+  leads Lead[]
+}
+
+enum StatusLead {
+  ABERTO
+  GANHO
+  PERDIDO
+}
+
+model Lead {
+  id            String     @id @default(cuid())
+  empresaId     String     @default("emp_tramontin")
+  nome          String
+  email         String?
+  telefone      String?
+  empresaNome   String? // empresa do lead (texto livre)
+  cidade        String?
+  estado        String?
+  status        StatusLead @default(ABERTO)
+  motivoPerda   String?
+  valorEstimado Decimal?   @db.Decimal(15, 2)
+  // Origem / atribuição
+  campanhaId    String?
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  origemLivre   String? // "indicação do fulano", quando sem campanha
+  // Pipeline
+  funilId       String?
+  etapaId       String?
+  // Conversão no ERP
+  clienteId     String?
+  pedidoVendaId String? // primeiro pedido gerado
+  convertidoEm  DateTime?
+  // Ponte com o tracking (identify por email, Fase 3)
+  visitanteId   String?
+  responsavelId String? // Usuario responsável pelo follow-up (sem FK, padrão criadoPor)
+  observacoes   String?
+  ativo         Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  criadoPor     String?
+  atualizadoPor String?
+  empresa       Empresa      @relation(fields: [empresaId], references: [id])
+  campanha      Campanha?    @relation(fields: [campanhaId], references: [id])
+  funil         Funil?       @relation(fields: [funilId], references: [id])
+  etapa         EtapaLead?   @relation(fields: [etapaId], references: [id])
+  cliente       Cliente?     @relation(fields: [clienteId], references: [id])
+  pedidoVenda   PedidoVenda? @relation(fields: [pedidoVendaId], references: [id])
+  eventos       LeadEvento[]
+
+  @@index([status])
+  @@index([etapaId])
+  @@index([campanhaId])
+  @@index([funilId])
+  @@index([clienteId])
+  @@index([email])
+  @@index([visitanteId])
+}
+
+// Timeline do lead (criação, mudança de etapa, notas, conversões).
+model LeadEvento {
+  id        String   @id @default(cuid())
+  leadId    String
+  tipo      String // CRIACAO | MUDANCA_ETAPA | NOTA | CONTATO | GANHO | PERDIDO | CONVERSAO_CLIENTE | CONVERSAO_PEDIDO
+  descricao String?
+  dados     Json? // { deEtapaId, paraEtapaId } etc.
+  criadoPor String?
+  createdAt DateTime @default(now())
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+}
+
+// ── Tracking web (Fase 3 — tabelas criadas desde já; volume alto → mínimo de colunas) ──
+
+// Site com o snippet instalado. `id` é o siteId público do snippet; `dominios`
+// é a allowlist p/ validação de Origin/CORS na ingestão (fail-closed).
+model SiteRastreado {
+  id        String   @id @default(cuid())
+  nome      String
+  dominios  String[] @default([])
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model TrackingVisitante {
+  id         String   @id // cuid gerado pelo snippet (cookie _erp_vid)
+  leadId     String? // preenchido no "identify" (form com email)
+  primeiroEm DateTime @default(now())
+  ultimoEm   DateTime @default(now())
+
+  @@index([leadId])
+}
+
+model TrackingSessao {
+  id          String    @id // gerado pelo snippet (cookie _erp_sid)
+  visitanteId String
+  siteId      String
+  inicio      DateTime  @default(now())
+  ultimoEm    DateTime  @default(now())
+  referrer    String?
+  // UTMs capturadas no 1º pageview da sessão
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  utmTerm     String?
+  utmContent  String?
+  campanhaId  String? // resolvido na ingestão (match utmCampaign / ?cid=)
+  dispositivo String? // "mobile" | "desktop" (derivado do UA; UA cru NÃO armazenado)
+  campanha    Campanha? @relation(fields: [campanhaId], references: [id])
+
+  @@index([visitanteId])
+  @@index([campanhaId])
+  @@index([inicio])
+}
+
+model TrackingEvento {
+  id          String   @id @default(cuid())
+  sessaoId    String
+  visitanteId String // desnormalizado p/ agregação sem join
+  siteId      String
+  tipo        String // "pageview" | "evento"
+  nome        String? // nome do evento custom (tipo=evento)
+  path        String // pathname normalizado (sem querystring)
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt]) // purge/agregação por dia
+  @@index([siteId, path, createdAt]) // matching URL→nó
+  @@index([sessaoId])
+  @@index([visitanteId, createdAt]) // path-analysis (Fase 4)
+}
+
+// Agregado diário por nó — o canvas (modo análise) lê DAQUI, nunca dos eventos
+// crus. Populado pelo cron marketing-agrega-tracking (fontes TRACKING/ERP/ADS).
+model MetricaNoDiaria {
+  id         String   @id @default(cuid())
+  funilId    String
+  noId       String // FunilNo.noId
+  data       DateTime @db.Date
+  fonte      String // "TRACKING" | "ERP" | "ADS"
+  visitantes Int      @default(0) // únicos no dia
+  sessoes    Int      @default(0)
+  eventos    Int      @default(0) // pageviews/eventos totais
+  conversoes Int      @default(0) // p/ nós ERP: qtde pedidos/clientes novos
+  receita    Decimal  @default(0) @db.Decimal(15, 2)
+  funil      Funil    @relation(fields: [funilId], references: [id], onDelete: Cascade)
+
+  @@unique([funilId, noId, data, fonte])
+  @@index([funilId, data])
+}
+
+// Lançamento manual de métricas por nó/período (alcance do anúncio, contatos no
+// WhatsApp...) — auditável, consultado à parte do agregado (fonte MANUAL).
+model LancamentoManualMetrica {
+  id         String   @id @default(cuid())
+  empresaId  String   @default("emp_tramontin")
+  funilId    String
+  noId       String
+  dataInicio DateTime @db.Date
+  dataFim    DateTime @db.Date
+  visitantes Int? // métricas nulláveis — lança só o que tem
+  leads      Int?
+  conversoes Int?
+  receita    Decimal? @db.Decimal(15, 2)
+  observacao String?
+  createdAt  DateTime @default(now())
+  criadoPor  String?
+  empresa    Empresa  @relation(fields: [empresaId], references: [id])
+  funil      Funil    @relation(fields: [funilId], references: [id], onDelete: Cascade)
+
+  @@index([funilId, noId, dataInicio])
+}
+
+// Métricas importadas das APIs de ads (Meta/Google/TikTok — Fase 5).
+model MetricaCampanhaDiaria {
+  id         String   @id @default(cuid())
+  campanhaId String
+  data       DateTime @db.Date
+  spend      Decimal  @default(0) @db.Decimal(15, 2)
+  impressoes Int      @default(0)
+  cliques    Int      @default(0)
+  conversoes Int      @default(0)
+  bruto      Json? // payload cru da API p/ auditoria
+  campanha   Campanha @relation(fields: [campanhaId], references: [id], onDelete: Cascade)
+
+  @@unique([campanhaId, data])
+  @@index([data])
 }
 
 // ── Lixeira de documentos ─────────────────────────────────────────────────────

@@ -48,6 +48,16 @@ const fmtMin = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")
 // Jornada padrão (8h) quando o colaborador não tem escala cadastrada.
 const JORNADA_PADRAO_MIN = 8 * 60;
 
+// Minutos do campo Q. H. Excedente: aceita "HH:MM" ou horas simples ("2", "1,5").
+const excedenteMin = (s: string): number => {
+  const t = (s || "").trim();
+  let m = t.match(/^(\d{1,2}):(\d{2})$/);
+  if (m) return +m[1] * 60 + +m[2];
+  m = t.match(/^(\d+(?:[.,]\d+)?)$/);
+  if (m) return Math.round(parseFloat(m[1].replace(",", ".")) * 60);
+  return 0;
+};
+
 export default function DiariaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -126,7 +136,6 @@ export default function DiariaDetailPage() {
 
   const bloqueado = status === "FECHADA";
 
-  const totalGeral = useMemo(() => grupos.reduce((s, g) => s + g.itens.reduce((a, it) => a + (it.colaboradorId ? num(it.valor) : 0), 0), 0), [grupos]);
   const totalPessoas = useMemo(() => grupos.reduce((s, g) => s + g.itens.filter((it) => it.colaboradorId).length, 0), [grupos]);
 
   // Opções de setor da coluna (cadastro + setores em texto livre de folhas antigas).
@@ -186,6 +195,18 @@ export default function DiariaDetailPage() {
     if (!vig || vig.faixas.length === 0) return JORNADA_PADRAO_MIN;
     return vig.faixas.reduce((a, f) => a + (faixaMin(`${f.horaInicial} - ${f.horaFinal}`) ?? 0), 0);
   }
+
+  // Valor total = diária base + excedente × valor-hora (valor-hora = diária ÷ jornada).
+  function calcTotalItem(it: ItemRow): number {
+    const base = num(it.valor);
+    if (base <= 0) return 0;
+    const jornada = jornadaBaseMin(it.colaboradorId);
+    const valorHora = jornada > 0 ? base / (jornada / 60) : 0;
+    const total = base + (excedenteMin(it.horasExcedente) / 60) * valorHora;
+    return Math.round(total * 100) / 100;
+  }
+
+  const totalGeral = grupos.reduce((s, g) => s + g.itens.reduce((a, it) => a + (it.colaboradorId ? calcTotalItem(it) : 0), 0), 0);
 
   // Q. H. Excedente = horas digitadas (manhã+tarde) − jornada da escala.
   function calcExcedente(manha: string, tarde: string, colaboradorId: string): string {
@@ -255,6 +276,7 @@ export default function DiariaDetailPage() {
         tipo: g.tipo, setor: g.setor, turno: g.turno,
         itens: g.itens.filter((it) => it.colaboradorId).map((it) => ({
           colaboradorId: it.colaboradorId, servico: it.servico, valor: num(it.valor),
+          valorTotal: calcTotalItem(it),
           manha: it.manha, tarde: it.tarde, horasExcedente: it.horasExcedente,
         })),
       })),
@@ -343,11 +365,11 @@ export default function DiariaDetailPage() {
         {!agruparPorSetor && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="divide-y divide-border">
-              <div className="grid grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,1.1fr)_8rem_8rem_5rem_minmax(0,1.2fr)_6rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
-                <span>#</span><span>Nome</span><span>Setor</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor</span><span />
+              <div className="grid grid-cols-[2rem_minmax(0,1.4fr)_minmax(0,1fr)_7.5rem_7.5rem_5rem_minmax(0,1fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                <span>#</span><span>Nome</span><span>Setor</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Diária</span><span className="text-right">Total</span><span />
               </div>
               {grupos.flatMap((g) => g.itens.map((it) => ({ g, it }))).map(({ g, it }, i) => (
-                <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,1.1fr)_8rem_8rem_5rem_minmax(0,1.2fr)_6rem_2rem] gap-2 px-4 py-2 items-center">
+                <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.4fr)_minmax(0,1fr)_7.5rem_7.5rem_5rem_minmax(0,1fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 items-center">
                   <span className="text-xs text-muted-foreground">{i + 1}</span>
                   <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => aoEscolherColabLista(g._key, it, v, g.setor)} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
                   <div className="min-w-0"><ComboboxWithCreate value={g.setor} onChange={(v) => moverItemParaSetor(g._key, it._key, v)} options={setorOptions} disabled={bloqueado} placeholder="Setor..." noneLabel="— sem setor —" menuMinWidth={260} triggerClassName={cn("h-9 rounded-lg", !g.setor && "border-warning/50")} /></div>
@@ -356,6 +378,7 @@ export default function DiariaDetailPage() {
                   <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
                   <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                   <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
+                  <span className="text-sm font-semibold tabular-nums text-right" title="Diária + horas excedentes × valor-hora">{formatBRL(calcTotalItem(it))}</span>
                   {!bloqueado && <button onClick={() => setGrupos((gs) => gs.map((x) => (x._key === g._key ? { ...x, itens: x.itens.filter((y) => y._key !== it._key) } : x)).filter((x) => x.itens.length > 0))} className="text-muted-foreground hover:text-danger flex justify-center"><Trash2 className="h-4 w-4" /></button>}
                 </div>
               ))}
@@ -373,7 +396,7 @@ export default function DiariaDetailPage() {
 
         {/* Agrupado por setor: um bloco por setor. */}
         {agruparPorSetor && grupos.map((g) => {
-          const subtotal = g.itens.reduce((a, it) => a + (it.colaboradorId ? num(it.valor) : 0), 0);
+          const subtotal = g.itens.reduce((a, it) => a + (it.colaboradorId ? calcTotalItem(it) : 0), 0);
           return (
             <div key={g._key} className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-muted border-b border-border">
@@ -399,11 +422,11 @@ export default function DiariaDetailPage() {
 
               {/* Mesmas colunas da planilha impressa (menos Assinatura). */}
               <div className="divide-y divide-border">
-                <div className="grid grid-cols-[2rem_minmax(0,1.6fr)_8rem_8rem_5rem_minmax(0,1.3fr)_6rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
-                  <span>#</span><span>Nome</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Valor</span><span />
+                <div className="grid grid-cols-[2rem_minmax(0,1.5fr)_7.5rem_7.5rem_5rem_minmax(0,1.2fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 text-[11px] font-semibold text-muted-foreground uppercase">
+                  <span>#</span><span>Nome</span><span>Manhã</span><span>Tarde</span><span>Q. H. Exced.</span><span>Serviço</span><span className="text-right">Diária</span><span className="text-right">Total</span><span />
                 </div>
                 {g.itens.map((it, i) => (
-                  <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.6fr)_8rem_8rem_5rem_minmax(0,1.3fr)_6rem_2rem] gap-2 px-4 py-2 items-center">
+                  <div key={it._key} className="grid grid-cols-[2rem_minmax(0,1.5fr)_7.5rem_7.5rem_5rem_minmax(0,1.2fr)_5.5rem_6.5rem_2rem] gap-2 px-4 py-2 items-center">
                     <span className="text-xs text-muted-foreground">{i + 1}</span>
                     <div className="min-w-0"><ComboboxWithCreate value={it.colaboradorId} onChange={(v) => upItem(g._key, it._key, patchColab(it, v))} options={colabs} allowNone={false} disabled={bloqueado} placeholder="Colaborador..." menuMinWidth={320} triggerClassName="h-9 rounded-lg" /></div>
                     <Input value={it.manha} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, patchHora(it, { manha: mascaraHora(e.target.value) }))} placeholder="08:00 - 12:00" className="h-9 border-border text-center min-w-0" />
@@ -411,6 +434,7 @@ export default function DiariaDetailPage() {
                     <Input value={it.horasExcedente} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { horasExcedente: e.target.value })} placeholder="—" className="h-9 border-border text-center min-w-0" />
                     <Input value={it.servico} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { servico: e.target.value })} placeholder="Serviço (ex.: MOTORISTA 120/8*8)" className="h-9 border-border min-w-0" />
                     <Input value={it.valor} disabled={bloqueado} onChange={(e) => upItem(g._key, it._key, { valor: e.target.value })} inputMode="decimal" placeholder="0,00" className="h-9 text-right tabular-nums border-border min-w-0" />
+                    <span className="text-sm font-semibold tabular-nums text-right" title="Diária + horas excedentes × valor-hora">{formatBRL(calcTotalItem(it))}</span>
                     {!bloqueado && <button onClick={() => setGrupos((gs) => gs.map((x) => (x._key === g._key ? { ...x, itens: x.itens.length > 1 ? x.itens.filter((y) => y._key !== it._key) : x.itens } : x)))} className="text-muted-foreground hover:text-danger flex justify-center"><Trash2 className="h-4 w-4" /></button>}
                   </div>
                 ))}

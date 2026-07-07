@@ -29,6 +29,7 @@ export async function GET(_: NextRequest, { params }: Ctx) {
 
 type ItemIn = {
   colaboradorId: string; servico?: string | null; valor?: number | string | null;
+  valorTotal?: number | string | null;
   manha?: string | null; tarde?: string | null; horasExcedente?: string | null;
 };
 type GrupoIn = { tipo?: string; setor?: string | null; turno?: string; itens?: ItemIn[] };
@@ -43,8 +44,12 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   const grupos: GrupoIn[] = Array.isArray(b.grupos) ? b.grupos : [];
   const num = (v: unknown) => { const n = parseFloat(String(v ?? "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
 
+  // Total da folha soma o valor TOTAL (diária + excedente); folhas antigas
+  // sem valorTotal caem no valor base.
   let total = 0;
-  for (const g of grupos) for (const it of g.itens ?? []) if (it.colaboradorId) total += num(it.valor);
+  for (const g of grupos) for (const it of g.itens ?? []) {
+    if (it.colaboradorId) total += it.valorTotal !== undefined ? num(it.valorTotal) : num(it.valor);
+  }
 
   const folha = await prisma.$transaction(async (tx) => {
     const existe = await tx.diariaFolha.findUnique({ where: { id: params.id }, select: { id: true } });
@@ -74,6 +79,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
           data: itensValidos.map((it, i) => ({
             grupoId: grupo.id, colaboradorId: it.colaboradorId,
             servico: (it.servico ?? "").trim() || null, valor: num(it.valor), ordem: i,
+            valorTotal: it.valorTotal !== undefined ? num(it.valorTotal) : num(it.valor),
             manha: (it.manha ?? "").trim() || null,
             tarde: (it.tarde ?? "").trim() || null,
             horasExcedente: (it.horasExcedente ?? "").trim() || null,

@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
             return {
               grupoId: grupo.id, colaboradorId: c.id, ordem: i,
               valor: c.valorDiaria ?? 0,
+              valorTotal: c.valorDiaria ?? 0,
               manha: faixas[0] ? fmt(faixas[0]) : (turno === "DIA" ? "08:00 - 12:00" : null),
               tarde: faixas[1] ? fmt(faixas[1]) : (faixas[0] ? null : (turno === "DIA" ? "13:00 - 17:00" : null)),
             };

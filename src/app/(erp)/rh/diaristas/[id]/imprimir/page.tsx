@@ -4,12 +4,14 @@ import { Fragment, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTabTitle } from "@/lib/tabs-context";
 
-type Item = { servico: string | null; manha: string | null; tarde: string | null; horasExcedente: string | null; valor: string; colaborador: { nome: string } | null };
+type Item = { servico: string | null; manha: string | null; tarde: string | null; horasExcedente: string | null; valor: string; valorTotal?: string; colaborador: { nome: string } | null };
 type Grupo = { tipo: string; setor: string | null; turno: string; itens: Item[] };
 type Folha = { data: string; turno?: string; observacoes: string | null; grupos: Grupo[] };
 
 const brl = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const num = (v: string) => { const n = parseFloat(String(v)); return Number.isFinite(n) ? n : 0; };
+// Valor impresso = total (diária + excedente); folhas antigas caem no valor base.
+const valorItem = (it: Item) => { const t = num(it.valorTotal ?? "0"); return t > 0 ? t : num(it.valor); };
 
 // Planilha de assinatura dos diaristas (A4 paisagem): cada um confere o valor,
 // preenche os horários e assina; o escaneado volta pelo botão de upload da folha.
@@ -33,7 +35,7 @@ export default function ImprimirDiarias() {
   const dataExt = `${d.toLocaleDateString("pt-BR")} - ${d.toLocaleDateString("pt-BR", { weekday: "long" }).toUpperCase()}`;
 
   let totalGeral = 0, totalPessoas = 0;
-  for (const g of folha.grupos) for (const it of g.itens) { totalGeral += num(it.valor); totalPessoas++; }
+  for (const g of folha.grupos) for (const it of g.itens) { totalGeral += valorItem(it); totalPessoas++; }
 
   const azul = { background: "#c5d9f1", fontWeight: "bold" as const, textAlign: "center" as const };
 
@@ -85,7 +87,7 @@ export default function ImprimirDiarias() {
                     <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.tarde ?? ""}</td>
                     <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.horasExcedente ?? ""}</td>
                     <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.servico ?? ""}</td>
-                    <td style={{ textAlign: "right" }}>{num(it.valor) > 0 ? brl(num(it.valor)) : ""}</td>
+                    <td style={{ textAlign: "right" }}>{valorItem(it) > 0 ? brl(valorItem(it)) : ""}</td>
                     <td />
                   </tr>
                 ))}
@@ -102,7 +104,7 @@ export default function ImprimirDiarias() {
                   <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.tarde ?? ""}</td>
                   <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.horasExcedente ?? ""}</td>
                   <td style={{ textAlign: "center", textTransform: "uppercase" }}>{it.servico || g.setor || ""}</td>
-                  <td style={{ textAlign: "right" }}>{num(it.valor) > 0 ? brl(num(it.valor)) : ""}</td>
+                  <td style={{ textAlign: "right" }}>{valorItem(it) > 0 ? brl(valorItem(it)) : ""}</td>
                   <td />
                 </tr>
               ))}
