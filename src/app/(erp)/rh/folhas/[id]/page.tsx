@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
-import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus } from "lucide-react";
+import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus, CopyCheck } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -38,7 +38,9 @@ export default function FolhaDetalhePage() {
   const [extraindo, setExtraindo] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [fechando, setFechando] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
   const [erro, setErro] = useState("");
+  const [aviso, setAviso] = useState("");
   const [removidos, setRemovidos] = useState<string[]>([]);
   const novoIdRef = useRef(0);
 
@@ -109,6 +111,22 @@ export default function FolhaDetalhePage() {
     } finally { setSalvando(false); }
   }
 
+  // Usa esta folha como parâmetro: grava matrícula + classificação no cadastro
+  // e propaga vínculo/classificação para as demais folhas em revisão.
+  async function aplicarVinculos() {
+    if (!folha) return;
+    if (!confirm("Usar esta folha como parâmetro? A matrícula e a classificação (MOD/MOI/Admin) dos colaboradores vinculados serão gravadas no cadastro e aplicadas às demais folhas em revisão.")) return;
+    setAplicando(true); setErro(""); setAviso("");
+    try {
+      if (editavel) await salvar();
+      const r = await fetch(`/api/rh/folhas/${id}/aplicar-vinculos`, { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) { setErro(j.error || "Falha ao aplicar os vínculos"); return; }
+      const d = j.data;
+      setAviso(`Parâmetro aplicado: ${d.colaboradoresAtualizados} colaborador(es) atualizados no cadastro, ${d.vinculados} item(ns) vinculados e ${d.reclassificados} reclassificados em ${d.folhas} outra(s) folha(s).`);
+    } finally { setAplicando(false); }
+  }
+
   async function fechar() {
     if (!folha) return;
     if (folha.itens.some((i) => !i.colaboradorId)) { setErro("Vincule todos os colaboradores antes de fechar."); return; }
@@ -137,6 +155,12 @@ export default function FolhaDetalhePage() {
         action={
           <div className="flex items-center gap-2">
             {folha.arquivoUrl && <a href={`/api/rh/folhas/${id}/arquivo`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-info hover:underline"><FileText className="w-4 h-4" /> PDF</a>}
+            {folha.itens.some((i) => i.colaboradorId) && (
+              <Button variant="outline" onClick={aplicarVinculos} disabled={aplicando} title="Grava matrícula + classificação no cadastro e aplica às demais folhas em revisão">
+                {aplicando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CopyCheck className="w-4 h-4 mr-2" />}
+                Aplicar às outras folhas
+              </Button>
+            )}
             {editavel && (
               <Button variant="outline" onClick={extrair} disabled={extraindo}>
                 {extraindo ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
@@ -154,6 +178,7 @@ export default function FolhaDetalhePage() {
       />
       <div className="px-8 pb-8 space-y-4">
         {erro && <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm"><AlertCircle className="w-4 h-4" /> {erro}</div>}
+        {aviso && <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-success/10 border border-success/30 text-success text-sm"><CopyCheck className="w-4 h-4" /> {aviso}</div>}
 
         {/* Totais da folha + custo por classificação (apropriação) */}
         <div className="flex flex-wrap items-start gap-3">

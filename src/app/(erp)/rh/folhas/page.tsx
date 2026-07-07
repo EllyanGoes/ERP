@@ -15,6 +15,7 @@ type Folha = {
   totalLiquido: string;
   arquivoNome: string | null;
   _count: { itens: number };
+  itensPendentes: number;
 };
 
 const STATUS_LABEL: Record<Folha["status"], string> = { EM_REVISAO: "Em revisão", FECHADA: "Fechada", CANCELADA: "Cancelada" };
@@ -94,6 +95,7 @@ export default function FolhasPage() {
                   <th className="text-center px-4 py-3 font-semibold">Colaboradores</th>
                   <th className="text-right px-4 py-3 font-semibold">Bruto</th>
                   <th className="text-right px-4 py-3 font-semibold">Líquido</th>
+                  <th className="text-center px-4 py-3 font-semibold">A classificar</th>
                   <th className="text-center px-4 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
@@ -104,6 +106,19 @@ export default function FolhasPage() {
                     <td className="px-4 py-3 text-center tabular-nums">{f._count.itens}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatBRL(parseFloat(f.totalBruto))}</td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatBRL(parseFloat(f.totalLiquido))}</td>
+                    <td className="px-4 py-3 text-center">
+                      {f._count.itens === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : f.itensPendentes > 0 ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-warning/15 text-warning border-warning/30 tabular-nums">
+                          {Math.round((f.itensPendentes / f._count.itens) * 100)}% ({f.itensPendentes} de {f._count.itens})
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-success/15 text-success border-success/30 tabular-nums">
+                          0%
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <span className={cn(
                         "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border",

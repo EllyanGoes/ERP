@@ -12,7 +12,16 @@ export async function GET() {
     orderBy: { competencia: "desc" },
     include: { _count: { select: { itens: true } } },
   });
-  return NextResponse.json({ data });
+  // Itens ainda sem vínculo de colaborador por folha (p/ a % a classificar).
+  const pendentes = await prisma.folhaItem.groupBy({
+    by: ["folhaId"],
+    where: { folhaId: { in: data.map((f) => f.id) }, colaboradorId: null },
+    _count: { _all: true },
+  });
+  const pendentesPorFolha = new Map(pendentes.map((p) => [p.folhaId, p._count._all]));
+  return NextResponse.json({
+    data: data.map((f) => ({ ...f, itensPendentes: pendentesPorFolha.get(f.id) ?? 0 })),
+  });
 }
 
 // POST /api/rh/folhas — upload do PDF + cria a folha (EM_REVISAO).
