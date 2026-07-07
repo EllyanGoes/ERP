@@ -8,7 +8,8 @@ import DatePicker from "@/components/shared/DatePicker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import { CalendarDays, Plus, Loader2, Users, Trash2, Search, Sun, Moon } from "lucide-react";
+import { usePersistedState } from "@/lib/use-persisted-state";
+import { CalendarDays, Plus, Loader2, Users, Trash2, Search, Sun, Moon, Rows3, List } from "lucide-react";
 
 type Folha = {
   id: string;
@@ -36,6 +37,8 @@ export default function DiaristasPage() {
   const [folhas, setFolhas] = useState<Folha[]>([]);
   const [loading, setLoading] = useState(true);
   const [criando, setCriando] = useState(false);
+  // Preferência do usuário: lista agrupada por dia ou corrida.
+  const [agruparPorDia, setAgruparPorDia] = usePersistedState("diarias.agruparPorDia", true);
 
   // Popup de novo lançamento: data + pré-seleção dos colaboradores
   const [novoOpen, setNovoOpen] = useState(false);
@@ -135,51 +138,75 @@ export default function DiaristasPage() {
             <p className="text-sm text-muted-foreground mt-1">Clique em &quot;Novo lançamento&quot; para começar.</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-border overflow-hidden bg-card">
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Turno</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Pessoas</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Total</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {porData.map(([dia, lista]) => (
-                  <Fragment key={dia}>
-                    <tr className="bg-muted/60">
-                      <td colSpan={5} className="px-4 py-2 font-semibold text-foreground">{fmtData(dia)}</td>
-                    </tr>
-                    {lista.map((f) => (
-                      <tr key={f.id} onClick={() => router.push(`/rh/diaristas/${f.id}`)} className="hover:bg-info/10 cursor-pointer">
-                        <td className="px-4 py-3">
-                          <span className={cn(
-                            "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
-                            f.turno === "NOITE" ? "bg-violet-500/15 text-violet-600 dark:text-violet-400" : "bg-warning/15 text-warning",
-                          )}>
-                            {f.turno === "NOITE" ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
-                            {f.turno === "NOITE" ? "Noite" : "Dia"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {f.qtdePessoas}</span></td>
-                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-foreground">{formatBRL(Number(f.total))}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", f.status === "FECHADA" ? "bg-success/15 text-success" : "bg-info/15 text-info")}>
-                            {f.status === "FECHADA" ? "Fechada" : "Aberta"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button onClick={(e) => excluir(f.id, e)} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="h-4 w-4" /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Alternância de visualização (preferência por usuário) */}
+            <div className="flex justify-end">
+              <div className="inline-flex rounded-lg border border-border overflow-hidden">
+                <button
+                  onClick={() => setAgruparPorDia(true)}
+                  className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium", agruparPorDia ? "bg-info/15 text-info" : "bg-card text-muted-foreground hover:text-foreground")}
+                >
+                  <Rows3 className="h-3.5 w-3.5" /> Agrupado por dia
+                </button>
+                <button
+                  onClick={() => setAgruparPorDia(false)}
+                  className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-l border-border", !agruparPorDia ? "bg-info/15 text-info" : "bg-card text-muted-foreground hover:text-foreground")}
+                >
+                  <List className="h-3.5 w-3.5" /> Lista corrida
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border overflow-hidden bg-card">
+              <table className="w-full text-sm">
+                <thead className="bg-muted border-b border-border">
+                  <tr>
+                    {!agruparPorDia && <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Data</th>}
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Turno</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Pessoas</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Total</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
+                    <th className="w-10" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {(agruparPorDia ? porData : [[null, folhas] as const]).map(([dia, lista]) => (
+                    <Fragment key={dia ?? "todas"}>
+                      {dia && (
+                        <tr className="bg-muted/60">
+                          <td colSpan={5} className="px-4 py-2 font-semibold text-foreground">{fmtData(dia)}</td>
+                        </tr>
+                      )}
+                      {lista.map((f) => (
+                        <tr key={f.id} onClick={() => router.push(`/rh/diaristas/${f.id}`)} className="hover:bg-info/10 cursor-pointer">
+                          {!agruparPorDia && <td className="px-4 py-3 font-medium text-foreground">{fmtData(f.data)}</td>}
+                          <td className="px-4 py-3">
+                            <span className={cn(
+                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold",
+                              f.turno === "NOITE" ? "bg-violet-500/15 text-violet-600 dark:text-violet-400" : "bg-warning/15 text-warning",
+                            )}>
+                              {f.turno === "NOITE" ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
+                              {f.turno === "NOITE" ? "Noite" : "Dia"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {f.qtdePessoas}</span></td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-foreground">{formatBRL(Number(f.total))}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", f.status === "FECHADA" ? "bg-success/15 text-success" : "bg-info/15 text-info")}>
+                              {f.status === "FECHADA" ? "Fechada" : "Aberta"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button onClick={(e) => excluir(f.id, e)} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="h-4 w-4" /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
