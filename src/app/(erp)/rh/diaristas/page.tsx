@@ -6,10 +6,11 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import DatePicker from "@/components/shared/DatePicker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { CalendarDays, Plus, Loader2, Users, Trash2, Search, Sun, Moon, Rows3, List } from "lucide-react";
+import { CalendarDays, Plus, Loader2, Users, Trash2, Search, Sun, Moon, Rows3, List, MoreVertical, ExternalLink } from "lucide-react";
 
 type Folha = {
   id: string;
@@ -110,8 +111,8 @@ export default function DiaristasPage() {
     if (res.ok) { const j = await res.json(); setNovoOpen(false); router.push(`/rh/diaristas/${j.data.id}`); }
   }
 
-  async function excluir(id: string, e: React.MouseEvent) {
-    e.stopPropagation();
+  async function excluir(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
     if (!confirm("Excluir esta folha de diárias? Esta ação é permanente.")) return;
     const res = await fetch(`/api/rh/diaristas/${id}`, { method: "DELETE" });
     if (res.ok) load();
@@ -196,8 +197,20 @@ export default function DiaristasPage() {
                               {f.status === "FECHADA" ? "Fechada" : "Aberta"}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <button onClick={(e) => excluir(f.id, e)} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="h-4 w-4" /></button>
+                          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger render={<button className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Ações" />}>
+                                <MoreVertical className="h-4 w-4" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => router.push(`/rh/diaristas/${f.id}`)}>
+                                  <ExternalLink className="h-4 w-4 mr-2" /> Abrir
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => excluir(f.id)} className="text-danger">
+                                  <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </td>
                         </tr>
                       ))}

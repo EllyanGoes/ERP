@@ -215,7 +215,7 @@ export default function DiariaDetailPage() {
         <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card p-4">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Data</label>
-            <DatePicker value={data} disabled={bloqueado} onChange={(v) => setData(v)} className="w-48" />
+            <DatePicker value={data} disabled={bloqueado} onChange={(v) => setData(v)} className="w-48" triggerClassName="h-10" />
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Turno</label>
@@ -223,17 +223,13 @@ export default function DiariaDetailPage() {
               value={turnoFolha}
               disabled={bloqueado}
               onChange={(e) => setTurnoFolha(e.target.value as "DIA" | "NOITE")}
-              className="h-10 rounded-lg border border-border bg-card px-3 text-sm disabled:opacity-60"
+              className="h-10 w-32 rounded-lg border border-border bg-card px-3 text-sm disabled:opacity-60"
             >
               <option value="DIA">Dia</option>
               <option value="NOITE">Noite</option>
             </select>
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Observações</label>
-            <Input value={observacoes} disabled={bloqueado} onChange={(e) => setObservacoes(e.target.value)} placeholder="Opcional" className="h-10 border-border" />
-          </div>
-          <div className="text-right">
+          <div className="ml-auto text-right">
             <p className="text-xs text-muted-foreground">Total geral · {totalPessoas} pessoa{totalPessoas !== 1 ? "s" : ""}</p>
             <p className="text-2xl font-bold text-foreground tabular-nums">{formatBRL(totalGeral)}</p>
           </div>
