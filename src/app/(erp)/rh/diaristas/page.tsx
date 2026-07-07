@@ -20,8 +20,11 @@ type Folha = {
   qtdeBlocos: number;
 };
 
-const fmtData = (iso: string) =>
-  new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+// Ex.: "07/04/2026 - terça-feira"
+const fmtData = (iso: string) => {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  return `${d.toLocaleDateString("pt-BR")} - ${d.toLocaleDateString("pt-BR", { weekday: "long" })}`;
+};
 
 export default function DiaristasPage() {
   useTabTitle("Lançamento de Diárias");
@@ -59,19 +62,17 @@ export default function DiaristasPage() {
       <PageHeader
         title="Lançamento de Diárias"
         breadcrumbs={[{ label: "Gestão de Pessoas" }, { label: "Lançamento de Diárias" }]}
+        action={
+          <div className="flex items-center gap-2">
+            <DatePicker value={data} onChange={(v) => setData(v)} className="w-44" />
+            <Button onClick={criar} disabled={criando || !data}>
+              {criando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+              Nova folha
+            </Button>
+          </div>
+        }
       />
       <div className="px-8 pb-10 space-y-5">
-        {/* Nova folha */}
-        <div className="flex items-end gap-3 rounded-xl border border-border bg-card p-4">
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Data da folha</label>
-            <DatePicker value={data} onChange={(v) => setData(v)} className="w-48" />
-          </div>
-          <Button onClick={criar} disabled={criando || !data} className="h-10 gap-1.5">
-            {criando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Nova folha
-          </Button>
-        </div>
-
         {loading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
         ) : folhas.length === 0 ? (
@@ -86,7 +87,6 @@ export default function DiaristasPage() {
               <thead className="bg-muted border-b border-border">
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Data</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Blocos</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Pessoas</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Total</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">Status</th>
@@ -96,8 +96,7 @@ export default function DiaristasPage() {
               <tbody className="divide-y divide-border">
                 {folhas.map((f) => (
                   <tr key={f.id} onClick={() => router.push(`/rh/diaristas/${f.id}`)} className="hover:bg-info/10 cursor-pointer">
-                    <td className="px-4 py-3 font-medium text-foreground capitalize">{fmtData(f.data)}</td>
-                    <td className="px-4 py-3 text-center text-muted-foreground">{f.qtdeBlocos}</td>
+                    <td className="px-4 py-3 font-medium text-foreground">{fmtData(f.data)}</td>
                     <td className="px-4 py-3 text-center text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {f.qtdePessoas}</span></td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-foreground">{formatBRL(Number(f.total))}</td>
                     <td className="px-4 py-3 text-center">
