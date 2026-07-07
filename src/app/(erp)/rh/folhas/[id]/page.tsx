@@ -18,10 +18,11 @@ type Item = {
   bruto: string; liquido: string; inssRetido: string; inssPatronal: string; irrf: string; fgts: string;
 };
 type Folha = {
-  id: string; competencia: string; status: "EM_REVISAO" | "FECHADA" | "CANCELADA";
+  id: string; empresaId: string; competencia: string; status: "EM_REVISAO" | "FECHADA" | "CANCELADA";
   arquivoUrl: string | null; arquivoNome: string | null; dataPagamento: string | null;
   totalBruto: string; totalLiquido: string; totalInssRetido: string; totalInssPatronal: string; totalIrrf: string; totalFgts: string;
   criadoPor?: string | null; atualizadoPor?: string | null;
+  createdAt?: string; updatedAt?: string;
   itens: Item[];
 };
 type Colab = { id: string; nome: string; classificacaoCusto: Classif | null };
@@ -41,7 +42,6 @@ export default function FolhaDetalhePage() {
   const [fechando, setFechando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [inssOpen, setInssOpen] = useState(false);
-  const [criandoId, setCriandoId] = useState<string | null>(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [removidos, setRemovidos] = useState<string[]>([]);
@@ -69,8 +69,21 @@ export default function FolhaDetalhePage() {
   }, [id, load]);
 
   useEffect(() => {
-    load().then((f) => {
+    load().then(async (f) => {
       if (search.get("extrair") === "1" && f && f.itens.length === 0 && f.status === "EM_REVISAO") extrair();
+      // Retorno do cadastro de colaborador (botão da linha): vincula o item e
+      // limpa a URL. O cadastro redireciona p/ cá com vincularItem+colaboradorId.
+      const itemId = search.get("vincularItem");
+      const colabId = search.get("colaboradorId");
+      if (itemId && colabId && f?.itens.some((i) => i.id === itemId)) {
+        await fetch(`/api/rh/folhas/${id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ itens: [{ id: itemId, colaboradorId: colabId }] }),
+        });
+        router.replace(`/rh/folhas/${id}`);
+        await load();
+        setAviso("Colaborador cadastrado e vinculado ao item da folha.");
+      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -140,22 +153,19 @@ export default function FolhaDetalhePage() {
     } finally { setAplicando(false); }
   }
 
-  // Cria o cadastro de Colaborador com os dados do item (nome/matrícula/cargo/
-  // classificação) e vincula na hora; se já existir cadastro homônimo, reusa.
+  // Abre o cadastro de Colaborador pré-preenchido com os dados do item da folha;
+  // ao salvar lá, volta para esta tela e o item é vinculado (efeito no load).
   async function criarCadastro(it: Item) {
-    setCriandoId(it.id); setErro("");
-    try {
-      const r = await fetch(`/api/rh/folhas/${id}/criar-colaborador`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: it.id, classificacao: it.classificacao }),
-      });
-      const j = await r.json();
-      if (!r.ok) { setErro(j.error || "Falha ao criar o cadastro"); return; }
-      const c = j.data.colaborador as Colab;
-      setColabs((prev) => prev.some((x) => x.id === c.id) ? prev : [...prev, c].sort((a, b) => a.nome.localeCompare(b.nome)));
-      setItem(it.id, { colaboradorId: c.id });
-      setAviso(j.data.reusado ? `Vinculado ao cadastro já existente: ${c.nome}.` : `Cadastro criado e vinculado: ${c.nome}.`);
-    } finally { setCriandoId(null); }
+    await salvar(); // não perder edições da revisão ao navegar
+    const params = new URLSearchParams({
+      nome: it.nome,
+      classificacao: it.classificacao,
+      retorno: `/rh/folhas/${id}?vincularItem=${it.id}`,
+      ...(it.matricula ? { matricula: it.matricula } : {}),
+      ...(it.cargo ? { cargo: it.cargo } : {}),
+      ...(folha?.empresaId ? { empresaId: folha.empresaId } : {}),
+    });
+    router.push(`/empresa/colaboradores/novo?${params.toString()}`);
   }
 
   // Recalcula o INSS retido de todos os itens a partir do bruto, com a tabela
@@ -317,11 +327,11 @@ export default function FolhaDetalhePage() {
                         {editavel && !it.colaboradorId && !it.id.startsWith("new-") && (
                           <button
                             onClick={() => criarCadastro(it)}
-                            disabled={criandoId === it.id}
-                            title="Criar o cadastro deste funcionário em Colaboradores e vincular"
+                            disabled={salvando}
+                            title="Cadastrar este funcionário em Colaboradores (volta para a folha ao salvar)"
                             className="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-info hover:border-info/50 disabled:opacity-60"
                           >
-                            {criandoId === it.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                            <UserPlus className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -375,7 +385,7 @@ export default function FolhaDetalhePage() {
           </div>
         )}
 
-        <Autoria criadoPor={folha.criadoPor} atualizadoPor={folha.atualizadoPor} />
+        <Autoria criadoPor={folha.criadoPor} criadoEm={folha.createdAt} atualizadoPor={folha.atualizadoPor} atualizadoEm={folha.updatedAt} />
       </div>
 
       <InssConfigDialog open={inssOpen} onOpenChange={setInssOpen} onCalcular={calcularInssDaFolha} podeCalcular={editavel} />

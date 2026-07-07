@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -40,6 +41,11 @@ function Field({ label, required, hint, children }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function NovoColaboradorPage() {
+  const router = useRouter();
+  const search = useSearchParams();
+  // Fluxo de retorno (ex.: botão "cadastrar" na folha de pagamento): a tela abre
+  // pré-preenchida e, ao salvar, volta p/ `retorno` com &colaboradorId=<id>.
+  const retorno = search.get("retorno") || "";
   const [filiais,   setFiliais]   = useState<Filial[]>([]);
   const [empresas,  setEmpresas]  = useState<Empresa[]>([]);
   const [usuarios,  setUsuarios]  = useState<Usuario[]>([]);
@@ -76,6 +82,17 @@ export default function NovoColaboradorPage() {
     },
     viewHref: (id) => `/empresa/colaboradores/${id}`,
   });
+
+  // Pré-preenche a partir da query string (uma vez, no mount).
+  useEffect(() => {
+    const qNome = search.get("nome"); if (qNome) setNome(qNome);
+    const qMatricula = search.get("matricula"); if (qMatricula) setMatricula(qMatricula);
+    const qCargo = search.get("cargo"); if (qCargo) setCargo(qCargo);
+    const qClassif = search.get("classificacao");
+    if (qClassif && ["MOD", "MOI", "ADMIN"].includes(qClassif)) setClassificacaoCusto(qClassif);
+    const qEmpresa = search.get("empresaId"); if (qEmpresa) setEmpresaIds([qEmpresa]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     fetch("/api/empresa/filiais?ativo=true")
@@ -129,6 +146,11 @@ export default function NovoColaboradorPage() {
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Erro ao salvar"); return; }
+      if (retorno) {
+        // Volta p/ a tela de origem já com o id criado (ela faz o vínculo).
+        router.push(`${retorno}${retorno.includes("?") ? "&" : "?"}colaboradorId=${json.id}`);
+        return;
+      }
       confirmCreated(json.id);
     } catch {
       setError("Erro de conexão. Tente novamente.");
@@ -376,7 +398,7 @@ export default function NovoColaboradorPage() {
         {/* Actions */}
         <div className="flex gap-3 justify-end pt-2">
           <Button variant="outline" asChild disabled={saving}>
-            <Link href="/empresa/colaboradores">
+            <Link href={retorno || "/empresa/colaboradores"}>
               <X className="w-4 h-4 mr-1" /> Cancelar
             </Link>
           </Button>
