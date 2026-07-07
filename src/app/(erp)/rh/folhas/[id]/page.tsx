@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
-import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus, CopyCheck, Calculator } from "lucide-react";
+import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus, CopyCheck, Calculator, UserPlus } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import InssConfigDialog, { calcularInssProgressivo, type FaixaInss } from "@/components/rh/InssConfigDialog";
 import { Autoria } from "@/components/shared/Autoria";
@@ -41,6 +41,7 @@ export default function FolhaDetalhePage() {
   const [fechando, setFechando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [inssOpen, setInssOpen] = useState(false);
+  const [criandoId, setCriandoId] = useState<string | null>(null);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [removidos, setRemovidos] = useState<string[]>([]);
@@ -137,6 +138,24 @@ export default function FolhaDetalhePage() {
         (faltam.length ? ` Sem correspondência nesta folha (vincule manualmente ou cadastre o colaborador): ${faltam.join(", ")}.` : ""),
       );
     } finally { setAplicando(false); }
+  }
+
+  // Cria o cadastro de Colaborador com os dados do item (nome/matrícula/cargo/
+  // classificação) e vincula na hora; se já existir cadastro homônimo, reusa.
+  async function criarCadastro(it: Item) {
+    setCriandoId(it.id); setErro("");
+    try {
+      const r = await fetch(`/api/rh/folhas/${id}/criar-colaborador`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: it.id, classificacao: it.classificacao }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setErro(j.error || "Falha ao criar o cadastro"); return; }
+      const c = j.data.colaborador as Colab;
+      setColabs((prev) => prev.some((x) => x.id === c.id) ? prev : [...prev, c].sort((a, b) => a.nome.localeCompare(b.nome)));
+      setItem(it.id, { colaboradorId: c.id });
+      setAviso(j.data.reusado ? `Vinculado ao cadastro já existente: ${c.nome}.` : `Cadastro criado e vinculado: ${c.nome}.`);
+    } finally { setCriandoId(null); }
   }
 
   // Recalcula o INSS retido de todos os itens a partir do bruto, com a tabela
@@ -279,19 +298,33 @@ export default function FolhaDetalhePage() {
                       <div className="text-xs text-muted-foreground">{[it.matricula, it.cargo].filter(Boolean).join(" · ")}</div>
                     </td>
                     <td className="px-3 py-2">
-                      <ComboboxWithCreate
-                        value={it.colaboradorId ?? ""}
-                        onChange={(cid) => {
-                          const c = colabs.find((x) => x.id === cid);
-                          setItem(it.id, { colaboradorId: cid || null, ...(c?.classificacaoCusto ? { classificacao: c.classificacaoCusto } : {}) });
-                        }}
-                        placeholder="Buscar colaborador…"
-                        noneLabel="— selecionar —"
-                        menuMinWidth={340}
-                        triggerClassName={cn("h-8 rounded-md", !it.colaboradorId && "border-warning/50")}
-                        disabled={!editavel}
-                        options={colabs.map((c) => ({ value: c.id, label: c.nome }))}
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex-1 min-w-0">
+                          <ComboboxWithCreate
+                            value={it.colaboradorId ?? ""}
+                            onChange={(cid) => {
+                              const c = colabs.find((x) => x.id === cid);
+                              setItem(it.id, { colaboradorId: cid || null, ...(c?.classificacaoCusto ? { classificacao: c.classificacaoCusto } : {}) });
+                            }}
+                            placeholder="Buscar colaborador…"
+                            noneLabel="— selecionar —"
+                            menuMinWidth={340}
+                            triggerClassName={cn("h-8 rounded-md", !it.colaboradorId && "border-warning/50")}
+                            disabled={!editavel}
+                            options={colabs.map((c) => ({ value: c.id, label: c.nome }))}
+                          />
+                        </div>
+                        {editavel && !it.colaboradorId && !it.id.startsWith("new-") && (
+                          <button
+                            onClick={() => criarCadastro(it)}
+                            disabled={criandoId === it.id}
+                            title="Criar o cadastro deste funcionário em Colaboradores e vincular"
+                            className="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-info hover:border-info/50 disabled:opacity-60"
+                          >
+                            {criandoId === it.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <select
