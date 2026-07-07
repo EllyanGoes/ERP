@@ -25,7 +25,7 @@ import {
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
   Megaphone, Target, Map as MapIcon,
   Receipt, Hash, Scale,
-  Filter, UserPlus,
+  Filter, UserPlus, Globe,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -99,6 +99,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/marketing/funis",                       label: "Funis",                   group: "Marketing",        section: "Funis & Leads",    icon: Filter,         keywords: "funil funis funnel funnelytics canvas jornada conversão aquisição" },
   { href: "/marketing/campanhas",                   label: "Campanhas",               group: "Marketing",        section: "Funis & Leads",    icon: Megaphone,      keywords: "campanha campanhas utm anúncio ads meta google tiktok tráfego" },
   { href: "/marketing/leads",                       label: "Leads",                   group: "Marketing",        section: "Funis & Leads",    icon: UserPlus,       keywords: "lead leads crm oportunidade pipeline kanban prospecção contato" },
+  { href: "/marketing/sites",                       label: "Sites Rastreados",        group: "Marketing",        section: "Funis & Leads",    icon: Globe,          keywords: "site sites tracking rastreamento snippet analytics pixel visitas" },
 
   { href: "/comercial/tabelas-preco",              label: "Tabelas de Preço",        group: "Faturamento",      section: "Cadastros",        icon: Tag,            keywords: "tabela preço lista precos" },
   { href: "/comercial/produtos-venda",             label: "Produtos para Venda",     group: "Faturamento",      section: "Cadastros",        icon: Package,        keywords: "produto vendável catálogo" },
@@ -160,6 +161,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/rh/folhas",                            label: "Folhas de Pagamento",     group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "folha pagamento salário rh gestão de pessoas holerite inss fgts irrf colaborador" },
   { href: "/rh/diaristas",                         label: "Diárias",                 group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "diária diarista diárias lançamento rh gestão de pessoas pagamento mão de obra produção fábrica turno" },
   { href: "/rh/horarios",                          label: "Horários de Trabalho",    group: "Gestão de Pessoas", section: "Cadastros",        icon: Users, keywords: "horário escala trabalho turno jornada expediente rh gestão de pessoas" },
+  { href: "/rh/relatorios",                        label: "Folha & Diárias (Relatório)", group: "Gestão de Pessoas", section: "Relatórios",   icon: BarChart3, keywords: "relatório gráfico folha pagamento diárias custo pessoal rh mensal por dia" },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },

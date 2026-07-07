@@ -77,6 +77,7 @@ import {
   Trash2,
   Filter,
   UserPlus,
+  Globe,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -163,9 +164,10 @@ const mainModules: Module[] = [
       {
         kind: "Funis & Leads",
         items: [
-          { href: "/marketing/funis",     label: "Funis",     icon: Filter },
-          { href: "/marketing/campanhas", label: "Campanhas", icon: Megaphone },
-          { href: "/marketing/leads",     label: "Leads",     icon: UserPlus },
+          { href: "/marketing/funis",     label: "Funis",            icon: Filter },
+          { href: "/marketing/campanhas", label: "Campanhas",        icon: Megaphone },
+          { href: "/marketing/leads",     label: "Leads",            icon: UserPlus },
+          { href: "/marketing/sites",     label: "Sites Rastreados", icon: Globe },
         ],
       },
       {
@@ -361,6 +363,12 @@ const mainModules: Module[] = [
         items: [
           { href: "/rh/folhas", label: "Folhas de Pagamento", icon: FileText },
           { href: "/rh/diaristas", label: "Diárias", icon: CalendarDays },
+        ],
+      },
+      {
+        kind: "Relatórios",
+        items: [
+          { href: "/rh/relatorios", label: "Folha & Diárias", icon: BarChart3 },
         ],
       },
     ],
