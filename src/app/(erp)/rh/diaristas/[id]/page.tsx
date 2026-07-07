@@ -15,11 +15,12 @@ import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users } from "
 type ItemRow = { _key: string; colaboradorId: string; servico: string; valor: string };
 type GrupoRow = { _key: string; tipo: string; setor: string; turno: string; itens: ItemRow[] };
 
-const TIPOS = [{ v: "FIXOS", l: "Fixos" }, { v: "DIVERSAS", l: "Diversas" }];
 const TURNOS = [{ v: "DIA", l: "Dia" }, { v: "NOITE", l: "Noite" }];
 const key = () => Math.random().toString(36).slice(2);
 const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", servico: "", valor: "" });
-const novoGrupo = (): GrupoRow => ({ _key: key(), tipo: "DIVERSAS", setor: "DIVERSOS SETORES FABRICA", turno: "DIA", itens: [novoItem()] });
+// O bloco é POR SETOR: quem está dentro dele estava nesse setor nessa diária.
+// tipo segue no modelo (default DIVERSAS) mas não é mais editável na tela.
+const novoGrupo = (): GrupoRow => ({ _key: key(), tipo: "DIVERSAS", setor: "", turno: "DIA", itens: [novoItem()] });
 const num = (v: string) => { const n = parseFloat((v || "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
 
 export default function DiariaDetailPage() {
@@ -35,11 +36,13 @@ export default function DiariaDetailPage() {
   const [grupos, setGrupos] = useState<GrupoRow[]>([]);
   const [criadoPor, setCriadoPor] = useState<string | null>(null);
   const [colabs, setColabs] = useState<ComboboxOption[]>([]);
+  const [setores, setSetores] = useState<ComboboxOption[]>([]);
 
   const carregar = useCallback(async () => {
-    const [rf, rc] = await Promise.all([
+    const [rf, rc, rs] = await Promise.all([
       fetch(`/api/rh/diaristas/${id}`),
       fetch("/api/empresa/colaboradores?ativo=true"),
+      fetch("/api/empresa/setores"),
     ]);
     if (rf.ok) {
       const { data: f } = await rf.json();
@@ -58,6 +61,12 @@ export default function DiariaDetailPage() {
       const jc = await rc.json();
       const lista: { id: string; nome: string; cargo?: string | null; setor?: { nome: string } | null }[] = jc.data ?? jc ?? [];
       setColabs(lista.map((c) => ({ value: c.id, label: c.nome, code: c.cargo ?? c.setor?.nome ?? undefined })));
+    }
+    if (rs.ok) {
+      const js = await rs.json();
+      const lista: { id: string; nome: string; ativo: boolean }[] = Array.isArray(js) ? js : (js.data ?? []);
+      // O valor do bloco é o NOME do setor (DiariaGrupo.setor é texto).
+      setSetores(lista.filter((s) => s.ativo).map((s) => ({ value: s.nome, label: s.nome })));
     }
     setLoading(false);
   }, [id]);
@@ -130,10 +139,19 @@ export default function DiariaDetailPage() {
           return (
             <div key={g._key} className="rounded-xl border border-border bg-card overflow-hidden">
               <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-muted border-b border-border">
-                <select value={g.tipo} disabled={bloqueado} onChange={(e) => upGrupo(g._key, { tipo: e.target.value })} className="h-9 rounded-lg border border-border bg-card px-2 text-sm font-medium">
-                  {TIPOS.map((t) => <option key={t.v} value={t.v}>Diárias {t.l}</option>)}
-                </select>
-                <Input value={g.setor} disabled={bloqueado} onChange={(e) => upGrupo(g._key, { setor: e.target.value })} placeholder="Setor (ex.: SETOR DE PRODUÇÃO)" className="h-9 flex-1 min-w-[200px] border-border bg-card" />
+                <div className="flex-1 min-w-[220px]">
+                  <ComboboxWithCreate
+                    value={g.setor}
+                    onChange={(v) => upGrupo(g._key, { setor: v })}
+                    // Folhas antigas têm setor em texto livre — mantém o valor visível.
+                    options={g.setor && !setores.some((s) => s.value === g.setor) ? [{ value: g.setor, label: g.setor }, ...setores] : setores}
+                    disabled={bloqueado}
+                    placeholder="Setor do bloco..."
+                    noneLabel="— selecionar setor —"
+                    menuMinWidth={280}
+                    triggerClassName="h-9 rounded-lg font-medium"
+                  />
+                </div>
                 <select value={g.turno} disabled={bloqueado} onChange={(e) => upGrupo(g._key, { turno: e.target.value })} className="h-9 rounded-lg border border-border bg-card px-2 text-sm">
                   {TURNOS.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
                 </select>
