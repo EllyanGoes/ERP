@@ -75,6 +75,8 @@ import {
   Target,
   Map as MapIcon,
   Trash2,
+  Filter,
+  UserPlus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -95,7 +97,7 @@ interface NavItem {
 }
 
 interface SubSection {
-  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral" | "Produção" | "Estrutura" | "Planejamento/Apontamento" | "Outros" | "Inteligência Comercial";
+  kind: "Cadastros" | "Processos" | "Estoque" | "Fluxo de Compras" | "Almoxarifado" | "Relatórios" | "Sistema" | "Comercial" | "Compras" | "Financeiro" | "Configurações" | "Aprovações" | "Manutenção" | "Geral" | "Produção" | "Estrutura" | "Planejamento/Apontamento" | "Outros" | "Inteligência Comercial" | "Funis & Leads";
   items: NavItem[];
 }
 
@@ -156,6 +158,14 @@ const mainModules: Module[] = [
         kind: "Geral",
         items: [
           { href: "/marketing", label: "Painel de Marketing", icon: Megaphone, exact: true },
+        ],
+      },
+      {
+        kind: "Funis & Leads",
+        items: [
+          { href: "/marketing/funis",     label: "Funis",     icon: Filter },
+          { href: "/marketing/campanhas", label: "Campanhas", icon: Megaphone },
+          { href: "/marketing/leads",     label: "Leads",     icon: UserPlus },
         ],
       },
       {
@@ -486,6 +496,7 @@ const kindStyle: Record<SubSection["kind"], string> = {
   "Planejamento/Apontamento":     "text-cyan-500 dark:text-cyan-400",
   "Outros":           "text-gray-400 dark:text-muted-foreground",
   "Inteligência Comercial": "text-fuchsia-500 dark:text-fuchsia-400",
+  "Funis & Leads":    "text-pink-500 dark:text-pink-400",
 };
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────

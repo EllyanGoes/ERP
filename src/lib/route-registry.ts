@@ -25,6 +25,7 @@ import {
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
   Megaphone, Target, Map as MapIcon,
   Receipt, Hash, Scale,
+  Filter, UserPlus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -56,6 +57,7 @@ export const SECTION_COLORS: Record<string, IconColor> = {
   "Relatórios Compras": { bg: "bg-rose-50 dark:bg-rose-500/15",     text: "text-rose-600 dark:text-rose-400",       selBg: "bg-rose-100 dark:bg-rose-500/25",       selText: "text-rose-700 dark:text-rose-300"    },
   "Produção":           { bg: "bg-cyan-50 dark:bg-cyan-500/15",     text: "text-cyan-600 dark:text-cyan-400",       selBg: "bg-cyan-100 dark:bg-cyan-500/25",       selText: "text-cyan-700 dark:text-cyan-300"     },
   "Inteligência Comercial": { bg: "bg-fuchsia-50 dark:bg-fuchsia-500/15", text: "text-fuchsia-600 dark:text-fuchsia-400", selBg: "bg-fuchsia-100 dark:bg-fuchsia-500/25", selText: "text-fuchsia-700 dark:text-fuchsia-300" },
+  "Funis & Leads":          { bg: "bg-pink-50 dark:bg-pink-500/15",       text: "text-pink-600 dark:text-pink-400",       selBg: "bg-pink-100 dark:bg-pink-500/25",       selText: "text-pink-700 dark:text-pink-300"     },
 };
 
 export const DEFAULT_COLOR: IconColor = {
@@ -94,6 +96,9 @@ export const ROUTES: RouteEntry[] = [
   { href: "/marketing/inteligencia-comercial",      label: "Concorrentes",            group: "Marketing",        section: "Inteligência Comercial", icon: Target,  keywords: "inteligencia comercial ic concorrente concorrentes mercado preço precos fornecedor revendedor" },
   { href: "/marketing/inteligencia-comercial/relatorio-precos", label: "Preço de Mercado", group: "Marketing",   section: "Inteligência Comercial", icon: BarChart3, keywords: "preço médio mercado concorrente relatório comparativo ic inteligencia comercial precos" },
   { href: "/marketing/inteligencia-comercial/mapa", label: "Geomarketing",            group: "Marketing",        section: "Inteligência Comercial", icon: MapIcon, keywords: "geomarketing mapa concorrentes localização leaflet ic inteligencia comercial" },
+  { href: "/marketing/funis",                       label: "Funis",                   group: "Marketing",        section: "Funis & Leads",    icon: Filter,         keywords: "funil funis funnel funnelytics canvas jornada conversão aquisição" },
+  { href: "/marketing/campanhas",                   label: "Campanhas",               group: "Marketing",        section: "Funis & Leads",    icon: Megaphone,      keywords: "campanha campanhas utm anúncio ads meta google tiktok tráfego" },
+  { href: "/marketing/leads",                       label: "Leads",                   group: "Marketing",        section: "Funis & Leads",    icon: UserPlus,       keywords: "lead leads crm oportunidade pipeline kanban prospecção contato" },
 
   { href: "/comercial/tabelas-preco",              label: "Tabelas de Preço",        group: "Faturamento",      section: "Cadastros",        icon: Tag,            keywords: "tabela preço lista precos" },
   { href: "/comercial/produtos-venda",             label: "Produtos para Venda",     group: "Faturamento",      section: "Cadastros",        icon: Package,        keywords: "produto vendável catálogo" },

@@ -52,6 +52,9 @@ export const MODULOS: ModuloDef[] = [
       { key: "painel",       label: "Painel de Marketing",        acoes: ["ver"] },
       { key: "concorrentes", label: "Concorrentes (IC)",          acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "geomarketing", label: "Geomarketing",               acoes: ["ver"] },
+      { key: "funis",        label: "Funis de Marketing",         acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "campanhas",    label: "Campanhas",                  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "leads",        label: "Leads",                      acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {

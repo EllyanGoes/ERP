@@ -3,9 +3,27 @@
 import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
-import { Target, Map as MapIcon, ChevronRight } from "lucide-react";
+import { Target, Map as MapIcon, ChevronRight, Filter, Megaphone, UserPlus } from "lucide-react";
 
 const CARDS = [
+  {
+    href: "/marketing/funis",
+    icon: Filter,
+    title: "Funis de Marketing",
+    desc: "Desenhe a jornada de aquisição no canvas (fontes, páginas, ações, etapas) e acompanhe os números reais de cada nó.",
+  },
+  {
+    href: "/marketing/campanhas",
+    icon: Megaphone,
+    title: "Campanhas",
+    desc: "Cadastre campanhas por plataforma (Meta, Google, TikTok, orgânico...) com UTMs para atribuição de leads e tráfego.",
+  },
+  {
+    href: "/marketing/leads",
+    icon: UserPlus,
+    title: "Leads",
+    desc: "Gerencie oportunidades no kanban de etapas, registre a timeline e converta leads em clientes do ERP.",
+  },
   {
     href: "/marketing/inteligencia-comercial",
     icon: Target,

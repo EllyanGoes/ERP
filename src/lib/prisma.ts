@@ -59,6 +59,9 @@ const MODELOS_ESCOPADOS = new Set<string>([
   // Marketing / Inteligência Comercial é COMPARTILHADO por todas as empresas do
   // grupo (Concorrente/ConcorrentePreco NÃO escopam — a coluna empresaId fica só
   // como tag de origem). Mesma base de concorrentes/preços/mapa em qualquer empresa.
+  // Idem Funis/Campanhas/Leads/Tracking (docs/marketing-funis-prd.md): Funil,
+  // FunilNo, Campanha, EtapaLead, Lead, LeadEvento, SiteRastreado, Tracking*,
+  // MetricaNoDiaria, LancamentoManualMetrica, MetricaCampanhaDiaria — fora do escopo.
   "DiariaFolha", "DiariaGrupo", "DiariaItem",
   "Sequencia", "Filial",
   // Módulo Fiscal (camada oficial isolada — docs/fiscal-prd.md). GrupoTributacao
