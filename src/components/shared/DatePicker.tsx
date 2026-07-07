@@ -201,6 +201,7 @@ export default function DatePicker({
   }
 
   function handleType(raw: string) {
+    setOpen(true); // digitar abre o calendário (foco sozinho não abre)
     const formatted = autoFmt(raw);
     setText(formatted);
     if (formatted === "") { onChange(""); return; }
@@ -248,7 +249,8 @@ export default function DatePicker({
           value={text}
           placeholder={placeholder}
           maxLength={10}
-          onFocus={() => setOpen(true)}
+          // Abrir só no clique/digitação — abrir no focus fazia o calendário
+          // aparecer sozinho quando um dialog autofocava o campo.
           onChange={(e) => handleType(e.target.value)}
           className="min-w-0 w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
         />
