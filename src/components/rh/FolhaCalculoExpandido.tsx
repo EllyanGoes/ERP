@@ -148,11 +148,32 @@ export default function FolhaCalculoExpandido({
     proventos.filter((r) => grupoProvento(r) === g).map((r) =>
       linha(r, g === "Benefícios" ? { tag: "não integra base" } : undefined),
     );
+  // Memória de cálculo do INSS pela tabela (faixa da base): deixa claro que a
+  // alíquota é NOMINAL da faixa e o valor = base × alíquota − parcela a deduzir.
+  function notaInss(): string | undefined {
+    const base = det?.baseInss;
+    if (base == null || base <= 0 || faixasInss.length === 0) return undefined;
+    const fs = [...faixasInss].sort((a, b) => a.ate - b.ate);
+    const teto = fs[fs.length - 1].ate;
+    const b = Math.min(base, teto);
+    let idx = fs.findIndex((f) => b <= f.ate);
+    if (idx < 0) idx = fs.length - 1;
+    let parcela = 0;
+    for (let k = 1; k <= idx; k++) parcela += fs[k - 1].ate * (fs[k].aliquota - fs[k - 1].aliquota) / 100;
+    parcela = Math.round(parcela * 100) / 100;
+    const aliq = String(fs[idx].aliquota).replace(".", ",");
+    const calc = Math.round((b * fs[idx].aliquota / 100 - parcela) * 100) / 100;
+    return `= ${formatBRL(b)} × ${aliq}% − ${formatBRL(parcela)} (parcela a deduzir) = ${formatBRL(calc)}`;
+  }
+
   const linhasDesconto = (g: (typeof GRUPOS_DESCONTO)[number]) =>
     descontos.filter((r) => grupoDesconto(r) === g).map((r) => {
       const d = norm(r.descricao);
       if (g === "Tributos" && /INSS/.test(d)) {
-        return linha(r, { badge: <VerificacaoBadge label="tabela × base" esperado={inssEsperado} valor={r.valor} /> });
+        return linha(r, {
+          badge: <VerificacaoBadge label="tabela × base" esperado={inssEsperado} valor={r.valor} />,
+          nota: notaInss(),
+        });
       }
       if (g === "Antecipações") {
         return linha(r, { tooltip: "Valor já pago no meio do mês, abatido aqui." });
