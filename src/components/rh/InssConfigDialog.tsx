@@ -85,6 +85,21 @@ export default function InssConfigDialog({ open, onOpenChange, onCalcular, podeC
   const salarioNum = paraNumero(salarioTeste);
   const inssTeste = Number.isFinite(salarioNum) && parsedPreview.length ? calcularInssProgressivo(salarioNum, parsedPreview) : null;
 
+  // "Parcela a deduzir" de cada faixa (método equivalente ao progressivo:
+  // INSS = base × alíquota − parcela). Depende das faixas anteriores na ordem.
+  const parcelaDeduzir = (i: number): number | null => {
+    const fs = faixas.map((f) => ({ ate: paraNumero(f.ate), aliquota: paraNumero(f.aliquota) }));
+    if (fs.slice(0, i + 1).some((f) => !Number.isFinite(f.ate) || !Number.isFinite(f.aliquota))) return null;
+    let p = 0;
+    for (let k = 1; k <= i; k++) p += fs[k - 1].ate * (fs[k].aliquota - fs[k - 1].aliquota) / 100;
+    return Math.round(p * 100) / 100;
+  };
+  const limiteAnterior = (i: number): number | null => {
+    if (i === 0) return null;
+    const v = paraNumero(faixas[i - 1].ate);
+    return Number.isFinite(v) ? Math.round((v + 0.01) * 100) / 100 : null;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* sm:max-w-lg: o default do DialogContent é sm:max-w-sm — sem o prefixo
@@ -105,26 +120,38 @@ export default function InssConfigDialog({ open, onOpenChange, onCalcular, podeC
             {erro && <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/30 text-danger text-sm">{erro}</div>}
 
             <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_7rem_2rem] gap-2 text-xs text-muted-foreground uppercase tracking-wide px-1">
-                <span>Salário até (R$)</span><span>Alíquota (%)</span><span />
+              <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_7rem_2rem] gap-2 text-xs text-muted-foreground uppercase tracking-wide px-1">
+                <span>Faixa salarial (R$)</span><span>Alíquota (%)</span><span className="text-right">Parcela a deduzir</span><span />
               </div>
-              {faixas.map((f, i) => (
-                <div key={i} className="grid grid-cols-[1fr_7rem_2rem] gap-2 items-center">
-                  <input
-                    inputMode="decimal" value={f.ate}
-                    onChange={(e) => setFaixas((fs) => fs.map((x, j) => j === i ? { ...x, ate: e.target.value } : x))}
-                    className="w-full min-w-0 h-9 rounded-md border border-border bg-card px-2 text-sm text-right tabular-nums"
-                  />
-                  <input
-                    inputMode="decimal" value={f.aliquota}
-                    onChange={(e) => setFaixas((fs) => fs.map((x, j) => j === i ? { ...x, aliquota: e.target.value } : x))}
-                    className="w-full min-w-0 h-9 rounded-md border border-border bg-card px-2 text-sm text-right tabular-nums"
-                  />
-                  <button onClick={() => setFaixas((fs) => fs.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-danger justify-self-center" title="Remover faixa">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+              {faixas.map((f, i) => {
+                const de = limiteAnterior(i);
+                const parcela = parcelaDeduzir(i);
+                return (
+                  <div key={i} className="grid grid-cols-[minmax(0,1fr)_5.5rem_7rem_2rem] gap-2 items-center">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                        {i === 0 ? "Até" : de != null ? `De ${formatBRL(de)} até` : "De … até"}
+                      </span>
+                      <input
+                        inputMode="decimal" value={f.ate}
+                        onChange={(e) => setFaixas((fs) => fs.map((x, j) => j === i ? { ...x, ate: e.target.value } : x))}
+                        className="w-full min-w-0 h-9 rounded-md border border-border bg-card px-2 text-sm text-right tabular-nums"
+                      />
+                    </div>
+                    <input
+                      inputMode="decimal" value={f.aliquota}
+                      onChange={(e) => setFaixas((fs) => fs.map((x, j) => j === i ? { ...x, aliquota: e.target.value } : x))}
+                      className="w-full min-w-0 h-9 rounded-md border border-border bg-card px-2 text-sm text-right tabular-nums"
+                    />
+                    <span className="text-sm text-muted-foreground tabular-nums text-right">
+                      {i === 0 ? "—" : parcela != null ? formatBRL(parcela) : "—"}
+                    </span>
+                    <button onClick={() => setFaixas((fs) => fs.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-danger justify-self-center" title="Remover faixa">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
               <Button variant="outline" size="sm" onClick={() => setFaixas((fs) => [...fs, { ate: "", aliquota: "" }])}>
                 <Plus className="w-4 h-4 mr-1.5" /> Adicionar faixa
               </Button>

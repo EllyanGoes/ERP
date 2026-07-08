@@ -78,11 +78,14 @@ function linha(r: Rubrica, extra?: Partial<RubricaLinha>): RubricaLinha {
 // (proventos − não-integrantes − redutoras) e mostramos o resíduo com
 // transparência quando não fecha — nunca sobrescrever nem "distribuir".
 const NAO_INTEGRA_BASE = new Set([43, 2206, 998, 999, 1005, 1041]);
-const REDUZ_BASE = new Set([84, 89, 100]);
+// Só FALTAS em DIAS (89) reduz a base do INSS — faltas em horas (84) e o
+// desconto de DSR (100) NÃO são considerados (conferido na folha real:
+// proventos − faltas dias = base do PDF, exato).
+const REDUZ_BASE = new Set([89]);
 const naoIntegraBase = (r: Rubrica) =>
   NAO_INTEGRA_BASE.has(codN(r)) || /SAL[ÁA]RIO\s*FAM|PENS[ÃA]O/.test(norm(r.descricao));
 const reduzBase = (r: Rubrica) =>
-  REDUZ_BASE.has(codN(r)) || /FALTAS|DESCONTO DSR/.test(norm(r.descricao));
+  REDUZ_BASE.has(codN(r)) || /FALTAS DIAS/.test(norm(r.descricao));
 
 /**
  * Painel expandido do funcionário: fluxo PROVENTOS − DESCONTOS = LÍQUIDO com
@@ -313,7 +316,7 @@ export default function FolhaCalculoExpandido({
                     {extratoLinha("Total de proventos", totalProventos)}
                     {extratoLinha("− Rubricas que não integram a base", somaNI, { negativo: true })}
                     {subLinhas(naoIntegrantes)}
-                    {extratoLinha("− Deduções da base (faltas/DSR)", somaRed, { negativo: true })}
+                    {extratoLinha("− Deduções da base (faltas em dias)", somaRed, { negativo: true })}
                     {subLinhas(redutoras)}
                     {fecha ? (
                       extratoLinha(`= Base de cálculo${basesIguais ? " (INSS/FGTS/IRRF)" : " (INSS)"} — confere com o PDF ✓`, basePdf!, { forte: true })
@@ -330,7 +333,7 @@ export default function FolhaCalculoExpandido({
                 )}
                 <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                   <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
-                  A base pode diferir do total de proventos: faltas e desconto de DSR reduzem a base; salário família não integra. A base oficial é sempre a do PDF.
+                  A base pode diferir do total de proventos: faltas em DIAS reduzem a base (faltas em horas e desconto de DSR não); salário família não integra. A base oficial é sempre a do PDF.
                 </p>
               </div>
             )}
