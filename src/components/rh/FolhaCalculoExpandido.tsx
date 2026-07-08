@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { cn, formatBRL } from "@/lib/utils";
 import { calcularInssProgressivo, type FaixaInss } from "@/components/rh/InssConfigDialog";
 import RubricaGroup, { type RubricaLinha } from "@/components/rh/RubricaGroup";
 import VerificacaoBadge from "@/components/rh/VerificacaoBadge";
 import EncargosPatronaisBar from "@/components/rh/EncargosPatronaisBar";
-import { Info, Palmtree, FileX2, UserMinus } from "lucide-react";
+import { Info, Palmtree, FileX2, UserMinus, ChevronDown, ChevronRight } from "lucide-react";
 
 // Detalhamento importado do PDF (JSON FolhaItem.rubricas).
 export type Rubrica = { codigo?: string; descricao: string; referencia?: string; tipo: "P" | "D"; valor: number };
@@ -72,6 +73,17 @@ function linha(r: Rubrica, extra?: Partial<RubricaLinha>): RubricaLinha {
   return { codigo: r.codigo, descricao: r.descricao, referencia: fmtRef(r), valor: r.valor, ...extra };
 }
 
+// ── Conciliação das bases de cálculo ─────────────────────────────────────────
+// A base OFICIAL é sempre a do PDF; aqui só estimamos a composição
+// (proventos − não-integrantes − redutoras) e mostramos o resíduo com
+// transparência quando não fecha — nunca sobrescrever nem "distribuir".
+const NAO_INTEGRA_BASE = new Set([43, 2206, 998, 999, 1005, 1041]);
+const REDUZ_BASE = new Set([84, 89, 100]);
+const naoIntegraBase = (r: Rubrica) =>
+  NAO_INTEGRA_BASE.has(codN(r)) || /SAL[ÁA]RIO\s*FAM|PENS[ÃA]O/.test(norm(r.descricao));
+const reduzBase = (r: Rubrica) =>
+  REDUZ_BASE.has(codN(r)) || /FALTAS|DESCONTO DSR/.test(norm(r.descricao));
+
 /**
  * Painel expandido do funcionário: fluxo PROVENTOS − DESCONTOS = LÍQUIDO com
  * as rubricas do PDF agrupadas, bases de cálculo explicadas, conferências e
@@ -86,6 +98,8 @@ export default function FolhaCalculoExpandido({
   valores: Valores;
   faixasInss: FaixaInss[];
 }) {
+  // Composição da base (extrato de conciliação) recolhida por padrão.
+  const [verComposicao, setVerComposicao] = useState(false);
   const det = detalhe;
   if (!det || (det.baseInss == null && !(det.itens?.length))) {
     return (
@@ -226,20 +240,103 @@ export default function FolhaCalculoExpandido({
       </div>
       )}
 
-      {/* Bases de cálculo */}
-      <div className="rounded-lg bg-card border border-border px-4 py-2.5 space-y-1.5">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Bases de cálculo</span>
-          <span className="tabular-nums">Base INSS <span className="font-semibold">{det.baseInss != null ? formatBRL(det.baseInss) : "—"}</span></span>
-          <span className="tabular-nums">Base FGTS <span className="font-semibold">{det.baseFgts != null ? formatBRL(det.baseFgts) : "—"}</span></span>
-          <span className="tabular-nums">Base IRRF <span className="font-semibold">{det.baseIrrf != null ? formatBRL(det.baseIrrf) : "—"}</span></span>
-          <VerificacaoBadge label="FGTS = 8% × base" esperado={fgtsEsperado} valor={valores.fgts} />
-        </div>
-        <p className={cn("flex items-start gap-1.5 text-xs text-muted-foreground")}>
-          <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
-          A base pode diferir do total de proventos: faltas e desconto de DSR reduzem a base; salário família não integra.
-        </p>
-      </div>
+      {/* Bases de cálculo — compacta, com conciliação expansível */}
+      {(() => {
+        const basePdf = det.baseInss;
+        const naoIntegrantes = proventos.filter(naoIntegraBase);
+        const redutoras = descontos.filter(reduzBase);
+        const somaNI = Math.round(naoIntegrantes.reduce((a, r) => a + r.valor, 0) * 100) / 100;
+        const somaRed = Math.round(redutoras.reduce((a, r) => a + r.valor, 0) * 100) / 100;
+        const estimada = Math.round((totalProventos - somaNI - somaRed) * 100) / 100;
+        const residuo = basePdf != null ? Math.round((basePdf - estimada) * 100) / 100 : 0;
+        const fecha = basePdf != null && Math.abs(residuo) <= 0.01;
+        const igual = (a?: number | null, b?: number | null) => a != null && b != null && Math.abs(a - b) <= 0.01;
+        const basesIguais = igual(det.baseInss, det.baseFgts) && igual(det.baseInss, det.baseIrrf);
+        // Base INSS 0 é válida (pensão/afastamento parcial) — só informa, não concilia.
+        const concilia = basePdf != null && basePdf > 0 && rubricas.length > 0;
+
+        const extratoLinha = (label: React.ReactNode, valor: number, opts?: { negativo?: boolean; forte?: boolean }) => (
+          <div className={cn("flex items-baseline gap-2 text-sm", opts?.forte && "font-semibold")}>
+            <span className="min-w-0">{label}</span>
+            <span className="flex-1 border-b border-dotted border-border/70 translate-y-[-3px]" />
+            <span className="tabular-nums shrink-0">{opts?.negativo ? "− " : ""}{formatBRL(valor)}</span>
+          </div>
+        );
+        const subLinhas = (rs: Rubrica[]) => rs.map((r, i) => (
+          <div key={i} className="flex items-baseline gap-2 text-xs text-muted-foreground pl-4">
+            <span className="min-w-0 truncate">{r.descricao}{fmtRef(r) ? ` (${fmtRef(r)})` : ""}</span>
+            <span className="flex-1" />
+            <span className="tabular-nums shrink-0">{formatBRL(r.valor)}</span>
+          </div>
+        ));
+
+        return (
+          <div className="rounded-lg bg-card border border-border px-4 py-2.5 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+              <button
+                onClick={() => setVerComposicao((v) => !v)}
+                className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground"
+                title="Ver composição da base"
+              >
+                {verComposicao ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                Bases de cálculo
+              </button>
+              <span className="tabular-nums">Base INSS <span className="font-semibold">{det.baseInss != null ? formatBRL(det.baseInss) : "—"}</span></span>
+              <span className="tabular-nums">Base FGTS <span className="font-semibold">{det.baseFgts != null ? formatBRL(det.baseFgts) : "—"}</span></span>
+              <span className="tabular-nums">Base IRRF <span className="font-semibold">{det.baseIrrf != null ? formatBRL(det.baseIrrf) : "—"}</span></span>
+              <VerificacaoBadge label="FGTS = 8% × base" esperado={fgtsEsperado} valor={valores.fgts} />
+              {concilia && (
+                <span className={cn(
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium",
+                  fecha ? "bg-success/15 text-success" : "bg-warning/15 text-warning",
+                )}>
+                  {fecha ? "✓ conciliação fecha" : "⚠ conciliação parcial"}
+                </span>
+              )}
+              <button
+                onClick={() => setVerComposicao((v) => !v)}
+                className="text-xs text-info hover:underline"
+              >
+                {verComposicao ? "ocultar composição" : "ver composição"}
+              </button>
+            </div>
+
+            {verComposicao && (
+              <div className="pt-1.5 border-t border-border/60 space-y-1.5 max-w-xl">
+                {!basesIguais && (
+                  <p className="text-xs text-muted-foreground">
+                    As bases diferem neste funcionário — a conciliação abaixo é da <span className="font-medium">Base INSS</span>; FGTS e IRRF são informadas pelo PDF.
+                  </p>
+                )}
+                {concilia ? (
+                  <>
+                    {extratoLinha("Total de proventos", totalProventos)}
+                    {extratoLinha("− Rubricas que não integram a base", somaNI, { negativo: true })}
+                    {subLinhas(naoIntegrantes)}
+                    {extratoLinha("− Deduções da base (faltas/DSR)", somaRed, { negativo: true })}
+                    {subLinhas(redutoras)}
+                    {fecha ? (
+                      extratoLinha(`= Base de cálculo${basesIguais ? " (INSS/FGTS/IRRF)" : " (INSS)"} — confere com o PDF ✓`, basePdf!, { forte: true })
+                    ) : (
+                      <>
+                        {extratoLinha("= Base estimada", estimada, { forte: true })}
+                        {extratoLinha("± Ajuste não identificado", Math.abs(residuo), { negativo: residuo < 0 })}
+                        {extratoLinha(`= Base de cálculo${basesIguais ? " (INSS/FGTS/IRRF)" : " (INSS)"} — PDF`, basePdf!, { forte: true })}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Bases informadas pelo PDF — sem conciliação (base INSS zerada ou sem rubricas detalhadas).</p>
+                )}
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  A base pode diferir do total de proventos: faltas e desconto de DSR reduzem a base; salário família não integra. A base oficial é sempre a do PDF.
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Encargos da empresa (fora do líquido) */}
       <EncargosPatronaisBar fgts={valores.fgts} inssPatronal={valores.inssPatronal} />
