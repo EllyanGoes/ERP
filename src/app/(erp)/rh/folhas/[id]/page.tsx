@@ -87,6 +87,11 @@ export default function FolhaDetalhePage() {
       const r = await fetch(`/api/rh/folhas/${id}/extrair`, { method: "POST" });
       const j = await r.json();
       if (!r.ok) { setErro(j.error || "Falha na extração"); return; }
+      setAviso(
+        j.metodo === "parser"
+          ? `Extração via parser (IA indisponível — sem rubricas detalhadas): ${j.quantidade} itens, ${j.semVinculo} sem vínculo.`
+          : `Extração via IA: ${j.quantidade} itens, ${j.semVinculo} sem vínculo.`,
+      );
       await load();
     } finally { setExtraindo(false); }
   }, [id, load]);

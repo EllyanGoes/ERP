@@ -362,17 +362,24 @@ export async function extrairFolhaPdf(folhaId: string) {
   // Com a chave da IA usa o Claude; senão (ou se a IA falhar) cai no parser
   // determinístico da folha Senior.
   let dados: FolhaExtraida;
+  let metodo: "ia" | "parser";
   if (process.env.ANTHROPIC_API_KEY) {
-    try { dados = await extrairViaIA(pdfBuf); }
-    catch { dados = await extrairViaParser(pdfBuf); }
+    try { dados = await extrairViaIA(pdfBuf); metodo = "ia"; }
+    catch (e) {
+      console.error("[folha] extração via IA falhou — caindo no parser:", e);
+      dados = await extrairViaParser(pdfBuf); metodo = "parser";
+    }
   } else {
-    dados = await extrairViaParser(pdfBuf);
+    console.warn("[folha] ANTHROPIC_API_KEY ausente — extração via parser (sem rubricas detalhadas).");
+    dados = await extrairViaParser(pdfBuf); metodo = "parser";
   }
   if (!dados?.colaboradores?.length) throw new Error("Não foi possível extrair colaboradores do PDF.");
 
-  // Colaboradores da empresa p/ casar por MATRÍCULA (estável) e depois por nome.
+  // Colaboradores p/ casar por MATRÍCULA (estável) e depois por nome: os da
+  // empresa da folha + os sem NENHUMA empresa (cadastro incompleto não pode
+  // impedir o vínculo; quem é exclusivo de outra empresa fica de fora).
   const colabs = await prismaSemEscopo.colaborador.findMany({
-    where: { empresas: { some: { id: folha.empresaId } } },
+    where: { OR: [{ empresas: { some: { id: folha.empresaId } } }, { empresas: { none: {} } }] },
     select: { id: true, nome: true, matricula: true, classificacaoCusto: true },
   });
   const porMatricula = new Map(colabs.filter((c) => c.matricula).map((c) => [c.matricula!.trim(), c]));
@@ -423,7 +430,7 @@ export async function extrairFolhaPdf(folhaId: string) {
       },
     }),
   ]);
-  return { quantidade: itensData.length, semVinculo: itensData.filter((i) => !i.colaboradorId).length };
+  return { quantidade: itensData.length, semVinculo: itensData.filter((i) => !i.colaboradorId).length, metodo };
 }
 
 /** Fecha a folha: valida, apropria e gera as Contas a Pagar. */
