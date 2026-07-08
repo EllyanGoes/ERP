@@ -28,7 +28,7 @@ type BoardOP = { id: string; numero: string; status: string; dia?: string; areaN
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
-type EstoqueLinha = { itemId: string | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
+type EstoqueLinha = { itemId: string | null; produtoItemId?: string | null; pecasPorPalete?: number | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; local?: string | null; suficiente: boolean };
 // Linha da calculadora de perda: nº de vagões/vagonetas e a carga (peças) por produto
 // daquele tipo de vagão. Cheio = 1 produto; meiado = 2+ produtos.
@@ -851,7 +851,7 @@ export default function OrdensBoardPage() {
                   <EstoqueLista linhas={materiais} vazio="Sem materiais na engenharia desta fase." />
                 ) : (
                   <>
-                    <EstoqueLista linhas={entradaWip} estado={area.fromEstado} vazio="Sem PEP de entrada em estoque." />
+                    <EstoqueLista linhas={entradaWip} estado={area.fromEstado} capacidades={capacidades} vazio="Sem PEP de entrada em estoque." />
                     <EstoqueLista linhas={materiais} vazio="" />
                   </>
                 )}
@@ -930,7 +930,7 @@ export default function OrdensBoardPage() {
                   </button>
                 ) : undefined}>
                 {area.estadoSaida ? (
-                  <EstoqueLista linhas={saidaEstoque} estado={area.estadoSaida} vazio="Sem produção ainda." />
+                  <EstoqueLista linhas={saidaEstoque} estado={area.estadoSaida} capacidades={capacidades} vazio="Sem produção ainda." />
                 ) : (() => {
                   // Área sem estado de WIP: a saída é o(s) produto(s) produzido(s) — vem das OPs do dia.
                   const prods = Array.from(new Map(ops.map((o) => [o.produtoCodigo ?? o.produto ?? o.id, o])).values());
@@ -1729,21 +1729,62 @@ function ConsumoEstoque({ consumo, carregando }: { consumo: ConsumoLinha[] | nul
 
 // Lista de saldos de estoque (matéria-prima / PEP / PA), aberta por local.
 // `estado` (opcional) adiciona uma tag de estado WIP no produto (só PEP têm estado).
-function EstoqueLista({ linhas, vazio, estado }: { linhas: EstoqueLinha[] | null; vazio: string; estado?: string | null }) {
+// Veículo em que cada estado de WIP fisicamente circula — é assim que o pátio conta:
+// úmido nas VAGONETAS (conformação→secagem), seco/queimado nos VAGÕES, acabado em PALETES.
+const VEICULO_POR_ESTADO: Record<string, "VAGONETA" | "VAGAO"> = { UMIDO: "VAGONETA", SECO: "VAGAO", QUEIMADO: "VAGAO" };
+const VEICULO_LABEL: Record<string, [string, string]> = { VAGONETA: ["vagoneta", "vagonetas"], VAGAO: ["vagão", "vagões"] };
+
+function EstoqueLista({ linhas, vazio, estado, capacidades }: { linhas: EstoqueLinha[] | null; vazio: string; estado?: string | null; capacidades?: Record<string, { VAGONETA?: number; VAGAO?: number }> }) {
   if (linhas === null) return <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>;
   if (linhas.length === 0) return vazio ? <p className="text-xs text-muted-foreground p-1">{vazio}</p> : null;
+  const veiculo = estado ? VEICULO_POR_ESTADO[estado] : undefined;
+  const acabado = estado === "ACABADO";
+  // Decomposição física do saldo: veículos COMPLETOS (1 produto, capacidade do
+  // cadastro) + sobra em peças. As sobras de 2+ produtos viram o "meiado" no rodapé.
+  const fisico = (m: EstoqueLinha): { cheios: number; sobra: number; cap: number } | null => {
+    if (!veiculo || !m.produtoItemId) return null;
+    const cap = capacidades?.[m.produtoItemId]?.[veiculo];
+    if (!cap || cap <= 0) return null;
+    const cheios = Math.trunc(m.saldoTotal / cap);
+    return { cheios, sobra: Math.round((m.saldoTotal - cheios * cap) * 1000) / 1000, cap };
+  };
+  const sobras = veiculo
+    ? linhas.map((m) => ({ m, f: fisico(m) })).filter((x) => x.f && x.f.sobra > 0)
+    : [];
   return (
     <>
-      {linhas.map((m) => (
+      {linhas.map((m) => {
+        const f = fisico(m);
+        const paletes = acabado && m.pecasPorPalete && m.pecasPorPalete > 0 ? Math.ceil(m.saldoTotal / m.pecasPorPalete) : null;
+        return (
         <div key={m.itemId ?? m.descricao} className={cn("rounded-lg border px-3 py-2 text-xs bg-card", m.saldoTotal > 0 ? "border-border" : "border-warning/40 bg-warning/10")}>
           <div className="flex items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 min-w-0">
               <span className="text-foreground font-medium truncate">{m.descricao}</span>
               {estado && <span className="shrink-0 inline-flex items-center rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 px-1.5 text-[9px] font-semibold uppercase tracking-wide">{ESTADO_LABEL[estado] ?? estado}</span>}
             </span>
-            <span className="shrink-0 tabular-nums">
-              <b className={m.saldoTotal > 0 ? "text-foreground" : "text-warning"}>{m.saldoTotal.toLocaleString("pt-BR")}</b>
-              {m.unidade && <span className="text-muted-foreground ml-1">{m.unidade}</span>}
+            <span className="shrink-0 tabular-nums text-right">
+              {/* Acabado: gerencia-se por PALETE (como é contado no estoque). */}
+              {paletes != null ? (
+                <>
+                  <b className={m.saldoTotal > 0 ? "text-foreground" : "text-warning"}>{paletes.toLocaleString("pt-BR")}</b>
+                  <span className="text-muted-foreground ml-1">PLT</span>
+                  <span className="block text-[10px] text-muted-foreground">{m.saldoTotal.toLocaleString("pt-BR")} pç</span>
+                </>
+              ) : f ? (
+                <>
+                  <b className={m.saldoTotal > 0 ? "text-foreground" : "text-warning"}>{f.cheios.toLocaleString("pt-BR")}</b>
+                  <span className="text-muted-foreground ml-1">{VEICULO_LABEL[veiculo!][Math.abs(f.cheios) === 1 ? 0 : 1]}</span>
+                  <span className="block text-[10px] text-muted-foreground">
+                    {f.sobra !== 0 ? `+ ${f.sobra.toLocaleString("pt-BR")} pç · ` : ""}{m.saldoTotal.toLocaleString("pt-BR")} pç ({f.cap.toLocaleString("pt-BR")}/{VEICULO_LABEL[veiculo!][0]})
+                  </span>
+                </>
+              ) : (
+                <>
+                  <b className={m.saldoTotal > 0 ? "text-foreground" : "text-warning"}>{m.saldoTotal.toLocaleString("pt-BR")}</b>
+                  {m.unidade && <span className="text-muted-foreground ml-1">{m.unidade}</span>}
+                </>
+              )}
             </span>
           </div>
           {m.locais.length > 0 ? (
@@ -1759,7 +1800,15 @@ function EstoqueLista({ linhas, vazio, estado }: { linhas: EstoqueLinha[] | null
             <p className="mt-1 text-[11px] text-warning">Sem saldo</p>
           )}
         </div>
-      ))}
+        );
+      })}
+      {/* Sobras que não fecham veículo: fisicamente andam juntas num MEIADO (2+ materiais). */}
+      {sobras.length >= 2 && veiculo && (
+        <div className="rounded-lg border border-dashed border-violet-300 dark:border-violet-500/40 bg-violet-50/50 dark:bg-violet-500/10 px-3 py-2 text-[11px] text-violet-700 dark:text-violet-300">
+          <b>{VEICULO_LABEL[veiculo][0].charAt(0).toUpperCase() + VEICULO_LABEL[veiculo][0].slice(1)} meiado</b> (sobras):{" "}
+          {sobras.map((x) => `${x.f!.sobra.toLocaleString("pt-BR")} pç ${x.m.descricao}`).join(" · ")}
+        </div>
+      )}
     </>
   );
 }
