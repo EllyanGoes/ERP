@@ -189,7 +189,7 @@ Extraia os dados em JSON ESTRITO (sem comentários, sem markdown), no formato:
       "inssPatronal": number, "irrf": number, "fgts": number,
       "baseInss": number, "baseFgts": number, "baseIrrf": number,
       "totalDescontos": number,
-      "rubricas": [ { "codigo": "string", "descricao": "string", "referencia": "string", "tipo": "P", "valor": number } ] }
+      "rubricas": [ ["codigo", "descricao", "referencia", "P|D", number] ] }
   ]
 }
 Regras:
@@ -201,10 +201,11 @@ Regras:
 - "baseInss" = BASE DO INSS; "baseFgts" = BASE DO FGTS; "baseIrrf" = BASE DO IRRF (MÊS);
   "totalDescontos" = TOTAL DE DESCONTOS. ATENÇÃO: a base do INSS pode ser DIFERENTE do
   total de proventos (faltas e ajustes alteram a base) — copie exatamente o que o documento traz.
-- "rubricas" = TODAS as linhas de proventos e descontos do colaborador, na ordem do documento:
-  "codigo" = código da rubrica (ex.: "97"), "descricao" = texto (ex.: "SALARIO MES CIVIL"),
-  "referencia" = coluna de referência/quantidade como texto (ex.: "31,00", "12,00", "1.1/18"; "" se vazia),
-  "tipo" = "P" para provento, "D" para desconto, "valor" = valor da rubrica.
+- "rubricas" = TODAS as linhas de proventos e descontos do colaborador, na ordem do documento,
+  como ARRAYS COMPACTOS [codigo, descricao, referencia, tipo, valor]:
+  codigo = código da rubrica (ex.: "97"); descricao = texto (ex.: "SALARIO MES CIVIL");
+  referencia = coluna de referência/quantidade como texto (ex.: "31,00", "1.1/18"; "" se vazia);
+  tipo = "P" para provento, "D" para desconto; valor = número.
 - Use ponto decimal e números puros (sem "R$", sem separador de milhar). Inclua TODOS os colaboradores.
 Responda APENAS o JSON.`;
 
@@ -223,10 +224,35 @@ function extrairJson(texto: string): unknown {
   return JSON.parse(limpo.slice(ini, fim + 1));
 }
 
+// Rubrica pode vir como array compacto [codigo, descricao, referencia, tipo, valor]
+// (formato pedido à IA p/ encurtar a resposta) ou como objeto.
+function normalizarRubricas(brutas: unknown): RubricaExtraida[] {
+  if (!Array.isArray(brutas)) return [];
+  return brutas
+    .map((r): RubricaExtraida | null => {
+      if (Array.isArray(r)) {
+        const [codigo, descricao, referencia, tipo, valor] = r as [string, string, string, string, number];
+        if (!descricao) return null;
+        return {
+          codigo: String(codigo ?? "") || undefined,
+          descricao: String(descricao),
+          referencia: String(referencia ?? "") || undefined,
+          tipo: tipo === "D" ? "D" : "P",
+          valor: Number(valor) || 0,
+        };
+      }
+      const o = r as RubricaExtraida;
+      return o?.descricao ? { ...o, tipo: o.tipo === "D" ? "D" : "P", valor: Number(o.valor) || 0 } : null;
+    })
+    .filter((r): r is RubricaExtraida => r !== null);
+}
+
 // Extração via IA (Claude): manda o PDF e recebe o JSON estruturado.
 async function extrairViaIA(pdfBuf: Buffer): Promise<FolhaExtraida> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const resp = await client.messages.create({
+  // Streaming: a resposta com rubricas é longa (minutos) — evita timeouts do
+  // SDK em chamadas não-stream.
+  const stream = client.messages.stream({
     model: MODELO_EXTRACAO,
     // Rubricas detalhadas de dezenas de colaboradores → resposta longa.
     max_tokens: 48000,
@@ -238,8 +264,11 @@ async function extrairViaIA(pdfBuf: Buffer): Promise<FolhaExtraida> {
       ],
     }],
   });
+  const resp = await stream.finalMessage();
   const texto = resp.content.filter((c) => c.type === "text").map((c) => (c as { text: string }).text).join("\n");
-  return extrairJson(texto) as FolhaExtraida;
+  const dados = extrairJson(texto) as FolhaExtraida & { colaboradores: (ColaboradorExtraido & { rubricas?: unknown })[] };
+  for (const c of dados.colaboradores ?? []) c.rubricas = normalizarRubricas(c.rubricas);
+  return dados;
 }
 
 // Parser determinístico da folha Senior (fallback sem IA). Usa âncoras estáveis

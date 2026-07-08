@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// Extração com rubricas detalhadas gera resposta longa da IA (minutos).
+export const maxDuration = 300;
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { extrairFolhaPdf } from "@/lib/folha";
