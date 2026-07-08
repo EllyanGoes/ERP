@@ -19,31 +19,57 @@ type Valores = { bruto: number; liquido: number; inssRetido: number; inssPatrona
 
 const norm = (s: string) => s.toUpperCase();
 const cod = (r: Rubrica) => (r.codigo ?? "").replace(/^0+/, "");
+const codN = (r: Rubrica) => parseInt(cod(r) || "-1", 10);
 
-// ── Agrupamento pedagógico das rubricas ──────────────────────────────────────
-const GRUPOS_PROVENTO = ["Salário", "Adicionais", "Horas extras + DSR", "Benefícios", "Outros proventos"] as const;
+// ── Agrupamento pedagógico das rubricas (por CÓDIGO, com fallback textual) ──
+const GRUPOS_PROVENTO = ["Salário", "Adicionais", "Horas extras + DSR", "Férias/13º/Rescisão", "Benefícios", "Outros proventos"] as const;
 function grupoProvento(r: Rubrica): (typeof GRUPOS_PROVENTO)[number] {
+  const c = codN(r);
+  if ([43, 2206].includes(c)) return "Benefícios";
+  if ([97, 35, 104].includes(c)) return "Salário";
+  if ([61, 72, 73, 199, 241, 202, 2205].includes(c)) return "Adicionais";
+  if ([13, 183, 6].includes(c)) return "Horas extras + DSR";
+  if ([11, 20, 33, 37, 41, 48, 1001, 1002].includes(c)) return "Férias/13º/Rescisão";
   const d = norm(r.descricao);
   if (/SAL[ÁA]RIO\s*FAM/.test(d)) return "Benefícios";
+  if (/F[ÉE]RIAS|13[ºO°]|RESCIS/.test(d)) return "Férias/13º/Rescisão";
   if (/HORA EXTRA|(^|\s)DSR($|\s)/.test(d)) return "Horas extras + DSR";
   if (/INSALUBRIDAD|PERICULOSIDADE|NOTURNO|ADICIONAL/.test(d)) return "Adicionais";
   if (/SAL[ÁA]RIO|VENCIMENTO|ORDENADO/.test(d)) return "Salário";
   return "Outros proventos";
 }
 
-const GRUPOS_DESCONTO = ["Tributos", "Ausências", "Antecipações", "Compensações", "Consignados / Outros"] as const;
+const GRUPOS_DESCONTO = ["Tributos", "Ausências", "Antecipações", "Consignados / Outros", "Compensações", "Outros descontos"] as const;
 function grupoDesconto(r: Rubrica): (typeof GRUPOS_DESCONTO)[number] {
+  const c = codN(r);
   const d = norm(r.descricao);
-  const c = cod(r);
-  if (c === "998" || c === "999" || /RESCIS|COMPENSA/.test(d)) return "Compensações";
-  if (/INSS|IRRF|IRF\b|IMPOSTO/.test(d)) return "Tributos";
-  if (/FALTA|DESCONTO DSR|ATRASO/.test(d)) return "Ausências";
-  if (/ADIANTAMENTO/.test(d)) return "Antecipações";
-  return "Consignados / Outros";
+  if ([998, 999, 1005].includes(c) || /RESCIS|COMPENSA/.test(d)) return "Compensações";
+  if ([1074, 1075].includes(c) || /INSS|IRRF|IRF\b|IMPOSTO/.test(d)) return "Tributos";
+  if ([84, 89, 100].includes(c) || /FALTA|DESCONTO DSR|ATRASO/.test(d)) return "Ausências";
+  if (c === 181 || /ADIANTAMENTO/.test(d)) return "Antecipações";
+  if ((c >= 9253 && c <= 9258) || [80, 83, 1041].includes(c) || /CONSIGNADO|EMPREST|VALE|PENS[ÃA]O/.test(d)) return "Consignados / Outros";
+  return "Outros descontos";
+}
+
+// Referência formatada por semântica: parcela de consignado, alíquota do INSS,
+// dias (salário/faltas/DSR) ou horas.
+function fmtRef(r: Rubrica): string | undefined {
+  const ref = (r.referencia ?? "").trim();
+  if (!ref) return undefined;
+  const par = ref.match(/^(?:\d+\.)?(\d+\/\d+)$/);
+  if (par) return `parc. ${par[1]}`;
+  const d = norm(r.descricao);
+  if ([1074, 1075].includes(codN(r)) || /INSS/.test(d)) return `${ref.replace(/,00$/, "")}%`;
+  if (/HORA/.test(d)) return `${ref}h`;
+  if (/MES CIVIL|FALTAS DIAS|DESCONTO DSR/.test(d)) {
+    const v = ref.replace(/,00$/, "");
+    return `${v} dia${v === "1" ? "" : "s"}`;
+  }
+  return ref;
 }
 
 function linha(r: Rubrica, extra?: Partial<RubricaLinha>): RubricaLinha {
-  return { codigo: r.codigo, descricao: r.descricao, referencia: r.referencia || undefined, valor: r.valor, ...extra };
+  return { codigo: r.codigo, descricao: r.descricao, referencia: fmtRef(r), valor: r.valor, ...extra };
 }
 
 /**
@@ -103,7 +129,7 @@ export default function FolhaCalculoExpandido({
   // ── Linhas por grupo, com tags/tooltips/badges nos pontos certos ────────────
   const linhasProvento = (g: (typeof GRUPOS_PROVENTO)[number]) =>
     proventos.filter((r) => grupoProvento(r) === g).map((r) =>
-      linha(r, g === "Benefícios" ? { tag: "não tributável" } : undefined),
+      linha(r, g === "Benefícios" ? { tag: "não integra base" } : undefined),
     );
   const linhasDesconto = (g: (typeof GRUPOS_DESCONTO)[number]) =>
     descontos.filter((r) => grupoDesconto(r) === g).map((r) => {
@@ -115,7 +141,7 @@ export default function FolhaCalculoExpandido({
         return linha(r, { tooltip: "Valor já pago no meio do mês, abatido aqui." });
       }
       if (g === "Compensações") {
-        return linha(r, { tag: "compensação" });
+        return linha(r, { tag: "pago em recibo separado" });
       }
       return linha(r);
     });

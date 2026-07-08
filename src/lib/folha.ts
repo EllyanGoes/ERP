@@ -271,10 +271,99 @@ async function extrairViaIA(pdfBuf: Buffer): Promise<FolhaExtraida> {
   return dados;
 }
 
+// ── Rubricas (parser) ────────────────────────────────────────────────────────
+// Cada linha visual do PDF traz o provento (coluna esquerda) e o desconto
+// (coluna direita) CONCATENADOS no texto linearizado:
+//   "13 HORA EXTRA - 100% 12,41 332,47 181 ADIANTAMENTO SALARIAL 304,24"
+// Formato de cada rubrica: CÓDIGO DESCRIÇÃO [REF] VALOR, onde REF é opcional
+// (horas/dias/alíquota "31,00" ou parcela de consignado "1.1/25").
+const MONEY_RE = /^\d{1,3}(?:\.\d{3})*,\d{2}$/;
+const PARCELA_RE = /^(?:\d+\.)?\d+\/\d+$/;
+const CODE_RE = /^\d{1,4}$/;
+
+function parseRubricasLinha(line: string): RubricaExtraida[] {
+  const numBR = (s: string) => parseFloat(s.replace(/\./g, "").replace(",", "."));
+  const toks = line.trim().split(/\s+/);
+  const rubs: RubricaExtraida[] = [];
+  let i = 0;
+  while (i < toks.length) {
+    if (!CODE_RE.test(toks[i])) { i++; continue; }
+    const codigo = toks[i++];
+    const desc: string[] = [];
+    let referencia: string | undefined;
+    let valor: number | undefined;
+    while (i < toks.length) {
+      const t = toks[i];
+      if (MONEY_RE.test(t)) {
+        // Dois valores seguidos → o primeiro é a referência (horas/dias/alíquota).
+        if (i + 1 < toks.length && MONEY_RE.test(toks[i + 1])) { referencia = t; valor = numBR(toks[i + 1]); i += 2; }
+        else { valor = numBR(t); i++; }
+        break;
+      }
+      if (PARCELA_RE.test(t) && i + 1 < toks.length && MONEY_RE.test(toks[i + 1])) {
+        referencia = t; valor = numBR(toks[i + 1]); i += 2; break;
+      }
+      // Descrição pode conter números soltos ("EMPREST. CONSIGNADO 1") — só
+      // viram código de nova rubrica depois de fecharmos a atual no valor.
+      desc.push(t); i++;
+    }
+    if (valor !== undefined && desc.length) {
+      rubs.push({ codigo, descricao: desc.join(" "), referencia, tipo: "P", valor });
+    } else break; // linha malformada — não arrisca
+  }
+  return rubs;
+}
+
+// Códigos/descrições tipicamente de DESCONTO (fallback quando a soma não fecha).
+const D_CODES = new Set(["80", "83", "84", "89", "100", "181", "998", "999", "1005", "1041", "1074", "1075", "9253", "9254", "9255", "9256", "9257", "9258"]);
+const D_DESC = /INSS|IRRF|FALTA|DESCONTO|ADIANTAMENTO|CONSIGNADO|VALE|PENS[ÃA]O|EMPREST/;
+
+/**
+ * Classifica P/D as rubricas de um funcionário:
+ * - linha com DUAS rubricas → esquerda = provento, direita = desconto (layout);
+ * - linha com UMA rubrica é ambígua (a outra coluna estava vazia) → resolve por
+ *   subset-sum contra o TOTAL DE PROVENTOS do documento; sem solução exata,
+ *   cai na heurística por código/descrição (o badge da tela acusa se errar).
+ */
+function classificarLados(linhas: RubricaExtraida[][], totalProventos: number, totalDescontos: number): RubricaExtraida[] {
+  const fixas: RubricaExtraida[] = [];
+  const ambiguas: RubricaExtraida[] = [];
+  for (const rubs of linhas) {
+    if (rubs.length >= 2) {
+      fixas.push({ ...rubs[0], tipo: "P" });
+      for (const r of rubs.slice(1)) fixas.push({ ...r, tipo: "D" });
+    } else if (rubs.length === 1) {
+      ambiguas.push(rubs[0]);
+    }
+  }
+  const somaPFixa = fixas.filter((r) => r.tipo === "P").reduce((a, r) => a + r.valor, 0);
+  const alvoP = Math.round((totalProventos - somaPFixa) * 100); // em centavos
+  // Subset-sum exato (ambíguas são poucas — 2^n é barato até n≈16).
+  let solucao: number | null = null;
+  if (ambiguas.length <= 16 && totalProventos > 0) {
+    const cents = ambiguas.map((r) => Math.round(r.valor * 100));
+    for (let mask = 0; mask < (1 << ambiguas.length); mask++) {
+      let s = 0;
+      for (let b = 0; b < ambiguas.length; b++) if (mask & (1 << b)) s += cents[b];
+      if (Math.abs(s - alvoP) <= 1) { solucao = mask; break; }
+    }
+  }
+  const resolvidas = ambiguas.map((r, b) => ({
+    ...r,
+    tipo: (solucao !== null
+      ? (solucao & (1 << b)) !== 0 ? "P" : "D"
+      : (D_CODES.has((r.codigo ?? "").replace(/^0+/, "")) || D_DESC.test(r.descricao.toUpperCase()) ? "D" : "P")) as "P" | "D",
+  }));
+  const todas = [...fixas, ...resolvidas];
+  // Sanidade: se descontos também não fecham, deixa como está — a conferência
+  // visual (badges) aponta a divergência.
+  void totalDescontos;
+  return todas;
+}
+
 // Parser determinístico da folha Senior (fallback sem IA). Usa âncoras estáveis
 // (TOTAL DE PROVENTOS, SALÁRIO LÍQUIDO, FGTS A RECOLHER MÊS) — bruto/líquido/FGTS
-// por colaborador. As demais retenções (INSS/IRRF) entram em "Outros a Repassar"
-// (o balanço fecha); a IA faz a separação fina quando disponível.
+// e as RUBRICAS detalhadas por colaborador.
 function parseFolhaSenior(text: string): FolhaExtraida {
   const num = (s?: string) => s ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : 0;
   const competencia = text.match(/COMPET[ÊE]NCIA\s*:?\s*(\d{1,2}\/\d{4})/)?.[1];
@@ -292,6 +381,9 @@ function parseFolhaSenior(text: string): FolhaExtraida {
   const liqRe = /SAL[ÁA]RIO L[ÍI]QUIDO\s*:?\s*([\d.]+,\d{2})/g;
   const colaboradores: ColaboradorExtraido[] = [];
   let ml: RegExpExecArray | null;
+  // Cursor do fim do bloco anterior — as rubricas do funcionário atual ficam
+  // entre ele e a linha do nome.
+  let fimAnterior = 0;
   // Última ocorrência do padrão na janela — o texto intercala funcionários, e a
   // ocorrência mais próxima (acima do rótulo) é a do funcionário atual.
   const ultima = (s: string, re: RegExp): string | undefined => {
@@ -319,22 +411,38 @@ function parseFolhaSenior(text: string): FolhaExtraida {
     const perto = nomeAnt && (ml.index - nomeAnt.idx) < 2500;
     // Sanidade: descarta linhas de resumo (líquido > bruto) e blocos sem nome próximo.
     if (bruto > 0 && liquido <= bruto + 0.01 && perto) {
+      // Rubricas: linhas com cara de rubrica (código no início + valor com
+      // centavos) entre o fim do bloco anterior e a linha do nome.
+      const regiao = text.slice(fimAnterior, nomeAnt!.idx);
+      const linhas = regiao
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => CODE_RE.test(l.split(/\s+/)[0] ?? "") && /\d,\d{2}/.test(l))
+        .map(parseRubricasLinha)
+        .filter((rs) => rs.length > 0);
+      const rubricas = classificarLados(linhas, bruto, totalDescontos);
       colaboradores.push({
         nome: nomeAnt!.nome, matricula: nomeAnt!.matricula, bruto, liquido,
         inssRetido, irrf: 0, fgts, inssPatronal: 0,
         baseInss, baseFgts, baseIrrf, totalDescontos,
+        rubricas,
       });
     }
+    // Avança o cursor p/ o fim do bloco deste funcionário (fim do quadro FGTS).
+    const mf = janela.match(fgtsRe);
+    fimAnterior = ml.index + (mf && mf.index != null ? mf.index + mf[0].length : ml[0].length);
   }
   return { competencia, dataPagamento, colaboradores };
 }
 
 // Extração via parser (sem IA): extrai o texto do PDF com unpdf e aplica o parser.
+// mergePages:false preserva as QUEBRAS DE LINHA dentro da página (o merge da
+// lib achata tudo em espaços e o parser de rubricas depende das linhas).
 async function extrairViaParser(pdfBuf: Buffer): Promise<FolhaExtraida> {
   const { extractText, getDocumentProxy } = await import("unpdf");
   const pdf = await getDocumentProxy(new Uint8Array(pdfBuf));
-  const { text } = await extractText(pdf, { mergePages: true });
-  return parseFolhaSenior(Array.isArray(text) ? text.join("\n") : text);
+  const { text } = await extractText(pdf, { mergePages: false });
+  return parseFolhaSenior((Array.isArray(text) ? text : [text]).join("\n"));
 }
 
 // Lê o PDF (privado) do Vercel Blob via SDK. O pathname é derivado da URL salva.

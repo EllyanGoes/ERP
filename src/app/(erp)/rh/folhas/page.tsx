@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
-import { Loader2, Upload, FileText } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Loader2, Upload, FileText, MoreVertical, Pencil, Trash2 } from "lucide-react";
 
 type Folha = {
   id: string;
@@ -41,6 +42,15 @@ export default function FolhasPage() {
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+
+  async function excluir(f: Folha) {
+    if (!confirm(`Excluir a folha ${competenciaLabel(f.competencia)}? Esta ação é permanente.`)) return;
+    const r = await fetch(`/api/rh/folhas/${f.id}`, { method: "DELETE" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setErro(j.error || "Falha ao excluir a folha"); return; }
+    setErro("");
+    load();
+  }
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -97,6 +107,7 @@ export default function FolhasPage() {
                   <th className="text-right px-4 py-3 font-semibold">Líquido</th>
                   <th className="text-center px-4 py-3 font-semibold">Classificação</th>
                   <th className="text-center px-4 py-3 font-semibold">Status</th>
+                  <th className="w-10" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -129,6 +140,21 @@ export default function FolhasPage() {
                       )}>
                         {STATUS_LABEL[f.status]}
                       </span>
+                    </td>
+                    <td className="px-2 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger render={<button className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Ações" />}>
+                          <MoreVertical className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => router.push(`/rh/folhas/${f.id}`)}>
+                            <Pencil className="h-4 w-4 mr-2" /> Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => excluir(f)} className="text-danger" disabled={f.status === "FECHADA"}>
+                            <Trash2 className="h-4 w-4 mr-2" /> Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 ))}

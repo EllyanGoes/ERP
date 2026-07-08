@@ -224,6 +224,15 @@ export default function FolhaDetalhePage() {
     });
   }
 
+  async function excluirFolha() {
+    if (!folha) return;
+    if (!confirm(`Excluir a folha ${compLabel(folha.competencia)}? Esta ação é permanente.`)) return;
+    const r = await fetch(`/api/rh/folhas/${id}`, { method: "DELETE" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setErro(j.error || "Falha ao excluir a folha"); return; }
+    router.push("/rh/folhas");
+  }
+
   async function fechar() {
     if (!folha) return;
     if (folha.itens.some((i) => !i.colaboradorId)) { setErro("Vincule todos os colaboradores antes de fechar."); return; }
@@ -273,6 +282,11 @@ export default function FolhaDetalhePage() {
               <Button onClick={fechar} disabled={fechando || semVinculo > 0}>
                 {fechando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
                 Fechar folha
+              </Button>
+            )}
+            {editavel && (
+              <Button variant="outline" onClick={excluirFolha} className="border-danger/30 text-danger hover:bg-danger/10" title="Excluir a folha">
+                <Trash2 className="w-4 h-4" />
               </Button>
             )}
           </div>
