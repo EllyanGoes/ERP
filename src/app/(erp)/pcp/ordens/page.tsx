@@ -149,6 +149,21 @@ export default function OrdensBoardPage() {
   // Saldo inicial de WIP
   const [saldoIni, setSaldoIni] = useState<SaldoInicial | null>(null);
   const [salvandoSaldo, setSalvandoSaldo] = useState(false);
+  // Popup "Saldo": visão geral dos WIPs (úmido/seco/queimado) do fluxo, com o
+  // lançamento de saldo inicial por estado (substitui os botões dos cards).
+  const [saldoPopup, setSaldoPopup] = useState(false);
+  const [saldosWip, setSaldosWip] = useState<Record<string, EstoqueLinha[] | null>>({});
+  const ESTADOS_WIP = ["UMIDO", "SECO", "QUEIMADO"] as const;
+  function abrirSaldoPopup() {
+    setSaldoPopup(true);
+    setSaldosWip({ UMIDO: null, SECO: null, QUEIMADO: null });
+    for (const est of ESTADOS_WIP) {
+      fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${est}`)
+        .then((r) => r.json())
+        .then((j) => setSaldosWip((s) => ({ ...s, [est]: j.data ?? [] })))
+        .catch(() => setSaldosWip((s) => ({ ...s, [est]: [] })));
+    }
+  }
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
@@ -509,6 +524,7 @@ export default function OrdensBoardPage() {
       const a = areas.find((x) => x.nodeId === areaNodeId) ?? null;
       if (a?.fromEstado) fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.fromEstado}`).then((r) => r.json()).then((j) => setEntradaWip(j.data ?? []));
       if (a?.estadoSaida) fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.estadoSaida}`).then((r) => r.json()).then((j) => setSaidaEstoque(j.data ?? []));
+      if (saldoPopup) abrirSaldoPopup(); // recarrega o popup de saldo, se aberto
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setSalvandoSaldo(false); }
   }
 
@@ -762,6 +778,10 @@ export default function OrdensBoardPage() {
           <button onClick={() => { loadOps(); if (vista === "lista") loadLista(); }} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={cn("w-4 h-4", (carregandoOps || carregandoLista) && "animate-spin")} /> Atualizar
           </button>
+          {/* Saldo dos WIPs do fluxo (úmido/seco/queimado) + lançamento de saldo inicial */}
+          <button onClick={abrirSaldoPopup} disabled={!fluxoId} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50">
+            <Boxes className="w-4 h-4" /> Saldo
+          </button>
           {/* Busca de OPs: filtra os cards do board e a lista (número/produto/responsável) */}
           <div className="ml-auto relative">
             <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -840,13 +860,7 @@ export default function OrdensBoardPage() {
             ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
-              <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}
-                acao={!area.isPrimeira && area.fromEstado && area.fromEstado !== "ACABADO" ? (
-                  <button onClick={() => { setSaldoIni({ estado: area.fromEstado!, itemId: produtos[0]?.id ?? "", quantidade: "", unidadeId: (produtos[0]?.unidades.find((u) => u.isPrincipal) ?? produtos[0]?.unidades[0])?.id ?? "", data: hoje() }); setErro(null); }}
-                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-amber-300 dark:border-amber-800 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30" title="Definir saldo inicial">
-                    <Plus className="w-3 h-3" /> Saldo inicial
-                  </button>
-                ) : undefined}>
+              <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}>
                 {area.isPrimeira ? (
                   <EstoqueLista linhas={materiais} vazio="Sem materiais na engenharia desta fase." />
                 ) : (
@@ -1469,6 +1483,35 @@ export default function OrdensBoardPage() {
         </div>
         );
       })()}
+
+      {/* Popup Saldo — WIPs do fluxo por estado, contados no veículo do pátio */}
+      {saldoPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSaldoPopup(false)}>
+          <div className="w-full max-w-4xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Boxes className="w-5 h-5 text-amber-600" /> Saldo de produção (WIP)</h2>
+              <button onClick={() => setSaldoPopup(false)} className="text-muted-foreground hover:text-foreground text-sm">Fechar ✕</button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Produto em processo por estado, contado como no pátio (vagonetas/vagões + sobras). O saldo inicial é lançado pelo botão de cada estado.</p>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+              {ESTADOS_WIP.map((est) => (
+                <div key={est} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ESTADO_LABEL[est] ?? est}</p>
+                    <button onClick={() => { setSaldoIni({ estado: est, itemId: produtos[0]?.id ?? "", quantidade: "", unidadeId: (produtos[0]?.unidades.find((u) => u.isPrincipal) ?? produtos[0]?.unidades[0])?.id ?? "", data: hoje() }); setErro(null); }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-amber-300 dark:border-amber-500/40 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+                      <Plus className="w-3 h-3" /> Saldo inicial
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    <EstoqueLista linhas={saldosWip[est] ?? null} estado={est} capacidades={capacidades} vazio="Sem saldo neste estado." />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal saldo inicial de WIP */}
       {saldoIni && (
