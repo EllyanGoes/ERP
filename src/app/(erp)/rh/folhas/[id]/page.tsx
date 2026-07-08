@@ -1,21 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
-import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus, CopyCheck, Calculator, UserPlus } from "lucide-react";
+import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus, CopyCheck, Calculator, UserPlus, ChevronRight, ChevronDown } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import InssConfigDialog, { calcularInssProgressivo, type FaixaInss } from "@/components/rh/InssConfigDialog";
 import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
 
 type Classif = "MOD" | "MOI" | "ADMIN";
+// Detalhamento importado do PDF (bases + rubricas) — o INSS incide na BASE DO
+// INSS, não no total de proventos (faltas/ajustes alteram a base).
+type Rubrica = { codigo?: string; descricao: string; referencia?: string; tipo: "P" | "D"; valor: number };
+type Detalhe = {
+  baseInss?: number | null; baseFgts?: number | null; baseIrrf?: number | null;
+  totalProventos?: number | null; totalDescontos?: number | null;
+  itens?: Rubrica[];
+} | null;
 type Item = {
   id: string; nome: string; cargo: string | null; matricula: string | null;
   colaboradorId: string | null; classificacao: Classif;
   bruto: string; liquido: string; inssRetido: string; inssPatronal: string; irrf: string; fgts: string;
+  rubricas?: Detalhe;
 };
 type Folha = {
   id: string; empresaId: string; competencia: string; status: "EM_REVISAO" | "FECHADA" | "CANCELADA";
@@ -42,6 +51,9 @@ export default function FolhaDetalhePage() {
   const [fechando, setFechando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [inssOpen, setInssOpen] = useState(false);
+  // Linhas expandidas (detalhamento do cálculo) e tabela do INSS p/ conferência.
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const [faixasInss, setFaixasInss] = useState<FaixaInss[]>([]);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
   const [removidos, setRemovidos] = useState<string[]>([]);
@@ -85,6 +97,11 @@ export default function FolhaDetalhePage() {
         setAviso("Colaborador cadastrado e vinculado ao item da folha.");
       }
     });
+    // Tabela do INSS p/ conferir o retido de cada item contra a base.
+    fetch("/api/rh/inss-config")
+      .then((r) => r.json())
+      .then((j) => setFaixasInss(Array.isArray(j.data?.faixas) ? j.data.faixas : []))
+      .catch(() => setFaixasInss([]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -173,10 +190,22 @@ export default function FolhaDetalhePage() {
   function calcularInssDaFolha(faixas: FaixaInss[]) {
     setFolha((prev) => prev ? {
       ...prev,
-      itens: prev.itens.map((i) => ({ ...i, inssRetido: calcularInssProgressivo(N(i.bruto), faixas).toFixed(2) })),
+      // O INSS incide na BASE DO INSS do documento; sem base extraída, cai no bruto.
+      itens: prev.itens.map((i) => ({
+        ...i,
+        inssRetido: calcularInssProgressivo(i.rubricas?.baseInss ?? N(i.bruto), faixas).toFixed(2),
+      })),
     } : prev);
     setErro("");
-    setAviso('INSS recalculado a partir do bruto de cada item — confira os valores e clique em "Salvar revisão".');
+    setAviso('INSS recalculado sobre a base do INSS de cada item (bruto quando não há base) — confira e clique em "Salvar revisão".');
+  }
+
+  function toggleExpandido(itemId: string) {
+    setExpandidos((prev) => {
+      const n = new Set(prev);
+      n.has(itemId) ? n.delete(itemId) : n.add(itemId);
+      return n;
+    });
   }
 
   async function fechar() {
@@ -280,6 +309,7 @@ export default function FolhaDetalhePage() {
             <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wider">
                 <tr>
+                  <th className="w-8 px-2 py-3"></th>
                   <th className="text-left px-3 py-3 font-semibold">Funcionário (folha)</th>
                   <th className="text-left px-3 py-3 font-semibold w-56">Colaborador</th>
                   <th className="text-left px-3 py-3 font-semibold w-28">Classif.</th>
@@ -294,7 +324,17 @@ export default function FolhaDetalhePage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {folha.itens.map((it) => (
-                  <tr key={it.id} className={cn("hover:bg-muted", !it.colaboradorId && "bg-warning/5")}>
+                  <Fragment key={it.id}>
+                  <tr className={cn("hover:bg-muted", !it.colaboradorId && "bg-warning/5")}>
+                    <td className="px-2 py-2 text-center align-middle">
+                      <button
+                        onClick={() => toggleExpandido(it.id)}
+                        className="text-muted-foreground hover:text-foreground"
+                        title="Detalhar cálculos (rubricas e bases do documento)"
+                      >
+                        {expandidos.has(it.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                    </td>
                     <td className="px-3 py-2">
                       {editavel ? (
                         <input
@@ -370,6 +410,91 @@ export default function FolhaDetalhePage() {
                       )}
                     </td>
                   </tr>
+                  {expandidos.has(it.id) && (
+                    <tr className="bg-muted/40">
+                      <td colSpan={11} className="px-6 py-4">
+                        {(() => {
+                          const det = it.rubricas;
+                          if (!det || (det.baseInss == null && !(det.itens?.length))) {
+                            return (
+                              <p className="text-sm text-muted-foreground">
+                                Sem detalhamento importado para este item — clique em <span className="font-medium">Reextrair</span> para trazer as rubricas e bases do PDF.
+                              </p>
+                            );
+                          }
+                          const dif = (a: number, b: number) => Math.abs(a - b) > 0.05;
+                          const inssEsperado = det.baseInss != null && faixasInss.length ? calcularInssProgressivo(det.baseInss, faixasInss) : null;
+                          const fgtsEsperado = det.baseFgts != null ? Math.round(det.baseFgts * 8) / 100 : null;
+                          const liquidoEsperado = det.totalProventos != null && det.totalDescontos != null
+                            ? Math.round((det.totalProventos - det.totalDescontos) * 100) / 100 : null;
+                          const chip = (label: string, valor: number | null | undefined) => (
+                            <div className="px-3 py-1.5 rounded-lg bg-card border border-border">
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>
+                              <p className="text-sm font-semibold tabular-nums">{valor != null ? formatBRL(valor) : "—"}</p>
+                            </div>
+                          );
+                          const confere = (label: string, esperado: number | null, extraido: number) =>
+                            esperado == null ? null : (
+                              <span className={cn(
+                                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+                                dif(esperado, extraido) ? "bg-warning/15 text-warning" : "bg-success/15 text-success",
+                              )}>
+                                {label}: {dif(esperado, extraido) ? `esperado ${formatBRL(esperado)} · documento ${formatBRL(extraido)}` : `${formatBRL(extraido)} ✓`}
+                              </span>
+                            );
+                          return (
+                            <div className="space-y-3">
+                              {/* Bases e totais do documento */}
+                              <div className="flex flex-wrap gap-2">
+                                {chip("Total proventos", det.totalProventos)}
+                                {chip("Total descontos", det.totalDescontos)}
+                                {chip("Base INSS", det.baseInss)}
+                                {chip("Base FGTS", det.baseFgts)}
+                                {chip("Base IRRF", det.baseIrrf)}
+                              </div>
+                              {/* Conferência dos cálculos: INSS sobre a BASE (não sobre o bruto) */}
+                              <div className="flex flex-wrap gap-2">
+                                {confere("INSS (tabela × base)", inssEsperado, N(it.inssRetido))}
+                                {confere("FGTS (8% × base)", fgtsEsperado, N(it.fgts))}
+                                {confere("Líquido (prov. − desc.)", liquidoEsperado, N(it.liquido))}
+                              </div>
+                              {/* Rubricas do documento */}
+                              {det.itens && det.itens.length > 0 && (
+                                <table className="text-sm w-full max-w-2xl">
+                                  <thead className="text-[11px] text-muted-foreground uppercase tracking-wider border-b border-border">
+                                    <tr>
+                                      <th className="text-left py-1.5 pr-3 font-semibold w-14">Cód.</th>
+                                      <th className="text-left py-1.5 pr-3 font-semibold">Descrição</th>
+                                      <th className="text-right py-1.5 pr-3 font-semibold w-20">Ref.</th>
+                                      <th className="text-right py-1.5 pr-3 font-semibold w-28">Proventos</th>
+                                      <th className="text-right py-1.5 font-semibold w-28">Descontos</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/60">
+                                    {det.itens.map((r, ri) => (
+                                      <tr key={ri}>
+                                        <td className="py-1 pr-3 text-muted-foreground tabular-nums">{r.codigo ?? ""}</td>
+                                        <td className="py-1 pr-3">{r.descricao}</td>
+                                        <td className="py-1 pr-3 text-right text-muted-foreground tabular-nums">{r.referencia ?? ""}</td>
+                                        <td className="py-1 pr-3 text-right tabular-nums">{r.tipo === "P" ? formatBRL(r.valor) : ""}</td>
+                                        <td className="py-1 text-right tabular-nums text-muted-foreground">{r.tipo === "D" ? formatBRL(r.valor) : ""}</td>
+                                      </tr>
+                                    ))}
+                                    <tr className="font-semibold border-t border-border">
+                                      <td colSpan={3} className="py-1.5 pr-3 text-right text-xs text-muted-foreground uppercase">Totais</td>
+                                      <td className="py-1.5 pr-3 text-right tabular-nums">{formatBRL(det.itens.filter((r) => r.tipo === "P").reduce((a, r) => a + r.valor, 0))}</td>
+                                      <td className="py-1.5 text-right tabular-nums">{formatBRL(det.itens.filter((r) => r.tipo === "D").reduce((a, r) => a + r.valor, 0))}</td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

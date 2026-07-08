@@ -167,9 +167,14 @@ export async function gerarContasPagarFolha(folhaId: string) {
 // ── Extração por IA (Claude) ────────────────────────────────────────────────
 const MODELO_EXTRACAO = process.env.FOLHA_EXTRACAO_MODELO ?? "claude-sonnet-4-6";
 
+type RubricaExtraida = { codigo?: string; descricao: string; referencia?: string; tipo: "P" | "D"; valor: number };
 type ColaboradorExtraido = {
   matricula?: string; nome: string; cargo?: string;
   bruto: number; liquido: number; inssRetido: number; inssPatronal?: number; irrf: number; fgts: number;
+  // Bases e detalhamento do documento (o INSS incide na BASE, não no bruto —
+  // faltas/ajustes fazem a base divergir do total de proventos).
+  baseInss?: number; baseFgts?: number; baseIrrf?: number; totalDescontos?: number;
+  rubricas?: RubricaExtraida[];
 };
 type FolhaExtraida = { competencia?: string; dataPagamento?: string; colaboradores: ColaboradorExtraido[] };
 
@@ -181,7 +186,10 @@ Extraia os dados em JSON ESTRITO (sem comentários, sem markdown), no formato:
   "colaboradores": [
     { "matricula": "string", "nome": "string", "cargo": "string",
       "bruto": number, "liquido": number, "inssRetido": number,
-      "inssPatronal": number, "irrf": number, "fgts": number }
+      "inssPatronal": number, "irrf": number, "fgts": number,
+      "baseInss": number, "baseFgts": number, "baseIrrf": number,
+      "totalDescontos": number,
+      "rubricas": [ { "codigo": "string", "descricao": "string", "referencia": "string", "tipo": "P", "valor": number } ] }
   ]
 }
 Regras:
@@ -190,6 +198,13 @@ Regras:
 - "irrf" = IRRF retido (0 se não houver).
 - "fgts" = FGTS A RECOLHER do colaborador (não é desconto do líquido).
 - "inssPatronal" = INSS patronal do colaborador se o documento informar; senão 0.
+- "baseInss" = BASE DO INSS; "baseFgts" = BASE DO FGTS; "baseIrrf" = BASE DO IRRF (MÊS);
+  "totalDescontos" = TOTAL DE DESCONTOS. ATENÇÃO: a base do INSS pode ser DIFERENTE do
+  total de proventos (faltas e ajustes alteram a base) — copie exatamente o que o documento traz.
+- "rubricas" = TODAS as linhas de proventos e descontos do colaborador, na ordem do documento:
+  "codigo" = código da rubrica (ex.: "97"), "descricao" = texto (ex.: "SALARIO MES CIVIL"),
+  "referencia" = coluna de referência/quantidade como texto (ex.: "31,00", "12,00", "1.1/18"; "" se vazia),
+  "tipo" = "P" para provento, "D" para desconto, "valor" = valor da rubrica.
 - Use ponto decimal e números puros (sem "R$", sem separador de milhar). Inclua TODOS os colaboradores.
 Responda APENAS o JSON.`;
 
@@ -213,7 +228,8 @@ async function extrairViaIA(pdfBuf: Buffer): Promise<FolhaExtraida> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const resp = await client.messages.create({
     model: MODELO_EXTRACAO,
-    max_tokens: 16000,
+    // Rubricas detalhadas de dezenas de colaboradores → resposta longa.
+    max_tokens: 48000,
     messages: [{
       role: "user",
       content: [
@@ -247,17 +263,38 @@ function parseFolhaSenior(text: string): FolhaExtraida {
   const liqRe = /SAL[ÁA]RIO L[ÍI]QUIDO\s*:?\s*([\d.]+,\d{2})/g;
   const colaboradores: ColaboradorExtraido[] = [];
   let ml: RegExpExecArray | null;
+  // Última ocorrência do padrão na janela — o texto intercala funcionários, e a
+  // ocorrência mais próxima (acima do rótulo) é a do funcionário atual.
+  const ultima = (s: string, re: RegExp): string | undefined => {
+    let r: RegExpExecArray | null, out: string | undefined;
+    const g = new RegExp(re.source, "g");
+    while ((r = g.exec(s))) out = r[1];
+    return out;
+  };
   while ((ml = liqRe.exec(text))) {
     const liquido = num(ml[1]);
     const janela = text.slice(ml.index, ml.index + 700);
+    // Rubricas e "BASE DO INSS/IRRF" ficam ANTES do rótulo SALÁRIO LÍQUIDO no
+    // fluxo do texto — janela p/ trás, pegando a ÚLTIMA ocorrência.
+    const janelaAntes = text.slice(Math.max(0, ml.index - 2500), ml.index);
     const bruto = num(janela.match(/TOTAL DE PROVENTOS\s*:?\s*([\d.]+,\d{2})/)?.[1]);
     const fgts = num(janela.match(fgtsRe)?.[2]);
+    // "BASE DO INSS :" (sem MÊS) é a base efetiva; IRRF só existe como "MÊS".
+    const baseInss = num(ultima(janelaAntes, /BASE DO INSS\s*:\s*([\d.]+,\d{2})/));
+    const baseFgts = num(janela.match(fgtsRe)?.[1]);
+    const baseIrrf = num(ultima(janelaAntes, /BASE DO IRRF M[ÊE]S\s*:\s*([\d.]+,\d{2})/));
+    const totalDescontos = num(janela.match(/TOTAL DE DESCONTOS\s*:\s*([\d.]+,\d{2})/)?.[1]);
+    const inssRetido = num(ultima(janelaAntes, /INSS - MENSAL\s+[\d.,]+\s+([\d.]+,\d{2})/));
     let nomeAnt: { idx: number; nome: string; matricula: string } | undefined;
     for (const nm of nomes) { if (nm.idx < ml.index) nomeAnt = nm; else break; }
     const perto = nomeAnt && (ml.index - nomeAnt.idx) < 2500;
     // Sanidade: descarta linhas de resumo (líquido > bruto) e blocos sem nome próximo.
     if (bruto > 0 && liquido <= bruto + 0.01 && perto) {
-      colaboradores.push({ nome: nomeAnt!.nome, matricula: nomeAnt!.matricula, bruto, liquido, inssRetido: 0, irrf: 0, fgts, inssPatronal: 0 });
+      colaboradores.push({
+        nome: nomeAnt!.nome, matricula: nomeAnt!.matricula, bruto, liquido,
+        inssRetido, irrf: 0, fgts, inssPatronal: 0,
+        baseInss, baseFgts, baseIrrf, totalDescontos,
+      });
     }
   }
   return { competencia, dataPagamento, colaboradores };
@@ -325,6 +362,15 @@ export async function extrairFolhaPdf(folhaId: string) {
       bruto: c.bruto ?? 0, liquido: c.liquido ?? 0, inssRetido: c.inssRetido ?? 0,
       inssPatronal: c.inssPatronal ?? 0, irrf: c.irrf ?? 0, fgts: c.fgts ?? 0,
       outrosDescontos: round((c.bruto ?? 0) - (c.liquido ?? 0) - (c.inssRetido ?? 0) - (c.irrf ?? 0)),
+      // Detalhamento do documento (bases + rubricas) p/ conferência na tela.
+      rubricas: {
+        baseInss: c.baseInss ?? null,
+        baseFgts: c.baseFgts ?? null,
+        baseIrrf: c.baseIrrf ?? null,
+        totalProventos: c.bruto ?? 0,
+        totalDescontos: c.totalDescontos ?? null,
+        itens: c.rubricas ?? [],
+      },
     };
   });
 
