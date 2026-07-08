@@ -1547,7 +1547,7 @@ export default function OrdensBoardPage() {
       {/* Popup Saldo — WIPs do fluxo por estado, contados no veículo do pátio */}
       {saldoPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSaldoPopup(false)}>
-          <div className="w-full max-w-4xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-6xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Boxes className="w-5 h-5 text-amber-600" /> Saldo de produção (WIP)</h2>
               <button onClick={() => setSaldoPopup(false)} className="text-muted-foreground hover:text-foreground text-sm">Fechar ✕</button>
@@ -1564,7 +1564,7 @@ export default function OrdensBoardPage() {
                     </button>
                   </div>
                   <div className="space-y-2">
-                    <EstoqueLista linhas={saldosWip[est] ?? null} estado={est} capacidades={capacidades} vazio="Sem saldo neste estado." />
+                    <EstoqueLista linhas={saldosWip[est] ?? null} estado={est} capacidades={capacidades} nomeCompleto vazio="Sem saldo neste estado." />
                   </div>
                 </div>
               ))}
@@ -1837,7 +1837,7 @@ function ConsumoEstoque({ consumo, carregando }: { consumo: ConsumoLinha[] | nul
 const VEICULO_POR_ESTADO: Record<string, "VAGONETA" | "VAGAO"> = { UMIDO: "VAGONETA", SECO: "VAGAO", QUEIMADO: "VAGAO" };
 const VEICULO_LABEL: Record<string, [string, string]> = { VAGONETA: ["vagoneta", "vagonetas"], VAGAO: ["vagão", "vagões"] };
 
-function EstoqueLista({ linhas, vazio, estado, capacidades }: { linhas: EstoqueLinha[] | null; vazio: string; estado?: string | null; capacidades?: Record<string, { VAGONETA?: number; VAGAO?: number }> }) {
+function EstoqueLista({ linhas, vazio, estado, capacidades, nomeCompleto }: { linhas: EstoqueLinha[] | null; vazio: string; estado?: string | null; capacidades?: Record<string, { VAGONETA?: number; VAGAO?: number }>; nomeCompleto?: boolean }) {
   if (linhas === null) return <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>;
   if (linhas.length === 0) return vazio ? <p className="text-xs text-muted-foreground p-1">{vazio}</p> : null;
   const veiculo = estado ? VEICULO_POR_ESTADO[estado] : undefined;
@@ -1861,9 +1861,9 @@ function EstoqueLista({ linhas, vazio, estado, capacidades }: { linhas: EstoqueL
         const paletes = acabado && m.pecasPorPalete && m.pecasPorPalete > 0 ? Math.ceil(m.saldoTotal / m.pecasPorPalete) : null;
         return (
         <div key={m.itemId ?? m.descricao} className={cn("rounded-lg border px-3 py-2 text-xs bg-card", m.saldoTotal > 0 ? "border-border" : "border-warning/40 bg-warning/10")}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 min-w-0">
-              <span className="text-foreground font-medium truncate">{m.descricao}</span>
+          <div className={cn("flex justify-between gap-2", nomeCompleto ? "items-start" : "items-center")}>
+            <span className={cn("flex gap-1.5 min-w-0", nomeCompleto ? "flex-wrap items-start" : "items-center")}>
+              <span className={cn("text-foreground font-medium", nomeCompleto ? "break-words leading-snug" : "truncate")}>{m.descricao}</span>
               {estado && <span className="shrink-0 inline-flex items-center rounded bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 px-1.5 text-[9px] font-semibold uppercase tracking-wide">{ESTADO_LABEL[estado] ?? estado}</span>}
             </span>
             <span className="shrink-0 tabular-nums text-right">
