@@ -236,7 +236,10 @@ export async function apontarEtapaProducao(tx: Tx, p: ApontarEtapaInput): Promis
  * insumo. NÃO gera WIP/PA. Gatilho: o produto da OP tem naturezaPadrao com
  * destinoSugerido = CIF. Idempotente por (empresa, ESTOQUE_CONSUMO, CIF-MISTURA-<ordemId>).
  */
-export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null; permitirSaldoNegativo?: boolean }): Promise<void> {
+export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null; permitirSaldoNegativo?: boolean;
+  // Consumo REAL apontado por insumo (já na unidade-base) — substitui o previsto
+  // da BOM quando informado (pode consumir mais ou menos que o calculado).
+  consumosReais?: Map<string, number> }): Promise<void> {
   const agora = new Date();
   await tx.itemOrdemProducao.update({
     where: { id: p.etapaId },
@@ -268,7 +271,8 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
         if (iu && !iu.isPrincipal && iu.fatorConversao != null) { const f = Number(iu.fatorConversao); if (Number.isFinite(f) && f > 0) fator = f; }
       }
       const baseFator = baseFatorConsumo(ins.base, ppp);
-      const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
+      // Consumo real apontado (quando informado) vence o previsto da BOM.
+      const consumo = p.consumosReais?.get(ins.insumoItemId) ?? (Number(ins.quantidade) * fator * baseFator * p.qtd);
       if (consumo <= 0) continue;
       const custoUnit = custos.get(ins.insumoItemId) ?? 0;
       const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);
@@ -301,7 +305,9 @@ export async function apontarMisturaCif(tx: Tx, p: { ordemId: string; etapaId: s
  * custo acumulado. A contabilização (D estoque-produção / C estoque-insumo) é feita
  * por contabilizarProducaoOrdem. NÃO é CIF — é material direto (vira PEP no consumo).
  */
-export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null; permitirSaldoNegativo?: boolean }): Promise<void> {
+export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapaId: string; qtd: number; apontadoPor: string | null; permitirSaldoNegativo?: boolean;
+  // Consumo REAL apontado por insumo (unidade-base) — vence o previsto da BOM.
+  consumosReais?: Map<string, number> }): Promise<void> {
   const agora = new Date();
   await tx.itemOrdemProducao.update({
     where: { id: p.etapaId },
@@ -330,7 +336,8 @@ export async function apontarProducaoProduto(tx: Tx, p: { ordemId: string; etapa
         if (iu && !iu.isPrincipal && iu.fatorConversao != null) { const f = Number(iu.fatorConversao); if (Number.isFinite(f) && f > 0) fator = f; }
       }
       const baseFator = baseFatorConsumo(ins.base, ppp);
-      const consumo = Number(ins.quantidade) * fator * baseFator * p.qtd;
+      // Consumo real apontado (quando informado) vence o previsto da BOM.
+      const consumo = p.consumosReais?.get(ins.insumoItemId) ?? (Number(ins.quantidade) * fator * baseFator * p.qtd);
       if (consumo <= 0) continue;
       const custoUnit = custos.get(ins.insumoItemId) ?? 0;
       const localIns = await localDeConsumoInsumo(tx, ins.insumoItemId, meta.categoriaEstoque);

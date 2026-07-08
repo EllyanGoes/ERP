@@ -30,7 +30,10 @@ function fatorConv(unidadeId: string | null, itemUnidades: ItemUnidadeLite[]): n
 }
 
 type LinhaIn = { itemId: string; quantidade: number; unidadeId: string | null };
-type Acc = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; embalagem: boolean };
+type Acc = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; embalagem: boolean;
+  // Unidade em que o chão de fábrica APONTA o consumo (ex.: CONCHADA da pá
+  // carregadeira) — fator = alt → base. null = aponta na unidade-base mesmo.
+  unidadeConsumo?: { unidadeId: string; sigla: string; fator: number } | null };
 
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("pcp");
@@ -69,7 +72,7 @@ export async function POST(req: NextRequest) {
       engenhariaProduto: { select: { insumos: { select: {
         insumoItemId: true, quantidade: true, base: true, unidadeId: true, estadoConsumo: true,
         insumoItem: { select: { descricao: true, compoeCusto: true, categoriaEstoque: true, unidade: { select: { sigla: true } }, unidadeMedida: true,
-          itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } } },
+          itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { sigla: true } } } } } },
       } } } },
     },
   });
@@ -102,11 +105,13 @@ export async function POST(req: NextRequest) {
       const baseFator = baseFatorConsumo(ins.base, ppp);
       const consumo = num(ins.quantidade) * fatorU * baseFator * qtdBase;
       if (consumo <= 0) continue;
+      const iuConcha = meta.itemUnidades.find((u) => /concha/i.test(u.unidade?.sigla ?? "") && u.fatorConversao != null && num(u.fatorConversao) > 0);
       addConsumo(ins.insumoItemId, {
         itemId: ins.insumoItemId, descricao: meta.descricao,
         unidade: meta.unidade?.sigla ?? meta.unidadeMedida ?? null,
         gerenciavel: meta.compoeCusto !== false,
         embalagem: meta.categoriaEstoque === "EMBALAGEM",
+        unidadeConsumo: iuConcha ? { unidadeId: iuConcha.unidadeId, sigla: iuConcha.unidade!.sigla, fator: num(iuConcha.fatorConversao) } : null,
       }, consumo);
     }
     if (toEstado && fromEstado) wipFromTotal += qtdBase; // consome o PEP do estado anterior
@@ -176,6 +181,7 @@ export async function POST(req: NextRequest) {
     return {
       itemId: x.itemId, descricao: x.descricao, unidade: x.unidade,
       consumo, gerenciavel: x.gerenciavel,
+      unidadeConsumo: x.unidadeConsumo ?? null,
       saldo: x.gerenciavel ? saldo : null,
       local: x.gerenciavel && x.itemId ? (localPorItem.get(x.itemId) ?? null) : null,
       suficiente: x.gerenciavel ? saldo + 1e-6 >= consumo : true,

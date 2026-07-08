@@ -50,6 +50,34 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // o 422 SALDO_NEGATIVO, mostra os itens e reenvia com o flag).
   const permitirSaldoNegativo = body?.permitirSaldoNegativo === true;
 
+  // Consumo REAL por insumo (Preparação/Mistura): consumos=[{insumoItemId, quantidade,
+  // unidadeId?}] na unidade apontada (ex.: CONCHADA) — converte p/ a base pelo
+  // ItemUnidade e substitui o previsto da BOM (pode consumir mais ou menos).
+  const consumosReais = new Map<string, number>();
+  if (Array.isArray(body?.consumos)) {
+    const rows = (body!.consumos as Record<string, unknown>[])
+      .map((c) => ({ insumoItemId: typeof c?.insumoItemId === "string" ? c.insumoItemId : "", quantidade: numOrNull(c?.quantidade), unidadeId: typeof c?.unidadeId === "string" && c.unidadeId ? c.unidadeId : null }))
+      .filter((c) => c.insumoItemId && c.quantidade != null && c.quantidade >= 0);
+    if (rows.length) {
+      const insumos = await prisma.item.findMany({
+        where: { id: { in: rows.map((r) => r.insumoItemId) } },
+        select: { id: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true } } },
+      });
+      const byId = new Map(insumos.map((i) => [i.id, i]));
+      for (const r of rows) {
+        let fator = 1;
+        if (r.unidadeId) {
+          const iu = byId.get(r.insumoItemId)?.itemUnidades.find((u) => u.unidadeId === r.unidadeId);
+          if (iu && !iu.isPrincipal && iu.fatorConversao != null) {
+            const f = Number(iu.fatorConversao);
+            if (Number.isFinite(f) && f > 0) fator = f;
+          }
+        }
+        consumosReais.set(r.insumoItemId, Math.round(r.quantidade! * fator * 1000) / 1000);
+      }
+    }
+  }
+
   const ordem = await prisma.ordemProducao.findUnique({
     where: { id: params.id },
     select: {
@@ -106,7 +134,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (ehCifSemWip) {
     try {
       await prisma.$transaction(async (tx) => {
-        await apontarMisturaCif(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor, permitirSaldoNegativo });
+        await apontarMisturaCif(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor, permitirSaldoNegativo, consumosReais: consumosReais.size ? consumosReais : undefined });
       }, { timeout: 30000 });
     } catch (e) {
       if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);
@@ -127,7 +155,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!etapa.estadoSaida && produtoSaidaId) {
     try {
       await prisma.$transaction(async (tx) => {
-        await apontarProducaoProduto(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor, permitirSaldoNegativo });
+        await apontarProducaoProduto(tx, { ordemId: params.id, etapaId: etapa.id, qtd: ativos[0].qtdBase, apontadoPor, permitirSaldoNegativo, consumosReais: consumosReais.size ? consumosReais : undefined });
       }, { timeout: 30000 });
     } catch (e) {
       if (e instanceof SaldoNegativoError) return respostaSaldoNegativo(e);

@@ -29,7 +29,9 @@ type BoardOP = { id: string; numero: string; status: string; dia?: string; areaN
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
 type EstoqueLinha = { itemId: string | null; produtoItemId?: string | null; pecasPorPalete?: number | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
-type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; local?: string | null; suficiente: boolean };
+type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; local?: string | null; suficiente: boolean;
+  // Unidade em que o chão aponta o consumo (ex.: CONCHADA) — fator alt→base.
+  unidadeConsumo?: { unidadeId: string; sigla: string; fator: number } | null };
 // Linha da calculadora de perda: nº de vagões/vagonetas e a carga (peças) por produto
 // daquele tipo de vagão. Cheio = 1 produto; meiado = 2+ produtos.
 type CargaVagaoRow = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: string; cargas: { itemId: string; pecas: string }[] };
@@ -167,7 +169,7 @@ export default function OrdensBoardPage() {
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
-  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; paletes: Record<string, string>; pcPlt: Record<string, string>; perda: string; biomassa: string; vagoes: string; vagonetas: string }>({ reais: {}, perdas: {}, paletes: {}, pcPlt: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" });
+  const [apForm, setApForm] = useState<{ reais: Record<string, string>; perdas: Record<string, string>; paletes: Record<string, string>; pcPlt: Record<string, string>; consumos: Record<string, string>; perda: string; biomassa: string; vagoes: string; vagonetas: string }>({ reais: {}, perdas: {}, paletes: {}, pcPlt: {}, consumos: {}, perda: "", biomassa: "", vagoes: "", vagonetas: "" });
   // Vagões/vagonetas do plano de transporte salvo — default do apontamento (o gráfico
   // do relatório mostra vagões descarregados; sem isso, quem não usa a calculadora
   // de perda apontava com vagões vazios e o dia saía com 0 vagões).
@@ -180,7 +182,7 @@ export default function OrdensBoardPage() {
     setApontar(o);
     setApForm({
       reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, Number(p.planejada) ? fmtQtd(p.planejada) : ""])),
-      perdas: {}, paletes: {},
+      perdas: {}, paletes: {}, consumos: {},
       pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])),
       perda: "", biomassa: "",
       vagoes: vagoesDoPlano(o, "VAGAO"), vagonetas: vagoesDoPlano(o, "VAGONETA"),
@@ -356,6 +358,25 @@ export default function OrdensBoardPage() {
     }, 300);
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [apontar, apForm.reais, fluxoId, areaNodeId]);
+
+  // Preparação/Mistura (etapas sem WIP): pré-preenche o CONSUMO REAL com o previsto,
+  // na unidade de apontamento (CONCHADA quando cadastrada) — o operador ajusta se
+  // consumiu mais ou menos. Não sobrescreve o que o operador já digitou.
+  useEffect(() => {
+    if (!apontar || !consumoAp || area?.estadoSaida) return;
+    setApForm((f) => {
+      const consumos = { ...f.consumos };
+      let mudou = false;
+      for (const c of consumoAp) {
+        if (!c.gerenciavel || !c.itemId || consumos[c.itemId] !== undefined) continue;
+        const fator = c.unidadeConsumo?.fator ?? 1;
+        consumos[c.itemId] = fmtQtd(Math.round((c.consumo / fator) * 1000) / 1000);
+        mudou = true;
+      }
+      return mudou ? { ...f, consumos } : f;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consumoAp, apontar, area?.estadoSaida]);
 
   // Consumo previsto na ABA APONTAMENTO da edição de OP concluída (usa o real corrigido).
   useEffect(() => {
@@ -563,6 +584,13 @@ export default function OrdensBoardPage() {
       }).join("\n");
       if (!confirm(`Confira a UNIDADE — o real está muito acima do planejado:\n\n${linhas}\n\nSe você contou PEÇAS, use a linha "ou por palete" (nº × pç/palete). Apontar mesmo assim?`)) return;
     }
+    // Preparação/Mistura: consumo REAL por insumo, na unidade apontada (CONCHADA etc.)
+    // — o servidor converte p/ a base e usa no lugar do previsto da BOM.
+    const consumos = area && !area.estadoSaida && consumoAp
+      ? consumoAp
+          .filter((c) => c.gerenciavel && c.itemId && String(apForm.consumos[c.itemId] ?? "").trim() !== "")
+          .map((c) => ({ insumoItemId: c.itemId!, quantidade: numBR(apForm.consumos[c.itemId!]), unidadeId: c.unidadeConsumo?.unidadeId ?? null }))
+      : [];
     setApBusy(true); setErro(null);
     try {
       const enviar = (permitirSaldoNegativo: boolean) =>
@@ -570,7 +598,7 @@ export default function OrdensBoardPage() {
           method: "POST", headers: { "Content-Type": "application/json" },
           // qtdPerda (etapa) fica a cargo do servidor (soma das perdas por produto); mantém
           // apForm.perda como fallback p/ etapas sem calculadora (1 produto).
-          body: JSON.stringify({ itens, qtdPerda: apForm.perda.trim() ? numBR(apForm.perda) : undefined, biomassaKg: apForm.biomassa.trim() ? numBR(apForm.biomassa) : undefined, vagoes: apForm.vagoes || undefined, vagonetas: apForm.vagonetas || undefined, permitirSaldoNegativo }),
+          body: JSON.stringify({ itens, ...(consumos.length ? { consumos } : {}), qtdPerda: apForm.perda.trim() ? numBR(apForm.perda) : undefined, biomassaKg: apForm.biomassa.trim() ? numBR(apForm.biomassa) : undefined, vagoes: apForm.vagoes || undefined, vagonetas: apForm.vagonetas || undefined, permitirSaldoNegativo }),
         });
       let r = await enviar(false);
       let j = await r.json();
@@ -1303,6 +1331,38 @@ export default function OrdensBoardPage() {
                   );
                 })}
               </div>
+              {/* Preparação/Mistura (sem WIP): aponta o CONSUMO REAL por insumo, na
+                  unidade do chão (CONCHADA) — pré-preenchido com o previsto da BOM. */}
+              {area && !area.estadoSaida && (consumoAp?.some((c) => c.gerenciavel && c.itemId) ?? false) && (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <div className="grid grid-cols-[1fr_9rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
+                    <span>Consumo real</span><span className="text-right">Quantidade</span>
+                  </div>
+                  {consumoAp!.filter((c) => c.gerenciavel && c.itemId).map((c) => {
+                    const fator = c.unidadeConsumo?.fator ?? 1;
+                    const sigla = c.unidadeConsumo?.sigla ?? c.unidade ?? "";
+                    const digitado = numBR(apForm.consumos[c.itemId!] ?? "");
+                    const emBase = Math.round(digitado * fator * 1000) / 1000;
+                    const previstoAlt = Math.round((c.consumo / fator) * 1000) / 1000;
+                    return (
+                      <div key={c.itemId} className="grid grid-cols-[1fr_9rem] gap-2 px-3 py-1.5 items-center border-t border-border/60">
+                        <span className="text-xs text-foreground truncate">{c.descricao}
+                          <span className="block text-[10px] text-muted-foreground">previsto {previstoAlt.toLocaleString("pt-BR")} {sigla}{c.unidadeConsumo ? ` (${c.consumo.toLocaleString("pt-BR")} ${c.unidade ?? ""})` : ""}</span>
+                        </span>
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-1 w-full">
+                            <input inputMode="decimal" value={apForm.consumos[c.itemId!] ?? ""}
+                              onChange={(e) => setApForm((f) => ({ ...f, consumos: { ...f.consumos, [c.itemId!]: e.target.value } }))}
+                              className="h-8 w-full rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card focus:outline-none focus:ring-1 focus:ring-cyan-500" />
+                            <span className="text-[10px] text-muted-foreground shrink-0 w-16 truncate">{sigla}</span>
+                          </div>
+                          {c.unidadeConsumo && digitado > 0 && <span className="text-[10px] text-muted-foreground tabular-nums leading-tight">= {emBase.toLocaleString("pt-BR")} {c.unidade ?? ""}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               <div className="flex items-end gap-3">
                 <button type="button" onClick={abrirCalcPerda} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20">
                   <Calculator className="w-3.5 h-3.5" /> Calcular perda
