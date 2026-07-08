@@ -143,7 +143,28 @@ export default function FolhaCalculoExpandido({
         </div>
       )}
 
+      {/* Sem rubricas detalhadas (extração via parser): fluxo compacto só com
+          totais — as conferências de base continuam valendo. */}
+      {rubricas.length === 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="px-3 py-1.5 rounded-lg bg-card border border-border tabular-nums">
+            <span className="text-muted-foreground">(+) Proventos</span> <span className="font-semibold">{formatBRL(totalProventos)}</span>
+          </span>
+          <span className="px-3 py-1.5 rounded-lg bg-card border border-border tabular-nums">
+            <span className="text-muted-foreground">(−) Descontos</span> <span className="font-semibold">{formatBRL(totalDescontos)}</span>
+          </span>
+          <span className="px-3 py-1.5 rounded-lg bg-card border border-border tabular-nums">
+            <span className="text-muted-foreground">(=) Líquido</span> <span className="font-semibold">{formatBRL(valores.liquido)}</span>
+          </span>
+          <VerificacaoBadge label="proventos − descontos" esperado={liquidoEsperado} valor={valores.liquido} />
+          <span className="text-xs text-muted-foreground w-full">
+            Rubricas detalhadas indisponíveis — extração feita sem IA (configure a ANTHROPIC_API_KEY e reextraia para ver o cálculo completo).
+          </span>
+        </div>
+      )}
+
       {/* Fluxo: (+) PROVENTOS − (−) DESCONTOS = LÍQUIDO */}
+      {rubricas.length > 0 && (
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_minmax(190px,0.7fr)] gap-4">
         <div className="rounded-lg bg-card border border-border p-3">
           {colunaTitulo("+", "Proventos")}
@@ -177,6 +198,7 @@ export default function FolhaCalculoExpandido({
           </div>
         </div>
       </div>
+      )}
 
       {/* Bases de cálculo */}
       <div className="rounded-lg bg-card border border-border px-4 py-2.5 space-y-1.5">
