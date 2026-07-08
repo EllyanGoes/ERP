@@ -26,7 +26,12 @@ const novoItem = (): ItemRow => ({ _key: key(), colaboradorId: "", manha: DEF_MA
 // O bloco é POR SETOR: quem está dentro dele estava nesse setor nessa diária.
 // tipo segue no modelo (default DIVERSAS) mas não é mais editável na tela.
 const novoGrupo = (): GrupoRow => ({ _key: key(), tipo: "DIVERSAS", setor: "", turno: "DIA", itens: [novoItem()] });
-const num = (v: string) => { const n = parseFloat((v || "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+// pt-BR: vírgula decimal, ponto de milhar opcional; aceita ponto puro também.
+const num = (v: string) => {
+  const s = (v || "").trim();
+  const n = parseFloat(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+  return Number.isFinite(n) ? n : 0;
+};
 
 // Máscara progressiva do horário: digitar "10001400" vira "10:00 - 14:00".
 const mascaraHora = (raw: string) => {
@@ -108,7 +113,8 @@ export default function DiariaDetailPage() {
           itens: (g.itens ?? []).map((it) => ({
             _key: key(), colaboradorId: it.colaboradorId,
             manha: it.manha ?? "", tarde: it.tarde ?? "", horasExcedente: it.horasExcedente ?? "",
-            servico: it.servico ?? "", valor: String(it.valor ?? ""),
+            // valor em pt-BR nos campos de edição ("10.75" → "10,75")
+            servico: it.servico ?? "", valor: String(it.valor ?? "").replace(".", ","),
           })),
         })),
       );

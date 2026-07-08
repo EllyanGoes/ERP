@@ -35,7 +35,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const itens = Array.isArray(body.itens) ? body.itens : [];
   const removidos: string[] = Array.isArray(body.removidos) ? body.removidos : [];
   const numCampos = ["bruto", "liquido", "inssRetido", "inssPatronal", "irrf", "fgts"] as const;
-  const num = (v: unknown) => { const x = parseFloat(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
+  // pt-BR: vírgula decimal, ponto de milhar opcional; aceita ponto puro também.
+  const num = (v: unknown) => {
+    const s = String(v ?? "").trim();
+    const x = parseFloat(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+    return Number.isFinite(x) ? x : 0;
+  };
 
   await prisma.$transaction(async (tx) => {
     if (removidos.length) await tx.folhaItem.deleteMany({ where: { id: { in: removidos }, folhaId: params.id } });

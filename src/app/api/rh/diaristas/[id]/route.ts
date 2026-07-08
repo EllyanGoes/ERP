@@ -42,7 +42,12 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 
   const b = await req.json();
   const grupos: GrupoIn[] = Array.isArray(b.grupos) ? b.grupos : [];
-  const num = (v: unknown) => { const n = parseFloat(String(v ?? "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+  // pt-BR: vírgula decimal, ponto de milhar opcional; aceita ponto puro também.
+  const num = (v: unknown) => {
+    const s = String(v ?? "").trim();
+    const n = parseFloat(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+    return Number.isFinite(n) ? n : 0;
+  };
 
   // Total da folha soma o valor TOTAL (diária + excedente); folhas antigas
   // sem valorTotal caem no valor base.

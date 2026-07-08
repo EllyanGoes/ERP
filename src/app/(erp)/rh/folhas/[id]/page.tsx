@@ -36,7 +36,14 @@ type Folha = {
 };
 type Colab = { id: string; nome: string; classificacaoCusto: Classif | null };
 
-const N = (v: string) => parseFloat(v) || 0;
+// Parse pt-BR: vírgula decimal (com ou sem ponto de milhar); aceita ponto puro.
+const N = (v: string) => {
+  const s = (v || "").trim();
+  const n = parseFloat(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s);
+  return Number.isFinite(n) ? n : 0;
+};
+// Número (da API, com ponto) → texto de edição pt-BR ("2264.76" → "2264,76").
+const ptBR = (v: unknown) => String(v ?? "").replace(".", ",");
 const compLabel = (iso: string) => { const d = new Date(iso); return `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`; };
 
 export default function FolhaDetalhePage() {
@@ -65,9 +72,20 @@ export default function FolhaDetalhePage() {
   const load = useCallback(async () => {
     const r = await fetch(`/api/rh/folhas/${id}`);
     const j = await r.json();
-    setFolha(j.data); setColabs(j.colaboradores ?? []);
+    // Campos de edição em pt-BR (vírgula decimal).
+    const f: Folha | null = j.data
+      ? {
+          ...j.data,
+          itens: (j.data.itens ?? []).map((i: Item) => ({
+            ...i,
+            bruto: ptBR(i.bruto), liquido: ptBR(i.liquido), inssRetido: ptBR(i.inssRetido),
+            inssPatronal: ptBR(i.inssPatronal), irrf: ptBR(i.irrf), fgts: ptBR(i.fgts),
+          })),
+        }
+      : null;
+    setFolha(f); setColabs(j.colaboradores ?? []);
     setLoading(false);
-    return j.data as Folha;
+    return f as Folha;
   }, [id]);
 
   const extrair = useCallback(async () => {
@@ -193,7 +211,7 @@ export default function FolhaDetalhePage() {
       // O INSS incide na BASE DO INSS do documento; sem base extraída, cai no bruto.
       itens: prev.itens.map((i) => ({
         ...i,
-        inssRetido: calcularInssProgressivo(i.rubricas?.baseInss ?? N(i.bruto), faixas).toFixed(2),
+        inssRetido: ptBR(calcularInssProgressivo(i.rubricas?.baseInss ?? N(i.bruto), faixas).toFixed(2)),
       })),
     } : prev);
     setErro("");
