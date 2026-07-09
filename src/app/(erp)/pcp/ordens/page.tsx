@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -8,11 +8,11 @@ import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
 import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin, Search, Columns3, CircleDashed } from "lucide-react";
 import ChaoView from "@/components/pcp/chao/ChaoView";
 import Dica from "@/components/shared/Dica";
+import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
 import { corArea, iconeArea } from "@/lib/pcp/area-visual";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
@@ -95,28 +95,25 @@ export default function OrdensBoardPage() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [areaNodeId, setAreaNodeId] = usePersistedState("pcp-area-node", "");
-  // Dia: abre em HOJE a cada sessão (pedido do Ellyan), mas sobrevive à remontagem
-  // da tela dentro da mesma sessão (sessionStorage) — apontar uma OP / trocar de aba
-  // não volta mais o filtro para hoje.
-  const [data, setDataState] = useState(() => {
+  // PERÍODO (igual ao do relatório): 1º clique = início, 2º = fim; vazio = HOJE.
+  // Abre em hoje a cada sessão, mas sobrevive à remontagem dentro da MESMA sessão
+  // (sessionStorage) — apontar uma OP / trocar de aba não volta o filtro.
+  const [periodo, setPeriodoState] = useState<DateRange>(() => {
     if (typeof window !== "undefined") {
-      try { const v = window.sessionStorage.getItem("pcp-dia"); if (v) return v; } catch { /* ignore */ }
+      try {
+        const v = window.sessionStorage.getItem("pcp-periodo");
+        if (v) return JSON.parse(v) as DateRange;
+      } catch { /* ignore */ }
     }
-    return hoje();
+    return { from: "", to: "" };
   });
-  const setData = useCallback((d: string) => {
-    setDataState(d);
-    try { window.sessionStorage.setItem("pcp-dia", d); } catch { /* ignore */ }
+  const setPeriodo = useCallback((r: DateRange) => {
+    setPeriodoState(r);
+    try { window.sessionStorage.setItem("pcp-periodo", JSON.stringify(r)); } catch { /* ignore */ }
   }, []);
-  // Popover do calendário de produção usado como filtro de dia.
-  const [calAberto, setCalAberto] = useState(false);
-  const calRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!calAberto) return;
-    const onDown = (e: MouseEvent) => { if (calRef.current && !calRef.current.contains(e.target as Node)) setCalAberto(false); };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [calAberto]);
+  // Janela efetiva do BOARD (vazio = hoje). A lista sem período mostra tudo.
+  const data = periodo.from || hoje();
+  const dataFim = periodo.to || periodo.from || hoje();
   const [ops, setOps] = useState<BoardOP[]>([]);
   // Visão: board (kanban do dia) × lista (OPs da área agrupadas por dia, no mês).
   const [vista, setVista] = usePersistedState<"board" | "lista" | "fluxo">("pcp-vista", "board");
@@ -293,27 +290,29 @@ export default function OrdensBoardPage() {
     try {
       if (areaNodeId === "TODAS") {
         const partes = await Promise.all(areas.map(async (a) => {
-          const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${a.nodeId}&data=${data}`);
+          const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${a.nodeId}&from=${data}&to=${dataFim}`);
           const j = await r.json();
           return ((j.data ?? []) as BoardOP[]).map((o) => ({ ...o, areaNome: a.centroTrabalho ?? a.nome, areaNodeId: a.nodeId }));
         }));
         setOps(partes.flat());
       } else {
-        const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&data=${data}`);
+        const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&from=${data}&to=${dataFim}`);
         const j = await r.json();
         setOps(j.data ?? []);
       }
     } finally { setCarregandoOps(false); }
-  }, [fluxoId, areaNodeId, data, areas]);
+  }, [fluxoId, areaNodeId, data, dataFim, areas]);
   useEffect(() => { loadOps(); }, [loadOps]);
 
   // 3b. Visão em LISTA: OPs no MÊS do dia selecionado, agrupadas por dia. Escopo
   // "area" = só a aba atual; "todas" = todas as áreas do fluxo (marca a área em cada OP).
   const loadLista = useCallback(async () => {
     if (!fluxoId) { setOpsLista([]); return; }
-    // Sem recorte de mês; o ESCOPO segue a ABA selecionada (área ou "Todas as áreas").
+    // Escopo segue a ABA (área ou "Todas as áreas"); sem período selecionado a
+    // lista mostra TUDO — com período, respeita a janela (igual ao relatório).
     const busca = async (nodeId: string, nome?: string): Promise<BoardOP[]> => {
-      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&todas=1`);
+      const janela = periodo.from ? `from=${data}&to=${dataFim}` : "todas=1";
+      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&${janela}`);
       const j = await r.json();
       return (j.data ?? []).map((o: BoardOP) => ({ ...o, areaNome: nome, areaNodeId: nodeId }));
     };
@@ -327,7 +326,7 @@ export default function OrdensBoardPage() {
         setOpsLista(await busca(areaNodeId));
       }
     } finally { setCarregandoLista(false); }
-  }, [fluxoId, areaNodeId, areas]);
+  }, [fluxoId, areaNodeId, areas, periodo.from, data, dataFim]);
   useEffect(() => { if (vista === "lista") loadLista(); }, [vista, loadLista]);
 
   // Contagem de OPs por área (abertas/concluídas) no dia — exibida nas abas.
@@ -825,18 +824,9 @@ export default function OrdensBoardPage() {
                 options={fluxos.map((f) => ({ value: f.id, label: f.nome }))} />
             )}
           </div>
-          <div className="relative" ref={calRef}>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Dia</label>
-            <button type="button" onClick={() => setCalAberto((o) => !o)}
-              className="h-9 inline-flex items-center gap-2 rounded-lg border border-border px-3 text-sm bg-card hover:bg-muted">
-              <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              {data ? data.split("-").reverse().join("/") : "Selecionar dia"}
-            </button>
-            {calAberto && fluxoId && (
-              <div className="absolute z-50 mt-1 left-0">
-                <CalendarioProducao fluxoId={fluxoId} value={data} onSelect={(d) => { setData(d); setCalAberto(false); }} />
-              </div>
-            )}
+          <div className="min-w-[14rem]">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Período <span className="text-muted-foreground/60">(vazio = hoje)</span></label>
+            <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Hoje" />
           </div>
           <button onClick={() => { loadOps(); if (vista === "lista") loadLista(); }} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={cn("w-4 h-4", (carregandoOps || carregandoLista) && "animate-spin")} /> Atualizar
@@ -942,6 +932,13 @@ export default function OrdensBoardPage() {
                 </button>
                 </Dica>
               )}
+              {/* Nova OP da área selecionada, direto na linha das abas */}
+              {area && (
+                <button onClick={() => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
+                  className="ml-1 inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
+                  <Plus className="w-3.5 h-3.5" /> Nova OP
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -999,7 +996,6 @@ export default function OrdensBoardPage() {
             agruparArea={agruparArea}
             agruparData={agruparData}
             ordemAreas={areas.map((a) => a.centroTrabalho ?? a.nome)}
-            onNova={area ? () => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); } : null}
             onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
             onEditar={(o) => abrirEdicao(o)}
             onExcluir={(o) => excluirOP(o)}
@@ -1718,11 +1714,11 @@ export default function OrdensBoardPage() {
 
 // Visão em LISTA: OPs agrupadas por dia (cabeçalho de data + linhas); com
 // "Agrupar por área" ligado, empilha um 2º agrupamento por área dentro do dia.
-function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparData, ordemAreas, onNova, onAbrir, onEditar, onExcluir, onApontar }: {
+function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparData, ordemAreas, onAbrir, onEditar, onExcluir, onApontar }: {
   ops: BoardOP[]; carregando: boolean;
   escopo: "area" | "todas"; // segue a ABA selecionada (área ou "Todas as áreas")
   soAbertas: boolean; agruparArea: boolean; agruparData: boolean; ordemAreas: string[];
-  onNova: (() => void) | null; onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onExcluir: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
+  onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onExcluir: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
 }) {
   // Excluir OP concluída é só para ADMIN (o servidor estorna o apontamento em cascata).
   const { user } = useSession();
@@ -1745,14 +1741,7 @@ function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparD
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      {/* Contador de OPs mora na linha das abas (à esquerda dos filtros). */}
-      {onNova && (
-        <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-border bg-muted/40">
-          <button onClick={onNova} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
-            <Plus className="w-3.5 h-3.5" /> Nova OP
-          </button>
-        </div>
-      )}
+      {/* Contador e Nova OP moram na linha das abas. */}
       {/* Cabeçalho das COLUNAS (larguras casadas com as linhas) */}
       {!carregando && visiveis.length > 0 && (
         <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-muted/60 text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
