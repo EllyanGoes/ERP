@@ -105,6 +105,10 @@ type Conferencia = {
     numero: string;
     condicaoPagamentoId: string | null;
     condicoesPagamento: string | null;
+    frete: unknown;
+    seguro: unknown;
+    despesas: unknown;
+    vrDesconto: unknown;
     fornecedor: FornecedorInfo;
   } | null;
   fornecedor: FornecedorInfo | null;
@@ -741,7 +745,22 @@ export default function DocumentoEntradaDetailPage() {
   const despesasNum = decimalToNumber(conferencia.despesas);
   const descontoNum = decimalToNumber(conferencia.desconto);
   const vrTotalNum = decimalToNumber(conferencia.vrTotal);
-  const vlrBruto = vrTotalNum > 0 ? vrTotalNum : vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum;
+  // Encargos/desconto herdados do PEDIDO, rateados pela fração em valor — mesma
+  // regra do encargosConferencia (lib), que define o crédito ao fornecedor e o
+  // contas a pagar. Só valem quando o DE não tem frete/desconto próprios.
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const pedidoDE = conferencia.pedido;
+  const subtotalPedido = conferencia.itens.reduce(
+    (s, i) => s + decimalToNumber(i.quantidadePedida) * decimalToNumber(i.vlrUnitario), 0);
+  const fracPedido = subtotalPedido > 0 ? Math.min(vlrMercadoria / subtotalPedido, 1) : 0;
+  const herdaDoPedido = freteNum <= 0 && descontoNum <= 0 && !!pedidoDE;
+  const freteHerdado = herdaDoPedido && pedidoDE
+    ? r2((decimalToNumber(pedidoDE.frete) + decimalToNumber(pedidoDE.seguro) + decimalToNumber(pedidoDE.despesas)) * fracPedido)
+    : 0;
+  const descontoHerdado = herdaDoPedido && pedidoDE ? r2(decimalToNumber(pedidoDE.vrDesconto) * fracPedido) : 0;
+  const vlrLiquido = vrTotalNum > 0
+    ? vrTotalNum
+    : r2(vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum + freteHerdado - descontoHerdado);
 
   return (
     <div>
@@ -1851,10 +1870,30 @@ export default function DocumentoEntradaDetailPage() {
                 <Input value={descontoNum > 0 ? formatBRL(descontoNum) : "—"} readOnly className="bg-muted text-right" />
               )}
             </div>
+            {descontoHerdado > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Desc. do Pedido (rateado)</Label>
+                <Input
+                  value={`− ${formatBRL(descontoHerdado)}`}
+                  readOnly
+                  className="bg-muted text-right text-danger"
+                />
+              </div>
+            )}
+            {freteHerdado > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Frete/Encargos do Pedido (rateado)</Label>
+                <Input
+                  value={`+ ${formatBRL(freteHerdado)}`}
+                  readOnly
+                  className="bg-muted text-right"
+                />
+              </div>
+            )}
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Vlr. Bruto</Label>
+              <Label className="text-xs text-muted-foreground">Vlr. Líquido</Label>
               <Input
-                value={vlrBruto > 0 ? formatBRL(vlrBruto) : "—"}
+                value={vlrLiquido > 0 ? formatBRL(vlrLiquido) : "—"}
                 readOnly
                 className="bg-info/10 text-right font-bold text-blue-900 border-info/30"
               />

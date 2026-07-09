@@ -52,15 +52,25 @@ export async function PATCH(
     }
   }
 
-  // Recalculate totalCalculado for this supplier (items subtotal + frete + despesas + seguro - vrDesconto)
+  // Recalculate totalCalculado for this supplier (items subtotal + frete + despesas + seguro - vrDesconto).
+  // Campos que NÃO vieram no body usam o valor já gravado — antes eram tratados
+  // como 0, e um PATCH parcial (ex.: só preços) regravava o total no BRUTO.
   const allItems = await prisma.cotacaoFornecedorItem.findMany({
     where: { cotacaoFornecedorId: params.fornId },
   });
+  const stored = await prisma.cotacaoFornecedor.findUnique({
+    where: { id: params.fornId },
+    select: { frete: true, despesas: true, seguro: true, vrDesconto: true },
+  });
+  const eff = (bodyVal: unknown, storedVal: unknown) => {
+    const v = bodyVal !== undefined ? bodyVal : storedVal;
+    return v != null ? parseFloat(String(v)) || 0 : 0;
+  };
   const itemsSubtotal = allItems.reduce((sum, i) => sum + (i.disponivel ? parseFloat(String(i.subtotal ?? 0)) : 0), 0);
-  const freteNum = frete != null ? parseFloat(String(frete)) : 0;
-  const despesasNum = despesas != null ? parseFloat(String(despesas)) : 0;
-  const seguroNum = seguro != null ? parseFloat(String(seguro)) : 0;
-  const vrDescontoNum = vrDesconto != null ? parseFloat(String(vrDesconto)) : 0;
+  const freteNum = eff(frete, stored?.frete);
+  const despesasNum = eff(despesas, stored?.despesas);
+  const seguroNum = eff(seguro, stored?.seguro);
+  const vrDescontoNum = eff(vrDesconto, stored?.vrDesconto);
   const total = itemsSubtotal - vrDescontoNum + freteNum + despesasNum + seguroNum;
   updateData.totalCalculado = total;
 

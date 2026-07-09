@@ -428,12 +428,12 @@ async function openWAModal() {
     }, 0);
     const msgTotal = msgSubtotal - vrDesconto + freteMsg + seguroMsg + despesasMsg;
 
-    lines.push(`*Subtotal:* ${formatBRL(msgSubtotal)}`);
+    lines.push(`*Total bruto:* ${formatBRL(msgSubtotal)}`);
     if (vrDesconto > 0)  lines.push(`*Desconto:* − ${formatBRL(vrDesconto)}`);
     if (freteMsg > 0)    lines.push(`*Frete:* ${formatBRL(freteMsg)}`);
     if (seguroMsg > 0)   lines.push(`*Seguro:* ${formatBRL(seguroMsg)}`);
     if (despesasMsg > 0) lines.push(`*Despesas:* ${formatBRL(despesasMsg)}`);
-    lines.push(`*Total:* ${formatBRL(msgTotal)}`);
+    lines.push(`*Total líquido:* ${formatBRL(msgTotal)}`);
 
     if (pedido.observacoes) lines.push(``, `_Obs: ${pedido.observacoes}_`);
 
@@ -892,7 +892,7 @@ async function openWAModal() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Subtotal</Label>
+              <Label className="text-xs text-muted-foreground">Total bruto</Label>
               <Input
                 value={formatBRL(subtotalVal)}
                 readOnly
@@ -916,7 +916,7 @@ async function openWAModal() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Total</Label>
+              <Label className="text-xs text-muted-foreground">Total líquido</Label>
               <Input
                 value={formatBRL(netTotal)}
                 readOnly
@@ -1088,7 +1088,7 @@ async function openWAModal() {
               </tbody>
               <tfoot className="border-t-2 border-border bg-muted">
                 <tr>
-                  <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-muted-foreground">Subtotal</td>
+                  <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-muted-foreground">Total bruto</td>
                   <td className="px-4 py-1.5 text-right text-sm text-foreground">{formatBRL(subtotalVal)}</td>
                 </tr>
                 {vrDescontoVal > 0 && (
@@ -1118,7 +1118,7 @@ async function openWAModal() {
                   </tr>
                 )}
                 <tr className="border-t border-border">
-                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">Total</td>
+                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">Total líquido</td>
                   <td className="px-4 py-2 text-right font-bold text-foreground">{formatBRL(netTotal)}</td>
                 </tr>
               </tfoot>

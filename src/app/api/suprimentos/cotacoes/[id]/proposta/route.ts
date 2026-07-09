@@ -47,15 +47,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     }
 
-    // Recalculate total for this CotacaoFornecedor
+    // Recalculate total for this CotacaoFornecedor — LÍQUIDO (subtotal dos
+    // itens − vrDesconto + frete/despesas/seguro já gravados na proposta),
+    // como nas rotas fornecedores/*. Antes somava só os subtotais e gravava
+    // o BRUTO, quebrando o comparativo e o pedido gerado na aprovação.
     const allItens = await tx.cotacaoFornecedorItem.findMany({
       where: { cotacaoFornecedorId },
       select: { subtotal: true, disponivel: true },
     });
 
-    const total = allItens.reduce((sum, i) => {
+    const subtotal = allItens.reduce((sum, i) => {
       return sum + (i.disponivel ? parseFloat(String(i.subtotal ?? 0)) : 0);
     }, 0);
+    const num = (d: unknown) => (d == null ? 0 : parseFloat(String(d)) || 0);
+    const total = subtotal - num(cf.vrDesconto) + num(cf.frete) + num(cf.despesas) + num(cf.seguro);
 
     await tx.cotacaoFornecedor.update({
       where: { id: cotacaoFornecedorId },

@@ -110,7 +110,17 @@ export async function gerarPedidoDeCotacao(
     const vlTotal = sub > 0 ? sub : qtd * preco;
     return { itemId: i.itemId, quantidade: qtd, precoUnitario: preco, valorTotal: vlTotal };
   });
-  const valorTotal = parsedItens.reduce((sum, i) => sum + i.valorTotal, 0);
+  const subtotal = parsedItens.reduce((sum, i) => sum + i.valorTotal, 0);
+
+  // Encargos e desconto da proposta vencedora ACOMPANHAM o pedido — sem eles a
+  // entrada (DE) não rateia o desconto e o contas a pagar nasce no bruto. O
+  // valorTotal do pedido é o LÍQUIDO (subtotal − desconto + frete/despesas/
+  // seguro), como no POST manual de pedidos-compra.
+  const num = (d: unknown) => (d == null ? 0 : parseFloat(String(d)) || 0);
+  const descontoPct = num(melhor.desconto);
+  const vrDesconto = melhor.vrDesconto != null ? num(melhor.vrDesconto) : (subtotal * descontoPct) / 100;
+  const valorTotal =
+    Math.round((subtotal - vrDesconto + num(melhor.frete) + num(melhor.despesas) + num(melhor.seguro)) * 100) / 100;
 
   const pedidoCompra = await tx.pedidoCompra.create({
     data: {
@@ -119,6 +129,13 @@ export async function gerarPedidoDeCotacao(
       cotacaoId: cotacao.id,
       fornecedorId: melhor.fornecedorId,
       valorTotal,
+      frete: melhor.frete,
+      tipoFrete: melhor.tipoFrete,
+      desconto: melhor.desconto,
+      vrDesconto: vrDesconto > 0 ? Math.round(vrDesconto * 100) / 100 : null,
+      despesas: melhor.despesas,
+      seguro: melhor.seguro,
+      condicoesPagamento: melhor.condicoesPagamento,
       itens: { create: parsedItens },
     },
     include: {
