@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import PageHeader from "@/components/shared/PageHeader";
-import DatePicker from "@/components/shared/DatePicker";
+import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import PrintButton from "@/components/shared/PrintButton";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -36,10 +35,10 @@ export default function RelatorioProducaoPage() {
   useTabTitle("Relatório de Produção");
   const [fluxos, setFluxos] = useState<FluxoOpt[]>([]);
   const [fluxoId, setFluxoId] = usePersistedState("rel-producao-fluxo", "");
-  // Filtro de data ÚNICO: um dia específico; vazio = mês atual até hoje.
-  const [dia, setDia] = useState("");
-  const from = dia || inicioMes();
-  const to = dia || hoje();
+  // Filtro de PERÍODO (1º clique = início, 2º = fim); vazio = mês atual até hoje.
+  const [periodo, setPeriodo] = useState<DateRange>({ from: "", to: "" });
+  const from = periodo.from || inicioMes();
+  const to = periodo.to || periodo.from || hoje();
   const [areas, setAreas] = useState<AreaLinha[] | null>(null);
   const [porDia, setPorDia] = useState<DiaLinha[]>([]);
   const [opsDia, setOpsDia] = useState<OpDia[]>([]);
@@ -134,14 +133,8 @@ export default function RelatorioProducaoPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Relatório de Produção"
-        subtitle="Produção entregue (etapas concluídas) por área de produção, em peças"
-        breadcrumbs={[{ label: "PCP" }, { label: "Relatórios" }, { label: "Produção" }]}
-        actions={<div className="no-print"><PrintButton /></div>}
-      />
-
-      <div className="px-8 pb-10 space-y-4">
+      {/* Sem PageHeader: aproveitamento de tela — o Imprimir mora na linha de filtros. */}
+      <div className="px-8 pt-4 pb-10 space-y-4">
         {/* Filtros */}
         <div className="no-print flex flex-wrap items-end gap-3">
           <div className="min-w-[15rem]">
@@ -149,9 +142,9 @@ export default function RelatorioProducaoPage() {
             <ComboboxWithCreate value={fluxoId} onChange={setFluxoId} allowNone noneLabel="Todos os fluxos" triggerClassName="h-9 rounded-lg"
               options={fluxos.map((f) => ({ value: f.id, label: f.nome }))} />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Dia <span className="text-muted-foreground/60">(vazio = mês atual)</span></label>
-            <DatePicker value={dia} onChange={(v) => setDia(v ?? "")} className="h-9" />
+          <div className="min-w-[15rem]">
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Período <span className="text-muted-foreground/60">(vazio = mês atual)</span></label>
+            <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período — mês atual" />
           </div>
           <button onClick={carregar} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={carregando ? "w-4 h-4 animate-spin" : "w-4 h-4"} /> Atualizar
@@ -167,6 +160,7 @@ export default function RelatorioProducaoPage() {
               <p className="text-sm font-bold tabular-nums text-amber-600 leading-tight">{n(totalPerda)} <span className="text-[10px] font-normal text-muted-foreground">pç · {pctPerda(totalPecas, totalPerda)}</span></p>
             </div>
           </div>
+          <div className="no-print ml-auto"><PrintButton /></div>
         </div>
 
         {/* Abas: gráfico por data (1ª) × visão por área (2ª) */}

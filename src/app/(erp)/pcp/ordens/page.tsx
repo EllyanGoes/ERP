@@ -12,6 +12,7 @@ import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
 import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin, Search, Shovel, FlaskConical, Shapes, Wind, Flame, Package, Columns3, CircleDashed, type LucideIcon } from "lucide-react";
 import ChaoView from "@/components/pcp/chao/ChaoView";
+import Dica from "@/components/shared/Dica";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -24,7 +25,7 @@ type NovoOP = { linhas: LinhaOP[]; inicio: string; fim: string; responsavelId: s
   apReais?: Record<string, string>; apPerdas?: Record<string, string>; apVagoes?: string; apVagonetas?: string;
   apPaletes?: Record<string, string>; apPcPlt?: Record<string, string> };
 type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada: string | number; real: string | number | null; perda?: string | number | null; unidade: string | null; unidadeId: string | null; pecasPorUnidade?: number; pecasPorPalete?: number | null };
-type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; equipe?: { id: string; nome: string }[]; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
+type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; areaNodeId?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; equipe?: { id: string; nome: string }[]; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
 type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
@@ -250,6 +251,11 @@ export default function OrdensBoardPage() {
   const [carregandoConsumoAp, setCarregandoConsumoAp] = useState(false);
 
   const area = areas.find((a) => a.nodeId === areaNodeId) ?? null;
+  // Área do APONTAMENTO em curso: na aba "Todas as áreas" a OP carrega o nodeId da
+  // sua etapa — o modal usa o contexto certo SEM trocar de aba.
+  const areaAp = (apontar?.areaNodeId ? areas.find((a) => a.nodeId === apontar.areaNodeId) : null) ?? area;
+  // OPs do board com os filtros aplicados (busca + "só abertas").
+  const opsBoard = filtrarOps(ops.filter((o) => !soAbertas || o.etapaStatus !== "CONCLUIDA"));
   const minSeq = areas.length ? Math.min(...areas.map((a) => a.sequencia)) : 0;
   // Responsáveis elegíveis na área: SÓ quem tem esta etapa nas Áreas de operação.
   // Sem a área marcada, o colaborador não aparece como responsável aqui.
@@ -285,7 +291,7 @@ export default function OrdensBoardPage() {
         const partes = await Promise.all(areas.map(async (a) => {
           const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${a.nodeId}&data=${data}`);
           const j = await r.json();
-          return ((j.data ?? []) as BoardOP[]).map((o) => ({ ...o, areaNome: a.centroTrabalho ?? a.nome }));
+          return ((j.data ?? []) as BoardOP[]).map((o) => ({ ...o, areaNome: a.centroTrabalho ?? a.nome, areaNodeId: a.nodeId }));
         }));
         setOps(partes.flat());
       } else {
@@ -305,7 +311,7 @@ export default function OrdensBoardPage() {
     const busca = async (nodeId: string, nome?: string): Promise<BoardOP[]> => {
       const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&todas=1`);
       const j = await r.json();
-      return (j.data ?? []).map((o: BoardOP) => ({ ...o, areaNome: nome }));
+      return (j.data ?? []).map((o: BoardOP) => ({ ...o, areaNome: nome, areaNodeId: nodeId }));
     };
     setCarregandoLista(true);
     try {
@@ -375,9 +381,11 @@ export default function OrdensBoardPage() {
     return () => { clearTimeout(t); ctrl.abort(); };
   }, [novo, fluxoId, areaNodeId]);
 
-  // Consumo previsto ao APONTAR — usa a quantidade REAL informada por produto (padrão = planejado).
+  // Consumo previsto ao APONTAR — usa a quantidade REAL informada por produto
+  // (padrão = planejado). Na aba "Todas as áreas", a área vem da própria OP.
   useEffect(() => {
-    if (!apontar || !fluxoId || !areaNodeId) { setConsumoAp(null); return; }
+    const nodeAp = apontar?.areaNodeId ?? (areaNodeId !== "TODAS" ? areaNodeId : "");
+    if (!apontar || !fluxoId || !nodeAp) { setConsumoAp(null); return; }
     const produtos = apontar.produtos
       .map((p) => ({ itemId: p.itemId, quantidade: numBR(apForm.reais[p.itemId] ?? p.planejada), unidadeId: p.unidadeId }))
       .filter((p) => p.itemId && p.quantidade > 0);
@@ -387,7 +395,7 @@ export default function OrdensBoardPage() {
     const t = setTimeout(() => {
       fetch("/api/pcp/ordens/area/consumo-previsto", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fluxoId, areaNodeId, produtos }), signal: ctrl.signal,
+        body: JSON.stringify({ fluxoId, areaNodeId: nodeAp, produtos }), signal: ctrl.signal,
       }).then((r) => r.json()).then((j) => setConsumoAp(j.data ?? [])).catch(() => {}).finally(() => setCarregandoConsumoAp(false));
     }, 300);
     return () => { clearTimeout(t); ctrl.abort(); };
@@ -397,7 +405,7 @@ export default function OrdensBoardPage() {
   // na unidade de apontamento (CONCHADA quando cadastrada) — o operador ajusta se
   // consumiu mais ou menos. Não sobrescreve o que o operador já digitou.
   useEffect(() => {
-    if (!apontar || !consumoAp || area?.estadoSaida) return;
+    if (!apontar || !consumoAp || areaAp?.estadoSaida) return;
     setApForm((f) => {
       const consumos = { ...f.consumos };
       let mudou = false;
@@ -410,7 +418,7 @@ export default function OrdensBoardPage() {
       return mudou ? { ...f, consumos } : f;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [consumoAp, apontar, area?.estadoSaida]);
+  }, [consumoAp, apontar, areaAp?.estadoSaida]);
 
   // Consumo previsto na ABA APONTAMENTO da edição de OP concluída (usa o real corrigido).
   useEffect(() => {
@@ -620,7 +628,7 @@ export default function OrdensBoardPage() {
     }
     // Preparação/Mistura: consumo REAL por insumo, na unidade apontada (CONCHADA etc.)
     // — o servidor converte p/ a base e usa no lugar do previsto da BOM.
-    const consumos = area && !area.estadoSaida && consumoAp
+    const consumos = areaAp && !areaAp.estadoSaida && consumoAp
       ? consumoAp
           .filter((c) => c.gerenciavel && c.itemId && String(apForm.consumos[c.itemId] ?? "").trim() !== "")
           .map((c) => ({ insumoItemId: c.itemId!, quantidade: numBR(apForm.consumos[c.itemId!]), unidadeId: c.unidadeConsumo?.unidadeId ?? null }))
@@ -872,8 +880,8 @@ export default function OrdensBoardPage() {
               const Icone = iconeArea(a.centroTrabalho ?? a.nome);
               const ativa = a.nodeId === areaNodeId;
               return (
-              <button key={a.nodeId} type="button" onClick={() => { setAreaNodeId(a.nodeId); setNovo(null); }}
-                title={`${a.sequencia} · ${a.centroTrabalho ?? a.nome}`}
+              <Dica key={a.nodeId} label={`${a.sequencia} · ${a.centroTrabalho ?? a.nome}`}>
+              <button type="button" onClick={() => { setAreaNodeId(a.nodeId); setNovo(null); }}
                 className={cn("px-3.5 py-2.5 border-b-2 -mb-px whitespace-nowrap transition-colors inline-flex items-center gap-1.5",
                   ativa ? cn(cor.borda, cor.txt) : "border-transparent hover:bg-muted/60")}>
                 <Icone className={cn("w-5 h-5", cor.txt)} />
@@ -889,46 +897,56 @@ export default function OrdensBoardPage() {
                   );
                 })()}
               </button>
+              </Dica>
               );
             })}
             {/* Aba TODAS AS ÁREAS: uma coluna por etapa, só as OPs (sem PEP/PA) */}
+            <Dica label="Todas as áreas — uma coluna por etapa">
             <button type="button" onClick={() => { setAreaNodeId("TODAS"); setNovo(null); }}
-              title="Todas as áreas — uma coluna por etapa"
               className={cn("px-3.5 py-2.5 border-b-2 -mb-px whitespace-nowrap transition-colors inline-flex items-center gap-1.5",
                 areaNodeId === "TODAS" ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:bg-muted/60")}>
               <Columns3 className="w-5 h-5" />
             </button>
-            {/* Filtros da LISTA como botões-ícone, no canto direito da linha das abas */}
-            {vista === "lista" && (
-              <div className="ml-auto flex items-center gap-1 self-center pb-1">
-                <button type="button" onClick={() => setSoAbertas(!soAbertas)} title="Só abertas (esconde as concluídas)"
-                  className={cn("rounded-lg border p-1.5 transition-colors", soAbertas ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
-                  <CircleDashed className="w-4 h-4" />
-                </button>
-                <button type="button" onClick={() => setAgruparData(!agruparData)} title="Agrupar por data (desligado: data vira coluna)"
+            </Dica>
+            {/* Filtros como botões-ícone no canto direito da linha das abas:
+                "Só abertas" vale p/ board e lista; os agrupamentos são da lista. */}
+            <div className="ml-auto flex items-center gap-1 self-center pb-1">
+              <Dica label="Só abertas (esconde as concluídas)">
+              <button type="button" onClick={() => setSoAbertas(!soAbertas)}
+                className={cn("rounded-lg border p-1.5 transition-colors", soAbertas ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
+                <CircleDashed className="w-4 h-4" />
+              </button>
+              </Dica>
+              {vista === "lista" && (
+                <Dica label="Agrupar por data (desligado: data vira coluna)">
+                <button type="button" onClick={() => setAgruparData(!agruparData)}
                   className={cn("rounded-lg border p-1.5 transition-colors", agruparData ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
                   <CalendarDays className="w-4 h-4" />
                 </button>
-                {areaNodeId === "TODAS" && (
-                  <button type="button" onClick={() => setAgruparArea(!agruparArea)} title="Agrupar por área (dentro do dia)"
-                    className={cn("rounded-lg border p-1.5 transition-colors", agruparArea ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
-                    <Factory className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            )}
+                </Dica>
+              )}
+              {vista === "lista" && areaNodeId === "TODAS" && (
+                <Dica label="Agrupar por área (dentro do dia)">
+                <button type="button" onClick={() => setAgruparArea(!agruparArea)}
+                  className={cn("rounded-lg border p-1.5 transition-colors", agruparArea ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
+                  <Factory className="w-4 h-4" />
+                </button>
+                </Dica>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Board TODAS AS ÁREAS: uma coluna de OPs por etapa — sem PEP/PA/matéria-prima. */}
+        {/* Board TODAS AS ÁREAS: uma coluna de OPs por etapa — sem PEP/PA/matéria-prima.
+            Altura fixa até o fim da tela: a barra de rolagem horizontal fica embaixo. */}
         {areaNodeId === "TODAS" && vista === "board" && (
-          <div className="flex gap-3 overflow-x-auto pb-2 items-start">
+          <div className="flex gap-3 overflow-x-auto items-start h-[calc(100vh-11.5rem)]">
             {areas.map((a, i) => {
               const cor = corArea(i);
               const nomeA = a.centroTrabalho ?? a.nome;
-              const opsA = filtrarOps(ops.filter((o) => o.areaNome === nomeA));
+              const opsA = filtrarOps(ops.filter((o) => o.areaNome === nomeA && (!soAbertas || o.etapaStatus !== "CONCLUIDA")));
               return (
-                <div key={a.nodeId} className="w-72 shrink-0 rounded-xl border border-border bg-muted/20 flex flex-col min-h-[10rem]">
+                <div key={a.nodeId} className="w-72 shrink-0 rounded-xl border border-border bg-muted/20 flex flex-col min-h-[10rem] max-h-full">
                   <div className={cn("flex items-center justify-between gap-2 px-3 py-2 border-b border-border rounded-t-xl", cor.chip)}>
                     <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 min-w-0">
                       <span className={cn("inline-block w-2 h-2 rounded-full shrink-0", cor.dot)} />
@@ -941,7 +959,7 @@ export default function OrdensBoardPage() {
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <div className="p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-16rem)]">
+                  <div className="p-2 space-y-2 overflow-y-auto flex-1">
                     {carregandoOps ? (
                       <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>
                     ) : opsA.length === 0 ? (
@@ -952,7 +970,7 @@ export default function OrdensBoardPage() {
                           onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
                           onEditar={(op) => { setAreaNodeId(a.nodeId); abrirEdicao(op); }}
                           onExcluir={excluirOP}
-                          onApontar={(op) => { setAreaNodeId(a.nodeId); abrirApontar(op); }} />
+                          onApontar={abrirApontar} />
                       ))
                     )}
                   </div>
@@ -1010,10 +1028,10 @@ export default function OrdensBoardPage() {
                     <Factory className="w-6 h-6 text-cyan-400 mb-1.5" />
                     <p className="text-xs text-muted-foreground">Nenhuma OP hoje. Crie em &quot;Nova OP&quot;.</p>
                   </div>
-                ) : filtrarOps(ops).length === 0 ? (
+                ) : opsBoard.length === 0 ? (
                   <p className="text-xs text-muted-foreground py-8 text-center">Nenhuma OP encontrada para &quot;{busca}&quot;.</p>
                 ) : (
-                  filtrarOps(ops).map((o) => (
+                  opsBoard.map((o) => (
                     <CardOP key={o.id} o={o} podeExcluirConcluida={user?.perfil === "ADMIN"}
                       onAbrir={(id) => router.push(`/pcp/ordens/${id}`)} onEditar={abrirEdicao} onExcluir={excluirOP} onApontar={abrirApontar} />
                   ))
@@ -1342,7 +1360,7 @@ export default function OrdensBoardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setApontar(null)}>
           <div className="w-full max-w-4xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-emerald-600" /> Apontar {apontar.numero}</h2>
-            <p className="text-xs text-muted-foreground mt-1">Área {area?.centroTrabalho ?? area?.nome}. Informe a quantidade <b>real</b> produzida por produto (padrão = planejado).</p>
+            <p className="text-xs text-muted-foreground mt-1">Área {areaAp?.centroTrabalho ?? areaAp?.nome}. Informe a quantidade <b>real</b> produzida por produto (padrão = planejado).</p>
             <div className="mt-4 flex flex-col lg:flex-row gap-4">
             <div className="flex-1 min-w-0 space-y-3">
               <div className="rounded-lg border border-border overflow-hidden">
@@ -1389,7 +1407,7 @@ export default function OrdensBoardPage() {
               </div>
               {/* Preparação/Mistura (sem WIP): aponta o CONSUMO REAL por insumo, na
                   unidade do chão (CONCHADA) — pré-preenchido com o previsto da BOM. */}
-              {area && !area.estadoSaida && (consumoAp?.some((c) => c.gerenciavel && c.itemId) ?? false) && (
+              {areaAp && !areaAp.estadoSaida && (consumoAp?.some((c) => c.gerenciavel && c.itemId) ?? false) && (
                 <div className="rounded-lg border border-border overflow-hidden">
                   <div className="grid grid-cols-[1fr_9rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
                     <span>Consumo real</span><span className="text-right">Quantidade</span>
@@ -1423,7 +1441,7 @@ export default function OrdensBoardPage() {
                 <button type="button" onClick={abrirCalcPerda} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20">
                   <Calculator className="w-3.5 h-3.5" /> Calcular perda
                 </button>
-                {area?.estadoSaida === "QUEIMADO" && (
+                {areaAp?.estadoSaida === "QUEIMADO" && (
                   <div className="flex-1">
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Biomassa (kg)</label>
                     <input inputMode="decimal" value={apForm.biomassa} onChange={(e) => setApForm((p) => ({ ...p, biomassa: e.target.value }))} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-500" />
@@ -1726,6 +1744,21 @@ function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparD
           </button>
         )}
       </div>
+      {/* Cabeçalho das COLUNAS (larguras casadas com as linhas) */}
+      {!carregando && visiveis.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-muted/60 text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
+          {!agruparData && <span className="w-12 shrink-0">Data</span>}
+          <span className="w-20 shrink-0">OP</span>
+          {escopo === "todas" && !agruparArea && <span className="hidden sm:block w-32 shrink-0 text-center">Área</span>}
+          <span className="flex-1 min-w-0">Produto</span>
+          <span className="w-44 shrink-0">Quantidade</span>
+          <span className="hidden lg:block w-44 shrink-0">Responsável</span>
+          <span className="hidden lg:block w-14 shrink-0">Equipe</span>
+          <span className="hidden xl:block w-14 shrink-0">Até</span>
+          <span className="w-24 shrink-0">Status</span>
+          <span className="w-40 shrink-0" />
+        </div>
+      )}
       {carregando ? (
         <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-4"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>
       ) : visiveis.length === 0 ? (
@@ -1764,29 +1797,27 @@ function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparD
           {opsArea.map((o) => {
             const concl = o.etapaStatus === "CONCLUIDA";
             const qtdTxt = o.produtos.length > 1
-              ? `${o.produtos.length} produtos`
+              ? o.produtos.map((p) => `${fmtQtd(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
               : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`.trim();
             return (
+              // COLUNAS de verdade (larguras fixas alinhadas ao cabeçalho) — nada amontoado.
               <div key={o.id} className="flex items-center gap-3 px-4 py-2 border-b border-border/50 hover:bg-muted/40 text-sm">
-                {/* Sem agrupar por data: a data vira coluna na linha. */}
                 {dia === null && <span className="w-12 shrink-0 text-[11px] tabular-nums text-muted-foreground">{fmtDiaCurto(o.dia)}</span>}
-                <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600 w-24 shrink-0 text-left">{o.numero}</button>
-                {escopo === "todas" && o.areaNome && areaNome === null && (
-                  <span className={cn("hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0 w-32 justify-center truncate", corArea(ordemAreas.indexOf(o.areaNome)).chip)} title={o.areaNome}>{o.areaNome}</span>
+                <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600 w-20 shrink-0 text-left">{o.numero}</button>
+                {escopo === "todas" && areaNome === null && (
+                  <span className={cn("hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0 w-32 justify-center truncate", o.areaNome ? corArea(ordemAreas.indexOf(o.areaNome)).chip : "bg-muted text-muted-foreground")} title={o.areaNome ?? "—"}>{o.areaNome ?? "—"}</span>
                 )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-foreground font-medium truncate">{o.produtos.length > 1 ? `${o.produtos.length} produtos` : (o.produto ?? "—")}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">
-                    {qtdTxt}
-                    {o.responsavel && <> · 👤 {o.responsavel}</>}
-                    {(o.equipe?.length ?? 0) > 0 && <span title={o.equipe!.map((e) => e.nome).join(", ")}> · 👥 {o.equipe!.length}</span>}
-                    {o.fimPrevisto && <> · até {new Date(o.fimPrevisto).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</>}
-                  </p>
-                </div>
-                <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
-                  {concl ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
+                <span className="min-w-0 flex-1 text-foreground font-medium truncate">{o.produtos.length > 1 ? `${o.produtos.length} produtos` : (o.produto ?? "—")}</span>
+                <span className="w-44 shrink-0 text-[11px] text-muted-foreground tabular-nums truncate" title={qtdTxt}>{qtdTxt}</span>
+                <span className="hidden lg:block w-44 shrink-0 text-[11px] text-muted-foreground truncate" title={o.responsavel ?? undefined}>{o.responsavel ? `👤 ${o.responsavel}` : "—"}</span>
+                <span className="hidden lg:block w-14 shrink-0 text-[11px] text-muted-foreground" title={(o.equipe ?? []).map((e) => e.nome).join(", ") || undefined}>{(o.equipe?.length ?? 0) > 0 ? `👥 ${o.equipe!.length}` : "—"}</span>
+                <span className="hidden xl:block w-14 shrink-0 text-[11px] text-muted-foreground tabular-nums">{o.fimPrevisto ? new Date(o.fimPrevisto).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"}</span>
+                <span className="w-24 shrink-0 flex justify-start">
+                  <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
+                    {concl ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
+                  </span>
                 </span>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center justify-end gap-1.5 shrink-0 w-40">
                   <button onClick={() => onEditar(o)} className="text-muted-foreground hover:text-cyan-600" title={concl ? "Corrigir OP (estorna o apontamento)" : "Editar OP"}><Pencil className="w-3.5 h-3.5" /></button>
                   <Link href={`/pcp/ordens/${o.id}/imprimir`} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
                   {(!concl || perfilAdmin) && <button onClick={() => onExcluir(o)} className="text-muted-foreground hover:text-danger" title={concl ? "Excluir OP (admin — estorna o apontamento)" : "Excluir OP"}><Trash2 className="w-3.5 h-3.5" /></button>}
