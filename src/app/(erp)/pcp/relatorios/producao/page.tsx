@@ -47,18 +47,31 @@ export default function RelatorioProducaoPage() {
   const [aba, setAba] = useState<"grafico" | "areas">("grafico");
   // Área selecionada no gráfico por data (sempre UMA área — sem "todas").
   const [areaSel, setAreaSel] = usePersistedState("rel-producao-area", "");
-  // Sem chip "Todas as áreas": garante uma área válida selecionada quando os dados chegam.
+  // Chips: etapas do fluxo (estáveis) ou, sem fluxo selecionado, as áreas com dados.
+  const chipsAreas = areasFluxo.length ? areasFluxo : (areas ?? []).map((a) => a.area);
+  // Sem chip "Todas as áreas": garante uma área válida selecionada.
   useEffect(() => {
-    if (!areas?.length) return;
-    if (!areaSel || !areas.some((a) => a.area === areaSel)) setAreaSel(areas[0].area);
+    if (!chipsAreas.length) return;
+    if (!areaSel || !chipsAreas.includes(areaSel)) setAreaSel(chipsAreas[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [areas]);
+  }, [chipsAreas.join("|")]);
   // Dia clicado no gráfico → pop-up com o resumo das OPs.
   const [diaPopup, setDiaPopup] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/pcp/fluxos").then((r) => r.json()).then((j) => setFluxos((j.data ?? []).map((f: { id: string; nome: string }) => ({ id: f.id, nome: f.nome })))).catch(() => {});
   }, []);
+
+  // Áreas (chips) vêm das ETAPAS DO FLUXO — ficam visíveis mesmo sem produção
+  // no período (antes vinham dos dados e sumiam quando o relatório voltava vazio).
+  const [areasFluxo, setAreasFluxo] = useState<string[]>([]);
+  useEffect(() => {
+    if (!fluxoId) { setAreasFluxo([]); return; }
+    fetch(`/api/pcp/ordens/area/abas?fluxoId=${fluxoId}`)
+      .then((r) => r.json())
+      .then((j) => setAreasFluxo(((j.areas ?? []) as { nome: string; centroTrabalho: string | null }[]).map((a) => a.centroTrabalho ?? a.nome)))
+      .catch(() => setAreasFluxo([]));
+  }, [fluxoId]);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -166,11 +179,11 @@ export default function RelatorioProducaoPage() {
         {aba === "grafico" && (
           <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2">
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              {(areas ?? []).map((a) => (
-                <button key={a.area} onClick={() => setAreaSel(a.area)}
+              {chipsAreas.map((nome) => (
+                <button key={nome} onClick={() => setAreaSel(nome)}
                   className={cn("px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                    areaSel === a.area ? "bg-cyan-600 border-cyan-600 text-white" : "border-border text-muted-foreground hover:bg-muted")}>
-                  {a.area}
+                    areaSel === nome ? "bg-cyan-600 border-cyan-600 text-white" : "border-border text-muted-foreground hover:bg-muted")}>
+                  {nome}
                 </button>
               ))}
             </div>
