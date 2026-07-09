@@ -47,14 +47,6 @@ export default function RelatorioProducaoPage() {
   const [aba, setAba] = useState<"grafico" | "areas">("grafico");
   // Área selecionada no gráfico por data (sempre UMA área — sem "todas").
   const [areaSel, setAreaSel] = usePersistedState("rel-producao-area", "");
-  // Chips: etapas do fluxo (estáveis) ou, sem fluxo selecionado, as áreas com dados.
-  const chipsAreas = areasFluxo.length ? areasFluxo : (areas ?? []).map((a) => a.area);
-  // Sem chip "Todas as áreas": garante uma área válida selecionada.
-  useEffect(() => {
-    if (!chipsAreas.length) return;
-    if (!areaSel || !chipsAreas.includes(areaSel)) setAreaSel(chipsAreas[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chipsAreas.join("|")]);
   // Dia clicado no gráfico → pop-up com o resumo das OPs.
   const [diaPopup, setDiaPopup] = useState<string | null>(null);
 
@@ -72,6 +64,15 @@ export default function RelatorioProducaoPage() {
       .then((j) => setAreasFluxo(((j.areas ?? []) as { nome: string; centroTrabalho: string | null }[]).map((a) => a.centroTrabalho ?? a.nome)))
       .catch(() => setAreasFluxo([]));
   }, [fluxoId]);
+
+  // Chips: etapas do fluxo (estáveis) ou, sem fluxo selecionado, as áreas com dados.
+  const chipsAreas = areasFluxo.length ? areasFluxo : (areas ?? []).map((a) => a.area);
+  // Sem chip "Todas as áreas": garante uma área válida selecionada.
+  useEffect(() => {
+    if (!chipsAreas.length) return;
+    if (!areaSel || !chipsAreas.includes(areaSel)) setAreaSel(chipsAreas[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chipsAreas.join("|")]);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
