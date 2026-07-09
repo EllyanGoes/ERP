@@ -7,8 +7,9 @@ import { prisma } from "@/lib/prisma";
 
 // GET /api/pcp/relatorios/producao?fluxoId=&from=&to=
 // Produção ENTREGUE (etapas concluídas) agregada por ÁREA de produção: peças
-// apontadas, perda e vagões/vagonetas por produto. Período pela data de
-// conclusão real da etapa (fimReal); quantidades sempre em peças (unidade-base).
+// apontadas, perda e vagões/vagonetas por produto. Período/dia pelo DIA
+// PROGRAMADO da OP (dataPrevistaInicio; fallback fimReal) — reapontamento
+// retroativo conta no dia da produção. Quantidades em peças (unidade-base).
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("pcp");
   if (!auth.ok) return auth.response;
@@ -26,7 +27,16 @@ export async function GET(req: NextRequest) {
   const to = parse(searchParams.get("to"), true);
 
   const where: Prisma.ItemOrdemProducaoWhereInput = { status: "CONCLUIDA" };
-  if (from || to) where.fimReal = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
+  // Período pelo DIA PROGRAMADO da OP (dataPrevistaInicio) — reapontamentos
+  // retroativos contam no dia da produção, não no dia em que foram digitados.
+  // OPs sem programação caem na data de conclusão (fimReal).
+  if (from || to) {
+    const range = { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) };
+    where.OR = [
+      { ordemProducao: { dataPrevistaInicio: range } },
+      { ordemProducao: { dataPrevistaInicio: null }, fimReal: range },
+    ];
+  }
   if (fluxoId) where.ordemProducao = { fluxoVersao: { fluxo: { id: fluxoId } } };
 
   const etapas = await prisma.itemOrdemProducao.findMany({
@@ -36,7 +46,7 @@ export async function GET(req: NextRequest) {
       qtdPerda: true, vagoes: true, vagonetas: true, apontadoPor: true,
       ordemProducao: {
         select: {
-          id: true, numero: true,
+          id: true, numero: true, dataPrevistaInicio: true,
           fluxoVersao: { select: { fluxo: { select: { id: true, nome: true } } } },
           produtoItens: {
             select: {
@@ -72,8 +82,9 @@ export async function GET(req: NextRequest) {
     a.vagoes += et.vagoes ?? 0;
     a.vagonetas += et.vagonetas ?? 0;
 
-    // Veículos descarregados do dia (uma vez por etapa — não por produto).
-    const diaEtapa = diaBelem(et.fimReal);
+    // Dia do gráfico = dia PROGRAMADO da OP (fallback: conclusão real). Veículos
+    // descarregados contam uma vez por etapa — não por produto.
+    const diaEtapa = diaBelem(et.ordemProducao.dataPrevistaInicio ?? et.fimReal);
     if (diaEtapa) diaDe(diaEtapa, chave).veiculos += (et.vagoes ?? 0) + (et.vagonetas ?? 0);
 
     let opPecas = 0, opPaletes = 0, opPerda = 0;
@@ -100,9 +111,8 @@ export async function GET(req: NextRequest) {
       p.perda += perda;
       p.ops += 1;
 
-      const dia = diaBelem(et.fimReal);
-      if (dia) {
-        const d = diaDe(dia, chave);
+      if (diaEtapa) {
+        const d = diaDe(diaEtapa, chave);
         d.pecas += pecas;
         d.paletes += paletes;
         d.perda += perda;
