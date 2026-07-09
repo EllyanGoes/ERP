@@ -915,6 +915,11 @@ export default function OrdensBoardPage() {
             {/* Filtros como botões-ícone no canto direito da linha das abas:
                 "Só abertas" vale p/ board e lista; os agrupamentos são da lista. */}
             <div className="ml-auto flex items-center gap-1 self-center pb-1">
+              {vista === "lista" && (
+                <span className="text-sm font-medium text-foreground mr-2 whitespace-nowrap">
+                  {filtrarOps(opsLista).filter((o) => !soAbertas || o.etapaStatus !== "CONCLUIDA").length} OPs
+                </span>
+              )}
               <Dica label="Só abertas (esconde as concluídas)">
               <button type="button" onClick={() => setSoAbertas(!soAbertas)}
                 className={cn("rounded-lg border p-1.5 transition-colors", soAbertas ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
@@ -1740,14 +1745,14 @@ function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparD
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/40 flex-wrap">
-        <p className="text-sm font-medium text-foreground">{visiveis.length} OP{visiveis.length === 1 ? "" : "s"}</p>
-        {onNova && (
+      {/* Contador de OPs mora na linha das abas (à esquerda dos filtros). */}
+      {onNova && (
+        <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-border bg-muted/40">
           <button onClick={onNova} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
             <Plus className="w-3.5 h-3.5" /> Nova OP
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {/* Cabeçalho das COLUNAS (larguras casadas com as linhas) */}
       {!carregando && visiveis.length > 0 && (
         <div className="flex items-center gap-3 px-4 py-1.5 border-b border-border bg-muted/60 text-[10px] uppercase tracking-wide font-semibold text-muted-foreground">
