@@ -199,6 +199,29 @@ export default function OrdensBoardPage() {
   const novoAberto = novo != null;
   useEffect(() => { setBuscaEquipe(""); }, [novoAberto]);
 
+  // Apontamento POR PALETE: nº de paletes × pç/palete → quantidade real na
+  // unidade da linha (÷ pecasPorUnidade; linha em PLT vira nº de paletes puro).
+  function aplicarPorPalete(pr: ProdutoOP, paletesStr: string, pcPltStr: string) {
+    setApForm((f) => {
+      const next = { ...f, paletes: { ...f.paletes, [pr.itemId]: paletesStr }, pcPlt: { ...f.pcPlt, [pr.itemId]: pcPltStr } };
+      const paletes = numBR(paletesStr);
+      const pcPlt = numBR(pcPltStr);
+      if (paletes > 0 && pcPlt > 0) {
+        const totalPecas = paletes * pcPlt;
+        const real = Math.round((totalPecas / (pr.pecasPorUnidade && pr.pecasPorUnidade > 0 ? pr.pecasPorUnidade : 1)) * 1000) / 1000;
+        next.reais = { ...f.reais, [pr.itemId]: fmtQtd(real) };
+      }
+      return next;
+    });
+  }
+  // Calculadora de perda (Embalar): linhas de vagão descarregado → descarregado por produto.
+  const [calcPerda, setCalcPerda] = useState<{ rows: CargaVagaoRow[] } | null>(null);
+  // Planejamento por transporte (Nova OP): mesma calculadora de vagões, mas o total
+  // por produto alimenta a quantidade planejada da OP (em vez da perda).
+  const [calcPlan, setCalcPlan] = useState<{ rows: CargaVagaoRow[] } | null>(null);
+  // Capacidades cadastradas (peças/veículo por produto), de cargas-movimentação.
+  const [capacidades, setCapacidades] = useState<Record<string, { VAGONETA?: number; VAGAO?: number }>>({});
+
   // ESC fecha o pop-up aberto (o de cima primeiro). Modais com formulário em
   // andamento (algo digitado/alterado) pedem confirmação antes de descartar.
   useEffect(() => {
@@ -227,29 +250,6 @@ export default function OrdensBoardPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [calcPerda, calcPlan, saldoIni, saldoPopup, apontar, novo, apForm]);
-
-  // Apontamento POR PALETE: nº de paletes × pç/palete → quantidade real na
-  // unidade da linha (÷ pecasPorUnidade; linha em PLT vira nº de paletes puro).
-  function aplicarPorPalete(pr: ProdutoOP, paletesStr: string, pcPltStr: string) {
-    setApForm((f) => {
-      const next = { ...f, paletes: { ...f.paletes, [pr.itemId]: paletesStr }, pcPlt: { ...f.pcPlt, [pr.itemId]: pcPltStr } };
-      const paletes = numBR(paletesStr);
-      const pcPlt = numBR(pcPltStr);
-      if (paletes > 0 && pcPlt > 0) {
-        const totalPecas = paletes * pcPlt;
-        const real = Math.round((totalPecas / (pr.pecasPorUnidade && pr.pecasPorUnidade > 0 ? pr.pecasPorUnidade : 1)) * 1000) / 1000;
-        next.reais = { ...f.reais, [pr.itemId]: fmtQtd(real) };
-      }
-      return next;
-    });
-  }
-  // Calculadora de perda (Embalar): linhas de vagão descarregado → descarregado por produto.
-  const [calcPerda, setCalcPerda] = useState<{ rows: CargaVagaoRow[] } | null>(null);
-  // Planejamento por transporte (Nova OP): mesma calculadora de vagões, mas o total
-  // por produto alimenta a quantidade planejada da OP (em vez da perda).
-  const [calcPlan, setCalcPlan] = useState<{ rows: CargaVagaoRow[] } | null>(null);
-  // Capacidades cadastradas (peças/veículo por produto), de cargas-movimentação.
-  const [capacidades, setCapacidades] = useState<Record<string, { VAGONETA?: number; VAGAO?: number }>>({});
   const [apBusy, setApBusy] = useState(false);
   const [consumoAp, setConsumoAp] = useState<ConsumoLinha[] | null>(null);
   const [carregandoConsumoAp, setCarregandoConsumoAp] = useState(false);
