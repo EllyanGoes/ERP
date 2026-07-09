@@ -2,18 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
+import Dica from "@/components/shared/Dica";
+import { corArea, iconeArea } from "@/lib/pcp/area-visual";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import PrintButton from "@/components/shared/PrintButton";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { Loader2, Factory, RefreshCw } from "lucide-react";
-import { ResponsiveContainer, BarChart, ComposedChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LabelList } from "recharts";
+import { ResponsiveContainer, ComposedChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
 // Cores dos gráficos (pares validados p/ daltonismo e contraste nos 2 temas):
 // produzido = ciano do PCP; perda = âmbar (tabelas/empilhado); quebra = vermelho (linha).
 const COR_PRODUZIDO = "#0891b2";
-const COR_PERDA = "#d97706";
 const COR_QUEBRA = "#dc2626";
 const COR_VEICULOS = "#7c3aed";
 
@@ -43,9 +44,10 @@ export default function RelatorioProducaoPage() {
   const [porDia, setPorDia] = useState<DiaLinha[]>([]);
   const [opsDia, setOpsDia] = useState<OpDia[]>([]);
   const [carregando, setCarregando] = useState(false);
-  const [aba, setAba] = useState<"grafico" | "areas">("grafico");
-  // Área selecionada no gráfico por data (sempre UMA área — sem "todas").
+  // Área selecionada — as ABAS (mesmo padrão do Fluxo de Produção) escolhem a área.
   const [areaSel, setAreaSel] = usePersistedState("rel-producao-area", "");
+  // Agrupamento do gráfico: colunas por dia, mês ou ano.
+  const [granularidade, setGranularidade] = usePersistedState<"dia" | "mes" | "ano">("rel-producao-gran", "dia");
   // Dia clicado no gráfico → pop-up com o resumo das OPs.
   const [diaPopup, setDiaPopup] = useState<string | null>(null);
   // Séries ocultas no gráfico diário — clique na legenda esconde/mostra a série.
@@ -109,27 +111,35 @@ export default function RelatorioProducaoPage() {
   const totalPecas = (areas ?? []).reduce((s, a) => s + a.pecas, 0);
   const totalPerda = (areas ?? []).reduce((s, a) => s + a.perda, 0);
 
-  // Série do gráfico por data: um ponto por dia do período (dias sem produção
-  // entram zerados p/ o eixo do tempo ser honesto), filtrada pela área escolhida.
+  // Série do gráfico agrupada por DIA, MÊS ou ANO (buckets sem produção entram
+  // zerados p/ o eixo do tempo ser honesto), filtrada pela área da aba.
   const serieDias = useMemo(() => {
     if (!from || !to) return [];
+    // Chave do bucket: dia = "YYYY-MM-DD"; mês = "YYYY-MM"; ano = "YYYY".
+    const chave = (iso: string) => (granularidade === "ano" ? iso.slice(0, 4) : granularidade === "mes" ? iso.slice(0, 7) : iso);
+    const rotulo = (k: string) => (granularidade === "ano" ? k : granularidade === "mes" ? `${k.slice(5, 7)}/${k.slice(0, 4)}` : `${k.slice(8, 10)}/${k.slice(5, 7)}`);
     const mapa = new Map<string, { pecas: number; paletes: number; perda: number; veiculos: number }>();
     for (const d of porDia) {
       if (areaSel && d.area !== areaSel) continue;
-      const cur = mapa.get(d.dia) ?? { pecas: 0, paletes: 0, perda: 0, veiculos: 0 };
+      const k = chave(d.dia);
+      const cur = mapa.get(k) ?? { pecas: 0, paletes: 0, perda: 0, veiculos: 0 };
       cur.pecas += d.pecas; cur.paletes += d.paletes ?? 0; cur.perda += d.perda; cur.veiculos += d.veiculos;
-      mapa.set(d.dia, cur);
+      mapa.set(k, cur);
     }
     const out: { dia: string; label: string; producao: number; paletes: number; quebra: number; veiculos: number }[] = [];
     const ini = new Date(`${from}T12:00:00`);
     const fim = new Date(`${to}T12:00:00`);
+    const vistos = new Set<string>();
     for (let t = ini.getTime(); t <= fim.getTime() && out.length < 190; t += 86400000) {
       const iso = new Date(t).toISOString().slice(0, 10);
-      const v = mapa.get(iso);
-      out.push({ dia: iso, label: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, producao: v?.pecas ?? 0, paletes: v?.paletes ?? 0, quebra: v?.perda ?? 0, veiculos: v?.veiculos ?? 0 });
+      const k = chave(iso);
+      if (vistos.has(k)) continue;
+      vistos.add(k);
+      const v = mapa.get(k);
+      out.push({ dia: k, label: rotulo(k), producao: v?.pecas ?? 0, paletes: v?.paletes ?? 0, quebra: v?.perda ?? 0, veiculos: v?.veiculos ?? 0 });
     }
     return out;
-  }, [porDia, areaSel, from, to]);
+  }, [porDia, areaSel, from, to, granularidade]);
 
   return (
     <div>
@@ -163,31 +173,39 @@ export default function RelatorioProducaoPage() {
           <div className="no-print ml-auto"><PrintButton /></div>
         </div>
 
-        {/* Abas: gráfico por data (1ª) × visão por área (2ª) */}
-        <div className="no-print border-b border-border">
-          <div className="flex gap-0">
-            {([["grafico", "Gráfico"], ["areas", "Por área"]] as const).map(([k, lbl]) => (
-              <button key={k} onClick={() => setAba(k)}
-                className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
-                  aba === k ? "border-cyan-600 text-cyan-700 dark:text-cyan-400" : "border-transparent text-muted-foreground hover:text-foreground")}>
-                {lbl}
+        {/* Abas por ÁREA (mesmo padrão do Fluxo de Produção: ícone colorido +
+            tooltip) + agrupamento do gráfico (dia/mês/ano) à direita. */}
+        <div className="no-print flex border-b border-border">
+          {chipsAreas.map((nome, i) => {
+            const cor = corArea(i);
+            const Icone = iconeArea(nome);
+            const ativa = areaSel === nome;
+            return (
+              <Dica key={nome} label={nome}>
+              <button onClick={() => setAreaSel(nome)}
+                className={cn("px-3.5 py-2.5 border-b-2 -mb-px whitespace-nowrap transition-colors inline-flex items-center gap-1.5",
+                  ativa ? cn(cor.borda, cor.txt) : "border-transparent hover:bg-muted/60")}>
+                <Icone className={cn("w-5 h-5", cor.txt)} />
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── ABA GRÁFICO: colunas por data + linha de quebra, por área ─────── */}
-        {aba === "grafico" && (
-          <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2">
-            <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              {chipsAreas.map((nome) => (
-                <button key={nome} onClick={() => setAreaSel(nome)}
-                  className={cn("px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                    areaSel === nome ? "bg-cyan-600 border-cyan-600 text-white" : "border-border text-muted-foreground hover:bg-muted")}>
-                  {nome}
+              </Dica>
+            );
+          })}
+          {/* Agrupamento das colunas do gráfico */}
+          <div className="ml-auto flex items-center self-center pb-1">
+            <div className="flex rounded-lg border border-border p-0.5 text-xs">
+              {([["dia", "Dia"], ["mes", "Mês"], ["ano", "Ano"]] as const).map(([k, lbl]) => (
+                <button key={k} type="button" onClick={() => setGranularidade(k)}
+                  className={cn("px-2.5 py-1 rounded-md transition-colors", granularidade === k ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
+                  {lbl}
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* ── Gráfico da área selecionada ─────────────────────────────────────── */}
+        {(
+          <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2">
             {serieDias.length === 0 ? (
               <p className="text-sm text-muted-foreground py-10 text-center">Sem dados no período.</p>
             ) : (
@@ -205,7 +223,7 @@ export default function RelatorioProducaoPage() {
                       const p = (payload[0]?.payload ?? {}) as { producao?: number; paletes?: number; quebra?: number; veiculos?: number };
                       return (
                         <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-md space-y-0.5" style={{ fontSize: 12 }}>
-                          <p className="font-medium text-foreground">Dia {label} — clique na coluna p/ ver as OPs</p>
+                          <p className="font-medium text-foreground">{granularidade === "dia" ? "Dia" : granularidade === "mes" ? "Mês" : "Ano"} {label} — clique na coluna p/ ver as OPs</p>
                           <p style={{ color: COR_PRODUZIDO }}>Produção: {n(p.producao ?? 0)} pç · <b>{n1(p.paletes ?? 0)} paletes</b></p>
                           <p style={{ color: COR_QUEBRA }}>Quebra: {n(p.quebra ?? 0)} pç{(p.producao ?? 0) > 0 && (p.quebra ?? 0) > 0 ? ` (${pctPerda(p.producao ?? 0, p.quebra ?? 0)})` : ""}</p>
                           <p style={{ color: COR_VEICULOS }}>Vagões descarregados: {p.veiculos ?? 0}</p>
@@ -231,17 +249,19 @@ export default function RelatorioProducaoPage() {
           </div>
         )}
 
-        {/* Pop-up: resumo das OPs do dia clicado no gráfico */}
+        {/* Pop-up: resumo das OPs do bucket clicado (dia, mês ou ano) */}
         {diaPopup && (() => {
-          const doDia = opsDia.filter((o) => o.dia === diaPopup && (!areaSel || o.area === areaSel));
+          // Prefixo casa a granularidade: "YYYY-MM-DD" (dia), "YYYY-MM" (mês), "YYYY" (ano).
+          const doDia = opsDia.filter((o) => o.dia.startsWith(diaPopup) && (!areaSel || o.area === areaSel));
           const tot = doDia.reduce((s, o) => ({ pecas: s.pecas + o.pecas, paletes: s.paletes + (o.paletes ?? 0), perda: s.perda + o.perda, veiculos: s.veiculos + o.veiculos }), { pecas: 0, paletes: 0, perda: 0, veiculos: 0 });
           const [y, m, d] = diaPopup.split("-");
+          const tituloPeriodo = d ? `${d}/${m}/${y}` : m ? `${m}/${y}` : y;
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDiaPopup(null)}>
               <div className="w-full max-w-3xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-                    <Factory className="w-5 h-5 text-cyan-600" /> OPs de {d}/{m}/{y}{areaSel ? ` — ${areaSel}` : ""}
+                    <Factory className="w-5 h-5 text-cyan-600" /> OPs de {tituloPeriodo}{areaSel ? ` — ${areaSel}` : ""}
                   </h2>
                   <button onClick={() => setDiaPopup(null)} className="text-muted-foreground hover:text-foreground text-sm">Fechar ✕</button>
                 </div>
@@ -285,8 +305,7 @@ export default function RelatorioProducaoPage() {
           );
         })()}
 
-        {/* ── ABA POR ÁREA (imprimível) ─────────────────────────────────────── */}
-        {aba === "areas" && (
+        {/* ── Tabela da ÁREA selecionada (imprimível), abaixo do gráfico ────── */}
         <div className="print-area space-y-4">
           {carregando && areas === null ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
@@ -296,33 +315,7 @@ export default function RelatorioProducaoPage() {
             </div>
           ) : (
             <>
-              {/* Gráfico: produzido × perda por área (barras horizontais empilhadas). */}
-              <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2" style={{ breakInside: "avoid" }}>
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Produção por área (pç)</p>
-                <ResponsiveContainer width="100%" height={Math.max(160, areas.length * 44 + 60)}>
-                  <BarChart
-                    layout="vertical"
-                    data={areas.map((a) => ({ area: a.area, Produzido: a.pecas, Perda: a.perda, total: a.pecas + a.perda }))}
-                    margin={{ top: 4, right: 56, bottom: 4, left: 8 }}
-                  >
-                    <CartesianGrid horizontal={false} stroke="#94a3b8" strokeOpacity={0.18} />
-                    <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v: number) => v.toLocaleString("pt-BR", { notation: v >= 10000 ? "compact" : "standard" })} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="area" width={130} tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      cursor={{ fill: "#94a3b8", fillOpacity: 0.08 }}
-                      formatter={(v) => `${Number(v).toLocaleString("pt-BR")} pç`}
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    />
-                    <Legend formatter={(v: string) => <span style={{ color: "#64748b", fontSize: 12 }}>{v}</span>} />
-                    <Bar dataKey="Produzido" stackId="a" fill={COR_PRODUZIDO} barSize={22} />
-                    <Bar dataKey="Perda" stackId="a" fill={COR_PERDA} barSize={22} radius={[0, 4, 4, 0]}>
-                      <LabelList dataKey="total" position="right" formatter={(v: React.ReactNode) => Number(v).toLocaleString("pt-BR")} style={{ fill: "#64748b", fontSize: 11 }} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {areas.map((a) => (
+              {areas.filter((a) => a.area === areaSel).map((a) => (
                 <div key={a.area} className="rounded-xl border border-border bg-card overflow-hidden" style={{ breakInside: "avoid" }}>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 border-b border-border bg-muted/60">
                     <h2 className="font-bold text-sm text-foreground uppercase tracking-wide flex items-center gap-2">
@@ -366,7 +359,6 @@ export default function RelatorioProducaoPage() {
             </>
           )}
         </div>
-        )}
       </div>
     </div>
   );

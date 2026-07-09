@@ -10,9 +10,10 @@ import { useSession } from "@/lib/session-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin, Search, Shovel, FlaskConical, Shapes, Wind, Flame, Package, Columns3, CircleDashed, type LucideIcon } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin, Search, Columns3, CircleDashed } from "lucide-react";
 import ChaoView from "@/components/pcp/chao/ChaoView";
 import Dica from "@/components/shared/Dica";
+import { corArea, iconeArea } from "@/lib/pcp/area-visual";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -49,32 +50,6 @@ function unidadePadrao(area: Area | null | undefined, prod: Produto | undefined)
   return prod.unidades[0]?.id ?? "";
 }
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
-// Cor ESTÁVEL por área (índice na ordem do fluxo) — abas do board, chips e
-// cabeçalhos da lista usam a mesma cor p/ identificar a etapa de bater o olho.
-const CORES_AREA = [
-  { dot: "bg-sky-500",     txt: "text-sky-700 dark:text-sky-400",         chip: "bg-sky-500/10 text-sky-700 dark:text-sky-400",         borda: "border-sky-500" },
-  { dot: "bg-amber-500",   txt: "text-amber-700 dark:text-amber-400",     chip: "bg-amber-500/10 text-amber-700 dark:text-amber-400",   borda: "border-amber-500" },
-  { dot: "bg-violet-500",  txt: "text-violet-700 dark:text-violet-400",   chip: "bg-violet-500/10 text-violet-700 dark:text-violet-400", borda: "border-violet-500" },
-  { dot: "bg-emerald-500", txt: "text-emerald-700 dark:text-emerald-400", chip: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400", borda: "border-emerald-500" },
-  { dot: "bg-rose-500",    txt: "text-rose-700 dark:text-rose-400",       chip: "bg-rose-500/10 text-rose-700 dark:text-rose-400",       borda: "border-rose-500" },
-  { dot: "bg-cyan-600",    txt: "text-cyan-700 dark:text-cyan-400",       chip: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",       borda: "border-cyan-600" },
-  { dot: "bg-orange-500",  txt: "text-orange-700 dark:text-orange-400",   chip: "bg-orange-500/10 text-orange-700 dark:text-orange-400", borda: "border-orange-500" },
-  { dot: "bg-indigo-500",  txt: "text-indigo-700 dark:text-indigo-400",   chip: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400", borda: "border-indigo-500" },
-];
-const COR_AREA_NEUTRA = { dot: "bg-slate-400", txt: "text-muted-foreground", chip: "bg-muted text-muted-foreground", borda: "border-border" };
-const corArea = (i: number) => (i >= 0 ? CORES_AREA[i % CORES_AREA.length] : COR_AREA_NEUTRA);
-// Ícone por área (heurística pelo nome) — as abas mostram só o ícone; o nome
-// completo aparece no tooltip (title) ao passar o mouse.
-function iconeArea(nome: string): LucideIcon {
-  const n = nome.toLowerCase();
-  if (n.includes("prepar")) return Shovel;
-  if (n.includes("mistura")) return FlaskConical;
-  if (n.includes("conform") || n.includes("extrus")) return Shapes;
-  if (n.includes("seca")) return Wind;
-  if (n.includes("queima") || n.includes("forno")) return Flame;
-  if (n.includes("embal")) return Package;
-  return Factory;
-}
 const hoje = () => new Date().toISOString().slice(0, 10);
 // ISO → valor de <input type="datetime-local"> em hora local ("YYYY-MM-DDTHH:mm").
 const toLocalInput = (iso: string | null) => {
@@ -223,6 +198,35 @@ export default function OrdensBoardPage() {
   const [buscaEquipe, setBuscaEquipe] = useState("");
   const novoAberto = novo != null;
   useEffect(() => { setBuscaEquipe(""); }, [novoAberto]);
+
+  // ESC fecha o pop-up aberto (o de cima primeiro). Modais com formulário em
+  // andamento (algo digitado/alterado) pedem confirmação antes de descartar.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (calcPerda) { setCalcPerda(null); return; }
+      if (calcPlan) { setCalcPlan(null); return; }
+      if (saldoIni) { setSaldoIni(null); return; }
+      if (apontar) {
+        const preenchido = Object.values(apForm.perdas).some((v) => String(v).trim() !== "")
+          || Object.values(apForm.paletes).some((v) => String(v).trim() !== "")
+          || apForm.biomassa.trim() !== "";
+        if (!preenchido || confirm("Fechar o apontamento sem salvar? As alterações serão perdidas.")) setApontar(null);
+        return;
+      }
+      if (novo) {
+        const preenchido = novo.editId != null
+          || novo.linhas.some((l) => String(l.quantidade).trim() !== "")
+          || novo.observacao.trim() !== ""
+          || (novo.equipeIds?.length ?? 0) > 0;
+        if (!preenchido || confirm("Fechar sem salvar? As alterações serão perdidas.")) setNovo(null);
+        return;
+      }
+      if (saldoPopup) { setSaldoPopup(false); return; }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [calcPerda, calcPlan, saldoIni, saldoPopup, apontar, novo, apForm]);
 
   // Apontamento POR PALETE: nº de paletes × pç/palete → quantidade real na
   // unidade da linha (÷ pecasPorUnidade; linha em PLT vira nº de paletes puro).
@@ -1754,7 +1758,7 @@ function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparD
           <span className="w-44 shrink-0">Quantidade</span>
           <span className="hidden lg:block w-44 shrink-0">Responsável</span>
           <span className="hidden lg:block w-14 shrink-0">Equipe</span>
-          <span className="hidden xl:block w-14 shrink-0">Até</span>
+          <span className="hidden xl:block w-28 shrink-0">Período</span>
           <span className="w-24 shrink-0">Status</span>
           <span className="w-40 shrink-0" />
         </div>
@@ -1811,7 +1815,14 @@ function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparD
                 <span className="w-44 shrink-0 text-[11px] text-muted-foreground tabular-nums truncate" title={qtdTxt}>{qtdTxt}</span>
                 <span className="hidden lg:block w-44 shrink-0 text-[11px] text-muted-foreground truncate" title={o.responsavel ?? undefined}>{o.responsavel ? `👤 ${o.responsavel}` : "—"}</span>
                 <span className="hidden lg:block w-14 shrink-0 text-[11px] text-muted-foreground" title={(o.equipe ?? []).map((e) => e.nome).join(", ") || undefined}>{(o.equipe?.length ?? 0) > 0 ? `👥 ${o.equipe!.length}` : "—"}</span>
-                <span className="hidden xl:block w-14 shrink-0 text-[11px] text-muted-foreground tabular-nums">{o.fimPrevisto ? new Date(o.fimPrevisto).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"}</span>
+                <span className="hidden xl:block w-28 shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                  {(() => {
+                    // Período previsto da OP: "07:00 - 19:00".
+                    const hh = (iso: string | null) => (iso ? new Date(iso).toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : null);
+                    const ini = hh(o.inicioPrevisto), fim = hh(o.fimPrevisto);
+                    return ini && fim ? `${ini} - ${fim}` : (fim ?? ini ?? "—");
+                  })()}
+                </span>
                 <span className="w-24 shrink-0 flex justify-start">
                   <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
                     {concl ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
