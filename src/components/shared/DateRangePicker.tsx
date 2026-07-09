@@ -339,6 +339,20 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
               >
                 Hoje
               </button>
+              {/* Atalho: mês atual completo (1º ao último dia). */}
+              <button
+                type="button"
+                onClick={() => {
+                  const ini = `${today.slice(0, 8)}01`;
+                  const d = new Date(parseInt(today.slice(0, 4)), parseInt(today.slice(5, 7)), 0);
+                  const fim = `${today.slice(0, 7)}-${String(d.getDate()).padStart(2, "0")}`;
+                  onChange({ from: ini, to: fim });
+                  setOpen(false);
+                }}
+                className="text-xs text-info hover:text-info font-medium px-2 py-0.5 rounded-md hover:bg-info/10 transition-colors"
+              >
+                Mês
+              </button>
               <button type="button" onClick={prevMonth} className="p-1 rounded-md hover:bg-muted transition-colors">
                 <ChevronLeft className="w-4 h-4 text-muted-foreground" />
               </button>

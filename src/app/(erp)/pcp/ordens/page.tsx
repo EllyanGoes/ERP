@@ -51,6 +51,12 @@ function unidadePadrao(area: Area | null | undefined, prod: Produto | undefined)
 }
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
 const hoje = () => new Date().toISOString().slice(0, 10);
+// Quantidade da linha p/ EXIBIÇÃO: em unidade física (PLT etc., fator > 1) o
+// número arredonda PARA CIMA — palete parcial conta como palete.
+const fmtQtdLinha = (p: ProdutoOP) => {
+  const v = Number(p.planejada) || 0;
+  return (p.pecasPorUnidade ?? 1) > 1 ? Math.ceil(v).toLocaleString("pt-BR") : fmtQtd(v);
+};
 // ISO → valor de <input type="datetime-local"> em hora local ("YYYY-MM-DDTHH:mm").
 const toLocalInput = (iso: string | null) => {
   if (!iso) return "";
@@ -308,11 +314,10 @@ export default function OrdensBoardPage() {
   // "area" = só a aba atual; "todas" = todas as áreas do fluxo (marca a área em cada OP).
   const loadLista = useCallback(async () => {
     if (!fluxoId) { setOpsLista([]); return; }
-    // Escopo segue a ABA (área ou "Todas as áreas"); sem período selecionado a
-    // lista mostra TUDO — com período, respeita a janela (igual ao relatório).
+    // Escopo segue a ABA (área ou "Todas as áreas"); a janela segue o PERÍODO
+    // (vazio = hoje, igual ao board — o rótulo do filtro promete isso).
     const busca = async (nodeId: string, nome?: string): Promise<BoardOP[]> => {
-      const janela = periodo.from ? `from=${data}&to=${dataFim}` : "todas=1";
-      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&${janela}`);
+      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&from=${data}&to=${dataFim}`);
       const j = await r.json();
       return (j.data ?? []).map((o: BoardOP) => ({ ...o, areaNome: nome, areaNodeId: nodeId }));
     };
@@ -1795,8 +1800,8 @@ function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparD
           {opsArea.map((o) => {
             const concl = o.etapaStatus === "CONCLUIDA";
             const qtdTxt = o.produtos.length > 1
-              ? o.produtos.map((p) => `${fmtQtd(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
-              : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`.trim();
+              ? o.produtos.map((p) => `${fmtQtdLinha(p)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
+              : `${o.produtos[0] ? fmtQtdLinha(o.produtos[0]) : fmtQtd(Number(o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`.trim();
             return (
               // COLUNAS de verdade (larguras fixas alinhadas ao cabeçalho) — nada amontoado.
               <div key={o.id} className="flex items-center gap-3 px-4 py-2 border-b border-border/50 hover:bg-muted/40 text-sm">
@@ -1871,8 +1876,8 @@ function CardOP({ o, podeExcluirConcluida, onAbrir, onEditar, onExcluir, onApont
       )}
       <p className="text-[11px] text-muted-foreground">
         {o.produtos.length > 1
-          ? o.produtos.map((p) => `${fmtQtd(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
-          : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`}
+          ? o.produtos.map((p) => `${fmtQtdLinha(p)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
+          : `${o.produtos[0] ? fmtQtdLinha(o.produtos[0]) : fmtQtd(Number(o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`}
       </p>
       {(o.responsavel || o.fimPrevisto || (o.equipe?.length ?? 0) > 0) && (
         <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
