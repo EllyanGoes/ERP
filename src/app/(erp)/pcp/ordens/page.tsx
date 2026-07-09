@@ -48,6 +48,20 @@ function unidadePadrao(area: Area | null | undefined, prod: Produto | undefined)
   return prod.unidades[0]?.id ?? "";
 }
 const ETAPA_STATUS: Record<string, string> = { PENDENTE: "bg-muted text-muted-foreground", EM_EXECUCAO: "bg-warning/15 text-warning", CONCLUIDA: "bg-success/15 text-success" };
+// Cor ESTÁVEL por área (índice na ordem do fluxo) — abas do board, chips e
+// cabeçalhos da lista usam a mesma cor p/ identificar a etapa de bater o olho.
+const CORES_AREA = [
+  { dot: "bg-sky-500",     txt: "text-sky-700 dark:text-sky-400",         chip: "bg-sky-500/10 text-sky-700 dark:text-sky-400",         borda: "border-sky-500" },
+  { dot: "bg-amber-500",   txt: "text-amber-700 dark:text-amber-400",     chip: "bg-amber-500/10 text-amber-700 dark:text-amber-400",   borda: "border-amber-500" },
+  { dot: "bg-violet-500",  txt: "text-violet-700 dark:text-violet-400",   chip: "bg-violet-500/10 text-violet-700 dark:text-violet-400", borda: "border-violet-500" },
+  { dot: "bg-emerald-500", txt: "text-emerald-700 dark:text-emerald-400", chip: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400", borda: "border-emerald-500" },
+  { dot: "bg-rose-500",    txt: "text-rose-700 dark:text-rose-400",       chip: "bg-rose-500/10 text-rose-700 dark:text-rose-400",       borda: "border-rose-500" },
+  { dot: "bg-cyan-600",    txt: "text-cyan-700 dark:text-cyan-400",       chip: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",       borda: "border-cyan-600" },
+  { dot: "bg-orange-500",  txt: "text-orange-700 dark:text-orange-400",   chip: "bg-orange-500/10 text-orange-700 dark:text-orange-400", borda: "border-orange-500" },
+  { dot: "bg-indigo-500",  txt: "text-indigo-700 dark:text-indigo-400",   chip: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400", borda: "border-indigo-500" },
+];
+const COR_AREA_NEUTRA = { dot: "bg-slate-400", txt: "text-muted-foreground", chip: "bg-muted text-muted-foreground", borda: "border-border" };
+const corArea = (i: number) => (i >= 0 ? CORES_AREA[i % CORES_AREA.length] : COR_AREA_NEUTRA);
 const hoje = () => new Date().toISOString().slice(0, 10);
 // ISO → valor de <input type="datetime-local"> em hora local ("YYYY-MM-DDTHH:mm").
 const toLocalInput = (iso: string | null) => {
@@ -836,10 +850,13 @@ export default function OrdensBoardPage() {
         {/* Abas por área */}
         {areas.length > 0 && (
           <div className="flex gap-0 border-b border-border overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden">
-            {areas.map((a) => (
+            {areas.map((a, i) => {
+              const cor = corArea(i); // cor estável da área (mesma da lista)
+              return (
               <button key={a.nodeId} type="button" onClick={() => { setAreaNodeId(a.nodeId); setNovo(null); }}
                 className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
-                  a.nodeId === areaNodeId ? "border-cyan-600 text-cyan-700 dark:text-cyan-400" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                  a.nodeId === areaNodeId ? cn(cor.borda, cor.txt) : "border-transparent text-muted-foreground hover:text-foreground")}>
+                <span className={cn("inline-block w-2 h-2 rounded-full mr-1.5 align-middle", cor.dot)} />
                 <span className="text-[10px] text-muted-foreground mr-1.5">{a.sequencia}</span>{a.centroTrabalho ?? a.nome}
                 {(() => {
                   const c = contagem[a.nodeId];
@@ -853,7 +870,8 @@ export default function OrdensBoardPage() {
                   );
                 })()}
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -1720,11 +1738,13 @@ function ListaPorDia({ ops, carregando, escopo, onEscopo, soAbertas, onSoAbertas
               <span className="text-[10px] font-medium text-muted-foreground/70">{lista.length} OP{lista.length === 1 ? "" : "s"}</span>
             </div>
           )}
-          {subgrupos.map(([areaNome, opsArea]) => (
+          {subgrupos.map(([areaNome, opsArea]) => {
+          const corSub = areaNome !== null ? corArea(ordemAreas.indexOf(areaNome)) : null;
+          return (
           <div key={areaNome ?? "_"}>
-          {areaNome !== null && (
-            <div className="flex items-center justify-between px-4 py-1 bg-cyan-500/5 border-b border-border/60 text-[11px] font-semibold text-cyan-700 dark:text-cyan-400">
-              <span className="inline-flex items-center gap-1.5"><Factory className="w-3 h-3" /> {areaNome === "—" ? "Sem área" : areaNome}</span>
+          {areaNome !== null && corSub && (
+            <div className={cn("flex items-center justify-between px-4 py-1 border-b border-border/60 text-[11px] font-semibold", corSub.chip)}>
+              <span className="inline-flex items-center gap-1.5"><span className={cn("inline-block w-2 h-2 rounded-full", corSub.dot)} /> {areaNome === "—" ? "Sem área" : areaNome}</span>
               <span className="text-[10px] font-medium text-muted-foreground/70">{opsArea.length} OP{opsArea.length === 1 ? "" : "s"}</span>
             </div>
           )}
@@ -1739,7 +1759,7 @@ function ListaPorDia({ ops, carregando, escopo, onEscopo, soAbertas, onSoAbertas
                 {dia === null && <span className="w-12 shrink-0 text-[11px] tabular-nums text-muted-foreground">{fmtDiaCurto(o.dia)}</span>}
                 <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600 w-24 shrink-0 text-left">{o.numero}</button>
                 {escopo === "todas" && o.areaNome && areaNome === null && (
-                  <span className="hidden sm:inline-flex items-center rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 px-2 py-0.5 text-[10px] font-medium shrink-0 w-32 justify-center truncate" title={o.areaNome}>{o.areaNome}</span>
+                  <span className={cn("hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium shrink-0 w-32 justify-center truncate", corArea(ordemAreas.indexOf(o.areaNome)).chip)} title={o.areaNome}>{o.areaNome}</span>
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="text-foreground font-medium truncate">{o.produtos.length > 1 ? `${o.produtos.length} produtos` : (o.produto ?? "—")}</p>
@@ -1767,7 +1787,8 @@ function ListaPorDia({ ops, carregando, escopo, onEscopo, soAbertas, onSoAbertas
             );
           })}
           </div>
-          ))}
+          );
+          })}
         </div>
         );
       })}
