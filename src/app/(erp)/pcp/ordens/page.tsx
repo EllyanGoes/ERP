@@ -10,7 +10,8 @@ import { useSession } from "@/lib/session-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
-import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin, Search } from "lucide-react";
+import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin, Search, Shovel, FlaskConical, Shapes, Wind, Flame, Package, Columns3, CircleDashed, type LucideIcon } from "lucide-react";
+import ChaoView from "@/components/pcp/chao/ChaoView";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
 type Area = { nodeId: string; sequencia: number; nome: string; centroTrabalho: string | null; estadoSaida: string | null; fromEstado: string | null; isPrimeira: boolean; produtoSaidaId: string | null; produtos: Produto[] };
@@ -61,6 +62,18 @@ const CORES_AREA = [
 ];
 const COR_AREA_NEUTRA = { dot: "bg-slate-400", txt: "text-muted-foreground", chip: "bg-muted text-muted-foreground", borda: "border-border" };
 const corArea = (i: number) => (i >= 0 ? CORES_AREA[i % CORES_AREA.length] : COR_AREA_NEUTRA);
+// Ícone por área (heurística pelo nome) — as abas mostram só o ícone; o nome
+// completo aparece no tooltip (title) ao passar o mouse.
+function iconeArea(nome: string): LucideIcon {
+  const n = nome.toLowerCase();
+  if (n.includes("prepar")) return Shovel;
+  if (n.includes("mistura")) return FlaskConical;
+  if (n.includes("conform") || n.includes("extrus")) return Shapes;
+  if (n.includes("seca")) return Wind;
+  if (n.includes("queima") || n.includes("forno")) return Flame;
+  if (n.includes("embal")) return Package;
+  return Factory;
+}
 const hoje = () => new Date().toISOString().slice(0, 10);
 // ISO → valor de <input type="datetime-local"> em hora local ("YYYY-MM-DDTHH:mm").
 const toLocalInput = (iso: string | null) => {
@@ -130,7 +143,7 @@ export default function OrdensBoardPage() {
   }, [calAberto]);
   const [ops, setOps] = useState<BoardOP[]>([]);
   // Visão: board (kanban do dia) × lista (OPs da área agrupadas por dia, no mês).
-  const [vista, setVista] = usePersistedState<"board" | "lista">("pcp-vista", "board");
+  const [vista, setVista] = usePersistedState<"board" | "lista" | "fluxo">("pcp-vista", "board");
   // Busca de OPs (número, produto, responsável, observação) — filtra board e lista.
   const [busca, setBusca] = useState("");
   const filtrarOps = useCallback((list: BoardOP[]): BoardOP[] => {
@@ -141,7 +154,6 @@ export default function OrdensBoardPage() {
       norm([o.numero, o.produto, o.produtoCodigo, o.responsavel, o.observacao, o.criadoPor,
         ...o.produtos.flatMap((p) => [p.codigo, p.descricao])].filter(Boolean).join(" ")).includes(q));
   }, [busca]);
-  const [escopoLista, setEscopoLista] = usePersistedState<"area" | "todas">("pcp-escopo-lista", "area");
   const [soAbertas, setSoAbertas] = usePersistedState("pcp-so-abertas", false);
   // Lista: segundo agrupamento (dentro do dia) por área, na ordem do fluxo.
   const [agruparArea, setAgruparArea] = usePersistedState("pcp-lista-agrupar-area", false);
@@ -260,27 +272,36 @@ export default function OrdensBoardPage() {
     fetch(`/api/pcp/ordens/area/abas?fluxoId=${fluxoId}`).then((r) => r.json()).then((j) => {
       setAreas(j.areas ?? []);
       setProdutos(j.produtos ?? []);
-      setAreaNodeId((prev) => (j.areas ?? []).some((a: Area) => a.nodeId === prev) ? prev : (j.areas?.[0]?.nodeId ?? ""));
+      setAreaNodeId((prev) => prev === "TODAS" || (j.areas ?? []).some((a: Area) => a.nodeId === prev) ? prev : (j.areas?.[0]?.nodeId ?? ""));
     }).catch(() => { setAreas([]); setProdutos([]); });
   }, [fluxoId]);
 
-  // 3. OPs da área no dia
+  // 3. OPs da área no dia — ou de TODAS as áreas (uma coluna por etapa).
   const loadOps = useCallback(async () => {
     if (!fluxoId || !areaNodeId) { setOps([]); return; }
     setCarregandoOps(true);
     try {
-      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&data=${data}`);
-      const j = await r.json();
-      setOps(j.data ?? []);
+      if (areaNodeId === "TODAS") {
+        const partes = await Promise.all(areas.map(async (a) => {
+          const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${a.nodeId}&data=${data}`);
+          const j = await r.json();
+          return ((j.data ?? []) as BoardOP[]).map((o) => ({ ...o, areaNome: a.centroTrabalho ?? a.nome }));
+        }));
+        setOps(partes.flat());
+      } else {
+        const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}&data=${data}`);
+        const j = await r.json();
+        setOps(j.data ?? []);
+      }
     } finally { setCarregandoOps(false); }
-  }, [fluxoId, areaNodeId, data]);
+  }, [fluxoId, areaNodeId, data, areas]);
   useEffect(() => { loadOps(); }, [loadOps]);
 
   // 3b. Visão em LISTA: OPs no MÊS do dia selecionado, agrupadas por dia. Escopo
   // "area" = só a aba atual; "todas" = todas as áreas do fluxo (marca a área em cada OP).
   const loadLista = useCallback(async () => {
     if (!fluxoId) { setOpsLista([]); return; }
-    // Sem recorte de mês: a lista traz TODAS as OPs da área (agrupadas por dia).
+    // Sem recorte de mês; o ESCOPO segue a ABA selecionada (área ou "Todas as áreas").
     const busca = async (nodeId: string, nome?: string): Promise<BoardOP[]> => {
       const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&todas=1`);
       const j = await r.json();
@@ -288,7 +309,7 @@ export default function OrdensBoardPage() {
     };
     setCarregandoLista(true);
     try {
-      if (escopoLista === "todas") {
+      if (areaNodeId === "TODAS") {
         const partes = await Promise.all(areas.map((a) => busca(a.nodeId, a.centroTrabalho ?? a.nome)));
         setOpsLista(partes.flat());
       } else {
@@ -296,7 +317,7 @@ export default function OrdensBoardPage() {
         setOpsLista(await busca(areaNodeId));
       }
     } finally { setCarregandoLista(false); }
-  }, [fluxoId, areaNodeId, escopoLista, areas]);
+  }, [fluxoId, areaNodeId, areas]);
   useEffect(() => { if (vista === "lista") loadLista(); }, [vista, loadLista]);
 
   // Contagem de OPs por área (abertas/concluídas) no dia — exibida nas abas.
@@ -309,7 +330,8 @@ export default function OrdensBoardPage() {
   // Estoque dos 3 cards (materiais de entrada · PEP de entrada · saída). Em callback
   // p/ recarregar em tempo real após apontar/excluir uma OP (o saldo muda na hora).
   const loadEstoque = useCallback(() => {
-    if (!fluxoId || !areaNodeId) { setMateriais(null); setEntradaWip(null); setSaidaEstoque(null); return; }
+    // "TODAS as áreas": só as colunas de OP — sem cards de matéria-prima/PEP/PA.
+    if (!fluxoId || !areaNodeId || areaNodeId === "TODAS") { setMateriais(null); setEntradaWip(null); setSaidaEstoque(null); return; }
     fetch(`/api/pcp/ordens/area/materiais?fluxoId=${fluxoId}&areaNodeId=${areaNodeId}`)
       .then((r) => r.json()).then((j) => setMateriais(j.data ?? [])).catch(() => setMateriais([]));
     const a = areas.find((x) => x.nodeId === areaNodeId) ?? null;
@@ -822,7 +844,7 @@ export default function OrdensBoardPage() {
               </button>
             )}
           </div>
-          {/* Toggle de visão: board (kanban) × lista (por dia) */}
+          {/* Toggle de visão: board (kanban) × lista (por dia) × fluxo de trabalho */}
           <div className="flex rounded-lg border border-border p-0.5 text-xs">
             <button type="button" onClick={() => setVista("board")}
               className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors", vista === "board" ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
@@ -832,28 +854,34 @@ export default function OrdensBoardPage() {
               className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors", vista === "lista" ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
               <List className="w-3.5 h-3.5" /> Lista
             </button>
+            <button type="button" onClick={() => setVista("fluxo")}
+              className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors", vista === "fluxo" ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
+              <Workflow className="w-3.5 h-3.5" /> Fluxo
+            </button>
           </div>
-          <Link href="/pcp/chao" className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
-            <Workflow className="w-4 h-4" /> Fluxo de Trabalho
-          </Link>
         </div>
 
-        {/* Abas por área */}
-        {areas.length > 0 && (
+        {/* Visão FLUXO DE TRABALHO (editor do chão de fábrica) como 3ª opção do toggle */}
+        {vista === "fluxo" && <ChaoView />}
+
+        {/* Abas por área: ÍCONE colorido (nome completo no tooltip) + contagem do dia */}
+        {vista !== "fluxo" && areas.length > 0 && (
           <div className="flex gap-0 border-b border-border overflow-x-auto overflow-y-hidden [&::-webkit-scrollbar]:hidden">
             {areas.map((a, i) => {
               const cor = corArea(i); // cor estável da área (mesma da lista)
+              const Icone = iconeArea(a.centroTrabalho ?? a.nome);
+              const ativa = a.nodeId === areaNodeId;
               return (
               <button key={a.nodeId} type="button" onClick={() => { setAreaNodeId(a.nodeId); setNovo(null); }}
-                className={cn("px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
-                  a.nodeId === areaNodeId ? cn(cor.borda, cor.txt) : "border-transparent text-muted-foreground hover:text-foreground")}>
-                <span className={cn("inline-block w-2 h-2 rounded-full mr-1.5 align-middle", cor.dot)} />
-                <span className="text-[10px] text-muted-foreground mr-1.5">{a.sequencia}</span>{a.centroTrabalho ?? a.nome}
+                title={`${a.sequencia} · ${a.centroTrabalho ?? a.nome}`}
+                className={cn("px-3.5 py-2.5 border-b-2 -mb-px whitespace-nowrap transition-colors inline-flex items-center gap-1.5",
+                  ativa ? cn(cor.borda, cor.txt) : "border-transparent hover:bg-muted/60")}>
+                <Icone className={cn("w-5 h-5", cor.txt)} />
                 {(() => {
                   const c = contagem[a.nodeId];
                   if (!c || c.abertas + c.concluidas === 0) return null;
                   return (
-                    <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium align-middle" title="OPs abertas · concluídas no dia">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium align-middle" title="OPs abertas · concluídas no dia">
                       <span className="text-cyan-600 dark:text-cyan-400">{c.abertas}</span>
                       <span className="text-muted-foreground/60">/</span>
                       <span className="text-emerald-600 dark:text-emerald-400">{c.concluidas}</span>
@@ -863,27 +891,97 @@ export default function OrdensBoardPage() {
               </button>
               );
             })}
+            {/* Aba TODAS AS ÁREAS: uma coluna por etapa, só as OPs (sem PEP/PA) */}
+            <button type="button" onClick={() => { setAreaNodeId("TODAS"); setNovo(null); }}
+              title="Todas as áreas — uma coluna por etapa"
+              className={cn("px-3.5 py-2.5 border-b-2 -mb-px whitespace-nowrap transition-colors inline-flex items-center gap-1.5",
+                areaNodeId === "TODAS" ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:bg-muted/60")}>
+              <Columns3 className="w-5 h-5" />
+            </button>
+            {/* Filtros da LISTA como botões-ícone, no canto direito da linha das abas */}
+            {vista === "lista" && (
+              <div className="ml-auto flex items-center gap-1 self-center pb-1">
+                <button type="button" onClick={() => setSoAbertas(!soAbertas)} title="Só abertas (esconde as concluídas)"
+                  className={cn("rounded-lg border p-1.5 transition-colors", soAbertas ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
+                  <CircleDashed className="w-4 h-4" />
+                </button>
+                <button type="button" onClick={() => setAgruparData(!agruparData)} title="Agrupar por data (desligado: data vira coluna)"
+                  className={cn("rounded-lg border p-1.5 transition-colors", agruparData ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
+                  <CalendarDays className="w-4 h-4" />
+                </button>
+                {areaNodeId === "TODAS" && (
+                  <button type="button" onClick={() => setAgruparArea(!agruparArea)} title="Agrupar por área (dentro do dia)"
+                    className={cn("rounded-lg border p-1.5 transition-colors", agruparArea ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
+                    <Factory className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {area && (
+        {/* Board TODAS AS ÁREAS: uma coluna de OPs por etapa — sem PEP/PA/matéria-prima. */}
+        {areaNodeId === "TODAS" && vista === "board" && (
+          <div className="flex gap-3 overflow-x-auto pb-2 items-start">
+            {areas.map((a, i) => {
+              const cor = corArea(i);
+              const nomeA = a.centroTrabalho ?? a.nome;
+              const opsA = filtrarOps(ops.filter((o) => o.areaNome === nomeA));
+              return (
+                <div key={a.nodeId} className="w-72 shrink-0 rounded-xl border border-border bg-muted/20 flex flex-col min-h-[10rem]">
+                  <div className={cn("flex items-center justify-between gap-2 px-3 py-2 border-b border-border rounded-t-xl", cor.chip)}>
+                    <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 min-w-0">
+                      <span className={cn("inline-block w-2 h-2 rounded-full shrink-0", cor.dot)} />
+                      <span className="truncate">{nomeA}</span>
+                      <span className="text-[10px] font-medium opacity-70">{opsA.length}</span>
+                    </p>
+                    <button title={`Nova OP — ${nomeA}`}
+                      onClick={() => { setAreaNodeId(a.nodeId); setNovo({ linhas: [{ itemId: a.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(a, a.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); }}
+                      className="shrink-0 inline-flex items-center rounded-lg bg-cyan-600 p-1 text-white hover:bg-cyan-700">
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-16rem)]">
+                    {carregandoOps ? (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 p-1"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando…</p>
+                    ) : opsA.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground p-1">Sem OP no dia.</p>
+                    ) : (
+                      opsA.map((o) => (
+                        <CardOP key={o.id} o={o} podeExcluirConcluida={user?.perfil === "ADMIN"}
+                          onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
+                          onEditar={(op) => { setAreaNodeId(a.nodeId); abrirEdicao(op); }}
+                          onExcluir={excluirOP}
+                          onApontar={(op) => { setAreaNodeId(a.nodeId); abrirApontar(op); }} />
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* LISTA: o escopo segue a ABA (área selecionada ou "Todas as áreas"). */}
+        {vista === "lista" && (area || areaNodeId === "TODAS") && (
+          <ListaPorDia
+            ops={filtrarOps(opsLista)}
+            carregando={carregandoLista}
+            escopo={areaNodeId === "TODAS" ? "todas" : "area"}
+            soAbertas={soAbertas}
+            agruparArea={agruparArea}
+            agruparData={agruparData}
+            ordemAreas={areas.map((a) => a.centroTrabalho ?? a.nome)}
+            onNova={area ? () => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); } : null}
+            onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
+            onEditar={(o) => abrirEdicao(o)}
+            onExcluir={(o) => excluirOP(o)}
+            onApontar={(o) => abrirApontar(o)}
+          />
+        )}
+
+        {area && vista === "board" && (
           <>
-            {vista === "lista" ? (
-              <ListaPorDia
-                ops={filtrarOps(opsLista)}
-                carregando={carregandoLista}
-                escopo={escopoLista} onEscopo={setEscopoLista}
-                soAbertas={soAbertas} onSoAbertas={setSoAbertas}
-                agruparArea={agruparArea} onAgruparArea={setAgruparArea}
-                agruparData={agruparData} onAgruparData={setAgruparData}
-                ordemAreas={areas.map((a) => a.centroTrabalho ?? a.nome)}
-                onNova={escopoLista === "area" ? () => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); } : null}
-                onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
-                onEditar={(o) => abrirEdicao(o)}
-                onExcluir={(o) => excluirOP(o)}
-                onApontar={(o) => abrirApontar(o)}
-              />
-            ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
               {/* Coluna 1 — ENTRADA (matéria-prima ou PEP da etapa anterior) */}
               <ColBoard cor="amber" titulo={area.sequencia === minSeq ? "Matéria-prima" : "PEP de entrada"} icon={<Boxes className="w-3.5 h-3.5" />}>
@@ -915,49 +1013,10 @@ export default function OrdensBoardPage() {
                 ) : filtrarOps(ops).length === 0 ? (
                   <p className="text-xs text-muted-foreground py-8 text-center">Nenhuma OP encontrada para &quot;{busca}&quot;.</p>
                 ) : (
-                  filtrarOps(ops).map((o) => {
-                    const concl = o.etapaStatus === "CONCLUIDA";
-                    return (
-                      <div key={o.id} className={cn("rounded-lg border bg-card p-2.5", concl ? "border-success/30" : "border-border")}>
-                        <div className="flex items-center justify-between gap-2">
-                          <button onClick={() => router.push(`/pcp/ordens/${o.id}`)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600">{o.numero}</button>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); abrirEdicao(o); }} className="text-muted-foreground hover:text-cyan-600" title={concl ? "Corrigir OP (estorna o apontamento)" : "Editar OP"}><Pencil className="w-3.5 h-3.5" /></button>
-                            <Link href={`/pcp/ordens/${o.id}/imprimir`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
-                            {(!concl || user?.perfil === "ADMIN") && <button onClick={(e) => { e.stopPropagation(); excluirOP(o); }} className="text-muted-foreground hover:text-danger" title={concl ? "Excluir OP (admin — estorna o apontamento)" : "Excluir OP"}><Trash2 className="w-3.5 h-3.5" /></button>}
-                            <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
-                              {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
-                            </span>
-                          </div>
-                        </div>
-                        {o.produtos.length > 1 ? (
-                          <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produtos.length} produtos</p>
-                        ) : (
-                          <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produto ?? "—"}</p>
-                        )}
-                        <p className="text-[11px] text-muted-foreground">
-                          {o.produtos.length > 1
-                            ? o.produtos.map((p) => `${fmtQtd(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
-                            : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`}
-                        </p>
-                        {(o.responsavel || o.fimPrevisto || (o.equipe?.length ?? 0) > 0) && (
-                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                            {o.responsavel && <span>👤 {o.responsavel}</span>}
-                            {(o.equipe?.length ?? 0) > 0 && <span title={o.equipe!.map((e) => e.nome).join(", ")}>{o.responsavel ? " · " : ""}👥 {o.equipe!.length} pessoa(s)</span>}
-                            {(o.responsavel || (o.equipe?.length ?? 0) > 0) && o.fimPrevisto && " · "}
-                            {o.fimPrevisto && <span>até {new Date(o.fimPrevisto).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
-                          </p>
-                        )}
-                        {o.criadoPor && <p className="text-[10px] text-muted-foreground/70 truncate">Programado: {o.criadoPor}</p>}
-                        {!concl && (
-                          <button onClick={() => abrirApontar(o)}
-                            className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })
+                  filtrarOps(ops).map((o) => (
+                    <CardOP key={o.id} o={o} podeExcluirConcluida={user?.perfil === "ADMIN"}
+                      onAbrir={(id) => router.push(`/pcp/ordens/${id}`)} onEditar={abrirEdicao} onExcluir={excluirOP} onApontar={abrirApontar} />
+                  ))
                 )}
               </ColBoard>
 
@@ -984,7 +1043,6 @@ export default function OrdensBoardPage() {
                 })()}
               </ColBoard>
             </div>
-            )}
           </>
         )}
       </div>
@@ -1633,12 +1691,10 @@ export default function OrdensBoardPage() {
 
 // Visão em LISTA: OPs agrupadas por dia (cabeçalho de data + linhas); com
 // "Agrupar por área" ligado, empilha um 2º agrupamento por área dentro do dia.
-function ListaPorDia({ ops, carregando, escopo, onEscopo, soAbertas, onSoAbertas, agruparArea, onAgruparArea, agruparData, onAgruparData, ordemAreas, onNova, onAbrir, onEditar, onExcluir, onApontar }: {
+function ListaPorDia({ ops, carregando, escopo, soAbertas, agruparArea, agruparData, ordemAreas, onNova, onAbrir, onEditar, onExcluir, onApontar }: {
   ops: BoardOP[]; carregando: boolean;
-  escopo: "area" | "todas"; onEscopo: (e: "area" | "todas") => void;
-  soAbertas: boolean; onSoAbertas: (v: boolean) => void;
-  agruparArea: boolean; onAgruparArea: (v: boolean) => void;
-  agruparData: boolean; onAgruparData: (v: boolean) => void; ordemAreas: string[];
+  escopo: "area" | "todas"; // segue a ABA selecionada (área ou "Todas as áreas")
+  soAbertas: boolean; agruparArea: boolean; agruparData: boolean; ordemAreas: string[];
   onNova: (() => void) | null; onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onExcluir: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
 }) {
   // Excluir OP concluída é só para ADMIN (o servidor estorna o apontamento em cascata).
@@ -1663,31 +1719,7 @@ function ListaPorDia({ ops, carregando, escopo, onEscopo, soAbertas, onSoAbertas
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/40 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          <p className="text-sm font-medium text-foreground">{visiveis.length} OP{visiveis.length === 1 ? "" : "s"}</p>
-          <div className="flex rounded-lg border border-border p-0.5 text-xs">
-            {([["area", "Esta área"], ["todas", "Todas as áreas"]] as const).map(([k, lbl]) => (
-              <button key={k} type="button" onClick={() => onEscopo(k)}
-                className={cn("px-2.5 py-1 rounded-md transition-colors", escopo === k ? "bg-foreground text-background font-medium" : "text-muted-foreground hover:text-foreground")}>
-                {lbl}
-              </button>
-            ))}
-          </div>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-            <input type="checkbox" checked={soAbertas} onChange={(e) => onSoAbertas(e.target.checked)} className="accent-cyan-600" />
-            Só abertas
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none" title="Desligado: lista corrida com a data em coluna">
-            <input type="checkbox" checked={agruparData} onChange={(e) => onAgruparData(e.target.checked)} className="accent-cyan-600" />
-            Agrupar por data
-          </label>
-          {escopo === "todas" && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-              <input type="checkbox" checked={agruparArea} onChange={(e) => onAgruparArea(e.target.checked)} className="accent-cyan-600" />
-              Agrupar por área
-            </label>
-          )}
-        </div>
+        <p className="text-sm font-medium text-foreground">{visiveis.length} OP{visiveis.length === 1 ? "" : "s"}</p>
         {onNova && (
           <button onClick={onNova} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-700">
             <Plus className="w-3.5 h-3.5" /> Nova OP
@@ -1773,6 +1805,54 @@ function ListaPorDia({ ops, carregando, escopo, onEscopo, soAbertas, onSoAbertas
         </div>
         );
       })}
+    </div>
+  );
+}
+
+// Card de OP do board — reusado na coluna da área e na visão "Todas as áreas".
+function CardOP({ o, podeExcluirConcluida, onAbrir, onEditar, onExcluir, onApontar }: {
+  o: BoardOP; podeExcluirConcluida: boolean;
+  onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onExcluir: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
+}) {
+  const concl = o.etapaStatus === "CONCLUIDA";
+  return (
+    <div className={cn("rounded-lg border bg-card p-2.5", concl ? "border-success/30" : "border-border")}>
+      <div className="flex items-center justify-between gap-2">
+        <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600">{o.numero}</button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button onClick={(e) => { e.stopPropagation(); onEditar(o); }} className="text-muted-foreground hover:text-cyan-600" title={concl ? "Corrigir OP (estorna o apontamento)" : "Editar OP"}><Pencil className="w-3.5 h-3.5" /></button>
+          <Link href={`/pcp/ordens/${o.id}/imprimir`} onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-cyan-600" title="Imprimir OP"><Printer className="w-3.5 h-3.5" /></Link>
+          {(!concl || podeExcluirConcluida) && <button onClick={(e) => { e.stopPropagation(); onExcluir(o); }} className="text-muted-foreground hover:text-danger" title={concl ? "Excluir OP (admin — estorna o apontamento)" : "Excluir OP"}><Trash2 className="w-3.5 h-3.5" /></button>}
+          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium", ETAPA_STATUS[o.etapaStatus] ?? "bg-muted")}>
+            {o.etapaStatus === "CONCLUIDA" ? "concluída" : o.etapaStatus === "EM_EXECUCAO" ? "em execução" : "pendente"}
+          </span>
+        </div>
+      </div>
+      {o.produtos.length > 1 ? (
+        <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produtos.length} produtos</p>
+      ) : (
+        <p className="text-sm font-medium text-foreground mt-1 truncate">{o.produto ?? "—"}</p>
+      )}
+      <p className="text-[11px] text-muted-foreground">
+        {o.produtos.length > 1
+          ? o.produtos.map((p) => `${fmtQtd(p.planejada)}${p.unidade ? ` ${p.unidade}` : ""}`).join(" · ")
+          : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`}
+      </p>
+      {(o.responsavel || o.fimPrevisto || (o.equipe?.length ?? 0) > 0) && (
+        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+          {o.responsavel && <span>👤 {o.responsavel}</span>}
+          {(o.equipe?.length ?? 0) > 0 && <span title={o.equipe!.map((e) => e.nome).join(", ")}>{o.responsavel ? " · " : ""}👥 {o.equipe!.length} pessoa(s)</span>}
+          {(o.responsavel || (o.equipe?.length ?? 0) > 0) && o.fimPrevisto && " · "}
+          {o.fimPrevisto && <span>até {new Date(o.fimPrevisto).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
+        </p>
+      )}
+      {o.criadoPor && <p className="text-[10px] text-muted-foreground/70 truncate">Programado: {o.criadoPor}</p>}
+      {!concl && (
+        <button onClick={() => onApontar(o)}
+          className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
+          <CheckCircle2 className="w-3.5 h-3.5" /> Apontar / Concluir
+        </button>
+      )}
     </div>
   );
 }
