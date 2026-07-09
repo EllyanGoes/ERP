@@ -108,8 +108,12 @@ export default function RelatorioProducaoPage() {
     return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); clearInterval(t); };
   }, [carregar]);
 
-  const totalPecas = (areas ?? []).reduce((s, a) => s + a.pecas, 0);
-  const totalPerda = (areas ?? []).reduce((s, a) => s + a.perda, 0);
+  // Totais da ÁREA selecionada — os cards do topo batem com a tabela abaixo
+  // (antes somavam todas as etapas e confundiam: 780k "produzido" era a soma
+  // de conformação+secagem+queima+embalar, não a produção final).
+  const areaAtual = (areas ?? []).find((a) => a.area === areaSel) ?? null;
+  const totalPecas = areaAtual?.pecas ?? 0;
+  const totalPerda = areaAtual?.perda ?? 0;
 
   // Série do gráfico agrupada por DIA, MÊS ou ANO (buckets sem produção entram
   // zerados p/ o eixo do tempo ser honesto), filtrada pela área da aba.
