@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
           produtoItens: {
             select: {
               itemId: true, quantidadeReal: true, unidadeId: true, qtdPerda: true,
-              item: { select: { codigo: true, descricao: true, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { sigla: true } } } } } },
+              item: { select: { codigo: true, descricao: true, unidade: { select: { sigla: true } }, itemUnidades: { select: { unidadeId: true, isPrincipal: true, fatorConversao: true, unidade: { select: { sigla: true } } } } } },
             },
           },
         },
@@ -60,7 +60,9 @@ export async function GET(req: NextRequest) {
     orderBy: { fimReal: "asc" },
   });
 
-  type ProdutoAgg = { itemId: string; codigo: string; descricao: string; pecas: number; paletes: number; perda: number; ops: number };
+  // `unidade` = unidade-base do produto (UN, LOTE, …) — Preparação/Mistura não
+  // produzem em peças; a tabela mostra Quantidade + Unidade.
+  type ProdutoAgg = { itemId: string; codigo: string; descricao: string; unidade: string | null; pecas: number; paletes: number; perda: number; ops: number };
   type AreaAgg = { area: string; sequencia: number; pecas: number; paletes: number; perda: number; vagoes: number; vagonetas: number; ops: number; produtos: Map<string, ProdutoAgg> };
   const areas = new Map<string, AreaAgg>();
   // Série diária por área (gráfico por data). Dia no fuso de Belém (UTC−3).
@@ -105,7 +107,7 @@ export async function GET(req: NextRequest) {
       a.paletes += paletes;
       a.perda += perda;
       let p = a.produtos.get(pi.itemId);
-      if (!p) { p = { itemId: pi.itemId, codigo: pi.item.codigo, descricao: pi.item.descricao, pecas: 0, paletes: 0, perda: 0, ops: 0 }; a.produtos.set(pi.itemId, p); }
+      if (!p) { p = { itemId: pi.itemId, codigo: pi.item.codigo, descricao: pi.item.descricao, unidade: pi.item.unidade?.sigla ?? null, pecas: 0, paletes: 0, perda: 0, ops: 0 }; a.produtos.set(pi.itemId, p); }
       p.pecas += pecas;
       p.paletes += paletes;
       p.perda += perda;

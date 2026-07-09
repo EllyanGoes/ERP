@@ -18,7 +18,7 @@ const COR_PRODUZIDO = "#0891b2";
 const COR_QUEBRA = "#dc2626";
 const COR_VEICULOS = "#7c3aed";
 
-type ProdutoLinha = { itemId: string; codigo: string; descricao: string; pecas: number; paletes: number; perda: number; ops: number };
+type ProdutoLinha = { itemId: string; codigo: string; descricao: string; unidade?: string | null; pecas: number; paletes: number; perda: number; ops: number };
 type AreaLinha = { area: string; sequencia: number; ops: number; pecas: number; paletes: number; perda: number; vagoes: number | null; vagonetas: number | null; produtos: ProdutoLinha[] };
 type DiaLinha = { dia: string; area: string; pecas: number; paletes: number; perda: number; veiculos: number };
 type OpDia = { dia: string; area: string; id: string; numero: string; hora: string | null; apontadoPor: string | null; pecas: number; paletes: number; perda: number; veiculos: number; produtos: string };
@@ -114,6 +114,12 @@ export default function RelatorioProducaoPage() {
   const areaAtual = (areas ?? []).find((a) => a.area === areaSel) ?? null;
   const totalPecas = areaAtual?.pecas ?? 0;
   const totalPerda = areaAtual?.perda ?? 0;
+  // Unidade da área: Preparação/Mistura produzem em LOTE (não em peças) — se
+  // todos os produtos da área têm a mesma unidade, usa a dela; senão "pç".
+  const unidadeArea = (() => {
+    const us = new Set((areaAtual?.produtos ?? []).map((p) => p.unidade || "pç"));
+    return us.size === 1 ? Array.from(us)[0].toLowerCase() : "pç";
+  })();
 
   // Série do gráfico agrupada por DIA, MÊS ou ANO (buckets sem produção entram
   // zerados p/ o eixo do tempo ser honesto), filtrada pela área da aba.
@@ -167,11 +173,11 @@ export default function RelatorioProducaoPage() {
           <div className="flex items-center gap-3 ml-2">
             <div className="rounded-lg border border-border bg-card px-3 py-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Produzido</p>
-              <p className="text-sm font-bold tabular-nums text-foreground leading-tight">{n(totalPecas)} <span className="text-[10px] font-normal text-muted-foreground">pç</span></p>
+              <p className="text-sm font-bold tabular-nums text-foreground leading-tight">{n(totalPecas)} <span className="text-[10px] font-normal text-muted-foreground">{unidadeArea}</span></p>
             </div>
             <div className="rounded-lg border border-border bg-card px-3 py-1">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Perda</p>
-              <p className="text-sm font-bold tabular-nums text-amber-600 leading-tight">{n(totalPerda)} <span className="text-[10px] font-normal text-muted-foreground">pç · {pctPerda(totalPecas, totalPerda)}</span></p>
+              <p className="text-sm font-bold tabular-nums text-amber-600 leading-tight">{n(totalPerda)} <span className="text-[10px] font-normal text-muted-foreground">{unidadeArea} · {pctPerda(totalPecas, totalPerda)}</span></p>
             </div>
           </div>
           <div className="no-print ml-auto"><PrintButton /></div>
@@ -327,9 +333,9 @@ export default function RelatorioProducaoPage() {
                     </h2>
                     <span className="text-xs text-muted-foreground">{a.ops} OP(s)</span>
                     <div className="ml-auto flex items-center gap-4 text-xs tabular-nums">
-                      <span className="text-foreground font-semibold">{n(a.pecas)} pç</span>
+                      <span className="text-foreground font-semibold">{n(a.pecas)} {unidadeArea}</span>
                       {a.paletes ? <span className="text-muted-foreground">{n1(a.paletes)} paletes</span> : null}
-                      <span className="text-amber-600">perda {n(a.perda)} pç ({pctPerda(a.pecas, a.perda)})</span>
+                      <span className="text-amber-600">perda {n(a.perda)} {unidadeArea} ({pctPerda(a.pecas, a.perda)})</span>
                       {a.vagoes ? <span className="text-muted-foreground">{a.vagoes} vagões</span> : null}
                       {a.vagonetas ? <span className="text-muted-foreground">{a.vagonetas} vagonetas</span> : null}
                     </div>
@@ -339,9 +345,10 @@ export default function RelatorioProducaoPage() {
                       <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
                         <th className="px-5 py-2 font-semibold">Produto</th>
                         <th className="px-3 py-2 font-semibold text-right">OPs</th>
-                        <th className="px-3 py-2 font-semibold text-right">Produzido (pç)</th>
+                        <th className="px-3 py-2 font-semibold text-right">Quantidade</th>
+                        <th className="px-3 py-2 font-semibold">Un.</th>
                         <th className="px-3 py-2 font-semibold text-right">Paletes</th>
-                        <th className="px-3 py-2 font-semibold text-right">Perda (pç)</th>
+                        <th className="px-3 py-2 font-semibold text-right">Perda</th>
                         <th className="px-5 py-2 font-semibold text-right">% perda</th>
                       </tr>
                     </thead>
@@ -351,6 +358,7 @@ export default function RelatorioProducaoPage() {
                           <td className="px-5 py-2"><span className="font-mono text-xs text-muted-foreground mr-2">{p.codigo}</span>{p.descricao}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{p.ops}</td>
                           <td className="px-3 py-2 text-right tabular-nums font-medium">{n(p.pecas)}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{p.unidade ?? "pç"}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{p.paletes ? n1(p.paletes) : "—"}</td>
                           <td className="px-3 py-2 text-right tabular-nums text-amber-600">{p.perda ? n(p.perda) : "—"}</td>
                           <td className="px-5 py-2 text-right tabular-nums text-amber-600">{pctPerda(p.pecas, p.perda)}</td>
