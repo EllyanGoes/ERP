@@ -36,15 +36,23 @@ export default function RelatorioProducaoPage() {
   useTabTitle("Relatório de Produção");
   const [fluxos, setFluxos] = useState<FluxoOpt[]>([]);
   const [fluxoId, setFluxoId] = usePersistedState("rel-producao-fluxo", "");
-  const [from, setFrom] = useState(inicioMes());
-  const [to, setTo] = useState(hoje());
+  // Filtro de data ÚNICO: um dia específico; vazio = mês atual até hoje.
+  const [dia, setDia] = useState("");
+  const from = dia || inicioMes();
+  const to = dia || hoje();
   const [areas, setAreas] = useState<AreaLinha[] | null>(null);
   const [porDia, setPorDia] = useState<DiaLinha[]>([]);
   const [opsDia, setOpsDia] = useState<OpDia[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [aba, setAba] = useState<"grafico" | "areas">("grafico");
-  // Área selecionada no gráfico por data ("" = todas as áreas somadas).
+  // Área selecionada no gráfico por data (sempre UMA área — sem "todas").
   const [areaSel, setAreaSel] = usePersistedState("rel-producao-area", "");
+  // Sem chip "Todas as áreas": garante uma área válida selecionada quando os dados chegam.
+  useEffect(() => {
+    if (!areas?.length) return;
+    if (!areaSel || !areas.some((a) => a.area === areaSel)) setAreaSel(areas[0].area);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areas]);
   // Dia clicado no gráfico → pop-up com o resumo das OPs.
   const [diaPopup, setDiaPopup] = useState<string | null>(null);
 
@@ -67,6 +75,17 @@ export default function RelatorioProducaoPage() {
     } finally { setCarregando(false); }
   }, [fluxoId, from, to]);
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Atualiza SOZINHO: ao voltar o foco/visibilidade para a aba e a cada 60s —
+  // apontamentos feitos no Fluxo de Produção aparecem sem clicar em Atualizar.
+  useEffect(() => {
+    const onFocus = () => carregar();
+    const onVis = () => { if (document.visibilityState === "visible") carregar(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+    const t = setInterval(carregar, 60000);
+    return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); clearInterval(t); };
+  }, [carregar]);
 
   const totalPecas = (areas ?? []).reduce((s, a) => s + a.pecas, 0);
   const totalPerda = (areas ?? []).reduce((s, a) => s + a.perda, 0);
@@ -111,12 +130,8 @@ export default function RelatorioProducaoPage() {
               options={fluxos.map((f) => ({ value: f.id, label: f.nome }))} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">De</label>
-            <DatePicker value={from} onChange={(v) => setFrom(v ?? "")} className="h-9" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Até</label>
-            <DatePicker value={to} onChange={(v) => setTo(v ?? "")} className="h-9" />
+            <label className="block text-xs font-medium text-muted-foreground mb-1">Dia <span className="text-muted-foreground/60">(vazio = mês atual)</span></label>
+            <DatePicker value={dia} onChange={(v) => setDia(v ?? "")} className="h-9" />
           </div>
           <button onClick={carregar} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={carregando ? "w-4 h-4 animate-spin" : "w-4 h-4"} /> Atualizar
@@ -151,11 +166,11 @@ export default function RelatorioProducaoPage() {
         {aba === "grafico" && (
           <div className="rounded-xl border border-border bg-card px-4 pt-4 pb-2">
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              {["", ...(areas ?? []).map((a) => a.area)].map((nome) => (
-                <button key={nome || "_todas"} onClick={() => setAreaSel(nome)}
+              {(areas ?? []).map((a) => (
+                <button key={a.area} onClick={() => setAreaSel(a.area)}
                   className={cn("px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-                    areaSel === nome ? "bg-cyan-600 border-cyan-600 text-white" : "border-border text-muted-foreground hover:bg-muted")}>
-                  {nome || "Todas as áreas"}
+                    areaSel === a.area ? "bg-cyan-600 border-cyan-600 text-white" : "border-border text-muted-foreground hover:bg-muted")}>
+                  {a.area}
                 </button>
               ))}
             </div>

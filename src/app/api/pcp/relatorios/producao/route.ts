@@ -15,9 +15,11 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const fluxoId = searchParams.get("fluxoId") || null;
+  // Janela no fuso de Belém (UTC−3): o "dia" do filtro precisa bater com o dia
+  // do gráfico (diaBelem) — sem isso, apontamentos da noite caíam no dia seguinte.
   const parse = (v: string | null, fim?: boolean) => {
     if (!v?.trim()) return null;
-    const d = new Date(`${v}T${fim ? "23:59:59.999" : "00:00:00"}`);
+    const d = new Date(`${v}T${fim ? "23:59:59.999" : "00:00:00"}-03:00`);
     return isNaN(d.getTime()) ? null : d;
   };
   const from = parse(searchParams.get("from"));
