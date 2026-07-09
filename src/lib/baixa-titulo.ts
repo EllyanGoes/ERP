@@ -30,7 +30,7 @@ import type { PagamentoFormData } from "@/lib/validations/financeiro";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export type LinhaBaixa = { forma: string | null; contaBancariaId: string | null; valor: number };
+export type LinhaBaixa = { forma: string | null; contaBancariaId: string | null; valor: number; maquinetaId?: string | null };
 export type NaturezaRateio = { naturezaFinanceiraId: string; detalhamento?: string | null; valor: number };
 export type BaixaErro = { msg: string; status: number };
 export type ResultadoBaixa =
@@ -46,7 +46,7 @@ export function normalizarLinhasPagamento(d: PagamentoFormData): {
   valorPagoTotal: number;
 } {
   const linhas: LinhaBaixa[] = (d.pagamentos && d.pagamentos.length > 0)
-    ? d.pagamentos.map((p) => ({ forma: p.forma ?? null, contaBancariaId: p.contaBancariaId ?? null, valor: p.valor }))
+    ? d.pagamentos.map((p) => ({ forma: p.forma ?? null, contaBancariaId: p.contaBancariaId ?? null, valor: p.valor, maquinetaId: p.maquinetaId ?? null }))
     : [{ forma: d.formaPagamento ?? null, contaBancariaId: d.contaBancariaId ?? null, valor: d.valorPago ?? 0 }];
   return { linhas, valorPagoTotal: r2(linhas.reduce((s, l) => s + l.valor, 0)) };
 }
@@ -76,9 +76,13 @@ export async function baixarTitulo(
   const isReceber = tipo === "RECEBER";
   const valorMulta = opts.valorMulta ?? 0;
   const valorJuros = opts.valorJuros ?? 0;
-  const valorTaxa = r2(opts.valorTaxa ?? 0);
+  // Taxa manual do modal (tarifa bancária etc.). A taxa de MAQUINETA é derivada
+  // por linha mais abaixo e soma nesta na hora de persistir no título.
+  const valorTaxaManual = r2(opts.valorTaxa ?? 0);
   const dataPag = new Date(opts.dataPagamento);
-  const valorPagoTotal = r2(linhas.reduce((s, l) => s + l.valor, 0) + valorTaxa);
+  // Quitação do título = Σ linhas (BRUTO — a taxa de maquineta está dentro do
+  // valor da linha) + taxa manual retida.
+  const valorPagoTotal = r2(linhas.reduce((s, l) => s + l.valor, 0) + valorTaxaManual);
   const formaResumo = Array.from(new Set(linhas.map((l) => l.forma).filter(Boolean))).join(" + ") || null;
 
   const conta = isReceber
@@ -88,6 +92,61 @@ export async function baixarTitulo(
   if (conta.status === "PAGA" || conta.status === "CANCELADA") {
     return { erro: { msg: `Conta já está ${conta.status === "PAGA" ? "paga" : "cancelada"}.`, status: 409 }, conta: null };
   }
+
+  // ── Cartão com maquineta (só RECEBER): troca de credor ────────────────────
+  // Linha com maquinetaId: a conta efetiva é a da ADMINISTRADORA (tipo CARTAO,
+  // razão 1.1.8) e a taxa (valor × taxaPct do tipo crédito/débito) fica retida
+  // no título — o lançamento entra pelo LÍQUIDO. Espelha a venda balcão.
+  const maqIds = Array.from(new Set(linhas.map((l) => l.maquinetaId).filter((id): id is string => !!id)));
+  if (maqIds.length > 0 && !isReceber) {
+    return { erro: { msg: "Maquineta só se aplica a recebimentos no cartão.", status: 422 }, conta: null };
+  }
+  type MaquinetaBaixa = {
+    id: string; nome: string; ativo: boolean; empresaId: string;
+    administradora: { ativo: boolean; contaBancariaId: string };
+    taxas: { tipoForma: string; taxaPct: Prisma.Decimal }[];
+  };
+  const maqDe = new Map<string, MaquinetaBaixa>();
+  let tipoDaForma: (nome: string | null) => string | null = () => null;
+  if (maqIds.length > 0) {
+    const formasInfo = await tx.formaPagamento.findMany({ select: { nome: true, tipo: true } });
+    tipoDaForma = (nome) => formasInfo.find((f) => f.nome === nome)?.tipo ?? null;
+    const maquinetas = await tx.maquineta.findMany({
+      where: { id: { in: maqIds } },
+      select: {
+        id: true, nome: true, ativo: true, empresaId: true,
+        administradora: { select: { ativo: true, contaBancariaId: true } },
+        taxas: { select: { tipoForma: true, taxaPct: true } },
+      },
+    });
+    for (const m of maquinetas) maqDe.set(m.id, m);
+    for (const l of linhas) {
+      if (!l.maquinetaId) continue;
+      const tipoForma = tipoDaForma(l.forma);
+      if (tipoForma !== "CARTAO_CREDITO" && tipoForma !== "CARTAO_DEBITO") {
+        return { erro: { msg: `Maquineta só se aplica a formas de cartão — "${l.forma ?? "sem forma"}" não é cartão de crédito/débito.`, status: 422 }, conta: null };
+      }
+      const m = maqDe.get(l.maquinetaId);
+      if (!m || !m.ativo || m.empresaId !== conta.empresaId || m.administradora.ativo === false) {
+        return { erro: { msg: "Maquineta inválida ou inativa para a empresa do título.", status: 422 }, conta: null };
+      }
+      if (!m.taxas.some((t) => t.tipoForma === tipoForma)) {
+        return { erro: { msg: `A maquineta "${m.nome}" não tem taxa cadastrada para ${tipoForma === "CARTAO_CREDITO" ? "cartão de crédito" : "cartão de débito"} — cadastre em Financeiro → Cartões.`, status: 422 }, conta: null };
+      }
+    }
+  }
+  // Taxa da linha de maquineta (valor × taxaPct, arredondada a 2 casas): o
+  // lançamento entra pelo líquido = valor − taxa (exato) — o centavo de
+  // arredondamento fica na taxa, nunca no caixa.
+  const taxaDaLinha = (l: LinhaBaixa) => {
+    if (!l.maquinetaId) return 0;
+    const m = maqDe.get(l.maquinetaId);
+    const pct = Number(m?.taxas.find((t) => t.tipoForma === tipoDaForma(l.forma))?.taxaPct ?? 0);
+    return r2((l.valor * pct) / 100);
+  };
+  const taxaMaquinetas = r2(linhas.reduce((s, l) => s + taxaDaLinha(l), 0));
+  // Total retido persistido no título (coluna valorTaxa): manual + maquinetas.
+  const valorTaxa = r2(valorTaxaManual + taxaMaquinetas);
 
   const totalOriginal = parseFloat(conta.valorOriginal.toString());
   const jaPago = parseFloat(conta.valorPago.toString());
@@ -142,18 +201,26 @@ export async function baixarTitulo(
     }
   }
 
-  // Conta de destino/origem efetiva por linha: sentinel "caixa-geral" (ou linha
-  // sem conta) cai na conta padrão do título ou no caixa da empresa.
-  const linhasComConta = linhas.map((l) => ({
-    ...l,
-    contaEfetiva: l.contaBancariaId && l.contaBancariaId !== "caixa-geral"
-      ? l.contaBancariaId
-      : (conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId)),
-  }));
+  // Conta de destino/origem efetiva por linha: maquineta → conta da
+  // administradora (derivada, nunca escolhida); sentinel "caixa-geral" (ou
+  // linha sem conta) cai na conta padrão do título ou no caixa da empresa.
+  const linhasComConta = linhas.map((l) => {
+    const maq = l.maquinetaId ? maqDe.get(l.maquinetaId) : undefined;
+    return {
+      ...l,
+      taxaLinha: taxaDaLinha(l),
+      contaEfetiva: maq
+        ? maq.administradora.contaBancariaId
+        : l.contaBancariaId && l.contaBancariaId !== "caixa-geral"
+          ? l.contaBancariaId
+          : (conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId)),
+    };
+  });
   // Trava: forma eletrônica não pode cair no Caixa em Dinheiro (se há banco).
-  // Validada ANTES de qualquer escrita.
+  // Validada ANTES de qualquer escrita. Linha com maquineta fica de fora: a
+  // conta é derivada da administradora, não escolhida.
   const ruim = await formaEletronicaNoCaixa(tx, conta.empresaId,
-    linhasComConta.map((l) => ({ forma: l.forma, contaBancariaId: l.contaEfetiva })));
+    linhasComConta.filter((l) => !l.maquinetaId).map((l) => ({ forma: l.forma, contaBancariaId: l.contaEfetiva })));
   if (ruim) {
     const como = isReceber ? "recebida no" : "paga pelo";
     const qual = isReceber ? "destino" : "origem";
@@ -194,19 +261,23 @@ export async function baixarTitulo(
     await tx.contaPagar.update({ where: { id: tituloId }, data: { naturezaFinanceiraId: naturezasRateio[0].naturezaFinanceiraId } });
   }
 
-  // Um lançamento por forma (cada um na sua conta). Multa/juros entram na 1ª linha.
+  // Um lançamento por forma (cada um na sua conta). Linha de maquineta entra
+  // pelo LÍQUIDO (valor − taxa), com maquinetaId (projeção de repasse). Multa/
+  // juros entram na 1ª linha sem maquineta (senão na 1ª mesmo).
+  const idxExtra = Math.max(0, linhasComConta.findIndex((l) => !l.maquinetaId));
   for (let i = 0; i < linhasComConta.length; i++) {
     const l = linhasComConta[i];
-    const extra = i === 0 ? valorMulta + valorJuros : 0;
+    const extra = i === idxExtra ? valorMulta + valorJuros : 0;
     await tx.lancamentoFinanceiro.create({
       data: {
         empresaId: conta.empresaId,
         tipo: isReceber ? "RECEITA" : "DESPESA",
         descricao: `${isReceber ? "Recebimento" : "Pagamento"} ${conta.numero}${linhas.length > 1 && l.forma ? ` (${l.forma})` : ""}`,
-        valor: l.valor + extra,
+        valor: r2(l.valor - l.taxaLinha + extra),
         dataLancamento: dataPag,
         ...(isReceber ? { contaReceberId: tituloId } : { contaPagarId: tituloId }),
         contaBancariaId: l.contaEfetiva,
+        ...(l.maquinetaId ? { maquinetaId: l.maquinetaId } : {}),
         naturezaFinanceiraId: conta.naturezaFinanceiraId ?? undefined,
         centroCustoId: conta.centroCustoId ?? undefined,
       },

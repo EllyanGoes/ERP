@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -18,6 +18,8 @@ import DatePicker from "@/components/shared/DatePicker";
 import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
   novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
+  contaEhCaixa, formaEhCartao, formaEhDinheiro, temContaBanco,
+  pagamentoCartaoSemMaquineta, fetchMaquinetas,
 } from "@/components/pedidos-venda/PagamentosInput";
 
 type ContaRow = {
@@ -53,6 +55,8 @@ function filtrarTaxaNaturezas(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt[] {
     .map((ch) => arr.find((n) => n.sistema === true && n.sistemaChave === ch))
     .filter((n): n is TaxaNaturezaOpt => !!n);
 }
+
+type PedidoPag = { forma: string; valor: unknown; contaBancariaId: string | null };
 
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
 
@@ -113,6 +117,10 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   const [taxa, setTaxa] = useState("");
   const [taxaNaturezaId, setTaxaNaturezaId] = useState("");
   const [taxaNaturezas, setTaxaNaturezas] = useState<TaxaNaturezaOpt[]>([]);
+  // Pagamentos registrados no pedido de origem do título selecionado (forma +
+  // valor por linha) — pré-preenchem a baixa e alimentam o backstop do Caixa.
+  const [pedidoPags, setPedidoPags] = useState<PedidoPag[]>([]);
+  const abrirSeq = useRef(0);
 
   // Agrupamento (toggle): por data de VENCIMENTO ou por CLIENTE. Grupos com
   // contagem e soma dos valores.
@@ -170,6 +178,42 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     setLinhas([novaLinhaPagamento("", contaPadraoParaForma("", formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
     // Encargos sempre zerados ao reabrir o modal.
     setJuros(""); setMulta(""); setTaxa(""); setTaxaNaturezaId("");
+    // Título nascido de pedido: pré-preenche as linhas com os pagamentos
+    // registrados nele (ex.: 44,00 dinheiro + 0,50 cartão vira duas linhas,
+    // cada uma na sua conta) — sem isso a baixa abre numa linha única e o
+    // valor eletrônico acaba caindo inteiro no Caixa.
+    setPedidoPags([]);
+    if (!row.pedidoVenda) return;
+    const seq = ++abrirSeq.current;
+    fetch(`/api/contas-receber/${row.id}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (seq !== abrirSeq.current) return; // modal já reaberto para outro título
+        const pags: PedidoPag[] = j?.data?.pedidoVenda?.pagamentos ?? [];
+        if (pags.length === 0) return;
+        setPedidoPags(pags);
+        // Só substitui as linhas quando o espelho é exato: título ainda sem
+        // baixa e soma dos pagamentos igual ao saldo (parcial/encargo não tem
+        // como ratear automaticamente).
+        const soma = pags.reduce((t, p) => t + decimalToNumber(p.valor), 0);
+        if (decimalToNumber(row.valorPago) > 0.005 || Math.abs(soma - s) > 0.005) return;
+        setLinhas(pags.map((p) => novaLinhaPagamento(
+          p.forma,
+          p.contaBancariaId ?? contaPadraoParaForma(p.forma, formas, contasBanco),
+          decimalToNumber(p.valor).toFixed(2).replace(".", ","),
+        )));
+        // Linha de cartão: sugere a maquineta quando a empresa só tem uma (com
+        // 2+ o operador escolhe — o PagamentosInput destaca até escolher).
+        if (pags.some((p) => formaEhCartao(p.forma, formas))) {
+          fetchMaquinetas().then((ms) => {
+            if (seq !== abrirSeq.current || ms.length !== 1) return;
+            setLinhas((prev) => prev.map((l) =>
+              formaEhCartao(l.forma, formas) && !l.maquinetaId ? { ...l, maquinetaId: ms[0].id, contaBancariaId: "" } : l,
+            ));
+          });
+        }
+      })
+      .catch(() => {});
   }
 
   function renderAcoes(c: ContaRow) {
@@ -250,10 +294,25 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
 
   async function handlePagamento() {
     if (!selected) return;
+    // Linha de cartão com maquineta: envia maquinetaId e NÃO envia conta — a
+    // conta efetiva (administradora) e a taxa retida são derivadas no back.
     const pagamentos = linhas
       .filter((l) => parseValorBR(l.valor) > 0)
-      .map((l) => ({ forma: l.forma || null, contaBancariaId: l.contaBancariaId || null, valor: parseValorBR(l.valor) }));
+      .map((l) => {
+        const comMaquineta = !!l.maquinetaId && formaEhCartao(l.forma, formas);
+        return {
+          forma: l.forma || null,
+          contaBancariaId: comMaquineta ? null : (l.contaBancariaId || null),
+          valor: parseValorBR(l.valor),
+          ...(comMaquineta ? { maquinetaId: l.maquinetaId } : {}),
+        };
+      });
     if (pagamentos.length === 0) { setErro("Informe ao menos uma forma com valor."); return; }
+    const cartaoSemMaq = pagamentoCartaoSemMaquineta(linhas, formas);
+    if (cartaoSemMaq) {
+      setErro(`Escolha a maquineta para "${cartaoSemMaq.forma}" — a conta e a taxa do cartão derivam dela.`);
+      return;
+    }
     const contaRuim = pagamentoContaInvalida(linhas, formas, contasBanco);
     if (contaRuim) {
       setErro(`Selecione a conta bancária de destino para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem cair no Caixa em Dinheiro.`);
@@ -264,6 +323,28 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     const vMulta = parseValorBR(multa);
     const vTaxa = parseValorBR(taxa);
     if (vJuros < 0 || vMulta < 0 || vTaxa < 0) { setErro("Juros, multa e taxa não podem ser negativos."); return; }
+    // Backstop do pedido: a trava acima depende da FORMA da linha — uma linha
+    // sem forma escapa dela. Se o pedido registrou parte eletrônica, o que for
+    // roteado para o Caixa (conta tipo CAIXA ou linha sem conta, que o back
+    // resolve para o caixa da empresa) não pode passar do dinheiro do pedido
+    // mais os encargos desta baixa.
+    if (temContaBanco(contasBanco) && pedidoPags.length > 0) {
+      const totalPedido = pedidoPags.reduce((t, p) => t + decimalToNumber(p.valor), 0);
+      const dinheiroPedido = pedidoPags
+        .filter((p) => formaEhDinheiro(p.forma, formas))
+        .reduce((t, p) => t + decimalToNumber(p.valor), 0);
+      const eletronicoPedido = totalPedido - dinheiroPedido;
+      const paraCaixa = linhas
+        // Linha de cartão com maquineta não conta: a conta é derivada da
+        // administradora no back, nunca o Caixa.
+        .filter((l) => !(l.maquinetaId && formaEhCartao(l.forma, formas)))
+        .filter((l) => !l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contasBanco))
+        .reduce((t, l) => t + parseValorBR(l.valor), 0);
+      if (eletronicoPedido > 0.005 && paraCaixa > dinheiroPedido + vJuros + vMulta + 0.005) {
+        setErro(`O pedido registrou ${formatBRL(eletronicoPedido)} em formas eletrônicas — esse valor não pode cair no Caixa em Dinheiro. Direcione-o para a conta do cartão/banco.`);
+        return;
+      }
+    }
     setSaving(true); setErro(null);
     const res = await fetch(`/api/contas-receber/${selected.id}`, {
       method: "PATCH",
@@ -450,6 +531,7 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
               formas={formas}
               contas={contasBanco}
               total={saldo}
+              usarMaquinetas
             />
             {/* Encargos da baixa: juros/multa entram no caixa além do título; a
                 taxa/tarifa é retida (recebe MENOS) — quitação = linhas + taxa. */}

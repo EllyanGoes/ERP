@@ -53,6 +53,10 @@ export const pagamentoSchema = z.object({
     forma: z.string().optional().nullable(),
     contaBancariaId: z.string().optional().nullable(),
     valor: z.coerce.number().min(0.01),
+    // Linha de cartão (crédito/débito) com maquineta — só no RECEBER: a conta
+    // efetiva é a da administradora e a taxa (valor × taxaPct do tipo da forma)
+    // fica retida no título; o lançamento entra pelo LÍQUIDO.
+    maquinetaId: z.string().optional().nullable(),
   })).optional(),
   // Rateio gerencial por natureza (classificação do título na baixa). Cada linha =
   // natureza + valor; a soma deve bater com o valor do título. Opcional.

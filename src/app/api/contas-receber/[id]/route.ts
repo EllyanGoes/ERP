@@ -13,7 +13,13 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 
   const conta = await prisma.contaReceber.findUnique({
     where: { id: params.id },
-    include: { cliente: true, pedidoVenda: true, lancamentos: true },
+    // pagamentos do pedido: o modal de baixa pré-preenche as linhas com eles
+    // (forma + valor por conta), em vez de uma linha única no Caixa.
+    include: {
+      cliente: true,
+      pedidoVenda: { include: { pagamentos: { orderBy: { ordem: "asc" } } } },
+      lancamentos: true,
+    },
   });
   if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
   return NextResponse.json({ data: conta });
