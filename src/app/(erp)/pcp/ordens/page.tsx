@@ -8,7 +8,6 @@ import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import PageHeader from "@/components/shared/PageHeader";
 import CalendarioProducao from "@/components/pcp/CalendarioProducao";
 import { cn } from "@/lib/utils";
 import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, PackageCheck, Printer, Pencil, CalendarDays, LayoutGrid, List, Trash2, Calculator, MapPin, Search } from "lucide-react";
@@ -774,20 +773,9 @@ export default function OrdensBoardPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader
-        title="Fluxo de Produção"
-        subtitle="Chão de fábrica por área: escolha o fluxo, abra a aba da área e crie/aponte as OPs do dia."
-        breadcrumbs={[{ label: "PCP" }, { label: "Fluxo de Produção" }]}
-        action={
-          <div className="flex items-center gap-2">
-            <Link href="/pcp/chao" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted">
-              <Workflow className="w-4 h-4" /> Fluxo de Trabalho
-            </Link>
-          </div>
-        }
-      />
-
-      <div className="flex-1 min-h-0 overflow-y-auto px-8 pb-8 space-y-4">
+      {/* Sem PageHeader (título/subtítulo): a tabela ganha a tela inteira — o botão
+          Fluxo de Trabalho mora na barra de filtros. */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 pt-4 pb-8 space-y-4">
         {erro && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{erro}</div>}
 
         {/* Fluxo + dia */}
@@ -845,6 +833,9 @@ export default function OrdensBoardPage() {
               <List className="w-3.5 h-3.5" /> Lista
             </button>
           </div>
+          <Link href="/pcp/chao" className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
+            <Workflow className="w-4 h-4" /> Fluxo de Trabalho
+          </Link>
         </div>
 
         {/* Abas por área */}
