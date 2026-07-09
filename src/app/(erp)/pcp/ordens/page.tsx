@@ -868,16 +868,6 @@ export default function OrdensBoardPage() {
 
         {area && (
           <>
-            <p className="text-xs text-muted-foreground">
-              {area.isPrimeira
-                ? "Consome matéria-prima e gera o PEP da etapa."
-                : area.estadoSaida === "ACABADO"
-                  ? `Consome o PEP ${ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado} e gera o produto acabado.`
-                  : area.estadoSaida
-                    ? `Consome o PEP ${ESTADO_LABEL[area.fromEstado ?? ""] ?? area.fromEstado ?? "—"} e gera o PEP ${ESTADO_LABEL[area.estadoSaida] ?? area.estadoSaida}.`
-                    : "Etapa de preparo (sem movimentação de WIP)."}
-            </p>
-
             {vista === "lista" ? (
               <ListaPorDia
                 ops={filtrarOps(opsLista)}
