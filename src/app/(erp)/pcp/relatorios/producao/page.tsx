@@ -49,6 +49,12 @@ export default function RelatorioProducaoPage() {
   const [areaSel, setAreaSel] = usePersistedState("rel-producao-area", "");
   // Dia clicado no gráfico → pop-up com o resumo das OPs.
   const [diaPopup, setDiaPopup] = useState<string | null>(null);
+  // Séries ocultas no gráfico diário — clique na legenda esconde/mostra a série.
+  const [seriesOcultas, setSeriesOcultas] = useState<Record<string, boolean>>({});
+  const toggleSerie = (dataKey?: unknown) => {
+    if (typeof dataKey !== "string" || !dataKey) return;
+    setSeriesOcultas((s) => ({ ...s, [dataKey]: !s[dataKey] }));
+  };
 
   useEffect(() => {
     fetch("/api/pcp/fluxos").then((r) => r.json()).then((j) => setFluxos((j.data ?? []).map((f: { id: string; nome: string }) => ({ id: f.id, nome: f.nome })))).catch(() => {});
@@ -213,10 +219,18 @@ export default function RelatorioProducaoPage() {
                       );
                     }}
                   />
-                  <Legend formatter={(v: string) => <span style={{ color: "#64748b", fontSize: 12 }}>{v}</span>} />
-                  <Bar yAxisId="pecas" name="Produção" dataKey="producao" stackId="p" fill={COR_PRODUZIDO} maxBarSize={30} />
-                  <Bar yAxisId="pecas" name="Quebra" dataKey="quebra" stackId="p" fill={COR_QUEBRA} radius={[4, 4, 0, 0]} maxBarSize={30} />
-                  <Bar yAxisId="veiculos" name="Vagões descarregados" dataKey="veiculos" fill={COR_VEICULOS} radius={[4, 4, 0, 0]} maxBarSize={18} />
+                  {/* Legenda CLICÁVEL: esconde/mostra a série (ex.: tirar os vagões do gráfico). */}
+                  <Legend
+                    onClick={(e) => toggleSerie((e as { dataKey?: unknown })?.dataKey)}
+                    formatter={(v: string, entry) => {
+                      const key = (entry as { dataKey?: unknown })?.dataKey;
+                      const oculta = typeof key === "string" && seriesOcultas[key];
+                      return <span style={{ color: oculta ? "#cbd5e1" : "#64748b", fontSize: 12, cursor: "pointer", textDecoration: oculta ? "line-through" : "none" }}>{v}</span>;
+                    }}
+                  />
+                  <Bar yAxisId="pecas" name="Produção" dataKey="producao" stackId="p" fill={COR_PRODUZIDO} maxBarSize={30} hide={!!seriesOcultas.producao} />
+                  <Bar yAxisId="pecas" name="Quebra" dataKey="quebra" stackId="p" fill={COR_QUEBRA} radius={[4, 4, 0, 0]} maxBarSize={30} hide={!!seriesOcultas.quebra} />
+                  <Bar yAxisId="veiculos" name="Vagões descarregados" dataKey="veiculos" fill={COR_VEICULOS} radius={[4, 4, 0, 0]} maxBarSize={18} hide={!!seriesOcultas.veiculos} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}

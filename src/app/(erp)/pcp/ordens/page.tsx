@@ -132,6 +132,8 @@ export default function OrdensBoardPage() {
   const [soAbertas, setSoAbertas] = usePersistedState("pcp-so-abertas", false);
   // Lista: segundo agrupamento (dentro do dia) por área, na ordem do fluxo.
   const [agruparArea, setAgruparArea] = usePersistedState("pcp-lista-agrupar-area", false);
+  // Lista: agrupar por data (cabeçalho por dia) OU lista corrida com a data em coluna.
+  const [agruparData, setAgruparData] = usePersistedState("pcp-lista-agrupar-data", true);
   const [opsLista, setOpsLista] = useState<BoardOP[]>([]);
   const [carregandoLista, setCarregandoLista] = useState(false);
   const [materiais, setMateriais] = useState<EstoqueLinha[] | null>(null);
@@ -265,12 +267,9 @@ export default function OrdensBoardPage() {
   // "area" = só a aba atual; "todas" = todas as áreas do fluxo (marca a área em cada OP).
   const loadLista = useCallback(async () => {
     if (!fluxoId) { setOpsLista([]); return; }
-    const [y, m] = data.split("-").map(Number);
-    const ult = new Date(y, m, 0).getDate();
-    const from = `${y}-${String(m).padStart(2, "0")}-01`;
-    const to = `${y}-${String(m).padStart(2, "0")}-${String(ult).padStart(2, "0")}`;
+    // Sem recorte de mês: a lista traz TODAS as OPs da área (agrupadas por dia).
     const busca = async (nodeId: string, nome?: string): Promise<BoardOP[]> => {
-      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&from=${from}&to=${to}`);
+      const r = await fetch(`/api/pcp/ordens/area/board?fluxoId=${fluxoId}&areaNodeId=${nodeId}&todas=1`);
       const j = await r.json();
       return (j.data ?? []).map((o: BoardOP) => ({ ...o, areaNome: nome }));
     };
@@ -284,7 +283,7 @@ export default function OrdensBoardPage() {
         setOpsLista(await busca(areaNodeId));
       }
     } finally { setCarregandoLista(false); }
-  }, [fluxoId, areaNodeId, data, escopoLista, areas]);
+  }, [fluxoId, areaNodeId, escopoLista, areas]);
   useEffect(() => { if (vista === "lista") loadLista(); }, [vista, loadLista]);
 
   // Contagem de OPs por área (abertas/concluídas) no dia — exibida nas abas.
@@ -874,10 +873,10 @@ export default function OrdensBoardPage() {
               <ListaPorDia
                 ops={filtrarOps(opsLista)}
                 carregando={carregandoLista}
-                mes={data}
                 escopo={escopoLista} onEscopo={setEscopoLista}
                 soAbertas={soAbertas} onSoAbertas={setSoAbertas}
                 agruparArea={agruparArea} onAgruparArea={setAgruparArea}
+                agruparData={agruparData} onAgruparData={setAgruparData}
                 ordemAreas={areas.map((a) => a.centroTrabalho ?? a.nome)}
                 onNova={escopoLista === "area" ? () => { setNovo({ linhas: [{ itemId: area.produtos[0]?.id ?? "", quantidade: "", unidadeId: unidadePadrao(area, area.produtos[0]) }], inicio: `${data}T07:00`, fim: `${data}T19:00`, responsavelId: "", observacao: "" }); setErro(null); } : null}
                 onAbrir={(id) => router.push(`/pcp/ordens/${id}`)}
@@ -1635,11 +1634,12 @@ export default function OrdensBoardPage() {
 
 // Visão em LISTA: OPs agrupadas por dia (cabeçalho de data + linhas); com
 // "Agrupar por área" ligado, empilha um 2º agrupamento por área dentro do dia.
-function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAbertas, agruparArea, onAgruparArea, ordemAreas, onNova, onAbrir, onEditar, onExcluir, onApontar }: {
-  ops: BoardOP[]; carregando: boolean; mes: string;
+function ListaPorDia({ ops, carregando, escopo, onEscopo, soAbertas, onSoAbertas, agruparArea, onAgruparArea, agruparData, onAgruparData, ordemAreas, onNova, onAbrir, onEditar, onExcluir, onApontar }: {
+  ops: BoardOP[]; carregando: boolean;
   escopo: "area" | "todas"; onEscopo: (e: "area" | "todas") => void;
   soAbertas: boolean; onSoAbertas: (v: boolean) => void;
-  agruparArea: boolean; onAgruparArea: (v: boolean) => void; ordemAreas: string[];
+  agruparArea: boolean; onAgruparArea: (v: boolean) => void;
+  agruparData: boolean; onAgruparData: (v: boolean) => void; ordemAreas: string[];
   onNova: (() => void) | null; onAbrir: (id: string) => void; onEditar: (o: BoardOP) => void; onExcluir: (o: BoardOP) => void; onApontar: (o: BoardOP) => void;
 }) {
   // Excluir OP concluída é só para ADMIN (o servidor estorna o apontamento em cascata).
@@ -1650,19 +1650,22 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
     return d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" });
   };
   const visiveis = soAbertas ? ops.filter((o) => o.etapaStatus !== "CONCLUIDA") : ops;
-  // Agrupa por dia e ordena (mais recente primeiro).
-  const grupos = (() => {
-    const m = new Map<string, BoardOP[]>();
-    for (const o of visiveis) { const k = o.dia ?? "—"; (m.get(k) ?? m.set(k, []).get(k)!).push(o); }
-    return Array.from(m.entries()).sort((a, b) => b[0].localeCompare(a[0]));
-  })();
-  const mesLabel = (() => { const [y, mm] = mes.split("-").map(Number); return new Date(y, (mm || 1) - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }); })();
+  // Agrupado por data: cabeçalho por dia (mais recente primeiro). Sem agrupar:
+  // lista corrida ordenada por dia desc, com a DATA como coluna em cada linha.
+  const grupos: [string | null, BoardOP[]][] = agruparData
+    ? (() => {
+        const m = new Map<string, BoardOP[]>();
+        for (const o of visiveis) { const k = o.dia ?? "—"; (m.get(k) ?? m.set(k, []).get(k)!).push(o); }
+        return Array.from(m.entries()).sort((a, b) => b[0].localeCompare(a[0])) as [string | null, BoardOP[]][];
+      })()
+    : [[null, [...visiveis].sort((a, b) => (b.dia ?? "").localeCompare(a.dia ?? "") || b.numero.localeCompare(a.numero))]];
+  const fmtDiaCurto = (dia?: string) => (dia ? `${dia.slice(8, 10)}/${dia.slice(5, 7)}` : "—");
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border bg-muted/40 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
-          <p className="text-sm font-medium text-foreground capitalize">{mesLabel} · {visiveis.length} OP{visiveis.length === 1 ? "" : "s"}</p>
+          <p className="text-sm font-medium text-foreground">{visiveis.length} OP{visiveis.length === 1 ? "" : "s"}</p>
           <div className="flex rounded-lg border border-border p-0.5 text-xs">
             {([["area", "Esta área"], ["todas", "Todas as áreas"]] as const).map(([k, lbl]) => (
               <button key={k} type="button" onClick={() => onEscopo(k)}
@@ -1674,6 +1677,10 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
             <input type="checkbox" checked={soAbertas} onChange={(e) => onSoAbertas(e.target.checked)} className="accent-cyan-600" />
             Só abertas
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none" title="Desligado: lista corrida com a data em coluna">
+            <input type="checkbox" checked={agruparData} onChange={(e) => onAgruparData(e.target.checked)} className="accent-cyan-600" />
+            Agrupar por data
           </label>
           {escopo === "todas" && (
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
@@ -1693,7 +1700,7 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
       ) : visiveis.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Factory className="w-6 h-6 text-cyan-400 mb-1.5" />
-          <p className="text-xs text-muted-foreground">{soAbertas ? "Nenhuma OP aberta neste mês." : "Nenhuma OP neste mês."}</p>
+          <p className="text-xs text-muted-foreground">{soAbertas ? "Nenhuma OP aberta." : "Nenhuma OP."}</p>
         </div>
       ) : grupos.map(([dia, lista]) => {
         // 2º agrupamento (opcional): por área dentro do dia, na ordem do fluxo.
@@ -1706,11 +1713,13 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
             })()
           : [[null, lista]];
         return (
-        <div key={dia}>
-          <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-1.5 bg-muted/70 border-b border-border text-xs font-semibold text-muted-foreground capitalize">
-            <span>{dia === "—" ? "Sem data" : fmtDiaTitulo(dia)}</span>
-            <span className="text-[10px] font-medium text-muted-foreground/70">{lista.length} OP{lista.length === 1 ? "" : "s"}</span>
-          </div>
+        <div key={dia ?? "_corrida"}>
+          {dia !== null && (
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-1.5 bg-muted/70 border-b border-border text-xs font-semibold text-muted-foreground capitalize">
+              <span>{dia === "—" ? "Sem data" : fmtDiaTitulo(dia)}</span>
+              <span className="text-[10px] font-medium text-muted-foreground/70">{lista.length} OP{lista.length === 1 ? "" : "s"}</span>
+            </div>
+          )}
           {subgrupos.map(([areaNome, opsArea]) => (
           <div key={areaNome ?? "_"}>
           {areaNome !== null && (
@@ -1726,6 +1735,8 @@ function ListaPorDia({ ops, carregando, mes, escopo, onEscopo, soAbertas, onSoAb
               : `${fmtQtd(Number(o.produtos[0]?.planejada ?? o.quantidade))} ${o.produtos[0]?.unidade ?? o.unidade ?? ""}`.trim();
             return (
               <div key={o.id} className="flex items-center gap-3 px-4 py-2 border-b border-border/50 hover:bg-muted/40 text-sm">
+                {/* Sem agrupar por data: a data vira coluna na linha. */}
+                {dia === null && <span className="w-12 shrink-0 text-[11px] tabular-nums text-muted-foreground">{fmtDiaCurto(o.dia)}</span>}
                 <button onClick={() => onAbrir(o.id)} className="font-mono text-[11px] text-muted-foreground hover:text-cyan-600 w-24 shrink-0 text-left">{o.numero}</button>
                 {escopo === "todas" && o.areaNome && areaNome === null && (
                   <span className="hidden sm:inline-flex items-center rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 px-2 py-0.5 text-[10px] font-medium shrink-0 w-32 justify-center truncate" title={o.areaNome}>{o.areaNome}</span>

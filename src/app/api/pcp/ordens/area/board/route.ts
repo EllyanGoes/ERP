@@ -14,7 +14,9 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const fluxoId = sp.get("fluxoId") ?? "";
   const areaNodeId = sp.get("areaNodeId") ?? "";
-  // Modo dia único (?data=) OU intervalo (?from=&to=, p/ a visão em lista agrupada).
+  // Modo dia único (?data=), intervalo (?from=&to=) OU tudo (?todas=1 — visão em
+  // lista sem recorte de período).
+  const todas = sp.get("todas") === "1";
   const data = sp.get("data") ?? new Date().toISOString().slice(0, 10);
   const from = sp.get("from");
   const to = sp.get("to");
@@ -22,17 +24,19 @@ export async function GET(req: NextRequest) {
 
   const ini = new Date(`${from || data}T00:00:00.000Z`);
   const fim = new Date(`${to || data}T23:59:59.999Z`);
-  if (isNaN(ini.getTime()) || isNaN(fim.getTime())) return NextResponse.json({ error: "Data inválida" }, { status: 400 });
+  if (!todas && (isNaN(ini.getTime()) || isNaN(fim.getTime()))) return NextResponse.json({ error: "Data inválida" }, { status: 400 });
 
   const ordens = await prisma.ordemProducao.findMany({
     where: {
       status: { not: "CANCELADA" },
       // Dia = dia PROGRAMADO (dataPrevistaInicio), não a emissão (createdAt). OPs
       // antigas sem programação caem no createdAt.
-      OR: [
-        { dataPrevistaInicio: { gte: ini, lte: fim } },
-        { dataPrevistaInicio: null, createdAt: { gte: ini, lte: fim } },
-      ],
+      ...(todas ? {} : {
+        OR: [
+          { dataPrevistaInicio: { gte: ini, lte: fim } },
+          { dataPrevistaInicio: null, createdAt: { gte: ini, lte: fim } },
+        ],
+      }),
       fluxoVersao: { fluxoProducaoId: fluxoId },
       etapas: { some: { nodeId: areaNodeId } },
     },
