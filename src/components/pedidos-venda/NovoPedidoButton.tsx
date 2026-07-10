@@ -111,7 +111,7 @@ export default function NovoPedidoButton({ onCreated }: { onCreated: () => void 
         open={drawerAberto}
         onOpenChange={(v) => { if (!v) setDrawerAberto(false); }}
         title="Novo Pedido de Venda"
-        width="xl"
+        width="2xl"
         onCreated={onCreated}
       >
         {dados === null ? (

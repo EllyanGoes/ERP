@@ -39,6 +39,9 @@ const LARGURAS = {
   md: "max-w-xl",
   lg: "max-w-3xl",
   xl: "max-w-5xl",
+  // Formulários com grade de itens larga (ex.: Pedido de Venda): ocupa quase a
+  // tela toda, limitado p/ não esticar demais em monitores ultrawide.
+  "2xl": "w-[92vw] max-w-[1440px]",
 } as const;
 
 export default function CreateDrawer({
