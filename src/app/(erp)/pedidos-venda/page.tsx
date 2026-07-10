@@ -20,6 +20,7 @@ import {
   Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
   ShoppingCart, AlertTriangle, Trash2, Shuffle, Truck,
+  ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 
@@ -64,13 +65,14 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
 
 const STATUS_OPTIONS = STATUS_COLS.map((s) => ({ value: s.key, label: s.label }));
 
-const SORT_OPTIONS = [
-  { value: "dataEmissao_desc", label: "Emissão — mais recente" },
-  { value: "dataEmissao_asc",  label: "Emissão — mais antigo" },
-  { value: "total_desc",       label: "Total — maior" },
-  { value: "total_asc",        label: "Total — menor" },
-  { value: "numero_asc",       label: "Número — crescente" },
-];
+// Ordenação por CLIQUE no cabeçalho (Número/Emissão/Total): o 1º clique aplica
+// a direção padrão do campo, o 2º inverte; a seta no th indica a direção. O
+// sortKey continua persistido junto dos filtros (localStorage por usuário).
+const SORTABLE: Record<string, { asc: string; desc: string; padrao: "asc" | "desc" }> = {
+  numero:      { asc: "numero_asc",      desc: "numero_desc",      padrao: "asc" },
+  dataEmissao: { asc: "dataEmissao_asc", desc: "dataEmissao_desc", padrao: "desc" },
+  valorTotal:  { asc: "total_asc",       desc: "total_desc",       padrao: "desc" },
+};
 
 // ── Filter types ──────────────────────────────────────────────────────────────
 type FilterOp = "is" | "is_not";
@@ -472,6 +474,16 @@ export default function PedidosVendaPage() {
     });
   }
 
+  // Clique no cabeçalho: aplica a direção padrão do campo; clicando de novo, inverte.
+  function clicarOrdenacao(colId: string) {
+    const s = SORTABLE[colId];
+    if (!s) return;
+    const proximo = filters.sortKey === s.asc ? s.desc
+      : filters.sortKey === s.desc ? s.asc
+      : s[s.padrao];
+    updateFilters({ sortKey: proximo });
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -540,6 +552,7 @@ export default function PedidosVendaPage() {
         case "total_desc":       return decimalToNumber(b.valorTotal) - decimalToNumber(a.valorTotal);
         case "total_asc":        return decimalToNumber(a.valorTotal) - decimalToNumber(b.valorTotal);
         case "numero_asc":       return a.numero.localeCompare(b.numero);
+        case "numero_desc":      return b.numero.localeCompare(a.numero);
         default:                 return 0;
       }
     });
@@ -819,19 +832,6 @@ export default function PedidosVendaPage() {
           {loading ? "…" : `${filtered.length} pedido${filtered.length !== 1 ? "s" : ""}`}
         </span>
 
-        {/* Sort — list only */}
-        {filters.view === "list" && (
-          <div className="flex items-center gap-1.5">
-            <select
-              value={filters.sortKey}
-              onChange={(e) => updateFilters({ sortKey: e.target.value })}
-              className="h-8 px-2.5 pr-7 text-xs border border-border rounded-md bg-card focus:outline-none focus:ring-1 focus:ring-blue-400 text-muted-foreground"
-            >
-              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-        )}
-
         {/* Agrupar por — list only */}
         {filters.view === "list" && (
           <select
@@ -914,9 +914,33 @@ export default function PedidosVendaPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted border-b border-border">
                 <tr>
-                  {orderedCols.map((col) => (
-                    <th key={col.id} className={col.thClass}>{col.label}</th>
-                  ))}
+                  {orderedCols.map((col) => {
+                    const s = SORTABLE[col.id];
+                    if (!s) return <th key={col.id} className={col.thClass}>{col.label}</th>;
+                    const dir = filters.sortKey === s.asc ? "asc" : filters.sortKey === s.desc ? "desc" : null;
+                    return (
+                      <th key={col.id} className={col.thClass}>
+                        <button
+                          type="button"
+                          onClick={() => clicarOrdenacao(col.id)}
+                          className={cn(
+                            "group inline-flex items-center gap-1 transition-colors hover:text-foreground",
+                            dir && "text-foreground"
+                          )}
+                          title={dir === "asc" ? "Ordenar decrescente" : dir === "desc" ? "Ordenar crescente" : "Ordenar"}
+                        >
+                          {col.label}
+                          {dir === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          ) : dir === "desc" ? (
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          ) : (
+                            <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+                          )}
+                        </button>
+                      </th>
+                    );
+                  })}
                   {isAdmin && <th className="px-4 py-3 w-12" aria-label="Ações" />}
                 </tr>
               </thead>
