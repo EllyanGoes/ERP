@@ -65,6 +65,7 @@ type LineItem = {
   quantidadeUnitaria: string;   // em unidade base = quantidade × fator (ex: 400 UN)
   precoUnitario: string;        // preço por unidade base
   precoTransferencia: string;   // venda à ordem: preço de compra (origem) por unidade base
+  estoqueOrigemEmpresaId: string; // venda à ordem POR ITEM: origem desta linha ("" = padrão do pedido)
   descontoPct: string;   // %
   valorDesconto: string; // R$ computed
   valorTotal: string;    // R$ computed
@@ -85,7 +86,7 @@ function emptyLine(): LineItem {
     codigo: "", descricao: "", unidade: "",
     unidadeId: "", unidadeBaseId: "", fatorConversao: 1, itemUnidades: [],
     quantidade: "1", quantidadeUnitaria: "1", precoUnitario: "0",
-    precoTransferencia: "",
+    precoTransferencia: "", estoqueOrigemEmpresaId: "",
     descontoPct: "0", valorDesconto: "0", valorTotal: "0",
   };
 }
@@ -119,6 +120,7 @@ type PedidoInicialItem = {
   quantidade: unknown;
   precoUnitario: unknown;
   precoTransferencia?: unknown;
+  estoqueOrigemEmpresaId?: string | null; // venda à ordem por item
   desconto: unknown;     // valor do desconto em R$
   valorTotal: unknown;
 };
@@ -186,6 +188,7 @@ function buildInitialLinhas(pedido?: PedidoInicial): LineItem[] {
       quantidadeUnitaria: qty.toString(),
       precoUnitario: price.toFixed(2),
       precoTransferencia: it.precoTransferencia != null ? decimalToNumber(it.precoTransferencia).toFixed(2) : "",
+      estoqueOrigemEmpresaId: it.estoqueOrigemEmpresaId ?? "",
       descontoPct: pct.toFixed(4),
       valorDesconto: vlrDesc.toFixed(2),
       valorTotal: total.toFixed(2),
@@ -740,6 +743,8 @@ export default function PedidoForm({
           quantidade:    qtdBase,
           precoUnitario: price,
           precoTransferencia: estoqueOrigemId && Number.isFinite(precoTransf) && precoTransf > 0 ? precoTransf : undefined,
+          // Origem por linha (sobrepõe a origem padrão) — só com à ordem ativo.
+          estoqueOrigemEmpresaId: estoqueOrigemId && l.estoqueOrigemEmpresaId ? l.estoqueOrigemEmpresaId : undefined,
           descontoPct:   pct,
           valorDesconto: valorDesconto,
           desconto:      valorDesconto,
@@ -1272,14 +1277,31 @@ export default function PedidoForm({
                         className="h-9 text-xs text-right border-border font-medium"
                       />
                       {estoqueOrigemId && (
-                        <Input
-                          inputMode="decimal"
-                          value={linha.precoTransferencia}
-                          onChange={(e) => updateLinha(linha._key, "precoTransferencia", e.target.value)}
-                          placeholder="compra (origem)"
-                          title="Preço de compra da origem (venda à ordem) — valora a movimentação virtual e o financeiro intragrupo"
-                          className="h-7 mt-1 text-[11px] text-right border-violet-200 dark:border-violet-500/30 bg-violet-50/40 text-violet-700 dark:text-violet-300 placeholder:text-violet-300"
-                        />
+                        <>
+                          <Input
+                            inputMode="decimal"
+                            value={linha.precoTransferencia}
+                            onChange={(e) => updateLinha(linha._key, "precoTransferencia", e.target.value)}
+                            placeholder="compra (origem)"
+                            title="Preço de compra da origem (venda à ordem) — valora a movimentação virtual e o financeiro intragrupo"
+                            className="h-7 mt-1 text-[11px] text-right border-violet-200 dark:border-violet-500/30 bg-violet-50/40 text-violet-700 dark:text-violet-300 placeholder:text-violet-300"
+                          />
+                          {/* Origem POR LINHA: sobrepõe a origem padrão do pedido
+                              (ex.: tijolo da Tramontin, cimento da Atlas). */}
+                          <select
+                            value={linha.estoqueOrigemEmpresaId}
+                            onChange={(e) => updateLinha(linha._key, "estoqueOrigemEmpresaId", e.target.value)}
+                            title="Empresa de origem do estoque DESTA linha — vazio usa a origem padrão do pedido"
+                            className="h-7 mt-1 w-full text-[11px] rounded-md border border-violet-200 dark:border-violet-500/30 bg-violet-50/40 text-violet-700 dark:text-violet-300 focus:outline-none focus:ring-1 focus:ring-violet-300"
+                          >
+                            <option value="">origem padrão</option>
+                            {grupoEmpresas
+                              .filter((e) => e.id !== (empresaId || usuarioSessao?.activeEmpresaId))
+                              .map((e) => (
+                                <option key={e.id} value={e.id}>{e.nome}</option>
+                              ))}
+                          </select>
+                        </>
                       )}
                     </td>
 

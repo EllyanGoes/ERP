@@ -18,6 +18,34 @@ import { generateDocNumber } from "@/lib/utils";
 import { custosDaEmpresa } from "@/lib/custo-empresa";
 
 /**
+ * Origem EFETIVA de uma linha da venda à ordem: a da própria linha
+ * (PedidoVendaItem.estoqueOrigemEmpresaId) sobrepõe a origem padrão do pedido.
+ * Um pedido pode misturar origens (ex.: tijolo da Tramontin, cimento da Atlas);
+ * o cabeçalho continua obrigatório quando à ordem (linha só sobrepõe).
+ */
+export function origemEfetivaLinha(
+  pedido: { estoqueOrigemEmpresaId: string | null },
+  linha: { estoqueOrigemEmpresaId?: string | null },
+): string | null {
+  return linha.estoqueOrigemEmpresaId ?? pedido.estoqueOrigemEmpresaId ?? null;
+}
+
+/** Agrupa as linhas do pedido pela origem efetiva (linhas sem origem ficam fora). */
+export function origensDoPedido<T extends { estoqueOrigemEmpresaId?: string | null }>(
+  pedido: { estoqueOrigemEmpresaId: string | null },
+  linhas: T[],
+): Map<string, T[]> {
+  const grupos = new Map<string, T[]>();
+  for (const l of linhas) {
+    const origem = origemEfetivaLinha(pedido, l);
+    if (!origem) continue;
+    const g = grupos.get(origem);
+    if (g) g.push(l); else grupos.set(origem, [l]);
+  }
+  return grupos;
+}
+
+/**
  * Preço de transferência (custo) por item da venda à ordem. Precedência:
  *   1) preço de transferência informado no item;
  *   2) preço de transferência do pedido, rateado proporcionalmente (fator);
@@ -25,7 +53,7 @@ import { custosDaEmpresa } from "@/lib/custo-empresa";
  *   4) 0 — sem custo conhecido: não inventa o valor da venda (evita a CP/CR
  *      intragrupo sair pelo valor cheio da venda). Com 0 a CP/CR é pulada.
  */
-function precoTransferenciaItem(args: {
+export function precoTransferenciaItem(args: {
   itemPrecoTransferencia: Prisma.Decimal | string | number | null;
   totalItem: Prisma.Decimal;
   qtd: Prisma.Decimal;
@@ -262,7 +290,7 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
   try {
     const entrega = await prismaSemEscopo.minuta.findUnique({
       where: { id: entregaMinutaId },
-      include: { itens: true, pedidoVenda: { select: { id: true, pedidoVendaOrigemId: true, status: true, statusEntrega: true } } },
+      include: { itens: true, pedidoVenda: { select: { id: true, empresaId: true, pedidoVendaOrigemId: true, status: true, statusEntrega: true } } },
     });
     if (!entrega || entrega.status !== "ENTREGUE") return;
     const vendaId = entrega.pedidoVenda?.pedidoVendaOrigemId;
@@ -274,8 +302,10 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
     });
     if (!venda?.estoqueOrigemEmpresaId) return;
 
+    // A origem é a EMPRESA DO PEDIDO DE ENTREGA (espelho) — com origem por item
+    // uma venda pode ter espelhos em várias empresas, cada minuta pertence a uma.
     const origem = await prismaSemEscopo.empresa.findFirst({
-      where: { id: venda.estoqueOrigemEmpresaId, ativo: true },
+      where: { id: entrega.pedidoVenda!.empresaId, ativo: true },
       select: { id: true, nomeFantasia: true, razaoSocial: true, fornecedorId: true },
     });
     if (!origem) return;
@@ -290,11 +320,16 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
     });
     if (jaTem) return;
 
-    // Preço por item da venda (venda + transferência) casado por itemId.
+    // Preço por item da venda (venda + transferência) casado por itemId —
+    // preferindo a linha cuja origem efetiva é a empresa deste espelho (o mesmo
+    // item pode aparecer em linhas de origens diferentes).
     const totalVenda = venda.itens.reduce((s, i) => s.add(new Prisma.Decimal(i.valorTotal ?? 0)), new Prisma.Decimal(0));
     const transfer = venda.precoTransferencia != null ? new Prisma.Decimal(venda.precoTransferencia) : null;
     const fator = transfer && totalVenda.gt(0) ? transfer.div(totalVenda) : new Prisma.Decimal(1);
-    const vItemByItemId = new Map(venda.itens.map((i) => [i.itemId, i]));
+    const linhaDaVenda = (itemId: string) => {
+      const candidatas = venda.itens.filter((i) => i.itemId === itemId);
+      return candidatas.find((i) => origemEfetivaLinha(venda, i) === origem.id) ?? candidatas[0];
+    };
 
     await prismaSemEscopo.$transaction(async (tx) => {
       const localA = await localPadrao(tx, empresaA);
@@ -308,7 +343,7 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
       for (const mi of entrega.itens) {
         const qtd = new Prisma.Decimal(mi.quantidadeConvertida ?? mi.quantidade);
         if (qtd.lte(0)) continue;
-        const vi = vItemByItemId.get(mi.itemId);
+        const vi = linhaDaVenda(mi.itemId);
         const precoVenda = vi ? new Prisma.Decimal(vi.precoUnitario ?? 0) : new Prisma.Decimal(0);
         const totalItem = vi ? new Prisma.Decimal(vi.valorTotal ?? 0) : new Prisma.Decimal(0);
         const transferUnit = precoTransferenciaItem({
@@ -362,14 +397,21 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
       }
     });
 
-    // Espelha o status de entrega do pedido de entrega (origem) na venda à ordem
-    // — que não tem minuta própria. Conclui a venda quando a entrega concluir.
-    const ent = entrega.pedidoVenda!;
+    // Espelha o status agregado dos pedidos de entrega na venda à ordem — que
+    // não tem minuta própria. Com origem por item pode haver VÁRIOS espelhos
+    // (um por empresa de origem): a venda só conclui quando TODOS concluírem.
+    const espelhos = await prismaSemEscopo.pedidoVenda.findMany({
+      where: { pedidoVendaOrigemId: venda.id, status: { not: "CANCELADO" } },
+      select: { status: true, statusEntrega: true },
+    });
+    const todosConcluidos = espelhos.length > 0 && espelhos.every((e) => e.status === "CONCLUIDO");
+    const todasEntregues  = espelhos.length > 0 && espelhos.every((e) => e.statusEntrega === "ENTREGUE");
+    const algumaEntrega   = espelhos.some((e) => e.statusEntrega === "ENTREGUE" || e.statusEntrega === "PARCIAL");
     await prismaSemEscopo.pedidoVenda.update({
       where: { id: venda.id },
       data: {
-        statusEntrega: ent.statusEntrega,
-        ...(ent.status === "CONCLUIDO" && venda.status !== "CONCLUIDO"
+        statusEntrega: todasEntregues ? "ENTREGUE" : algumaEntrega ? "PARCIAL" : "PENDENTE",
+        ...(todosConcluidos && venda.status !== "CONCLUIDO"
           ? { status: "CONCLUIDO", dataConclusao: new Date() } : {}),
       },
     });
@@ -399,12 +441,6 @@ export async function reverterMovimentosTriangulares(devolucaoId: string): Promi
     });
     if (!venda?.estoqueOrigemEmpresaId) return;
 
-    const origem = await prismaSemEscopo.empresa.findFirst({
-      where: { id: venda.estoqueOrigemEmpresaId, ativo: true },
-      select: { id: true, nomeFantasia: true, razaoSocial: true },
-    });
-    if (!origem) return;
-
     // Idempotência: reversão desta devolução já registrada?
     const jaTem = await prismaSemEscopo.movimentacaoEstoque.findFirst({
       where: { devolucaoId: dev.id }, select: { id: true },
@@ -412,7 +448,6 @@ export async function reverterMovimentosTriangulares(devolucaoId: string): Promi
     if (jaTem) return;
 
     const empresaA = venda.empresaId;
-    const origemNome = origem.nomeFantasia ?? origem.razaoSocial;
     const vendaNome = venda.empresa.nomeFantasia ?? venda.empresa.razaoSocial;
 
     const totalVenda = venda.itens.reduce((s, i) => s.add(new Prisma.Decimal(i.valorTotal ?? 0)), new Prisma.Decimal(0));
@@ -420,29 +455,53 @@ export async function reverterMovimentosTriangulares(devolucaoId: string): Promi
     const fator = transfer && totalVenda.gt(0) ? transfer.div(totalVenda) : new Prisma.Decimal(1);
     const pviById = new Map(venda.itens.map((i) => [i.id, i]));
 
+    // Origem por LINHA: cada item devolvido volta para a SUA origem efetiva
+    // (ex.: tijolo → Tramontin, cimento → Atlas). Carrega as empresas envolvidas.
+    const origemDe = (di: (typeof dev.itens)[number]) => {
+      const pvi = pviById.get(di.pedidoVendaItemId);
+      return (pvi ? origemEfetivaLinha(venda, pvi) : null) ?? venda.estoqueOrigemEmpresaId!;
+    };
+    const origemIds = Array.from(new Set(dev.itens.map(origemDe)));
+    const origens = await prismaSemEscopo.empresa.findMany({
+      where: { id: { in: origemIds }, ativo: true },
+      select: { id: true, nomeFantasia: true, razaoSocial: true },
+    });
+    const origemPorId = new Map(origens.map((o) => [o.id, o]));
+
     await prismaSemEscopo.$transaction(async (tx) => {
-      const localOrigem = await localPadrao(tx, origem.id);
       const localA = await localPadrao(tx, empresaA);
       const doc = dev.numero;
 
       const loteEntradaA = await criarLote(tx, empresaA, "ENTRADA", doc, `Devolução ${doc} — retorno do cliente`);
-      const loteSaidaA = await criarLote(tx, empresaA, "SAIDA", doc, `Devolução ${doc} — retorno p/ ${origemNome}`);
-      const loteEntradaB = await criarLote(tx, origem.id, "ENTRADA", doc, `Devolução ${doc} — retorno de ${vendaNome}`);
-
-      // Custo dos itens na origem — mesma base do preço de transferência da venda.
-      const custoMap = await custosDaEmpresa(tx, origem.id, dev.itens.map((di) => di.itemId));
+      const loteSaidaA = await criarLote(tx, empresaA, "SAIDA", doc, `Devolução ${doc} — retorno p/ origem`);
+      // Lote/local/custo por ORIGEM (lazy — só para as origens realmente usadas).
+      type InfraOrigem = { localId: string; loteId: string; custoMap: Awaited<ReturnType<typeof custosDaEmpresa>> };
+      const porOrigem = new Map<string, InfraOrigem>();
+      const infraOrigem = async (origemId: string): Promise<InfraOrigem> => {
+        const existente = porOrigem.get(origemId);
+        if (existente) return existente;
+        const lote = await criarLote(tx, origemId, "ENTRADA", doc, `Devolução ${doc} — retorno de ${vendaNome}`);
+        const custoMap = await custosDaEmpresa(tx, origemId, dev.itens.map((di) => di.itemId));
+        const inf: InfraOrigem = { localId: await localPadrao(tx, origemId), loteId: lote.id, custoMap };
+        porOrigem.set(origemId, inf);
+        return inf;
+      };
 
       for (const di of dev.itens) {
         const qtd = new Prisma.Decimal(di.quantidade);
         if (qtd.lte(0)) continue;
         const pvi = pviById.get(di.pedidoVendaItemId);
+        const origemId = origemDe(di);
+        const origem = origemPorId.get(origemId);
+        const origemNome = origem ? (origem.nomeFantasia ?? origem.razaoSocial) : "origem";
+        const infra = await infraOrigem(origemId);
         const precoVenda = new Prisma.Decimal(di.valorUnitario);
         const totalItem = pvi ? new Prisma.Decimal(pvi.valorTotal ?? 0) : qtd.mul(precoVenda);
         const transferUnit = precoTransferenciaItem({
           itemPrecoTransferencia: pvi?.precoTransferencia ?? null,
           totalItem, qtd: pvi ? new Prisma.Decimal(pvi.quantidade) : new Prisma.Decimal(0),
           pedidoTemTransfer: transfer != null, fator,
-          custoOrigem: custoMap.get(di.itemId) ?? undefined,
+          custoOrigem: infra.custoMap.get(di.itemId) ?? undefined,
         });
 
         // ENTRADA na empresa da venda (material volta do cliente) — preço de venda.
@@ -457,10 +516,10 @@ export async function reverterMovimentosTriangulares(devolucaoId: string): Promi
           quantidade: qtd, loteId: loteSaidaA.id, documento: doc,
           observacoes: `Devolução ${doc} — retorno p/ ${origemNome}`, valorUnitario: transferUnit, devolucaoId: dev.id,
         });
-        // ENTRADA na origem (recebe de volta) — preço de transferência.
+        // ENTRADA na origem da LINHA (recebe de volta) — preço de transferência.
         await movimentar(tx, {
-          empresaId: origem.id, localEstoqueId: localOrigem, itemId: di.itemId, tipo: "ENTRADA",
-          quantidade: qtd, loteId: loteEntradaB.id, documento: doc,
+          empresaId: origemId, localEstoqueId: infra.localId, itemId: di.itemId, tipo: "ENTRADA",
+          quantidade: qtd, loteId: infra.loteId, documento: doc,
           observacoes: `Devolução ${doc} — retorno de ${vendaNome}`, valorUnitario: transferUnit, devolucaoId: dev.id,
         });
       }

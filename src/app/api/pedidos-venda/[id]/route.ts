@@ -37,6 +37,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
               },
             },
           },
+          // Venda à ordem por item: origem da linha (sobrepõe a padrão do pedido).
+          estoqueOrigemEmpresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
           minutaItens: {
             where: { minuta: { status: { not: "CANCELADA" } } },
             select: { quantidade: true },
@@ -184,12 +186,25 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
   }
 
+  // Origem POR ITEM (sobrepõe a padrão): exige à ordem ativo, empresa ≠ venda.
+  const origensLinha = Array.from(new Set(itens.map((i) => i.estoqueOrigemEmpresaId).filter((v): v is string => !!v)));
+  if (origensLinha.length > 0) {
+    if (!novaOrigem) {
+      return NextResponse.json({ error: "Origem por item exige a origem padrão do pedido (venda à ordem ativa)" }, { status: 400 });
+    }
+    if (origensLinha.includes(pedidoAtual.empresaId)) {
+      return NextResponse.json({ error: "A empresa de origem de uma linha deve ser diferente da empresa da venda" }, { status: 400 });
+    }
+  }
+
   const mapLine = (item: (typeof itens)[number]) => ({
     itemId: item.itemId,
     quantidade: item.quantidade,
     precoUnitario: item.precoUnitario,
     precoTransferencia: novaOrigem && item.precoTransferencia != null && Number(item.precoTransferencia) > 0
       ? Number(item.precoTransferencia) : null,
+    // Origem por linha (venda à ordem): sobrepõe a origem padrão do pedido.
+    estoqueOrigemEmpresaId: novaOrigem ? (item.estoqueOrigemEmpresaId ?? null) : null,
     // Grava os TRÊS campos de desconto do item (igual ao POST) — antes só
     // `desconto` era salvo, e o detalhe/edição leem `valorDesconto`/`descontoPct`,
     // fazendo o desconto "sumir" ao reabrir.

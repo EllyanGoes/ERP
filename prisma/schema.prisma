@@ -1472,6 +1472,7 @@ model Empresa {
   tiposOperacao             TipoOperacao[]
   pedidoVendas              PedidoVenda[]           @relation("PedidoVendaEmpresa")
   pedidoVendasOrigemEstoque PedidoVenda[]           @relation("PedidoVendaEstoqueOrigem")
+  pedidoVendaItensOrigemEstoque PedidoVendaItem[]   @relation("PedidoVendaItemEstoqueOrigem")
   pedidoVendaItems          PedidoVendaItem[]
   minutas                   Minuta[]
   minutaItems               MinutaItem[]
@@ -2226,6 +2227,10 @@ model PedidoVendaItem {
   // Venda à ordem: preço de compra unitário da empresa da venda com a origem
   // (Cimento ← Tramontin). Valora a entrada/saída-origem e o financeiro intragrupo.
   precoTransferencia Decimal?              @db.Decimal(15, 2)
+  // Venda à ordem POR ITEM: origem do estoque desta linha (sobrepõe a origem
+  // padrão do pedido — ex.: tijolo da Tramontin e cimento da Atlas no mesmo
+  // pedido). null = usa PedidoVenda.estoqueOrigemEmpresaId.
+  estoqueOrigemEmpresaId String?
   descontoPct        Decimal               @default(0) @db.Decimal(15, 4)
   desconto           Decimal               @default(0) @db.Decimal(15, 2)
   valorDesconto      Decimal               @default(0) @db.Decimal(15, 2)
@@ -2234,12 +2239,14 @@ model PedidoVendaItem {
   minutaItens        MinutaItem[]
   item               Item                  @relation(fields: [itemId], references: [id])
   pedidoVenda        PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
+  estoqueOrigemEmpresa Empresa?            @relation("PedidoVendaItemEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
   @@index([itemId])
   @@index([pedidoVendaId])
   @@index([empresaId])
+  @@index([estoqueOrigemEmpresaId])
 }
 
 // Devolução de venda: cliente devolve itens de um pedido. Resolução por estorno

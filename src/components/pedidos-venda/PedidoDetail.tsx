@@ -33,6 +33,8 @@ type ItemRow = {
   precoUnitario: unknown;
   desconto: unknown;
   valorTotal: unknown;
+  // Venda à ordem por item: origem da linha (quando sobrepõe a padrão do pedido).
+  estoqueOrigemEmpresa?: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   item: {
     codigo: string;
     descricao: string;
@@ -619,7 +621,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
   const origemEmpresaNome = pedido.estoqueOrigemEmpresa
     ? (pedido.estoqueOrigemEmpresa.nomeFantasia || pedido.estoqueOrigemEmpresa.razaoSocial)
     : null;
-  const entregaTriangular = pedido.entregasTriangular?.[0] ?? null;
+  const entregasTriangular = pedido.entregasTriangular ?? [];
   const vendaOrigemNome = pedido.pedidoVendaOrigem?.empresa
     ? (pedido.pedidoVendaOrigem.empresa.nomeFantasia || pedido.pedidoVendaOrigem.empresa.razaoSocial)
     : null;
@@ -633,7 +635,20 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           <div>
             <span className="font-semibold">Venda à ordem.</span>{" "}
             Quem entrega e baixa o estoque é a <span className="font-semibold">{origemEmpresaNome}</span>
-            {entregaTriangular ? <> — pedido de entrega <span className="font-mono font-semibold">{entregaTriangular.numero}</span></> : <> (criado ao confirmar a venda)</>}.
+            {entregasTriangular.length > 0 ? (
+              <>
+                {" "}— pedido{entregasTriangular.length > 1 ? "s" : ""} de entrega{" "}
+                {entregasTriangular.map((e, i) => (
+                  <span key={e.id}>
+                    {i > 0 && ", "}
+                    <span className="font-mono font-semibold">{e.numero}</span>
+                    {e.empresa && <> ({e.empresa.nomeFantasia || e.empresa.razaoSocial})</>}
+                  </span>
+                ))}
+              </>
+            ) : (
+              <> (criado ao confirmar a venda)</>
+            )}.
             {pedido.precoTransferencia != null && <> Preço de transferência: <span className="font-semibold">{formatBRL(decimalToNumber(pedido.precoTransferencia))}</span>.</>}
           </div>
         </div>
@@ -979,7 +994,17 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
                     return (
                       <tr key={item.id} className="border-b border-gray-50 hover:bg-muted">
                         <td className="py-2.5 font-mono text-xs">{item.item.codigo}</td>
-                        <td className="py-2.5">{item.item.descricao}</td>
+                        <td className="py-2.5">
+                          {item.item.descricao}
+                          {item.estoqueOrigemEmpresa && (
+                            <span
+                              className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-500/30 align-middle"
+                              title="Origem do estoque desta linha (venda à ordem por item)"
+                            >
+                              de {item.estoqueOrigemEmpresa.nomeFantasia || item.estoqueOrigemEmpresa.razaoSocial}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2.5 text-center text-muted-foreground text-xs">{item.item.unidade?.sigla ?? item.item.unidadeMedida}</td>
                         <td className="py-2.5 text-right tabular-nums">{fmtQty(item.quantidade)}</td>
                         <td className="py-2.5 text-right tabular-nums text-success">{fmtQty(entregue)}</td>

@@ -111,6 +111,7 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
       quantidade: pi.quantidade,
       precoUnitario: pi.precoUnitario,
       precoTransferencia: pi.precoTransferencia,
+      estoqueOrigemEmpresaId: pi.estoqueOrigemEmpresaId,
       desconto: pi.valorDesconto,
       valorTotal: pi.valorTotal,
     })),

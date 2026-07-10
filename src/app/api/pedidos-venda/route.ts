@@ -143,6 +143,22 @@ export async function POST(req: NextRequest) {
       : null;
   }
 
+  // Origem POR ITEM (sobrepõe a padrão): exige à ordem ativo (origem padrão
+  // preenchida), empresa do grupo e diferente da empresa da venda.
+  const origensLinha = Array.from(new Set(itens.map((i) => i.estoqueOrigemEmpresaId).filter((v): v is string => !!v)));
+  if (origensLinha.length > 0) {
+    if (!estoqueOrigemEmpresaId) {
+      return NextResponse.json({ error: "Origem por item exige a origem padrão do pedido (venda à ordem ativa)" }, { status: 400 });
+    }
+    if (origensLinha.includes(empresaAlvo)) {
+      return NextResponse.json({ error: "A empresa de origem de uma linha deve ser diferente da empresa da venda" }, { status: 400 });
+    }
+    const grupo = await empresasDoGrupo();
+    if (origensLinha.some((o) => !grupo.some((e) => e.id === o))) {
+      return NextResponse.json({ error: "Empresa de origem inválida em uma das linhas" }, { status: 400 });
+    }
+  }
+
   const numero = generateSimpleDocNumber("PV", await proximaSequenciaDaEmpresa(empresaAlvo, "PV"));
 
   // Totais SERVER-SIDE: o valorTotal de cada linha é recomputado de
@@ -205,6 +221,8 @@ export async function POST(req: NextRequest) {
             precoUnitario: item.precoUnitario,
             precoTransferencia: estoqueOrigemEmpresaId && item.precoTransferencia != null && Number(item.precoTransferencia) > 0
               ? Number(item.precoTransferencia) : null,
+            // Origem por linha (venda à ordem): sobrepõe a origem padrão do pedido.
+            estoqueOrigemEmpresaId: estoqueOrigemEmpresaId ? (item.estoqueOrigemEmpresaId ?? null) : null,
             descontoPct:   item.descontoPct   ?? 0,
             valorDesconto: item.valorDesconto ?? 0,
             desconto:      item.desconto      ?? 0,
