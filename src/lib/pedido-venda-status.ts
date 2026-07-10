@@ -5,14 +5,15 @@
 // mas cancelava SEM reverter; [id] revertia mas aceitava qualquer transição.
 // Aqui: uma máquina, uma reversão de cancelamento e os mesmos espelhos.
 //
-// Decisão jul/2026: o CONTAS A RECEBER nasce na ENTREGA/RETIRADA total
-// (faturarEntregasPedido), não mais na confirmação do pedido. A confirmação
-// continua gerando o lançamento contábil da venda (modelo clássico).
+// Decisão jul/2026 (v2): o CONTAS A RECEBER nasce na CONFIRMAÇÃO do pedido,
+// conforme a NEGOCIAÇÃO (valor total + parcelas da condição de pagamento) —
+// independe da entrega (faturarPedido). A confirmação também gera o
+// lançamento contábil da venda (modelo clássico).
 // ─────────────────────────────────────────────────────────────────────────────
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { getItensPendentesEntrega, type ItemPendenteEntrega } from "@/lib/pedido-totais";
-import { faturarEntregasPedido } from "@/lib/contas-receber";
+import { faturarPedido } from "@/lib/contas-receber";
 import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import {
   espelharConfirmacaoVenda,
@@ -214,11 +215,13 @@ export async function mudarStatusPedidoVenda(opts: {
     await espelharEntregaTriangular(id);
   }
 
-  // Rede de segurança do faturamento: o CR nasce na ENTREGA total (minuta
-  // ENTREGUE / balcão). Se algum gatilho de entrega não faturou, fatura aqui.
-  if (novoStatus === "CONCLUIDO") {
-    await faturarEntregasPedido(id).catch((e) =>
-      console.error(`[pedido-venda-status] faturarEntregasPedido(${id}) falhou:`, e));
+  // Faturamento pela NEGOCIAÇÃO: os títulos nascem na confirmação, pelo valor
+  // total do pedido e condição de pagamento (independem da entrega). No
+  // CONCLUIDO roda de novo como rede de segurança (idempotente) p/ pedidos
+  // confirmados antes desta regra ou editados depois da confirmação.
+  if (novoStatus === "CONFIRMADO" || novoStatus === "CONCLUIDO") {
+    await faturarPedido(id).catch((e) =>
+      console.error(`[pedido-venda-status] faturarPedido(${id}) falhou:`, e));
   }
 
   // Contabiliza (best-effort, pós-commit) a venda/títulos do pedido.

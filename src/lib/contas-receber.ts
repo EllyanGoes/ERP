@@ -58,51 +58,33 @@ export async function gerarContasReceberDoPedido(
 }
 
 /**
- * Fatura as ENTREGAS/RETIRADAS do pedido (decisão jul/2026, refinada: o contas a
- * receber nasce junto com a entrega — e entregas PARCIAIS por minuta também
- * contam, não só a total). Modelo catch-up idempotente: fatura a DIFERENÇA entre
- * o valor entregue acumulado (fração entregue de cada item × valor da linha; na
- * entrega TOTAL, o valorTotal do pedido — que inclui frete/desconto/comodato) e
- * o valor já faturado (Σ CRs não canceladas). Um lock de linha no pedido (FOR
- * UPDATE) serializa gatilhos concorrentes (minuta ENTREGUE × status × balcão).
- * O balcão (CR PAGA total no próprio fluxo) fica coberto: faturado ≥ entregue →
- * não gera nada. Vencimentos contam da DATA DO FATURAMENTO (a entrega), pela
- * condição de pagamento. Pula intragrupo, orçamento/cancelado e valores ≤ 0.
+ * Fatura o PEDIDO conforme a NEGOCIAÇÃO (decisão jul/2026, v2): os títulos
+ * nascem do pedido — valor TOTAL e parcelas da condição de pagamento, com
+ * vencimentos contados da EMISSÃO — e INDEPENDEM da entrega. (O modelo
+ * anterior faturava a fração entregue a cada minuta, fragmentando a cobrança
+ * em títulos por entrega — ex.: PV-0261 com 2 CRs de 222,45.)
+ * Catch-up idempotente: fatura a DIFERENÇA entre o valorTotal e o já faturado
+ * (Σ CRs não canceladas) — cobre o balcão (CR PAGA no próprio fluxo → não gera
+ * nada), pedidos já faturados em parte pelo modelo antigo (gera só o resto) e
+ * gatilhos concorrentes (lock de linha FOR UPDATE no pedido).
+ * Gatilhos: CONFIRMAÇÃO do pedido (negociação fechada); entregas/conclusão
+ * seguem chamando como rede de segurança p/ pedidos confirmados antes desta
+ * regra. Pula intragrupo, orçamento/cancelado e valores ≤ 0.
  * Retorna true se gerou título.
  */
-export async function faturarEntregasPedido(pedidoVendaId: string): Promise<boolean> {
+export async function faturarPedido(pedidoVendaId: string): Promise<boolean> {
   const pedido = await prismaSemEscopo.pedidoVenda.findUnique({
     where: { id: pedidoVendaId },
     select: {
       id: true, empresaId: true, clienteId: true, numero: true, status: true, intragrupo: true,
       valorTotal: true, dataEmissao: true, naturezaFinanceiraId: true,
       condicaoPagamentoId: true, condicaoPagamento: true,
-      itens: {
-        select: {
-          quantidade: true, valorTotal: true,
-          minutaItens: { where: { minuta: { status: "ENTREGUE" } }, select: { quantidade: true } },
-        },
-      },
     },
   });
   if (!pedido || pedido.intragrupo) return false;
   if (!["CONFIRMADO", "EM_AGENDAMENTO", "CONCLUIDO"].includes(pedido.status)) return false;
   const valorTotal = decimalToNumber(pedido.valorTotal);
   if (valorTotal <= 0) return false;
-
-  // Valor entregue acumulado (mesma definição de "entregue" do recomputarStatusPedido).
-  let entregueAcum = 0;
-  let tudoEntregue = pedido.itens.length > 0;
-  for (const it of pedido.itens) {
-    const qPed = decimalToNumber(it.quantidade);
-    const qEnt = it.minutaItens.reduce((s, mi) => s + decimalToNumber(mi.quantidade), 0);
-    if (qPed <= 0) continue;
-    entregueAcum += decimalToNumber(it.valorTotal) * Math.min(qEnt / qPed, 1);
-    if (qEnt < qPed - 0.0001) tudoEntregue = false;
-  }
-  // Frete/desconto global/comodato entram no acerto da entrega TOTAL.
-  const alvo = tudoEntregue ? valorTotal : Math.min(Math.round(entregueAcum * 100) / 100, valorTotal);
-  if (alvo <= 0.005) return false;
 
   const condicao = pedido.condicaoPagamentoId
     ? await prismaSemEscopo.condicaoPagamento.findUnique({ where: { id: pedido.condicaoPagamentoId } })
@@ -118,11 +100,15 @@ export async function faturarEntregasPedido(pedidoVendaId: string): Promise<bool
       _sum: { valorOriginal: true },
     });
     const faturado = decimalToNumber(agg._sum.valorOriginal ?? 0);
-    const aFaturar = Math.round((alvo - faturado) * 100) / 100;
+    const aFaturar = Math.round((valorTotal - faturado) * 100) / 100;
     if (aFaturar <= 0.005) return;
-    await gerarContasReceberDoPedido(tx, { ...pedido, valorTotal: aFaturar, dataEmissao: new Date() }, condicao);
+    // Vencimentos contam da EMISSÃO do pedido (a negociação), não da entrega.
+    await gerarContasReceberDoPedido(tx, { ...pedido, valorTotal: aFaturar, dataEmissao: pedido.dataEmissao }, condicao);
     await recomputarStatusPedido(tx, pedidoVendaId);
     gerou = true;
   });
   return gerou;
 }
+
+/** @deprecated Nome antigo (modelo por entrega) — usa o faturamento por pedido. */
+export const faturarEntregasPedido = faturarPedido;

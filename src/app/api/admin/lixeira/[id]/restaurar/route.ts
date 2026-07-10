@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/auth";
 import { generateDocNumber, decimalToNumber } from "@/lib/utils";
 import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
 import { recontabilizarMinuta, contabilizarPedidoVenda } from "@/lib/contabilidade";
-import { faturarEntregasPedido } from "@/lib/contas-receber";
+import { faturarPedido } from "@/lib/contas-receber";
 import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { notificarUsuario } from "@/lib/notificacoes";
 
@@ -198,7 +198,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
   }
   if (snap.pedidoVendaId) {
     if (statusOriginal === "ENTREGUE") {
-      await faturarEntregasPedido(snap.pedidoVendaId).catch((e) => console.error("[lixeira/restaurar] faturar:", e));
+      await faturarPedido(snap.pedidoVendaId).catch((e) => console.error("[lixeira/restaurar] faturar:", e));
       // Auto-conclusão: se tudo entregue, o pedido volta a CONCLUIDO.
       const p = await prismaSemEscopo.pedidoVenda.findUnique({
         where: { id: snap.pedidoVendaId }, select: { status: true, statusEntrega: true },

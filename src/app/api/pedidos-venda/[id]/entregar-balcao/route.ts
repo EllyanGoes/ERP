@@ -13,7 +13,7 @@ import { generateSimpleDocNumber } from "@/lib/utils";
 import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
 import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
-import { faturarEntregasPedido } from "@/lib/contas-receber";
+import { faturarPedido } from "@/lib/contas-receber";
 import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import { z } from "zod";
 
@@ -145,8 +145,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // Faturamento na ENTREGA: a retirada total acabou de se completar — gera o
     // contas a receber (idempotente; pula se o recebimento já criou o título) e
     // contabiliza o pedido.
-    await faturarEntregasPedido(params.id).catch((e) =>
-      console.error(`[entregar-balcao] faturarEntregasPedido(${params.id}) falhou:`, e));
+    await faturarPedido(params.id).catch((e) =>
+      console.error(`[entregar-balcao] faturarPedido(${params.id}) falhou:`, e));
     await contabilizarPedidoVenda(params.id).catch(() => {});
 
     const pedidoImpresso = await prisma.pedidoVenda.findUnique({
