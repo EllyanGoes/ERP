@@ -245,6 +245,11 @@ export default function DatePicker({
           name={name}
           type="text"
           inputMode="numeric"
+          // O padrão DD/MM/AAAA dispara a heurística de CARTÃO do Chrome
+          // (validade MM/AA) — off + data-* calam navegador e gerenciadores.
+          autoComplete="off"
+          data-lpignore="true"
+          data-1p-ignore=""
           disabled={disabled}
           value={text}
           placeholder={placeholder}

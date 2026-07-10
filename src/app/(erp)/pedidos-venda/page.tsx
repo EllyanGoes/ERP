@@ -9,7 +9,7 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import StatusDimBadges from "@/components/pedidos-venda/StatusDimBadges";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import DatePicker from "@/components/shared/DatePicker";
+import DateRangePicker from "@/components/shared/DateRangePicker";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
@@ -770,23 +770,12 @@ export default function PedidosVendaPage() {
           onClear={() => updateFilters({ statuses: [], statusOp: "is" })}
         />
 
-        {/* Date range */}
-        <div className="flex items-center gap-1.5">
-          <CalendarDays className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <DatePicker
-            value={filters.dateFrom}
-            onChange={(v) => updateFilters({ dateFrom: v })}
-            className="w-36"
-            triggerClassName="h-8"
-          />
-          <span className="text-muted-foreground/60 text-sm">—</span>
-          <DatePicker
-            value={filters.dateTo}
-            onChange={(v) => updateFilters({ dateTo: v })}
-            className="w-36"
-            triggerClassName="h-8"
-          />
-        </div>
+        {/* Período de emissão — mesmo seletor do PCP (atalhos Hoje/Mês) */}
+        <DateRangePicker
+          value={{ from: filters.dateFrom, to: filters.dateTo }}
+          onChange={(r) => updateFilters({ dateFrom: r.from, dateTo: r.to })}
+          placeholder="Período (emissão)"
+        />
 
         {/* Sem orçamento */}
         <button

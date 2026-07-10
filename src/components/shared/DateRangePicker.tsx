@@ -292,6 +292,11 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
               ref={fromRef}
               type="text"
               inputMode="numeric"
+              // O padrão DD/MM/AAAA dispara a heurística de CARTÃO do Chrome
+              // (validade MM/AA) — off + data-* calam navegador e gerenciadores.
+              autoComplete="off"
+              data-lpignore="true"
+              data-1p-ignore=""
               value={fromText}
               placeholder="DD/MM/AAAA"
               maxLength={10}
@@ -312,6 +317,9 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
               ref={toRef}
               type="text"
               inputMode="numeric"
+              autoComplete="off"
+              data-lpignore="true"
+              data-1p-ignore=""
               value={toText}
               placeholder="DD/MM/AAAA"
               maxLength={10}
