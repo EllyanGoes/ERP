@@ -16,7 +16,7 @@ import { invalidarCache } from "@/lib/use-cached-data";
 type Ultima = { at: string; erros?: number; ok?: boolean; error?: string } | null;
 type Barra = { pct: number; fase: string } | null;
 
-export default function BackfillConsistencia({ onDone, className }: { onDone?: () => void; className?: string }) {
+export default function BackfillConsistencia({ onDone, className, compact }: { onDone?: () => void; className?: string; compact?: boolean }) {
   const [rodandoLocal, setRodandoLocal] = useState(false);
   const [progresso, setProgresso] = useState<Barra>(null);
   const [remotoAtivo, setRemotoAtivo] = useState(false);
@@ -103,18 +103,27 @@ export default function BackfillConsistencia({ onDone, className }: { onDone?: (
   const barra = progresso ?? progressoRemoto;
   const rodando = rodandoLocal || remotoAtivo;
 
+  // Resumo da última execução — vira tooltip no modo compacto (só o botão, para
+  // caber na barra única de controles das telas sem PageHeader, ex.: Razão).
+  const infoUltima = ultima?.at
+    ? `Último backfill de consistência em ${new Date(ultima.at).toLocaleString("pt-BR")}${
+        ultima.ok === false
+          ? ` · falhou${ultima.error ? ` (${ultima.error})` : ""}`
+          : ultima.erros ? ` · ${ultima.erros} pendência(s)` : " · sem pendências"}`
+    : "Re-sincroniza a contabilidade com os documentos (só corrige o que diverge).";
+
   return (
     <div className={className}>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        {ultima?.at ? (
+      <div className={compact ? "flex items-center" : "flex items-center justify-between gap-3 flex-wrap"}>
+        {!compact && (ultima?.at ? (
           <p className="text-xs text-muted-foreground">
             Último backfill de consistência em <span className="font-medium text-foreground">{new Date(ultima.at).toLocaleString("pt-BR")}</span>
             {ultima.ok === false
               ? <span className="text-danger"> · falhou{ultima.error ? ` (${ultima.error})` : ""}</span>
               : <>{ultima.erros ? ` · ${ultima.erros} pendência(s)` : " · sem pendências"}</>}
           </p>
-        ) : <span className="text-xs text-muted-foreground">Re-sincroniza a contabilidade com os documentos (só corrige o que diverge).</span>}
-        <Button size="sm" variant="outline" onClick={executar} disabled={rodando}>
+        ) : <span className="text-xs text-muted-foreground">Re-sincroniza a contabilidade com os documentos (só corrige o que diverge).</span>)}
+        <Button size="sm" variant="outline" onClick={executar} disabled={rodando} title={infoUltima}>
           {rodando ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ShieldCheck className="w-4 h-4 mr-1.5" />}
           {rodando ? `Consistência… ${barra?.pct ?? 0}%` : "Backfill de consistência"}
         </Button>

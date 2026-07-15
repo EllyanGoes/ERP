@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
-import PageHeader from "@/components/shared/PageHeader";
 import { linkOrigemLancamento } from "@/lib/origem-link";
 import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
@@ -135,15 +134,15 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
   }
 
   return (
-    <div>
-      <PageHeader title="Razão" breadcrumbs={[{ label: "Contabilidade" }, { label: "Razão" }]} />
-      <div className="px-8 pb-8 space-y-4">
-        <BackfillConsistencia onDone={refetch} />
+    <div className="flex flex-col h-full">
+      {/* Sem PageHeader (título/breadcrumb): o razão ganha a tela inteira — os
+          controles moram numa única barra, como na tela de Ordens do PCP. */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 pt-4 pb-8 space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
           {/* O seletor de cima só aparece na aba de uma conta — na tela de
               abertura o lançador abaixo já tem busca. */}
           {contaId && (
-            <div className="w-[34rem] max-w-full">
+            <div className="w-[30rem] max-w-full">
               <ContaContabilCombobox
                 value={contaId}
                 onChange={(id) => abrir(id)}
@@ -158,6 +157,7 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
               className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50">
               <FileDown className="w-4 h-4" /> Baixar PDF
             </button>
+            <BackfillConsistencia compact onDone={refetch} />
           </div>
         </div>
 
@@ -175,7 +175,7 @@ export default function RazaoView({ contaId: contaIdProp }: { contaId?: string |
               </span>
               <span className="text-sm text-muted-foreground shrink-0">Saldo anterior: <b className="text-foreground tabular-nums">{fmtSaldo(razao.saldoInicial, modo, razao.conta.natureza as NaturezaConta)}</b></span>
             </div>
-            <div className="overflow-auto max-h-[calc(100vh-300px)]">
+            <div className="overflow-auto max-h-[calc(100vh-215px)]">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 border-b border-border text-xs text-muted-foreground uppercase tracking-wide [&>tr>th]:bg-muted">
                   <tr>
