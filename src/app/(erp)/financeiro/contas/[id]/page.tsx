@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import LancamentoForm from "@/components/financeiro/LancamentoForm";
-import DatePicker from "@/components/shared/DatePicker";
+import DateRangePicker from "@/components/shared/DateRangePicker";
 import { Autoria } from "@/components/shared/Autoria";
-import { formatBRL, formatDate } from "@/lib/utils";
-import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2, Plus } from "lucide-react";
+import { usePersistedState } from "@/lib/use-persisted-state";
+import { cn, formatBRL, formatDate } from "@/lib/utils";
+import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2, Plus, Search, X } from "lucide-react";
 
 type EmpresaContato = { razaoSocial: string; nomeFantasia: string | null };
 type ExtratoLinha = {
@@ -63,8 +65,17 @@ export default function ExtratoContaPage() {
   const router = useRouter();
   const [conta, setConta] = useState<Conta | null>(null);
   const [loading, setLoading] = useState(true);
-  const [de, setDe] = useState("");
-  const [ate, setAte] = useState("");
+  const [periodo, setPeriodo] = usePersistedState<{ from: string; to: string }>(
+    `financeiro:conta:${params.id}:periodo`,
+    { from: "", to: "" },
+  );
+  const [busca, setBusca] = usePersistedState<string>(`financeiro:conta:${params.id}:busca`, "");
+  const [fluxo, setFluxo] = usePersistedState<"TODOS" | "ENTRADA" | "SAIDA">(
+    `financeiro:conta:${params.id}:fluxo`,
+    "TODOS",
+  );
+  const de = periodo.from;
+  const ate = periodo.to;
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
   const [aviso, setAviso] = useState("");
@@ -82,6 +93,31 @@ export default function ExtratoContaPage() {
   }, [params.id, de, ate]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Filtro local: busca por descrição/contato/título e também por valor
+  // ("90", "1.250,50", "R$ 45" — normaliza vírgula/pontos p/ comparar).
+  const extratoFiltrado = useMemo(() => {
+    if (!conta) return [];
+    const q = busca.trim().toLowerCase();
+    const qValor = q.replace(/^r\$\s*/, "").replace(/\./g, "").replace(",", ".");
+    const buscaValor = /^\d+(\.\d{1,2})?$/.test(qValor) ? qValor : "";
+    return conta.extrato.filter((l) => {
+      const v = l.tipo === "DESPESA" ? -Number(l.valor) : Number(l.valor);
+      if (fluxo === "ENTRADA" && v <= 0) return false;
+      if (fluxo === "SAIDA" && v >= 0) return false;
+      if (!q) return true;
+      const texto = [
+        l.descricao,
+        contatoLinha(l),
+        l.naturezaFinanceira?.nome,
+        l.contaReceber?.numero,
+        l.contaPagar?.numero,
+        l.contaReceber?.pedidoVenda?.numero,
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (texto.includes(q)) return true;
+      return !!buscaValor && Number(l.valor).toFixed(2).includes(buscaValor);
+    });
+  }, [conta, busca, fluxo]);
 
   async function baixarPdf() {
     if (!conta) return;
@@ -107,7 +143,7 @@ export default function ExtratoContaPage() {
       autoTable(doc, {
         startY: 31,
         head: [["Data", "Descrição", "Cliente / Contato", "Natureza", "Entradas", "Saídas", "Saldo"]],
-        body: conta.extrato.map((l) => {
+        body: extratoFiltrado.map((l) => {
           // valor é sempre positivo; a direção (entrada/saída) vem do tipo —
           // mesma convenção do saldo na API (DESPESA = saída).
           const v = l.tipo === "DESPESA" ? -Number(l.valor) : Number(l.valor);
@@ -170,28 +206,68 @@ export default function ExtratoContaPage() {
               </div>
               <div className="rounded-xl p-4 bg-muted text-foreground">
                 <p className="text-sm font-medium opacity-75">Lançamentos</p>
-                <p className="text-2xl font-bold mt-1">{conta.extrato.length}</p>
+                <p className="text-2xl font-bold mt-1">
+                  {extratoFiltrado.length}
+                  {extratoFiltrado.length !== conta.extrato.length && (
+                    <span className="text-sm font-medium opacity-60"> de {conta.extrato.length}</span>
+                  )}
+                </p>
               </div>
             </div>
 
-            {/* Filtro de período + PDF */}
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-                De
-                <DatePicker value={de} onChange={(v) => setDe(v)} triggerClassName="h-9" />
-              </label>
-              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-                Até
-                <DatePicker value={ate} onChange={(v) => setAte(v)} triggerClassName="h-9" />
-              </label>
-              {(de || ate) && (
-                <Button variant="outline" size="sm" onClick={() => { setDe(""); setAte(""); }} className="h-9">Limpar</Button>
-              )}
+            {/* Filtros (período, busca, entrada/saída) + PDF */}
+            <div className="flex flex-wrap items-center gap-3">
+              <DateRangePicker
+                value={{ from: de, to: ate }}
+                onChange={(r) => setPeriodo({ from: r.from, to: r.to })}
+                placeholder="Período"
+              />
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  className="pl-9 h-9 text-sm"
+                  placeholder="Descrição, contato ou valor..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                />
+                {busca && (
+                  <button
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setBusca("")}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => setFluxo(fluxo === "ENTRADA" ? "TODOS" : "ENTRADA")}
+                className={cn(
+                  "flex items-center gap-1.5 h-9 px-3 text-sm border rounded-lg transition-colors whitespace-nowrap",
+                  fluxo === "ENTRADA"
+                    ? "border-success/40 bg-success/10 text-success"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted"
+                )}
+                title="Mostrar só entradas"
+              >
+                <ArrowUpRight className="w-3.5 h-3.5" /> Entradas
+              </button>
+              <button
+                onClick={() => setFluxo(fluxo === "SAIDA" ? "TODOS" : "SAIDA")}
+                className={cn(
+                  "flex items-center gap-1.5 h-9 px-3 text-sm border rounded-lg transition-colors whitespace-nowrap",
+                  fluxo === "SAIDA"
+                    ? "border-danger/40 bg-danger/10 text-danger"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted"
+                )}
+                title="Mostrar só saídas"
+              >
+                <ArrowDownLeft className="w-3.5 h-3.5" /> Saídas
+              </button>
               <div className="flex-1" />
               <Button size="sm" onClick={() => setNovoOpen(true)} className="h-9 gap-1.5">
                 <Plus className="w-4 h-4" /> Novo Lançamento
               </Button>
-              <Button variant="outline" size="sm" onClick={baixarPdf} disabled={gerandoPdf || conta.extrato.length === 0} className="h-9 gap-1.5">
+              <Button variant="outline" size="sm" onClick={baixarPdf} disabled={gerandoPdf || extratoFiltrado.length === 0} className="h-9 gap-1.5">
                 {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
                 Baixar PDF
               </Button>
@@ -202,8 +278,10 @@ export default function ExtratoContaPage() {
                 <h2 className="font-semibold text-foreground">Extrato</h2>
                 <Autoria criadoPor={conta.criadoPor} atualizadoPor={conta.atualizadoPor} className="mt-0.5" />
               </div>
-              {conta.extrato.length === 0 ? (
-                <p className="px-6 py-10 text-sm text-muted-foreground text-center">Nenhum lançamento no período.</p>
+              {extratoFiltrado.length === 0 ? (
+                <p className="px-6 py-10 text-sm text-muted-foreground text-center">
+                  {conta.extrato.length === 0 ? "Nenhum lançamento no período." : "Nenhum lançamento encontrado com os filtros atuais."}
+                </p>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
@@ -218,7 +296,7 @@ export default function ExtratoContaPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {conta.extrato.map((l) => {
+                    {extratoFiltrado.map((l) => {
                       // valor é sempre positivo; a direção vem do tipo (DESPESA =
                       // saída), igual ao cálculo do saldo na API.
                       const v = l.tipo === "DESPESA" ? -Number(l.valor) : Number(l.valor);
