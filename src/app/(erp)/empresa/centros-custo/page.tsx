@@ -18,9 +18,8 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
-  CornerDownRight,
+  Briefcase,
   Factory,
-  Folder,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Autoria } from "@/components/shared/Autoria";
@@ -322,33 +321,6 @@ export default function CentrosCustoPage() {
       />
 
       <div className="px-8 pb-8 space-y-5">
-        {/* Summary */}
-        <div className="flex items-center gap-4">
-          <div className="rounded-xl px-5 py-3 bg-info/10 text-info flex items-center gap-3">
-            <DollarSign className="w-5 h-5 opacity-60" />
-            <div>
-              <p className="text-xs font-medium opacity-70">Total</p>
-              <p className="text-2xl font-bold leading-none mt-0.5">{centros.length}</p>
-            </div>
-          </div>
-          <div className="rounded-xl px-5 py-3 bg-success/10 text-success flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-emerald-400" />
-            <div>
-              <p className="text-xs font-medium opacity-70">Ativos</p>
-              <p className="text-2xl font-bold leading-none mt-0.5">{ativos}</p>
-            </div>
-          </div>
-          {inativos > 0 && (
-            <div className="rounded-xl px-5 py-3 bg-muted text-muted-foreground flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-gray-400" />
-              <div>
-                <p className="text-xs font-medium opacity-70">Inativos</p>
-                <p className="text-2xl font-bold leading-none mt-0.5">{inativos}</p>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
@@ -382,6 +354,12 @@ export default function CentrosCustoPage() {
             <option value="true">Ativos</option>
             <option value="false">Inativos</option>
           </select>
+
+          <div className="flex-1" />
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {centros.length} centro{centros.length === 1 ? "" : "s"} · {ativos} ativo{ativos === 1 ? "" : "s"}
+            {inativos > 0 && ` · ${inativos} inativo${inativos === 1 ? "" : "s"}`}
+          </span>
         </div>
 
         {/* Árvore: Grupo → Centro de custo */}
@@ -406,87 +384,77 @@ export default function CentrosCustoPage() {
               </button>
             </div>
             <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2.5 border-b border-border bg-muted text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                <span>Centro de custo</span>
-                <span className="text-center w-24">Ativo</span>
-                <span className="w-16 text-right">Ações</span>
-              </div>
-              <ul>
-                {arvore.map((secao) => {
-                  const recolhido = collapsed.has(secao.id);
-                  return (
-                    <li key={secao.id}>
-                      {/* Cabeçalho do grupo */}
-                      <button
-                        type="button"
-                        onClick={() => toggleGrupo(secao.id)}
-                        className="w-full grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm text-left"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {recolhido ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
-                          <Folder className="w-3.5 h-3.5 text-violet-500 shrink-0" />
-                          <span className="font-semibold text-foreground truncate">{secao.nome}</span>
-                          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-[11px] font-medium shrink-0 tabular-nums" title={`${secao.centros.length} centro(s) de custo`}>
-                            {secao.centros.length}
-                          </span>
-                        </div>
-                        <span className="w-24" />
-                        <span className="w-16" />
-                      </button>
+              {arvore.map((secao) => {
+                const recolhido = collapsed.has(secao.id);
+                return (
+                  <div key={secao.id}>
+                    {/* Faixa do grupo (seção) */}
+                    <button
+                      type="button"
+                      onClick={() => toggleGrupo(secao.id)}
+                      className="w-full flex items-center justify-between gap-3 px-5 py-3 bg-muted/80 hover:bg-muted border-b border-border text-left"
+                    >
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
+                        {secao.nome}
+                      </span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] font-medium text-muted-foreground tabular-nums" title={`${secao.centros.length} centro(s) de custo`}>
+                          {secao.centros.length}
+                        </span>
+                        {recolhido
+                          ? <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                          : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                      </span>
+                    </button>
 
-                      {/* Centros do grupo */}
-                      {!recolhido && secao.centros.map((centro) => (
-                        <div
-                          key={centro.id}
-                          className={cn(
-                            "grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm group/row",
-                            !centro.ativo && "opacity-50",
-                          )}
-                        >
-                          <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: "18px" }}>
-                            <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-                            <span className="font-mono text-xs font-semibold text-foreground bg-muted px-2 py-0.5 rounded shrink-0">{centro.codigo}</span>
-                            <span className="truncate text-foreground">{centro.nome}</span>
-                            {centro.fabril && (
-                              <span
-                                title="Centro fabril — consumo indireto (item fabril) vira CIF"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400 shrink-0"
-                              >
-                                <Factory className="w-3 h-3" /> Fabril
-                              </span>
-                            )}
-                            {!centro.ativo && <span className="text-xs text-muted-foreground shrink-0">(inativo)</span>}
-                          </div>
-                          <span className="w-24 text-center">
-                            <span className={cn(
-                              "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                              centro.ativo ? "bg-success/15 text-success" : "bg-muted text-muted-foreground",
-                            )}>
-                              {centro.ativo ? "Ativo" : "Inativo"}
-                            </span>
+                    {/* Linhas do grupo */}
+                    {!recolhido && secao.centros.map((centro) => (
+                      <div
+                        key={centro.id}
+                        className={cn(
+                          "flex items-center gap-3 px-5 py-3 border-b border-border/60 last:border-b-0 hover:bg-muted/40 text-sm transition-colors",
+                          !centro.ativo && "opacity-50",
+                        )}
+                      >
+                        {centro.fabril ? (
+                          <Factory
+                            className="w-4 h-4 text-violet-600 dark:text-violet-400 shrink-0"
+                            aria-label="Centro fabril — consumo indireto (item fabril) vira CIF"
+                          />
+                        ) : (
+                          <Briefcase
+                            className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0"
+                            aria-label="Centro não-fabril — consumo indireto vira Despesa"
+                          />
+                        )}
+                        <span className="font-mono text-xs font-semibold text-muted-foreground shrink-0">{centro.codigo}</span>
+                        <span className="truncate text-foreground">{centro.nome}</span>
+                        {!centro.ativo && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground shrink-0">
+                            Inativo
                           </span>
-                          <div className="w-16 flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => openEdit(centro, e)}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
-                              title="Editar"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={(e) => openDelete(centro, e)}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                        )}
+                        <div className="ml-auto flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={(e) => openEdit(centro, e)}
+                            className="p-1.5 rounded-lg text-muted-foreground/70 hover:text-info hover:bg-info/10 transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => openDelete(centro, e)}
+                            className="p-1.5 rounded-lg text-muted-foreground/70 hover:text-danger hover:bg-danger/10 transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
-                      ))}
-                    </li>
-                  );
-                })}
-              </ul>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           </>
         )}
