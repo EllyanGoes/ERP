@@ -103,7 +103,7 @@ export default function RelatorioAnual() {
             </tr>
           </thead>
           <tbody>
-            <LinhaResumo label="Saldo inicial" valores={r.saldoInicial} forte />
+            <LinhaResumo label="Saldo inicial" valores={r.saldoInicial} forte semTotal />
 
             {rel.grupos.map((g) => (
               <GrupoBloco key={g.grupo} grupo={g} onDrill={abrirDrill} />
@@ -112,7 +112,7 @@ export default function RelatorioAnual() {
             <LinhaResumo label="Margem de contribuição" valores={r.margemContribuicao} destaque />
             <LinhaResumo label="Resultado operacional" valores={r.resultadoOperacional} destaque />
             <LinhaResumo label="Variação de caixa" valores={r.variacaoCaixa} destaque />
-            <LinhaResumo label="Saldo final" valores={r.saldoFinal} forte />
+            <LinhaResumo label="Saldo final" valores={r.saldoFinal} forte semTotal />
           </tbody>
         </table>
       </div>
@@ -243,7 +243,9 @@ function SubgrupoBloco({ sub, onDrill, mostrarTituloSub }: { sub: SubNode; onDri
   );
 }
 
-function LinhaResumo({ label, valores, destaque, forte }: { label: string; valores: number[]; destaque?: boolean; forte?: boolean }) {
+function LinhaResumo({ label, valores, destaque, forte, semTotal }: { label: string; valores: number[]; destaque?: boolean; forte?: boolean; semTotal?: boolean }) {
+  // Saldo inicial/final são ESTOQUE (foto do mês), não fluxo — somar os meses
+  // não significa nada; a coluna Total fica vazia (semTotal).
   const total = soma(valores);
   return (
     <tr className={cn("border-b", forte ? "bg-muted border-border" : destaque ? "bg-slate-50 dark:bg-slate-500/15 border-border" : "border-border")}>
@@ -251,7 +253,9 @@ function LinhaResumo({ label, valores, destaque, forte }: { label: string; valor
         = {label}
       </td>
       {valores.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium", valorCor(v))}>{fmt(v)}</td>)}
-      <td className={cn("px-4 py-2 text-right tabular-nums font-bold", valorCor(total))}>{fmt(total)}</td>
+      {semTotal
+        ? <td className="px-4 py-2 text-right text-muted-foreground/50">—</td>
+        : <td className={cn("px-4 py-2 text-right tabular-nums font-bold", valorCor(total))}>{fmt(total)}</td>}
     </tr>
   );
 }
