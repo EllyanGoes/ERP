@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import DataTable from "@/components/shared/DataTable";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -27,6 +28,8 @@ type ContaRow = {
   dataVencimento: Date | string; dataPagamento: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
   cliente: { id: string; razaoSocial: string };
+  // Conta analítica de Clientes a Receber (1.1.2.x) — link p/ o razão do cliente.
+  clienteContaId?: string | null;
   contasContrapartida?: { id: string; nome: string }[];
   pedidoVenda?: { id: string; numero: string } | null;
   centroCusto?: { codigo: string; nome: string } | null; centroCustoId?: string | null;
@@ -37,8 +40,8 @@ type ContaRow = {
 
 // Documento de ORIGEM do título a receber: pedido de venda, encontro de contas,
 // recorrência, intragrupo — ou avulso (manual).
-function origemReceber(c: ContaRow): { label: string; ref: string | null } {
-  if (c.pedidoVenda) return { label: "Pedido de Venda", ref: c.pedidoVenda.numero };
+function origemReceber(c: ContaRow): { label: string; ref: string | null; pedidoId?: string | null } {
+  if (c.pedidoVenda) return { label: "Pedido de Venda", ref: c.pedidoVenda.numero, pedidoId: c.pedidoVenda.id };
   if (c.compensacaoOrigemId) return { label: "Encontro de Contas", ref: null };
   if (c.recorrenciaId) return { label: "Recorrência", ref: null };
   if (c.intragrupo) return { label: "Intragrupo", ref: null };
@@ -85,8 +88,9 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
   const [editar, setEditar] = useState<ContaRow | null>(null);
-  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("ABERTA");
-  const [contaFiltro, setContaFiltro] = useState<string>("");
+  // Filtros persistidos por usuário (padrão do sistema — sobrevivem a trocar de aba).
+  const [statusFiltro, setStatusFiltro] = usePersistedState<StatusFiltro>("financeiro:contas-receber:status", "ABERTA");
+  const [contaFiltro, setContaFiltro] = usePersistedState<string>("financeiro:contas-receber:conta", "");
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
@@ -124,7 +128,7 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
 
   // Agrupamento (toggle): por data de VENCIMENTO ou por CLIENTE. Grupos com
   // contagem e soma dos valores.
-  const [agrupamento, setAgrupamento] = useState<"none" | "vencimento" | "cliente">("none");
+  const [agrupamento, setAgrupamento] = usePersistedState<"none" | "vencimento" | "cliente">("financeiro:contas-receber:agrupamento", "none");
   const grupos = useMemo(() => {
     if (agrupamento === "none") return [];
     const m = new Map<string, { chave: string; label: string; ordem: number | string; itens: ContaRow[] }>();
@@ -216,6 +220,23 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
       .catch(() => {});
   }
 
+  // Nome do cliente clicável → conta razão dele (analítica 1.1.2.x). Reusado na
+  // tabela, na visão agrupada e no detalhe.
+  function renderCliente(c: ContaRow, className?: string) {
+    if (!c.cliente) return <span className={className}>—</span>;
+    if (!c.clienteContaId) return <span className={className}>{c.cliente.razaoSocial}</span>;
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); router.push(`/contabilidade/razao/${c.clienteContaId}`); }}
+        className={cn("text-left hover:text-info hover:underline", className)}
+        title="Abrir a conta razão do cliente"
+      >
+        {c.cliente.razaoSocial}
+      </button>
+    );
+  }
+
   function renderAcoes(c: ContaRow) {
     const s = c.status;
     if (s === "PAGA" || s === "PARCIAL") {
@@ -233,14 +254,25 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
-    { id: "cliente", header: "Cliente", cell: ({ row }) => <span>{row.original.cliente.razaoSocial}</span> },
+    { id: "cliente", header: "Cliente", cell: ({ row }) => renderCliente(row.original) },
     { accessorKey: "descricao", header: "Descrição", cell: ({ row }) => <span className="text-sm">{row.original.descricao}</span> },
     { id: "origem", header: "Origem", cell: ({ row }) => {
       const o = origemReceber(row.original);
       return (
-        <span className="inline-flex flex-col leading-tight">
+        <span className="inline-flex flex-col leading-tight items-start">
           <span className="text-xs text-foreground">{o.label}</span>
-          {o.ref && <span className="font-mono text-[10px] text-muted-foreground">{o.ref}</span>}
+          {o.ref && (o.pedidoId ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); router.push(`/pedidos-venda/${o.pedidoId}`); }}
+              className="font-mono text-[10px] text-info hover:underline"
+              title="Abrir o pedido de venda"
+            >
+              {o.ref}
+            </button>
+          ) : (
+            <span className="font-mono text-[10px] text-muted-foreground">{o.ref}</span>
+          ))}
         </span>
       );
     } },
@@ -441,7 +473,7 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
                       className="grid grid-cols-[7rem_1.2fr_1.4fr_8rem_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
                     >
                       <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
-                      <span className="truncate">{c.cliente?.razaoSocial ?? "—"}</span>
+                      {renderCliente(c, "truncate")}
                       <span className="truncate text-muted-foreground">{c.descricao}</span>
                       {(() => { const o = origemReceber(c); return (
                         <span className="truncate text-xs text-muted-foreground" title={o.ref ? `${o.label} · ${o.ref}` : o.label}>{o.label}{o.ref ? ` ${o.ref}` : ""}</span>
@@ -474,7 +506,7 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
         const contas = detalhe.contasContrapartida ?? [];
         const org = origemReceber(detalhe);
         const campos: TituloCampo[] = [
-          { label: "Cliente", valor: detalhe.cliente?.razaoSocial ?? "—", full: true },
+          { label: "Cliente", valor: renderCliente(detalhe, "font-medium"), full: true },
           { label: "Origem", full: true, valor: org.label },
           // Pedido de venda clicável — abre o pedido de origem.
           ...(detalhe.pedidoVenda ? [{

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import DataTable from "@/components/shared/DataTable";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -36,6 +37,14 @@ type ContaRow = {
     id: string; numero: string; conferencia?: { id: string; numero: string } | null;
     itens?: { tes?: { codigo: string; nome: string } | null; centroCusto?: { codigo: string; nome: string } | null }[];
   } | null;
+  // Documento de Entrada de origem (pedido OU avulsa) — link clicável e fonte
+  // preferida do TES/centro (normalizado no server: direto ?? DE do pedido).
+  conferencia?: {
+    id: string; numero: string;
+    itens?: { tes?: { codigo: string; nome: string } | null; centroCusto?: { codigo: string; nome: string } | null }[];
+  } | null;
+  // Conta analítica de passivo do fornecedor (2.1.1.x) — link p/ o razão dele.
+  fornecedorContaId?: string | null;
   centroCusto?: { codigo: string; nome: string } | null; centroCustoId?: string | null;
   folhaId?: string | null; recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
   naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
@@ -52,24 +61,31 @@ function rotulosDistintos(vals: (string | null | undefined)[]): string {
   return `Vários (${set.length})`;
 }
 function tesEcentroDoTitulo(c: ContaRow): { tes: string; centro: string } {
-  const itens = c.pedidoCompra?.itens ?? [];
-  if (itens.length > 0) {
-    return {
-      tes: rotulosDistintos(itens.map((i) => i.tes ? `${i.tes.codigo} ${i.tes.nome}` : null)),
-      centro: rotulosDistintos(itens.map((i) => i.centroCusto ? `${i.centroCusto.codigo} - ${i.centroCusto.nome}` : null)),
-    };
-  }
-  // Título avulso/despesa: centro é do próprio título; sem TES.
-  return { tes: "—", centro: c.centroCusto ? `${c.centroCusto.codigo} - ${c.centroCusto.nome}` : "—" };
+  // Fonte preferida: itens do DOCUMENTO DE ENTRADA — é lá que TES/centro são
+  // conferidos de fato (o pedido raramente os tem). Fallback: itens do pedido;
+  // por último, o centro do próprio título (avulso/despesa, sem TES).
+  const itensDe = c.conferencia?.itens ?? [];
+  const itensPc = c.pedidoCompra?.itens ?? [];
+  const tes = [itensDe, itensPc]
+    .map((itens) => rotulosDistintos(itens.map((i) => i.tes ? `${i.tes.codigo} ${i.tes.nome}` : null)))
+    .find((v) => v !== "—") ?? "—";
+  const centro = [
+    ...[itensDe, itensPc].map((itens) => rotulosDistintos(itens.map((i) => i.centroCusto ? `${i.centroCusto.codigo} - ${i.centroCusto.nome}` : null))),
+    c.centroCusto ? `${c.centroCusto.codigo} - ${c.centroCusto.nome}` : "—",
+  ].find((v) => v !== "—") ?? "—";
+  return { tes, centro };
 }
 
 // Documento de ORIGEM do título a pagar: de onde ele veio (documento de entrada,
 // pedido antecipado, folha, encontro de contas, recorrência, intragrupo) ou avulso.
-function origemPagar(c: ContaRow): { label: string; ref: string | null } {
+function origemPagar(c: ContaRow): { label: string; ref: string | null; confId?: string | null } {
   if (c.pedidoCompra) {
     if (c.antecipado) return { label: "Pedido de Compra (PA)", ref: c.pedidoCompra.numero };
-    return { label: "Documento de Entrada", ref: c.pedidoCompra.conferencia?.numero ?? c.pedidoCompra.numero };
+    const conf = c.conferencia ?? c.pedidoCompra.conferencia;
+    return { label: "Documento de Entrada", ref: conf?.numero ?? c.pedidoCompra.numero, confId: conf?.id ?? null };
   }
+  // Entrada AVULSA: sem pedido, mas com DE — mesma origem clicável.
+  if (c.conferencia) return { label: "Documento de Entrada", ref: c.conferencia.numero, confId: c.conferencia.id };
   if (c.folhaId) return { label: "Folha de Pagamento", ref: null };
   if (c.compensacaoOrigemId) return { label: "Encontro de Contas", ref: null };
   if (c.recorrenciaId) return { label: "Recorrência", ref: null };
@@ -114,8 +130,9 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   const router = useRouter();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
-  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("ABERTA");
-  const [contaFiltro, setContaFiltro] = useState<string>("");
+  // Filtros persistidos por usuário (padrão do sistema — sobrevivem a trocar de aba).
+  const [statusFiltro, setStatusFiltro] = usePersistedState<StatusFiltro>("financeiro:contas-pagar:status", "ABERTA");
+  const [contaFiltro, setContaFiltro] = usePersistedState<string>("financeiro:contas-pagar:conta", "");
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
@@ -207,6 +224,23 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
     router.refresh();
   }
 
+  // Nome do fornecedor clicável → conta razão dele (analítica 2.1.1.x). Reusado
+  // na tabela, na visão agrupada e no detalhe.
+  function renderFornecedor(c: ContaRow, className?: string) {
+    if (!c.fornecedor) return <span className={className}>—</span>;
+    if (!c.fornecedorContaId) return <span className={className}>{c.fornecedor.razaoSocial}</span>;
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); router.push(`/contabilidade/razao/${c.fornecedorContaId}`); }}
+        className={cn("text-left hover:text-info hover:underline", className)}
+        title="Abrir a conta razão do fornecedor"
+      >
+        {c.fornecedor.razaoSocial}
+      </button>
+    );
+  }
+
   // Ações da linha (Editar + Pagar destacado). Reusadas na tabela e na visão agrupada.
   function renderAcoes(c: ContaRow) {
     const podePagar = c.status !== "PAGA" && c.status !== "CANCELADA";
@@ -229,7 +263,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
   // Agrupamento (toggle): por data de VENCIMENTO (grupos por data, sem vencimento
   // por último) ou por FORNECEDOR (grupos por parceiro, em ordem alfabética). Cada
   // grupo tem contagem e soma dos valores.
-  const [agrupamento, setAgrupamento] = useState<"none" | "vencimento" | "fornecedor">("none");
+  const [agrupamento, setAgrupamento] = usePersistedState<"none" | "vencimento" | "fornecedor">("financeiro:contas-pagar:agrupamento", "none");
   const agrupado = agrupamento !== "none";
   const grupos = useMemo(() => {
     if (agrupamento === "none") return [];
@@ -265,14 +299,25 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         )}
       </span>
     ) },
-    { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => <span>{row.original.fornecedor?.razaoSocial ?? "—"}</span> },
+    { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => renderFornecedor(row.original) },
     { accessorKey: "descricao", header: "Descrição" },
     { id: "origem", header: "Origem", cell: ({ row }) => {
       const o = origemPagar(row.original);
       return (
-        <span className="inline-flex flex-col leading-tight">
+        <span className="inline-flex flex-col leading-tight items-start">
           <span className="text-xs text-foreground">{o.label}</span>
-          {o.ref && <span className="font-mono text-[10px] text-muted-foreground">{o.ref}</span>}
+          {o.ref && (o.confId ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); router.push(`/suprimentos/conferencias/${o.confId}`); }}
+              className="font-mono text-[10px] text-info hover:underline"
+              title="Abrir o documento de entrada"
+            >
+              {o.ref}
+            </button>
+          ) : (
+            <span className="font-mono text-[10px] text-muted-foreground">{o.ref}</span>
+          ))}
         </span>
       );
     } },
@@ -430,7 +475,7 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
                         <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
                         {c.antecipado && <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1 text-[9px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado">PA</span>}
                       </span>
-                      <span className="truncate">{c.fornecedor?.razaoSocial ?? "—"}</span>
+                      {renderFornecedor(c, "truncate")}
                       <span className="truncate text-muted-foreground">{c.descricao}</span>
                       {(() => { const o = origemPagar(c); return (
                         <span className="truncate text-xs text-muted-foreground" title={o.ref ? `${o.label} · ${o.ref}` : o.label}>{o.label}{o.ref ? ` ${o.ref}` : ""}</span>
@@ -461,9 +506,9 @@ export default function ContasPagarTable({ contas }: { contas: ContaRow[] }) {
         const vp = decimalToNumber(detalhe.valorPago);
         const contas = detalhe.contasContrapartida ?? [];
         const org = origemPagar(detalhe);
-        const conf = detalhe.pedidoCompra?.conferencia;
+        const conf = detalhe.conferencia ?? detalhe.pedidoCompra?.conferencia;
         const campos: TituloCampo[] = [
-          { label: "Fornecedor", valor: detalhe.fornecedor?.razaoSocial ?? "—", full: true },
+          { label: "Fornecedor", valor: renderFornecedor(detalhe, "font-medium"), full: true },
           { label: "Origem", full: true, valor: org.label },
           // Documento de entrada clicável (igual ao pedido) — abre a conferência.
           ...(conf ? [{
