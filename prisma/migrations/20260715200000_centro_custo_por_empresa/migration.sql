@@ -18,7 +18,13 @@ SET "empresaId" = COALESCE(
 )
 WHERE "empresaId" IS NULL;
 
--- 3) Cópias por empresa usuária: união de TODAS as tabelas que referenciam
+-- 3) Troca o unique ANTES das cópias: o global antigo (codigo) impediria criar
+--    o mesmo código em outra empresa. O composto (empresaId, codigo) entra já
+--    aqui para proteger as inserções abaixo.
+DROP INDEX IF EXISTS "CentroCusto_codigo_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "CentroCusto_empresaId_codigo_key" ON "CentroCusto"("empresaId", "codigo");
+
+-- 4) Cópias por empresa usuária: união de TODAS as tabelas que referenciam
 --    centro de custo, com a empresa do documento (itens herdam do pai).
 WITH uso AS (
   SELECT "centroCustoId" AS cc, "empresaId" AS emp FROM "LancamentoCaixa" WHERE "centroCustoId" IS NOT NULL
@@ -43,7 +49,7 @@ JOIN "CentroCusto" cc ON cc.id = u.cc
 WHERE u.emp IS NOT NULL AND u.emp <> cc."empresaId"
 ON CONFLICT (id) DO NOTHING;
 
--- 4) Remapeia as referências de cada empresa para o centro DELA (mesmo código).
+-- 5) Remapeia as referências de cada empresa para o centro DELA (mesmo código).
 UPDATE "LancamentoCaixa" t SET "centroCustoId" = cc2.id
 FROM "CentroCusto" cc1 JOIN "CentroCusto" cc2 ON cc2.codigo = cc1.codigo
 WHERE t."centroCustoId" = cc1.id AND cc1."empresaId" <> t."empresaId" AND cc2."empresaId" = t."empresaId";
@@ -88,8 +94,8 @@ UPDATE "TipoOperacao" t SET "centroCustoSugeridoId" = cc2.id
 FROM "CentroCusto" cc1 JOIN "CentroCusto" cc2 ON cc2.codigo = cc1.codigo
 WHERE t."centroCustoSugeridoId" = cc1.id AND cc1."empresaId" <> t."empresaId" AND cc2."empresaId" = t."empresaId";
 
--- 5) NOT NULL + default nominal (padrão da Fase 1; o proxy carimba a empresa
---    ativa em runtime) + FK + troca do unique global por (empresaId, codigo).
+-- 6) NOT NULL + default nominal (padrão da Fase 1; o proxy carimba a empresa
+--    ativa em runtime) + FK + índice de escopo.
 ALTER TABLE "CentroCusto" ALTER COLUMN "empresaId" SET NOT NULL;
 ALTER TABLE "CentroCusto" ALTER COLUMN "empresaId" SET DEFAULT 'emp_tramontin';
 
@@ -98,6 +104,4 @@ DO $$ BEGIN
     FOREIGN KEY ("empresaId") REFERENCES "Empresa"(id) ON DELETE RESTRICT ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DROP INDEX IF EXISTS "CentroCusto_codigo_key";
-CREATE UNIQUE INDEX IF NOT EXISTS "CentroCusto_empresaId_codigo_key" ON "CentroCusto"("empresaId", "codigo");
 CREATE INDEX IF NOT EXISTS "CentroCusto_empresaId_idx" ON "CentroCusto"("empresaId");
