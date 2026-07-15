@@ -101,11 +101,16 @@ export async function faturarPedido(pedidoVendaId: string): Promise<boolean> {
     });
     const faturado = decimalToNumber(agg._sum.valorOriginal ?? 0);
     const aFaturar = Math.round((valorTotal - faturado) * 100) / 100;
-    if (aFaturar <= 0.005) return;
-    // Vencimentos contam da EMISSÃO do pedido (a negociação), não da entrega.
-    await gerarContasReceberDoPedido(tx, { ...pedido, valorTotal: aFaturar, dataEmissao: pedido.dataEmissao }, condicao);
+    if (aFaturar > 0.005) {
+      // Vencimentos contam da EMISSÃO do pedido (a negociação), não da entrega.
+      await gerarContasReceberDoPedido(tx, { ...pedido, valorTotal: aFaturar, dataEmissao: pedido.dataEmissao }, condicao);
+      gerou = true;
+    }
+    // Recomputa SEMPRE (mesmo sem nada a faturar): esta função roda após toda
+    // entrega/retirada, então ela é o backstop que realinha statusEntrega e
+    // statusFinanceiro — sair cedo aqui já deixou pedido preso em "Pendente"
+    // com minuta ENTREGUE (PV-0371, jul/2026).
     await recomputarStatusPedido(tx, pedidoVendaId);
-    gerou = true;
   });
   return gerou;
 }

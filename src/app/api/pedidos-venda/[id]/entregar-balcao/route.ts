@@ -14,6 +14,7 @@ import { pedidoPrintData } from "@/lib/print-pedido-server";
 import { baixarEstoqueVenda } from "@/lib/baixa-estoque";
 import { SaldoNegativoError, respostaSaldoNegativo } from "@/lib/estoque-guard";
 import { faturarPedido } from "@/lib/contas-receber";
+import { recomputarStatusPedido } from "@/lib/pedido-totais";
 import { contabilizarPedidoVenda } from "@/lib/contabilidade";
 import { z } from "zod";
 
@@ -138,6 +139,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           loteId: lote.id,
         });
       }
+
+      // statusEntrega/statusFinanceiro persistidos: recomputa AQUI — o
+      // faturarPedido abaixo sai cedo quando o título já existe (nasceu na
+      // confirmação) e não chega no recálculo dele, deixando o pedido preso
+      // em "Pendente" com a minuta ENTREGUE.
+      await recomputarStatusPedido(tx, params.id);
 
       return { minuta };
     });
