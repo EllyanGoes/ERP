@@ -14,7 +14,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import {
-  Plus, Pencil, Trash2, Loader2, Info, ArrowDownLeft, ArrowUpRight, FolderClosed, ChevronDown, Tag,
+  Plus, Pencil, Trash2, Loader2, Info, ArrowDownLeft, ArrowUpRight, FolderClosed, ChevronDown, Tag, Lock,
   Download, Copy, FileText, Check, Search, ChevronRight, CornerDownRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,8 @@ type Natureza = {
   id: string; nome: string; tipo: Tipo; grupo: Grupo;
   subgrupoId: string | null; subgrupo: { id: string; nome: string } | null; ativo: boolean;
   cif: boolean;
+  // Natureza padrão TRAVADA do sistema (cadeado): não edita campos-chave nem exclui.
+  sistema?: boolean;
   destinoSugerido: string | null;
   aplicavelRequisicao: boolean;
   contaContabilId: string | null; contaContabil: ContaResultado | null;
@@ -515,6 +517,12 @@ function NaturezaLinha({ n, nivel, onEdit, onDelete }: {
           ? <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />
           : <ArrowDownLeft className="w-4 h-4 text-rose-500 shrink-0" />}
         <span className="truncate text-foreground">{n.nome}</span>
+        {n.sistema && (
+          <Lock
+            className="w-3 h-3 text-muted-foreground/70 shrink-0"
+            aria-label="Natureza padrão do sistema — não pode ser editada nem excluída"
+          />
+        )}
         {n.cif && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground shrink-0">CIF</span>
         )}
@@ -530,22 +538,29 @@ function NaturezaLinha({ n, nivel, onEdit, onDelete }: {
           {n.ativo ? "Ativa" : "Inativa"}
         </span>
       </span>
-      <div className="w-16 flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
-        <button
-          onClick={() => onEdit(n)}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
-          title="Editar"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => onDelete(n)}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
-          title="Excluir"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      {n.sistema ? (
+        // Natureza padrão do sistema: sem editar/excluir — só o cadeado (estilo Nibo).
+        <div className="w-16 flex items-center justify-end pr-1.5">
+          <Lock className="w-3.5 h-3.5 text-muted-foreground/50" aria-label="Natureza padrão do sistema" />
+        </div>
+      ) : (
+        <div className="w-16 flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+          <button
+            onClick={() => onEdit(n)}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-info hover:bg-info/10 transition-colors"
+            title="Editar"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => onDelete(n)}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-danger hover:bg-danger/10 transition-colors"
+            title="Excluir"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
