@@ -17,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Prisma } from "@prisma/client";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 import { origensDoPedido, precoTransferenciaItem } from "@/lib/venda-ordem";
 import { custosDaEmpresa } from "@/lib/custo-empresa";
 
@@ -136,7 +136,7 @@ export async function espelharContaReceber(contaReceberId: string): Promise<void
     }
 
     await prismaSemEscopo.$transaction(async (tx) => {
-      const numero = generateDocNumber("CP", await proximaSequencia(tx, compradora.id, "CP"));
+      const numero = generateSimpleDocNumber("CP", await proximaSequencia(tx, compradora.id, "CP"));
       await tx.contaPagar.create({
         data: {
           empresaId: compradora.id,

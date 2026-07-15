@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 import { detalheItens } from "@/lib/detalhe-itens";
 import { calcularParcelas, type CondicaoParcelas } from "@/lib/parcelas";
 
@@ -14,6 +14,8 @@ export async function gerarContasPagarDoDocumento(
   tx: Prisma.TransactionClient,
   doc: {
     empresaId: string; fornecedorId: string | null; pedidoCompraId: string;
+    // Documento de Entrada que originou o título (ausente no PA, que nasce no pedido).
+    conferenciaId?: string | null;
     numeroPedido: string; valorTotal: unknown; dataBase: Date | string; naturezaFinanceiraId?: string | null;
     // PA: título nascido no PEDIDO (adiantamento a fornecedor), não na entrada.
     antecipado?: boolean;
@@ -32,13 +34,14 @@ export async function gerarContasPagarDoDocumento(
 
   const parcelas = calcularParcelas(condicao, doc.valorTotal, doc.dataBase);
   for (const p of parcelas) {
-    const numero = generateDocNumber("CP", await proximaSequenciaDaEmpresa(doc.empresaId, "CP"));
+    const numero = generateSimpleDocNumber("CP", await proximaSequenciaDaEmpresa(doc.empresaId, "CP"));
     await tx.contaPagar.create({
       data: {
         empresaId: doc.empresaId,
         numero,
         fornecedorId: doc.fornecedorId,
         pedidoCompraId: doc.pedidoCompraId,
+        conferenciaId: doc.conferenciaId ?? null,
         antecipado,
         naturezaFinanceiraId: doc.naturezaFinanceiraId ?? null,
         descricao: p.parcelaTotal ? `${baseDesc} (${p.parcelaNumero}/${p.parcelaTotal})` : baseDesc,

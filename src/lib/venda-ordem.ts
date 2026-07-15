@@ -14,7 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Prisma } from "@prisma/client";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { generateDocNumber } from "@/lib/utils";
+import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { custosDaEmpresa } from "@/lib/custo-empresa";
 
 /**
@@ -261,7 +261,7 @@ export async function gerarMovimentosTriangulares(minutaId: string): Promise<voi
         }
         // Conta a Pagar na empresa da venda (A compra de B) — fornecedor = cadastro da origem.
         if (origem.fornecedorId) {
-          const nCP = generateDocNumber("CP", await proximaSequencia(tx, empresaA, "CP"));
+          const nCP = generateSimpleDocNumber("CP", await proximaSequencia(tx, empresaA, "CP"));
           await tx.contaPagar.create({
             data: {
               empresaId: empresaA, numero: nCP, fornecedorId: origem.fornecedorId,
@@ -385,7 +385,7 @@ export async function gerarCompraVirtualVendaOrdem(entregaMinutaId: string): Pro
           });
         }
         if (origem.fornecedorId) {
-          const nCP = generateDocNumber("CP", await proximaSequencia(tx, empresaA, "CP"));
+          const nCP = generateSimpleDocNumber("CP", await proximaSequencia(tx, empresaA, "CP"));
           await tx.contaPagar.create({
             data: {
               empresaId: empresaA, numero: nCP, fornecedorId: origem.fornecedorId,

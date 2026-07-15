@@ -4,7 +4,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { requireModulo } from "@/lib/permissions";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
-import { generateDocNumber, decimalToNumber } from "@/lib/utils";
+import { generateDocNumber, generateSimpleDocNumber, decimalToNumber } from "@/lib/utils";
 import { calcularNetting, garantirContaCompensacao, type TituloSaldo } from "@/lib/compensacao";
 import { recontabilizarTituloReceber, recontabilizarTituloPagar, contabilizarAjusteCompensacaoItem } from "@/lib/contabilidade";
 
@@ -183,7 +183,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
           update: { ultimo: { increment: 1 } },
           create: { empresaId, prefixo, ultimo: 1 },
         });
-        const numero = generateDocNumber(prefixo, seq.ultimo);
+        // CP é numerado sem o ano (CP-0110); CR mantém o formato com ano.
+        const numero = (prefixo === "CP" ? generateSimpleDocNumber : generateDocNumber)(prefixo, seq.ultimo);
         if (r.tipo === "RECEBER") {
           const nova = await tx.contaReceber.create({ data: { empresaId, numero, clienteId: r.clienteId, descricao: `Resíduo compensação ${comp.numero}`, valorOriginal: r.valor, dataVencimento: r.venc, status: "ABERTA", compensacaoOrigemId: comp.id }, select: { id: true } });
           residuoIds.push({ tipo: "RECEBER", id: nova.id });

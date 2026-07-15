@@ -7,7 +7,7 @@ import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { gerarContasPagarDoDocumento } from "@/lib/contas-pagar";
 import { calcularParcelas } from "@/lib/parcelas";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 import { contabilizarPedidoCompra, contabilizarEntradaEstoque } from "@/lib/contabilidade";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
@@ -350,7 +350,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           await tx.contaPagar.create({
             data: {
               empresaId: conferencia.empresaId,
-              numero: generateDocNumber("CP", seqCp.ultimo),
+              numero: generateSimpleDocNumber("CP", seqCp.ultimo),
+              conferenciaId: conferencia.id,
               fornecedorId: conferencia.fornecedorId,
               naturezaFinanceiraId: conferencia.naturezaFinanceiraId ?? null,
               descricao: p.parcelaTotal ? `${baseDesc} (${p.parcelaNumero}/${p.parcelaTotal})` : baseDesc,
@@ -431,6 +432,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               empresaId: conferencia.empresaId,
               fornecedorId: pc.fornecedorId ?? conferencia.fornecedorId,
               pedidoCompraId: pc.id,
+              conferenciaId: conferencia.id,
               numeroPedido: pc.numero,
               valorTotal,
               dataBase: conferencia.dtEmissao ?? hojeUTC,

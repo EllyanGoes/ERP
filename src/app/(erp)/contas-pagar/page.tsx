@@ -15,11 +15,28 @@ export default async function ContasPagarPage() {
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
       naturezas: { select: { naturezaFinanceiraId: true, detalhamento: true, valor: true } },
       centroCusto: { select: { codigo: true, nome: true } },
-      pedidoCompra: { select: { id: true, numero: true, conferencia: { select: { id: true, numero: true } },
+      // DE de origem (pedido OU avulsa): número clicável + TES/centro dos itens
+      // do documento — a fonte real da classificação (o pedido raramente tem).
+      conferencia: { select: { id: true, numero: true,
+        itens: { select: { tes: { select: { codigo: true, nome: true } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
+      pedidoCompra: { select: { id: true, numero: true,
+        conferencia: { select: { id: true, numero: true,
+          itens: { select: { tes: { select: { codigo: true, nome: true } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
         itens: { select: { tes: { select: { codigo: true, nome: true } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
     },
     orderBy: { dataVencimento: "asc" },
   });
+
+  // Conta razão do fornecedor: a analítica de passivo dele (2.1.1.x) — vira o
+  // link "nome do fornecedor → razão" na tabela e no detalhe.
+  const fornIds = Array.from(new Set(contasRaw.map((c) => c.fornecedor?.id).filter((x): x is string => !!x)));
+  const contasForn = fornIds.length
+    ? await prisma.contaContabil.findMany({
+        where: { fornecedorId: { in: fornIds }, codigo: { startsWith: "2." } },
+        select: { id: true, fornecedorId: true },
+      })
+    : [];
+  const contaPorFornecedor = new Map(contasForn.map((cc) => [cc.fornecedorId as string, cc.id]));
 
   // Conta de contrapartida: onde o título saiu (lançamentos) ou, sem baixa, a
   // conta designada do título.
@@ -27,7 +44,13 @@ export default async function ContasPagarPage() {
     const lancContas = c.lancamentos.map((l) => l.contaBancaria).filter((x): x is { id: string; nome: string } => !!x);
     const base = lancContas.length > 0 ? lancContas : (c.contaBancaria ? [c.contaBancaria] : []);
     const distinta = Array.from(new Map(base.map((x) => [x.id, x])).values());
-    return { ...c, contasContrapartida: distinta };
+    return {
+      ...c,
+      contasContrapartida: distinta,
+      // Normaliza o DE: vínculo direto (avulsa e novos) ou o DE do pedido (legado).
+      conferencia: c.conferencia ?? c.pedidoCompra?.conferencia ?? null,
+      fornecedorContaId: c.fornecedor ? (contaPorFornecedor.get(c.fornecedor.id) ?? null) : null,
+    };
   });
 
   const emAberto = contas

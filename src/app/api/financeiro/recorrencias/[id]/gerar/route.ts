@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
-import { generateDocNumber } from "@/lib/utils";
+import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { avancarData, type Periodicidade } from "@/lib/financeiro";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { contabilizarTituloReceber, contabilizarTituloPagar } from "@/lib/contabilidade";
@@ -59,7 +59,7 @@ export async function POST(_: NextRequest, { params }: { params: { id: string } 
     });
     return tx.contaPagar.create({
       data: {
-        numero: generateDocNumber("CP", seq.ultimo),
+        numero: generateSimpleDocNumber("CP", seq.ultimo),
         fornecedorId: rec.fornecedorId,
         descricao: rec.descricao,
         valorOriginal: rec.valor,

@@ -19,6 +19,17 @@ export default async function ContasReceberPage() {
     orderBy: { dataVencimento: "asc" },
   });
 
+  // Conta razão do cliente: a analítica de Clientes a Receber dele (1.1.2.x) —
+  // vira o link "nome do cliente → razão" na tabela e no detalhe.
+  const cliIds = Array.from(new Set(contasRaw.map((c) => c.cliente?.id).filter((x): x is string => !!x)));
+  const contasCli = cliIds.length
+    ? await prisma.contaContabil.findMany({
+        where: { clienteId: { in: cliIds }, codigo: { startsWith: "1.1.2." } },
+        select: { id: true, clienteId: true },
+      })
+    : [];
+  const contaPorCliente = new Map(contasCli.map((cc) => [cc.clienteId as string, cc.id]));
+
   // Conta de contrapartida: onde o título caiu (lançamentos) ou, sem baixa, a
   // conta designada do título. Distinta — um título com pagamento misto pode ter
   // mais de uma conta.
@@ -26,7 +37,11 @@ export default async function ContasReceberPage() {
     const lancContas = c.lancamentos.map((l) => l.contaBancaria).filter((x): x is { id: string; nome: string } => !!x);
     const base = lancContas.length > 0 ? lancContas : (c.contaBancaria ? [c.contaBancaria] : []);
     const distinta = Array.from(new Map(base.map((x) => [x.id, x])).values());
-    return { ...c, contasContrapartida: distinta };
+    return {
+      ...c,
+      contasContrapartida: distinta,
+      clienteContaId: c.cliente ? (contaPorCliente.get(c.cliente.id) ?? null) : null,
+    };
   });
 
   const emAberto = contas

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { contaPagarSchema } from "@/lib/validations/financeiro";
-import { generateDocNumber } from "@/lib/utils";
+import { generateSimpleDocNumber } from "@/lib/utils";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { contabilizarTituloPagar } from "@/lib/contabilidade";
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const conta = await prisma.contaPagar.create({
       data: {
         ...parsed.data,
-        numero: generateDocNumber("CP", seq.ultimo),
+        numero: generateSimpleDocNumber("CP", seq.ultimo),
         dataVencimento: new Date(parsed.data.dataVencimento),
       },
     });
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
           data: {
             ...resto,
             descricao: `${descricao} (${i + 1}/${parcelas})`,
-            numero: generateDocNumber("CP", primeiro + i),
+            numero: generateSimpleDocNumber("CP", primeiro + i),
             valorOriginal: valor,
             dataVencimento: venc,
             grupoParcelamentoId,

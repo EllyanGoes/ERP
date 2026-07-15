@@ -518,6 +518,7 @@ model ConferenciaCompra {
   fornecedor           Fornecedor?             @relation(fields: [fornecedorId], references: [id])
   localEstoque         LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
   itens                ConferenciaCompraItem[]
+  contasPagar          ContaPagar[]
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -662,6 +663,10 @@ model ContaPagar {
   recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
   contaReceberEspelho   ContaReceber?          @relation("EspelhoIntragrupoCR", fields: [contaReceberEspelhoId], references: [id])
   pedidoCompra          PedidoCompra?          @relation(fields: [pedidoCompraId], references: [id])
+  // Documento de Entrada que originou o título (compra por pedido OU entrada
+  // avulsa) — dá rastreabilidade direta CP → DE no financeiro.
+  conferenciaId         String?
+  conferencia           ConferenciaCompra?     @relation(fields: [conferenciaId], references: [id])
   naturezaFinanceiraId  String?
   naturezaFinanceira    NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   lancamentos           LancamentoFinanceiro[]
@@ -680,6 +685,7 @@ model ContaPagar {
   @@unique([empresaId, numero])
   @@index([dataVencimento])
   @@index([fornecedorId])
+  @@index([conferenciaId])
   @@index([status])
   @@index([grupoParcelamentoId])
   @@index([recorrenciaId])
