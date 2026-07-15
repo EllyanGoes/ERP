@@ -291,6 +291,12 @@ export default function NaturezasPage() {
           </p>
         </div>
 
+        {/* Reorganização única das naturezas da CMB (plano Nibo) — o banner só
+            aparece enquanto as naturezas antigas existirem; some após aplicar. */}
+        {rows.some((n) => NATUREZAS_ANTIGAS_CMB.has(n.nome)) && (
+          <ReorganizacaoCMBBanner onAplicado={load} />
+        )}
+
         {/* Resumo */}
         <div className="flex items-center gap-4">
           <div className="rounded-xl px-5 py-3 bg-info/10 text-info flex items-center gap-3">
@@ -768,5 +774,89 @@ function TipoRadio({ label, icon, active, onClick, cor }: {
         {icon}{label}
       </span>
     </button>
+  );
+}
+
+// ── Reorganização única das naturezas da CMB (plano Nibo, 15/07/2026) ─────────
+// Nomes antigos que denunciam a pendência — o banner some quando não existem mais.
+const NATUREZAS_ANTIGAS_CMB = new Set([
+  "DESPESA ADMIN", "DESPESA PESSOAL ADMIN", "CAIXA ELLYELTON",
+  "CAMINHAO MUNCK JUQ3G04", "SAUDE E SEGURANCA NO TRABALHO",
+  "Energia, água e telefone", "Insumos / matéria-prima",
+]);
+
+type ReorgResultado = {
+  dry: boolean;
+  renomeadas: string[];
+  criadas: string[];
+  merges: { de: string; para: string; titulosCR: number; titulosCP: number; lancamentos: number }[];
+  recontabilizados: number;
+  errosRecontabilizacao: string[];
+  avisos: string[];
+};
+
+function ReorganizacaoCMBBanner({ onAplicado }: { onAplicado: () => void }) {
+  const [previa, setPrevia] = useState<ReorgResultado | null>(null);
+  const [rodando, setRodando] = useState<"previa" | "aplicar" | null>(null);
+  const [erro, setErro] = useState("");
+  const [feito, setFeito] = useState<ReorgResultado | null>(null);
+
+  async function rodar(dry: boolean) {
+    setRodando(dry ? "previa" : "aplicar"); setErro("");
+    try {
+      const res = await fetch("/api/financeiro/naturezas/reorganizar-cmb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dry }),
+      });
+      const j = await res.json();
+      if (!res.ok) { setErro(j.error ?? "Erro ao executar."); return; }
+      if (dry) setPrevia(j.data as ReorgResultado);
+      else { setFeito(j.data as ReorgResultado); setPrevia(null); onAplicado(); }
+    } catch { setErro("Erro de conexão."); }
+    finally { setRodando(null); }
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-300 bg-warning/10 p-4 space-y-3 text-sm">
+      <p className="font-semibold text-foreground">Padronização das naturezas (plano Nibo) pendente</p>
+      <p className="text-muted-foreground">
+        Renomeia para o padrão, cria as naturezas que faltam (retenções com cadeado) e relança os títulos das
+        naturezas fora do padrão (COMBUSTIVEL duplicado, DESPESA ADMIN, CAIXA ELLYELTON, caminhão etc.),
+        recontabilizando cada título. Faz backup antes. Veja a prévia primeiro.
+      </p>
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="outline" onClick={() => rodar(true)} disabled={rodando !== null}>
+          {rodando === "previa" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null} Ver prévia
+        </Button>
+        {previa && (
+          <Button size="sm" onClick={() => rodar(false)} disabled={rodando !== null}>
+            {rodando === "aplicar" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null} Aplicar agora
+          </Button>
+        )}
+      </div>
+      {erro && <p className="text-danger">{erro}</p>}
+      {previa && (
+        <div className="rounded-lg bg-card border border-border p-3 space-y-1.5 text-xs">
+          <p className="font-semibold">Prévia (nada foi alterado):</p>
+          <p>Renomeios: {previa.renomeadas.length ? previa.renomeadas.join("; ") : "nenhum pendente"}</p>
+          <p>Criações: {previa.criadas.length ? `${previa.criadas.length} naturezas (${previa.criadas.slice(0, 6).join(", ")}${previa.criadas.length > 6 ? "…" : ""})` : "nenhuma pendente"}</p>
+          {previa.merges.map((m) => (
+            <p key={m.de}>Relançar <b>{m.de}</b> → <b>{m.para}</b>: {m.titulosCR + m.titulosCP} título(s), {m.lancamentos} lançamento(s) de caixa</p>
+          ))}
+          {previa.avisos.map((a, i) => <p key={i} className="text-warning">{a}</p>)}
+        </div>
+      )}
+      {feito && (
+        <div className="rounded-lg bg-success/10 border border-success/30 p-3 text-xs text-success space-y-1">
+          <p className="font-semibold">Aplicado.</p>
+          <p>{feito.renomeadas.length} renomeada(s), {feito.criadas.length} criada(s), {feito.merges.length} merge(s), {feito.recontabilizados} título(s) recontabilizado(s).</p>
+          {feito.errosRecontabilizacao.length > 0 && (
+            <p className="text-danger">Erros de recontabilização: {feito.errosRecontabilizacao.join("; ")}</p>
+          )}
+          {feito.avisos.map((a, i) => <p key={i} className="text-warning">{a}</p>)}
+        </div>
+      )}
+    </div>
   );
 }
