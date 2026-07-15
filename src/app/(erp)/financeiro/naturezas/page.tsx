@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Plus, Pencil, Trash2, Loader2, Info, ArrowDownLeft, ArrowUpRight, FolderClosed, ChevronDown, Tag, Lock,
-  Download, Copy, FileText, Check, Search, ChevronRight, CornerDownRight,
+  Download, Copy, FileText, Check, Search, ChevronRight, CornerDownRight, GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
@@ -33,7 +33,7 @@ const GRUPO_LABEL: Record<Grupo, string> = {
 const COLLAPSE_KEY = "financeiro:naturezas:collapsed";
 
 type Tipo = "ENTRADA" | "SAIDA";
-type Subgrupo = { id: string; nome: string; grupo: Grupo };
+type Subgrupo = { id: string; nome: string; grupo: Grupo; ordem?: number };
 type ContaResultado = { id: string; codigo: string; nome: string };
 type ContaPatrimonial = { id: string; codigo: string; nome: string; grupo: "ATIVO" | "PASSIVO"; porBeneficiario?: boolean };
 type Natureza = {
@@ -42,6 +42,8 @@ type Natureza = {
   cif: boolean;
   // Natureza padrão TRAVADA do sistema (cadeado): não edita campos-chave nem exclui.
   sistema?: boolean;
+  // Posição manual (drag and drop) dentro do grupo/subgrupo.
+  ordem?: number;
   destinoSugerido: string | null;
   aplicavelRequisicao: boolean;
   contaContabilId: string | null; contaContabil: ContaResultado | null;
@@ -115,6 +117,62 @@ export default function NaturezasPage() {
     if (!confirm(`Excluir o subgrupo "${s.nome}"? As naturezas dentro dele ficarão sem subgrupo.`)) return;
     await fetch(`/api/financeiro/naturezas/subgrupos/${s.id}`, { method: "DELETE" });
     await load();
+  }
+
+  // ── Drag and drop (ordem manual, estilo Nibo) ────────────────────────────────
+  // Natureza arrasta dentro do MESMO bucket (grupo+subgrupo); subgrupo dentro do
+  // MESMO grupo. A ordem nova é otimista no estado e persistida em /reordenar.
+  const bucketDe = (n: Natureza) => `${n.grupo}|${n.subgrupoId ?? ""}`;
+  const [dragNat, setDragNat] = useState<Natureza | null>(null);
+  const [overNatId, setOverNatId] = useState<string | null>(null);
+  const [dragSub, setDragSub] = useState<Subgrupo | null>(null);
+  const [overSubId, setOverSubId] = useState<string | null>(null);
+
+  function limparDrag() { setDragNat(null); setOverNatId(null); setDragSub(null); setOverSubId(null); }
+
+  async function soltarNatureza(alvo: Natureza) {
+    const arrastada = dragNat;
+    limparDrag();
+    if (!arrastada || arrastada.id === alvo.id || bucketDe(arrastada) !== bucketDe(alvo)) return;
+    // Reconstrói o bucket na ordem exibida, com a arrastada na posição do alvo.
+    const bucket = rows.filter((r) => bucketDe(r) === bucketDe(alvo));
+    const semArrastada = bucket.filter((r) => r.id !== arrastada.id);
+    const idx = semArrastada.findIndex((r) => r.id === alvo.id);
+    const novaSequencia = [...semArrastada.slice(0, idx), arrastada, ...semArrastada.slice(idx)];
+    const ordemPorId = new Map(novaSequencia.map((r, i) => [r.id, i + 1]));
+
+    const gi = (g: Grupo) => GRUPOS.indexOf(g);
+    setRows((prev) => prev
+      .map((r) => (ordemPorId.has(r.id) ? { ...r, ordem: ordemPorId.get(r.id)! } : r))
+      .sort((a, b) => gi(a.grupo) - gi(b.grupo) || (a.ordem ?? 0) - (b.ordem ?? 0) || a.nome.localeCompare(b.nome)));
+
+    await fetch("/api/financeiro/naturezas/reordenar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ naturezas: novaSequencia.map((r, i) => ({ id: r.id, ordem: i + 1 })) }),
+    }).catch(() => {});
+  }
+
+  async function soltarSubgrupo(alvo: Subgrupo) {
+    const arrastado = dragSub;
+    limparDrag();
+    if (!arrastado || arrastado.id === alvo.id || arrastado.grupo !== alvo.grupo) return;
+    const doGrupo = subgrupos.filter((s) => s.grupo === alvo.grupo);
+    const semArrastado = doGrupo.filter((s) => s.id !== arrastado.id);
+    const idx = semArrastado.findIndex((s) => s.id === alvo.id);
+    const novaSequencia = [...semArrastado.slice(0, idx), arrastado, ...semArrastado.slice(idx)];
+    const ordemPorId = new Map(novaSequencia.map((s, i) => [s.id, i + 1]));
+
+    const gi = (g: Grupo) => GRUPOS.indexOf(g);
+    setSubgrupos((prev) => prev
+      .map((s) => (ordemPorId.has(s.id) ? { ...s, ordem: ordemPorId.get(s.id)! } : s))
+      .sort((a, b) => gi(a.grupo) - gi(b.grupo) || (a.ordem ?? 0) - (b.ordem ?? 0) || a.nome.localeCompare(b.nome)));
+
+    await fetch("/api/financeiro/naturezas/reordenar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subgrupos: novaSequencia.map((s, i) => ({ id: s.id, ordem: i + 1 })) }),
+    }).catch(() => {});
   }
 
   // Grupos que têm algum conteúdo (natureza ou subgrupo) — base para exportação (sem filtro)
@@ -431,13 +489,26 @@ export default function NaturezasPage() {
                             const subRecolhido = collapsed.has(`sub:${sub.id}`);
                             return (
                               <div key={sub.id}>
-                                <div className="group/row grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm">
+                                <div
+                                  draggable
+                                  onDragStart={() => setDragSub(sub)}
+                                  onDragOver={(e) => { if (dragSub && dragSub.grupo === sub.grupo && dragSub.id !== sub.id) { e.preventDefault(); setOverSubId(sub.id); } }}
+                                  onDragLeave={() => setOverSubId((v) => (v === sub.id ? null : v))}
+                                  onDrop={() => soltarSubgrupo(sub)}
+                                  onDragEnd={limparDrag}
+                                  className={cn(
+                                    "group/row grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm",
+                                    dragSub?.id === sub.id && "opacity-40",
+                                    overSubId === sub.id && "border-t-2 border-t-info",
+                                  )}
+                                >
                                   <button
                                     type="button"
                                     onClick={() => toggle(`sub:${sub.id}`)}
                                     className="flex items-center gap-2 min-w-0 text-left"
                                     style={{ paddingLeft: "18px" }}
                                   >
+                                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0 cursor-grab" />
                                     {subRecolhido ? <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
                                     <FolderClosed className="w-3.5 h-3.5 text-violet-500 shrink-0" />
                                     <span className="font-medium text-foreground truncate">{sub.nome}</span>
@@ -464,7 +535,14 @@ export default function NaturezasPage() {
                                   </div>
                                 </div>
                                 {!subRecolhido && naturezas.map((n) => (
-                                  <NaturezaLinha key={n.id} n={n} nivel={2} onEdit={setNatModal} onDelete={excluirNatureza} />
+                                  <NaturezaLinha
+                                    key={n.id} n={n} nivel={2} onEdit={setNatModal} onDelete={excluirNatureza}
+                                    arrastando={dragNat?.id === n.id} alvoDrop={overNatId === n.id}
+                                    podeReceber={!!dragNat && dragNat.id !== n.id && bucketDe(dragNat) === bucketDe(n)}
+                                    onDragStart={() => setDragNat(n)} onHover={() => setOverNatId(n.id)}
+                                    onLeave={() => setOverNatId((v) => (v === n.id ? null : v))}
+                                    onDrop={() => soltarNatureza(n)} onDragEnd={limparDrag}
+                                  />
                                 ))}
                               </div>
                             );
@@ -472,7 +550,14 @@ export default function NaturezasPage() {
 
                           {/* Naturezas sem subgrupo */}
                           {sec.semSubgrupo.map((n) => (
-                            <NaturezaLinha key={n.id} n={n} nivel={1} onEdit={setNatModal} onDelete={excluirNatureza} />
+                            <NaturezaLinha
+                              key={n.id} n={n} nivel={1} onEdit={setNatModal} onDelete={excluirNatureza}
+                              arrastando={dragNat?.id === n.id} alvoDrop={overNatId === n.id}
+                              podeReceber={!!dragNat && dragNat.id !== n.id && bucketDe(dragNat) === bucketDe(n)}
+                              onDragStart={() => setDragNat(n)} onHover={() => setOverNatId(n.id)}
+                              onLeave={() => setOverNatId((v) => (v === n.id ? null : v))}
+                              onDrop={() => soltarNatureza(n)} onDragEnd={limparDrag}
+                            />
                           ))}
                         </>
                       )}
@@ -506,18 +591,31 @@ export default function NaturezasPage() {
   );
 }
 
-function NaturezaLinha({ n, nivel, onEdit, onDelete }: {
+function NaturezaLinha({ n, nivel, onEdit, onDelete, arrastando, alvoDrop, podeReceber, onDragStart, onHover, onLeave, onDrop, onDragEnd }: {
   n: Natureza; nivel: 1 | 2; onEdit: (n: Natureza) => void; onDelete: (n: Natureza) => void;
+  // Drag and drop (ordem manual): a linha é arrastável e recebe drop de outra
+  // natureza do MESMO bucket (grupo+subgrupo).
+  arrastando: boolean; alvoDrop: boolean; podeReceber: boolean;
+  onDragStart: () => void; onHover: () => void; onLeave: () => void; onDrop: () => void; onDragEnd: () => void;
 }) {
   const entrada = n.tipo === "ENTRADA";
   return (
     <div
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={(e) => { if (podeReceber) { e.preventDefault(); onHover(); } }}
+      onDragLeave={onLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       className={cn(
         "grid grid-cols-[1fr_auto_auto] items-center gap-4 px-5 py-2 border-b border-gray-50 hover:bg-muted/60 text-sm group/row",
         !n.ativo && "opacity-50",
+        arrastando && "opacity-40",
+        alvoDrop && "border-t-2 border-t-info",
       )}
     >
       <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: `${nivel * 18}px` }}>
+        <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0 cursor-grab" />
         <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
         {entrada
           ? <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />

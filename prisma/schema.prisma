@@ -978,6 +978,8 @@ model NaturezaSubgrupo {
   nome      String
   grupo     NaturezaGrupo
   ativo     Boolean              @default(true)
+  // Posição manual na lista (drag and drop) — por empresa/grupo.
+  ordem     Int                  @default(0)
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
   naturezas NaturezaFinanceira[]
@@ -1008,6 +1010,8 @@ model NaturezaFinanceira {
   // referencia por `sistemaChave` (estável — renomear o nome não quebra nada).
   sistema              Boolean                  @default(false)
   sistemaChave         String?
+  // Posição manual na lista (drag and drop, estilo Nibo) — por empresa/grupo/subgrupo.
+  ordem                Int                      @default(0)
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
   subgrupo             NaturezaSubgrupo?        @relation(fields: [subgrupoId], references: [id])

@@ -17,7 +17,7 @@ export async function GET() {
 
   const data = await prisma.naturezaSubgrupo.findMany({
     where: { ativo: true },
-    orderBy: [{ grupo: "asc" }, { nome: "asc" }],
+    orderBy: [{ grupo: "asc" }, { ordem: "asc" }, { nome: "asc" }],
   });
   return NextResponse.json({ data });
 }

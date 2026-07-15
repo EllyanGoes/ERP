@@ -48,7 +48,8 @@ export async function GET(req: NextRequest) {
       contasContabeis: { select: { id: true, codigo: true, nome: true } },
       contaContrapartida: { select: { id: true, codigo: true, nome: true } },
     },
-    orderBy: [{ tipo: "asc" }, { grupo: "asc" }, { nome: "asc" }],
+    // Ordem manual (drag and drop) primeiro; nome desempata (novas sem arrasto).
+    orderBy: [{ grupo: "asc" }, { ordem: "asc" }, { nome: "asc" }],
   });
   // Vínculo contábil: conta de RESULTADO (reversa, 1 por empresa) e CONTRAPARTIDA
   // patrimonial (ativo a receber p/ ENTRADA, passivo a pagar p/ SAIDA).
