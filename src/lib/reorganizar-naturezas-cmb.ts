@@ -41,7 +41,8 @@ const SUBGRUPOS: { nome: string; grupo: NaturezaGrupo }[] = [
 // duplicado se distingue pelo grupo).
 const RENAMES: { de: string; grupoDe?: NaturezaGrupo; para: string; subgrupoPara?: string }[] = [
   { de: "Venda de mercadorias", para: "Receita com vendas" },
-  { de: "Venda de serviços", para: "Receita com serviços" },
+  // "Venda de serviços"/"Receita com serviços" e "Custo serviço prestado" foram
+  // REMOVIDOS do plano (decisão 15/07/2026): a CMB não presta serviços.
   { de: "Compra de mercadorias", para: "Custos produto vendido" },
   { de: "Aluguel", para: "Aluguel e condomínio" },
   { de: "Impostos e taxas", para: "Taxas e contribuições" },
@@ -62,7 +63,6 @@ const CREATES: Def[] = [
   { nome: "Descontos Concedidos", tipo: "SAIDA", grupo: "RECEITA_OPERACIONAL", sistemaChave: "descontos-concedidos" },
   { nome: "Outras receitas", tipo: "ENTRADA", grupo: "RECEITA_OPERACIONAL", sistemaChave: "outras-receitas" },
   // Custos operacionais
-  { nome: "Custo serviço prestado", tipo: "SAIDA", grupo: "CUSTO_OPERACIONAL" },
   { nome: "Impostos sobre receita", tipo: "SAIDA", grupo: "CUSTO_OPERACIONAL" },
   ...["IRPJ", "COFINS", "INSS", "CSLL", "ISS", "PIS"].map((s): Def => ({
     nome: `${s} Retido sobre a Receita`, tipo: "SAIDA", grupo: "CUSTO_OPERACIONAL",

@@ -667,6 +667,26 @@ export async function garantirContaJurosMultasPassivos(empresaId: string) {
 export async function garantirContaDescontosObtidos(empresaId: string) {
   return garantirResultadoSobPai(empresaId, "3.1.9005", "Descontos Obtidos", "3.1", "CREDORA");
 }
+/** Passivo "Impostos Retidos a Recolher" (sob 2.1.5 Impostos a Pagar): retenções
+ *  na fonte feitas em PAGAMENTOS (ISS/IRPJ/CSLL/INSS/PIS/COFINS). Creditada no
+ *  pagamento do título principal (pagou o líquido) e debitada na liquidação das
+ *  guias (CP semProvisao com contaPassivoId nesta conta). Cria o pai 2.1.5 se a
+ *  empresa ainda não o tiver no plano. */
+export async function garantirContaImpostosRetidos(empresaId: string) {
+  let pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.1.5" }, select: { id: true } });
+  if (!pai) {
+    const p21 = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: "2.1" } });
+    if (!p21) return null;
+    pai = await prismaSemEscopo.contaContabil.create({
+      data: {
+        empresaId, codigo: "2.1.5", nome: "Impostos a Pagar", grupo: "PASSIVO", natureza: "CREDORA",
+        tipo: "SINTETICA", nivel: p21.nivel + 1, aceitaLancamento: false, paiId: p21.id,
+      },
+      select: { id: true },
+    });
+  }
+  return garantirAnaliticaPorNome(empresaId, "2.1.5", "Impostos Retidos a Recolher", "PASSIVO", "CREDORA");
+}
 /** Despesa "Fretes e Encargos sobre Compras" (3.3.9007), DEVEDORA sob 3.3 —
  *  frete/seguro/despesas do documento de entrada. A dívida com o fornecedor é o
  *  LÍQUIDO do documento; o estoque continua ao preço unitário (ratear encargos

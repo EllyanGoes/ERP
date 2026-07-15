@@ -71,6 +71,9 @@ export default function LancamentoForm({
   const [abaDetalhe, setAbaDetalhe] = useState<"centro" | "retencao" | "desconto" | "juros">("centro");
   const [valorJuros, setValorJuros] = useState("");
   const [valorMulta, setValorMulta] = useState("");
+  const [valorDesconto, setValorDesconto] = useState("");
+  const RETENCAO_VAZIA = { iss: "", irpj: "", csll: "", inss: "", pis: "", cofins: "", outras: "" };
+  const [retencoes, setRetencoes] = useState<Record<string, string>>(RETENCAO_VAZIA);
   // Modo conta: as listas de clientes/fornecedores trocam conforme o tipo.
   const [clientes, setClientes] = useState<Contato[]>([]);
   const [fornecedores, setFornecedores] = useState<Contato[]>([]);
@@ -86,6 +89,7 @@ export default function LancamentoForm({
       setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput());
       setLinhas([novaLinha()]); setCentroCustoId(""); setErro(null);
       setDetalhado(false); setAbaDetalhe("centro"); setValorJuros(""); setValorMulta("");
+      setValorDesconto(""); setRetencoes(RETENCAO_VAZIA);
     },
   });
 
@@ -135,10 +139,13 @@ export default function LancamentoForm({
   const valorLinha = (s: string) => { const v = parseDecimal(s); return Number.isFinite(v) ? v : 0; };
   const total = linhas.reduce((s, l) => s + valorLinha(l.valor), 0);
   const pago = status === "PAGAMENTO";
-  // Juros/multa só num pagamento já realizado (no agendamento entram na baixa).
+  // Juros/multa/desconto/retenções só num pagamento já realizado (no agendamento
+  // entram na baixa). Desconto e retenção reduzem o caixa; o título quita cheio.
   const jurosNum = pago ? valorLinha(valorJuros) : 0;
   const multaNum = pago ? valorLinha(valorMulta) : 0;
-  const totalEfetivo = total + jurosNum + multaNum;
+  const descontoNum = pago ? valorLinha(valorDesconto) : 0;
+  const retidoNum = pago ? Object.values(retencoes).reduce((s, v) => s + valorLinha(v), 0) : 0;
+  const totalEfetivo = total + jurosNum + multaNum - descontoNum - retidoNum;
 
   function up(key: string, campo: keyof Linha, valor: string) {
     setLinhas((prev) => prev.map((l) => (l.key === key ? { ...l, [campo]: valor } : l)));
@@ -160,6 +167,8 @@ export default function LancamentoForm({
     if (linhasValidas.some((l) => !l.naturezaFinanceiraId)) { setErro("Selecione a natureza financeira de todas as linhas com valor."); return; }
     if (exigeCentro && !centroCustoId) { setErro("Centro de custo é obrigatório para natureza de despesa/CIF."); return; }
     if (pago && !contaBancariaId) { setErro("Selecione a conta de destino."); return; }
+    if (descontoNum > 0 && retidoNum > 0) { setErro("Use desconto OU retenção de impostos — não os dois no mesmo lançamento."); return; }
+    if (descontoNum + retidoNum >= total && total > 0) { setErro("Desconto/retenções não podem ser iguais ou maiores que o total."); return; }
     setSalvando(true);
     try {
       const res = await fetch("/api/financeiro/titulos", {
@@ -176,6 +185,8 @@ export default function LancamentoForm({
           centroCustoId: centroCustoId || null,
           valorJuros: jurosNum || 0,
           valorMulta: multaNum || 0,
+          valorDesconto: descontoNum || 0,
+          retencoes: Object.fromEntries(Object.entries(retencoes).map(([k, v]) => [k, valorLinha(v)])),
           linhas: linhasValidas.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseDecimal(l.valor) })),
         }),
       });
@@ -268,10 +279,17 @@ export default function LancamentoForm({
           <DatePicker value={dataCompetencia} onChange={(v) => setDataCompetencia(v)} className="w-full" />
         </div>
         <div className="text-right">
-          <Label className="text-xs text-muted-foreground block">{totalEfetivo !== total ? "Total pago" : "Total"}</Label>
+          <Label className="text-xs text-muted-foreground block">
+            {totalEfetivo !== total ? (isReceber ? "Total recebido" : "Total pago") : "Total"}
+          </Label>
           <span className={`text-lg font-bold tabular-nums ${totalEfetivo > 0 ? "text-foreground" : "text-muted-foreground/60"}`}>{formatBRL(totalEfetivo)}</span>
           {totalEfetivo !== total && (
-            <p className="text-[11px] text-muted-foreground">{formatBRL(total)} + juros/multa</p>
+            <p className="text-[11px] text-muted-foreground">
+              {formatBRL(total)}
+              {jurosNum + multaNum > 0 && ` + ${formatBRL(jurosNum + multaNum)} juros/multa`}
+              {descontoNum > 0 && ` − ${formatBRL(descontoNum)} desconto`}
+              {retidoNum > 0 && ` − ${formatBRL(retidoNum)} retido`}
+            </p>
           )}
         </div>
       </div>
@@ -380,15 +398,25 @@ export default function LancamentoForm({
             {abaDetalhe === "retencao" && (
               <div className="space-y-2">
                 <div className="grid grid-cols-4 gap-3">
-                  {["ISS", "IRPJ", "CSLL", "INSS", "PIS", "COFINS", "Outras"].map((imp) => (
-                    <div key={imp} className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">{imp}</Label>
-                      <Input disabled placeholder="0,00" className="h-9 text-right font-mono bg-card" />
+                  {(["iss", "irpj", "csll", "inss", "pis", "cofins", "outras"] as const).map((k) => (
+                    <div key={k} className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{k === "outras" ? "Outras" : k.toUpperCase()}</Label>
+                      <Input
+                        value={retencoes[k]}
+                        onChange={(e) => setRetencoes((p) => ({ ...p, [k]: e.target.value }))}
+                        disabled={!pago}
+                        placeholder="0,00"
+                        className="h-9 text-right font-mono bg-card"
+                      />
                     </div>
                   ))}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Em breve — as retenções dependem das naturezas padrão de impostos retidos (reorganização das naturezas em análise).
+                  {pago
+                    ? isReceber
+                      ? "O cliente reteve na fonte: você recebe o líquido e a retenção vira custo (X Retido sobre a Receita)."
+                      : "Você reteve na fonte: paga o líquido ao fornecedor e cada imposto gera uma GUIA a pagar (vencimento dia 20 do mês seguinte, editável)."
+                    : "Disponível só no já pago/recebido."}
                 </p>
               </div>
             )}
@@ -397,10 +425,18 @@ export default function LancamentoForm({
               <div className="space-y-2">
                 <div className="w-48 space-y-1">
                   <Label className="text-xs text-muted-foreground">Valor</Label>
-                  <Input disabled placeholder="0,00" className="h-9 text-right font-mono bg-card" />
+                  <Input
+                    value={valorDesconto}
+                    onChange={(e) => setValorDesconto(e.target.value)}
+                    disabled={!pago}
+                    placeholder="0,00"
+                    className="h-9 text-right font-mono bg-card"
+                  />
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Em breve — o desconto depende da natureza padrão de Descontos {isReceber ? "Concedidos" : "Obtidos"} (reorganização das naturezas em análise).
+                  {pago
+                    ? `${isReceber ? "Recebe" : "Paga"} MENOS e o título quita pelo total — classificado como Descontos ${isReceber ? "Concedidos" : "Recebidos"}. Não combina com retenção no mesmo lançamento.`
+                    : "Disponível só no já pago/recebido — num agendamento, o desconto é informado na baixa."}
                 </p>
               </div>
             )}

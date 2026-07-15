@@ -256,8 +256,9 @@ function SubgrupoBloco({ sub, onDrill, mostrarTituloSub, grupoKey, collapsed, on
   return (
     <>
       {mostrarTituloSub && sub.naturezas.length > 0 && (
-        <tr className="border-b border-gray-50">
-          <td className="pl-8 pr-4 py-1.5 sticky left-0 bg-card z-10">
+        // Subgrupo com fundo próprio (mais claro que o grupo, distinto da natureza).
+        <tr className="border-b border-border bg-muted/40">
+          <td className="pl-8 pr-4 py-1.5 sticky left-0 bg-muted/40 z-10">
             <button
               type="button"
               onClick={() => onToggle(chave)}

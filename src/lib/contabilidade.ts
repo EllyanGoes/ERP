@@ -8,7 +8,7 @@ import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
 import { DIAS_TRABALHADOS_DEFAULT } from "@/lib/pcp/custeio-cif";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaContabilNatureza, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaFretesSobreCompras, garantirContaContabilBanco, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaImpostosRetidos, garantirContaContabilNatureza, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaFretesSobreCompras, garantirContaContabilBanco, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
 import { encargosConferencia } from "@/lib/pedido-compra-de";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
@@ -562,6 +562,11 @@ export async function contabilizarTituloPagar(cpId: string) {
   // Taxa/tarifa retida acumulada no título (coluna — nunca inferida do delta;
   // ver contabilizarTituloReceber). Pago MENOS que o baixado, título quitado.
   const taxaCp = r2(decimalToNumber(cp.valorTaxa ?? 0));
+  // Retenção de IMPOSTO na fonte (naturezas travadas ret-pagto-*): o crédito da
+  // taxa vai para o PASSIVO "Impostos Retidos a Recolher" (a guia liquida depois),
+  // não para Descontos Obtidos (que é resultado).
+  const taxaEhRetencao = taxaCp > 0.005 && !!cp.taxaNaturezaId &&
+    ((await prismaSemEscopo.naturezaFinanceira.findUnique({ where: { id: cp.taxaNaturezaId }, select: { sistemaChave: true } }))?.sistemaChave?.startsWith("ret-pagto-") ?? false);
 
   // Pernas de crédito de caixa/banco a partir das baixas (LancamentoFinanceiro),
   // por banco real; fallback no caixa da empresa. Retorna partidas CREDITO + total.
@@ -635,11 +640,14 @@ export async function contabilizarTituloPagar(cpId: string) {
       if (pago > 0) {
         const { partidas, total } = await pernasDeBanco(pago);
         if (total + taxaCp > 0.005 && partidas.length + (taxaCp > 0.005 ? 1 : 0) > 0) {
-          // Taxa retida no pagar: pagou MENOS e quitou — economicamente é desconto
-          // obtido (crédito em resultado), com a natureza travada como dimensão.
+          // Taxa retida no pagar: pagou MENOS e quitou — desconto obtido (crédito
+          // em resultado) OU, se for retenção de imposto (ret-pagto-*), crédito no
+          // passivo Impostos Retidos a Recolher; a natureza travada é a dimensão.
           if (taxaCp > 0.005) {
-            const contaDescObt = await garantirContaDescontosObtidos(cp.empresaId);
-            if (contaDescObt) partidas.push({ contaId: contaDescObt.id, tipo: "CREDITO", valor: taxaCp, naturezaId: cp.taxaNaturezaId ?? undefined });
+            const contaCredTaxa = taxaEhRetencao
+              ? await garantirContaImpostosRetidos(cp.empresaId)
+              : await garantirContaDescontosObtidos(cp.empresaId);
+            if (contaCredTaxa) partidas.push({ contaId: contaCredTaxa.id, tipo: "CREDITO", valor: taxaCp, naturezaId: cp.taxaNaturezaId ?? undefined });
           }
           // Juros/multa em caixa = Σ créditos − baixado (fórmula por colunas).
           const somaCred = r2(partidas.filter((x) => x.tipo === "CREDITO").reduce((s2, x) => s2 + x.valor, 0));
@@ -661,7 +669,17 @@ export async function contabilizarTituloPagar(cpId: string) {
     if (pago <= 0) return;
     const { partidas, total } = await pernasDeBanco(pago);
     if (total <= 0 || partidas.length === 0) return;
-    partidas.unshift({ contaId: contaDesp.id, tipo: "DEBITO", valor: total });
+    // Taxa retida/retenção de imposto também neste caminho: pagou o LÍQUIDO e a
+    // despesa é o CHEIO — crédito no passivo de retenção (ret-pagto-*) ou em
+    // Descontos Obtidos; o débito da despesa usa a soma dos créditos.
+    if (taxaCp > 0.005) {
+      const contaCredTaxa = taxaEhRetencao
+        ? await garantirContaImpostosRetidos(cp.empresaId)
+        : await garantirContaDescontosObtidos(cp.empresaId);
+      if (contaCredTaxa) partidas.push({ contaId: contaCredTaxa.id, tipo: "CREDITO", valor: taxaCp, naturezaId: cp.taxaNaturezaId ?? undefined });
+    }
+    const somaCredCompat = r2(partidas.filter((x) => x.tipo === "CREDITO").reduce((s2, x) => s2 + x.valor, 0));
+    partidas.unshift({ contaId: contaDesp.id, tipo: "DEBITO", valor: somaCredCompat });
     await registrarLancamento({
       empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
       historico: `Pagamento — ${refCp}`, origemTipo: "PAGAMENTO", origemId: cp.id,
@@ -756,10 +774,13 @@ export async function contabilizarTituloPagar(cpId: string) {
           }
         }
       } else {
-        // Taxa retida (pagou menos, quitou): desconto obtido, natureza como dimensão.
+        // Taxa retida (pagou menos, quitou): desconto obtido OU passivo de imposto
+        // retido (ret-pagto-*), natureza como dimensão.
         if (taxaCp > 0.005) {
-          const contaDescObt = await garantirContaDescontosObtidos(cp.empresaId);
-          if (contaDescObt) partidas.push({ contaId: contaDescObt.id, tipo: "CREDITO", valor: taxaCp, naturezaId: cp.taxaNaturezaId ?? undefined });
+          const contaCredTaxa = taxaEhRetencao
+            ? await garantirContaImpostosRetidos(cp.empresaId)
+            : await garantirContaDescontosObtidos(cp.empresaId);
+          if (contaCredTaxa) partidas.push({ contaId: contaCredTaxa.id, tipo: "CREDITO", valor: taxaCp, naturezaId: cp.taxaNaturezaId ?? undefined });
         }
         // Juros/multa pagos além do título: despesa financeira (Juros e Multas
         // Passivos) — o débito do Fornecedor fica só no valor baixado do título

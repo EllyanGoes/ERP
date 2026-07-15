@@ -8,9 +8,10 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { getSession } from "@/lib/auth";
 import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa, contaCaixaIdDaEmpresa } from "@/lib/empresa";
-import { generateDocNumber } from "@/lib/utils";
+import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 import { contabilizarTituloReceber, contabilizarTituloPagar } from "@/lib/contabilidade";
+import { garantirContaImpostosRetidos } from "@/lib/conta-contabil";
 import { espelharContaReceber } from "@/lib/intragrupo";
 import { z } from "zod";
 
@@ -37,6 +38,23 @@ const schema = z.object({
   // o motor contábil deriva juros/multa pela fórmula por colunas (Σ caixa − pago).
   valorJuros: z.coerce.number().min(0).optional().default(0),
   valorMulta: z.coerce.number().min(0).optional().default(0),
+  // Desconto (pagou/recebeu MENOS e quitou) — vira taxa retida com a natureza
+  // travada de Descontos Recebidos/Concedidos. Exclusivo com retenções.
+  valorDesconto: z.coerce.number().min(0).optional().default(0),
+  // Retenção de impostos na fonte (só status PAGAMENTO): valores por imposto.
+  // Pagar: caixa sai pelo líquido, crédito no passivo Impostos Retidos a
+  // Recolher e cada imposto gera uma GUIA (CP aberta, natureza Pagamento de X
+  // Retido). Receber: recebe o líquido e a retenção vira custo (X Retido sobre
+  // a Receita).
+  retencoes: z.object({
+    iss: z.coerce.number().min(0).optional().default(0),
+    irpj: z.coerce.number().min(0).optional().default(0),
+    csll: z.coerce.number().min(0).optional().default(0),
+    inss: z.coerce.number().min(0).optional().default(0),
+    pis: z.coerce.number().min(0).optional().default(0),
+    cofins: z.coerce.number().min(0).optional().default(0),
+    outras: z.coerce.number().min(0).optional().default(0),
+  }).optional(),
   linhas: z.array(z.object({
     naturezaFinanceiraId: z.string().min(1, "Selecione a natureza financeira de cada linha"),
     detalhamento: z.string().optional().nullable(),
@@ -87,11 +105,73 @@ export async function POST(req: NextRequest) {
   // separados. valorOriginal = soma das linhas; a 1ª natureza é a "principal"
   // (fallback da contabilização); rateio só quando há 2+ naturezas.
   const total = Math.round(f.linhas.reduce((s, l) => s + l.valor, 0) * 100) / 100;
-  // Juros/multa só existem num pagamento já realizado; no agendamento nascem
-  // zerados e são informados depois, na baixa.
-  const valorJuros = pago ? Math.round((f.valorJuros ?? 0) * 100) / 100 : 0;
-  const valorMulta = pago ? Math.round((f.valorMulta ?? 0) * 100) / 100 : 0;
-  const totalCaixa = Math.round((total + valorJuros + valorMulta) * 100) / 100;
+  // Juros/multa/desconto/retenções só existem num pagamento já realizado; no
+  // agendamento nascem zerados e são informados depois, na baixa.
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const valorJuros = pago ? r2(f.valorJuros ?? 0) : 0;
+  const valorMulta = pago ? r2(f.valorMulta ?? 0) : 0;
+  const valorDesconto = pago ? r2(f.valorDesconto ?? 0) : 0;
+  const IMPOSTOS = ["iss", "irpj", "csll", "inss", "pis", "cofins", "outras"] as const;
+  const retencoes = IMPOSTOS
+    .map((k) => ({ imposto: k, valor: pago ? r2(f.retencoes?.[k] ?? 0) : 0 }))
+    .filter((x) => x.valor > 0);
+  const totalRetido = r2(retencoes.reduce((s, x) => s + x.valor, 0));
+
+  if (valorDesconto > 0 && totalRetido > 0) {
+    return NextResponse.json({ error: "Use desconto OU retenção de impostos — não os dois no mesmo lançamento." }, { status: 422 });
+  }
+  const valorTaxa = r2(valorDesconto + totalRetido); // retido no ato (paga/recebe MENOS e quita)
+  if (valorTaxa >= total) {
+    return NextResponse.json({ error: "Desconto/retenções não podem ser iguais ou maiores que o total das naturezas." }, { status: 422 });
+  }
+
+  // Naturezas travadas que classificam a taxa retida (dimensão) e as guias.
+  // Existem só onde o plano padrão foi aplicado (hoje: Cimento e Mix).
+  let taxaNaturezaId: string | null = null;
+  const guias: { imposto: string; valor: number; naturezaId: string }[] = [];
+  if (valorTaxa > 0) {
+    const natPorChave = async (chave: string) =>
+      (await prisma.naturezaFinanceira.findFirst({ where: { sistemaChave: chave }, select: { id: true } }))?.id ?? null;
+
+    if (valorDesconto > 0) {
+      taxaNaturezaId = await natPorChave(isReceber ? "descontos-concedidos" : "descontos-recebidos");
+      if (!taxaNaturezaId) {
+        return NextResponse.json({ error: `A natureza padrão de Descontos ${isReceber ? "Concedidos" : "Recebidos"} não existe nesta empresa — aplique o plano de naturezas antes.` }, { status: 422 });
+      }
+    } else {
+      const chavePrefixo = isReceber ? "ret-receita-" : "ret-pagto-";
+      const porImposto = new Map<string, string>();
+      for (const r of retencoes) {
+        const id = await natPorChave(`${chavePrefixo}${r.imposto}`);
+        if (!id) {
+          return NextResponse.json({ error: "As naturezas padrão de retenção de impostos não existem nesta empresa — aplique o plano de naturezas antes." }, { status: 422 });
+        }
+        porImposto.set(r.imposto, id);
+      }
+      // Dimensão do título: a natureza do imposto (único) ou "outras" (misto).
+      taxaNaturezaId = retencoes.length === 1
+        ? porImposto.get(retencoes[0].imposto)!
+        : await natPorChave(`${chavePrefixo}outras`);
+
+      // Guias (só PAGAR): um título aberto por imposto, natureza "Pagamento de X Retido".
+      if (!isReceber) {
+        for (const r of retencoes) {
+          const gid = await natPorChave(`pagto-ret-${r.imposto}`);
+          if (!gid) {
+            return NextResponse.json({ error: "As naturezas padrão de Pagamento de impostos retidos não existem nesta empresa — aplique o plano de naturezas antes." }, { status: 422 });
+          }
+          guias.push({ imposto: r.imposto.toUpperCase(), valor: r.valor, naturezaId: gid });
+        }
+      }
+    }
+  }
+
+  const totalCaixa = r2(total + valorJuros + valorMulta - valorTaxa);
+
+  // Passivo das retenções (as guias liquidam nele) — garantido fora da transação.
+  const contaPassivoRetencaoId = guias.length > 0
+    ? ((await garantirContaImpostosRetidos(empresaId))?.id ?? null)
+    : null;
   const natPrincipal = f.linhas[0].naturezaFinanceiraId;
   const descricaoTitulo = f.descricao?.trim() || (f.linhas.length === 1 ? (f.linhas[0].detalhamento?.trim() || "Lançamento avulso") : "Lançamento avulso");
   const rateio = f.linhas.length > 1
@@ -100,13 +180,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const criado = await prisma.$transaction(async (tx) => {
-      const numero = generateDocNumber(prefixo, await proximaSequenciaDaEmpresa(empresaId, prefixo));
+      // CP é numerado sem o ano (CP-0110); CR mantém o formato com ano.
+      const numero = (isReceber ? generateDocNumber : generateSimpleDocNumber)(prefixo, await proximaSequenciaDaEmpresa(empresaId, prefixo));
       if (isReceber) {
         const cr = await tx.contaReceber.create({
           data: {
             empresaId, numero, clienteId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao: descricaoTitulo,
             valorOriginal: total, valorPago: pago ? total : 0,
             valorJuros, valorMulta,
+            ...(valorTaxa > 0 ? { valorTaxa, taxaNaturezaId } : {}),
             dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
@@ -126,6 +208,7 @@ export async function POST(req: NextRequest) {
             empresaId, numero, fornecedorId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao: descricaoTitulo,
             valorOriginal: total, valorPago: pago ? total : 0,
             valorJuros, valorMulta,
+            ...(valorTaxa > 0 ? { valorTaxa, taxaNaturezaId } : {}),
             dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
@@ -138,6 +221,29 @@ export async function POST(req: NextRequest) {
           await tx.lancamentoFinanceiro.create({
             data: { empresaId, tipo: "DESPESA", descricao: `Pagamento ${numero}`, valor: totalCaixa, dataLancamento: pagamento!, contaPagarId: cp.id, contaBancariaId: contaBancariaId! },
           });
+        }
+
+        // GUIAS das retenções: um título ABERTO por imposto retido, sem provisão
+        // (a obrigação já nasceu como crédito no passivo Impostos Retidos a
+        // Recolher no pagamento acima) — a baixa da guia debita esse passivo.
+        // Vencimento: dia 20 do mês seguinte ao pagamento (editável no título).
+        if (guias.length > 0) {
+          const base = pagamento ?? venc;
+          const vencGuia = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 20));
+          for (const g of guias) {
+            const numeroGuia = generateSimpleDocNumber("CP", await proximaSequenciaDaEmpresa(empresaId, "CP"));
+            await tx.contaPagar.create({
+              data: {
+                empresaId, numero: numeroGuia,
+                descricao: `${g.imposto} retido — ${descricaoTitulo} (${numero})`,
+                valorOriginal: g.valor, valorPago: 0, status: "ABERTA",
+                dataVencimento: vencGuia, dataCompetencia: competencia,
+                naturezaFinanceiraId: g.naturezaId,
+                semProvisao: true,
+                contaPassivoId: contaPassivoRetencaoId,
+              },
+            });
+          }
         }
         return { id: cp.id, numero: cp.numero };
       }
