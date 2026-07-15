@@ -10,8 +10,11 @@ import {
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
-import { Loader2, ChevronLeft, ChevronRight, ExternalLink, ChevronRight as Caret } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, ChevronRight as Caret } from "lucide-react";
 import Link from "next/link";
+
+// Grupos/subgrupos recolhidos (persistido — mesmo padrão da tela de naturezas).
+const COLLAPSE_KEY = "fluxo-caixa:relatorio-anual:collapsed";
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const GRUPO_LABEL: Record<string, string> = {
@@ -45,6 +48,23 @@ export default function RelatorioAnual() {
   const [drill, setDrill] = useState<{ natureza: NatNode; mes: number | null } | null>(null);
   const [lancs, setLancs] = useState<Lancamento[] | null>(null);
   const [loadingLancs, setLoadingLancs] = useState(false);
+
+  // Abrir/fechar grupos e subgrupos pela setinha (estado sobrevive a voltar à tela).
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch { /* ignore */ }
+  }, []);
+  const toggleCollapse = useCallback((id: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -106,7 +126,7 @@ export default function RelatorioAnual() {
             <LinhaResumo label="Saldo inicial" valores={r.saldoInicial} forte semTotal />
 
             {rel.grupos.map((g) => (
-              <GrupoBloco key={g.grupo} grupo={g} onDrill={abrirDrill} />
+              <GrupoBloco key={g.grupo} grupo={g} onDrill={abrirDrill} collapsed={collapsed} onToggle={toggleCollapse} />
             ))}
 
             <LinhaResumo label="Margem de contribuição" valores={r.margemContribuicao} destaque />
@@ -191,37 +211,74 @@ export default function RelatorioAnual() {
   );
 }
 
-function GrupoBloco({ grupo, onDrill }: { grupo: GrupoNode; onDrill: (n: NatNode, mes: number | null) => void }) {
+function GrupoBloco({ grupo, onDrill, collapsed, onToggle }: {
+  grupo: GrupoNode; onDrill: (n: NatNode, mes: number | null) => void;
+  collapsed: Set<string>; onToggle: (id: string) => void;
+}) {
   const temNaturezas = grupo.subgrupos.some((s) => s.naturezas.length > 0);
+  const fechado = collapsed.has(grupo.grupo);
   return (
     <>
       <tr className="bg-muted/60 border-b border-border">
-        <td className="px-4 py-2 font-semibold text-muted-foreground uppercase text-[11px] tracking-wide sticky left-0 bg-muted/60 z-10">
-          {GRUPO_LABEL[grupo.grupo] ?? grupo.grupo}
+        <td className="px-4 py-2 sticky left-0 bg-muted/60 z-10">
+          <button
+            type="button"
+            onClick={() => onToggle(grupo.grupo)}
+            className="inline-flex items-center gap-1.5 font-semibold text-muted-foreground hover:text-foreground uppercase text-[11px] tracking-wide"
+            title={fechado ? "Expandir grupo" : "Recolher grupo"}
+          >
+            {fechado ? <Caret className="w-3.5 h-3.5 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0" />}
+            {GRUPO_LABEL[grupo.grupo] ?? grupo.grupo}
+          </button>
         </td>
         {grupo.meses.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium", valorCor(v))}>{fmt(v)}</td>)}
         <td className={cn("px-4 py-2 text-right tabular-nums font-semibold", valorCor(grupo.total))}>{fmt(grupo.total)}</td>
       </tr>
-      {grupo.subgrupos.map((sub) => (
-        <SubgrupoBloco key={sub.id ?? "sem"} sub={sub} onDrill={onDrill} mostrarTituloSub={!!sub.nome} />
+      {!fechado && grupo.subgrupos.map((sub) => (
+        <SubgrupoBloco key={sub.id ?? "sem"} sub={sub} onDrill={onDrill} mostrarTituloSub={!!sub.nome} grupoKey={grupo.grupo} collapsed={collapsed} onToggle={onToggle} />
       ))}
-      {!temNaturezas && (
+      {!fechado && !temNaturezas && (
         <tr className="border-b border-gray-50"><td colSpan={14} className="px-8 py-1.5 text-[11px] text-muted-foreground/60 sticky left-0 bg-card">sem lançamentos</td></tr>
       )}
     </>
   );
 }
 
-function SubgrupoBloco({ sub, onDrill, mostrarTituloSub }: { sub: SubNode; onDrill: (n: NatNode, mes: number | null) => void; mostrarTituloSub: boolean }) {
+function SubgrupoBloco({ sub, onDrill, mostrarTituloSub, grupoKey, collapsed, onToggle }: {
+  sub: SubNode; onDrill: (n: NatNode, mes: number | null) => void; mostrarTituloSub: boolean;
+  grupoKey: string; collapsed: Set<string>; onToggle: (id: string) => void;
+}) {
+  const chave = `sub:${grupoKey}|${sub.id ?? "sem"}`;
+  const fechado = mostrarTituloSub && collapsed.has(chave);
+  // Recolhido: o subgrupo vira UMA linha com a soma das naturezas por mês.
+  const mesesSub = Array.from({ length: 12 }, (_, i) => sub.naturezas.reduce((s, n) => s + (n.meses[i] ?? 0), 0));
+  const totalSub = sub.naturezas.reduce((s, n) => s + n.total, 0);
   return (
     <>
       {mostrarTituloSub && sub.naturezas.length > 0 && (
         <tr className="border-b border-gray-50">
-          <td className="pl-8 pr-4 py-1.5 text-[11px] font-medium text-muted-foreground sticky left-0 bg-card z-10">{sub.nome}</td>
-          <td colSpan={13} />
+          <td className="pl-8 pr-4 py-1.5 sticky left-0 bg-card z-10">
+            <button
+              type="button"
+              onClick={() => onToggle(chave)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              title={fechado ? "Expandir subgrupo" : "Recolher subgrupo"}
+            >
+              {fechado ? <Caret className="w-3 h-3 shrink-0" /> : <ChevronDown className="w-3 h-3 shrink-0" />}
+              {sub.nome}
+            </button>
+          </td>
+          {fechado ? (
+            <>
+              {mesesSub.map((v, i) => <td key={i} className={cn("px-3 py-1.5 text-right tabular-nums", valorCor(v))}>{fmt(v)}</td>)}
+              <td className={cn("px-4 py-1.5 text-right tabular-nums font-medium", valorCor(totalSub))}>{fmt(totalSub)}</td>
+            </>
+          ) : (
+            <td colSpan={13} />
+          )}
         </tr>
       )}
-      {sub.naturezas.map((n) => (
+      {!fechado && sub.naturezas.map((n) => (
         <tr key={n.id} className="border-b border-gray-50 hover:bg-info/10 group">
           <td className={cn("py-1.5 pr-4 sticky left-0 bg-card group-hover:bg-info/10 z-10", mostrarTituloSub ? "pl-12" : "pl-8")}>
             <button onClick={() => onDrill(n, null)} className="inline-flex items-center gap-1 text-muted-foreground hover:text-info text-left">
