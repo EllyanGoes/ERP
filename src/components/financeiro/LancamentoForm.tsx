@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Trash2, ArrowUpRight, ArrowDownLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,6 +66,11 @@ export default function LancamentoForm({
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
   const [centroCustoId, setCentroCustoId] = useState("");
   const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  // Valores detalhados (estilo Nibo): centro de custo, retenções, desconto, juros/multa.
+  const [detalhado, setDetalhado] = useState(false);
+  const [abaDetalhe, setAbaDetalhe] = useState<"centro" | "retencao" | "desconto" | "juros">("centro");
+  const [valorJuros, setValorJuros] = useState("");
+  const [valorMulta, setValorMulta] = useState("");
   // Modo conta: as listas de clientes/fornecedores trocam conforme o tipo.
   const [clientes, setClientes] = useState<Contato[]>([]);
   const [fornecedores, setFornecedores] = useState<Contato[]>([]);
@@ -79,6 +85,7 @@ export default function LancamentoForm({
       setContaBancariaId(contaFixa?.id ?? ""); setDescricao("");
       setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput());
       setLinhas([novaLinha()]); setCentroCustoId(""); setErro(null);
+      setDetalhado(false); setAbaDetalhe("centro"); setValorJuros(""); setValorMulta("");
     },
   });
 
@@ -108,6 +115,11 @@ export default function LancamentoForm({
   const exigeCentro = !isReceber && linhas.some((l) =>
     centroExigidoPelaNatureza(naturezas.find((n) => n.id === l.naturezaFinanceiraId)));
 
+  // Centro obrigatório → abre os valores detalhados automaticamente (o campo vive lá).
+  useEffect(() => {
+    if (exigeCentro) setDetalhado(true);
+  }, [exigeCentro]);
+
   // Carrega clientes, fornecedores e colaboradores p/ o seletor de beneficiário.
   useEffect(() => {
     const norm = (j: unknown): Contato[] => {
@@ -123,6 +135,10 @@ export default function LancamentoForm({
   const valorLinha = (s: string) => { const v = parseDecimal(s); return Number.isFinite(v) ? v : 0; };
   const total = linhas.reduce((s, l) => s + valorLinha(l.valor), 0);
   const pago = status === "PAGAMENTO";
+  // Juros/multa só num pagamento já realizado (no agendamento entram na baixa).
+  const jurosNum = pago ? valorLinha(valorJuros) : 0;
+  const multaNum = pago ? valorLinha(valorMulta) : 0;
+  const totalEfetivo = total + jurosNum + multaNum;
 
   function up(key: string, campo: keyof Linha, valor: string) {
     setLinhas((prev) => prev.map((l) => (l.key === key ? { ...l, [campo]: valor } : l)));
@@ -157,7 +173,9 @@ export default function LancamentoForm({
           dataPagamento: pago ? dataPagamento : null,
           dataVencimento,
           dataCompetencia,
-          centroCustoId: exigeCentro ? (centroCustoId || null) : null,
+          centroCustoId: centroCustoId || null,
+          valorJuros: jurosNum || 0,
+          valorMulta: multaNum || 0,
           linhas: linhasValidas.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseDecimal(l.valor) })),
         }),
       });
@@ -208,6 +226,7 @@ export default function LancamentoForm({
               placeholder="Selecione"
               noneLabel="Selecione"
               triggerClassName="h-10 rounded-lg"
+              menuMinWidth={360}
               options={contas.filter((c) => c.ativo !== false).map((c) => ({ value: c.id, label: c.nome }))}
             />
           )}
@@ -230,7 +249,7 @@ export default function LancamentoForm({
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Descrição <span className="text-muted-foreground">(opcional)</span></Label>
-          <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex.: Serviço prestado" />
+          <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex.: Serviço prestado" className="h-10 rounded-lg bg-card px-3" />
         </div>
       </div>
 
@@ -249,8 +268,11 @@ export default function LancamentoForm({
           <DatePicker value={dataCompetencia} onChange={(v) => setDataCompetencia(v)} className="w-full" />
         </div>
         <div className="text-right">
-          <Label className="text-xs text-muted-foreground block">Total</Label>
-          <span className={`text-lg font-bold tabular-nums ${total > 0 ? "text-foreground" : "text-muted-foreground/60"}`}>{formatBRL(total)}</span>
+          <Label className="text-xs text-muted-foreground block">{totalEfetivo !== total ? "Total pago" : "Total"}</Label>
+          <span className={`text-lg font-bold tabular-nums ${totalEfetivo > 0 ? "text-foreground" : "text-muted-foreground/60"}`}>{formatBRL(totalEfetivo)}</span>
+          {totalEfetivo !== total && (
+            <p className="text-[11px] text-muted-foreground">{formatBRL(total)} + juros/multa</p>
+          )}
         </div>
       </div>
 
@@ -272,8 +294,8 @@ export default function LancamentoForm({
               allowCreate
               onCreated={(n) => setNaturezas((prev) => [...prev, n])}
             />
-            <Input value={l.detalhamento} onChange={(e) => up(l.key, "detalhamento", e.target.value)} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
-            <Input value={l.valor} onChange={(e) => up(l.key, "valor", e.target.value)} placeholder="0,00" className="h-9 text-right font-mono min-w-0" />
+            <Input value={l.detalhamento} onChange={(e) => up(l.key, "detalhamento", e.target.value)} placeholder="Detalhamento (opcional)" className="h-9 min-w-0 bg-card" />
+            <Input value={l.valor} onChange={(e) => up(l.key, "valor", e.target.value)} placeholder="0,00" className="h-9 text-right font-mono min-w-0 bg-card" />
             <button type="button" onClick={() => setLinhas((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={linhas.length <= 1} className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30">
               <Trash2 className="w-4 h-4" />
             </button>
@@ -282,21 +304,129 @@ export default function LancamentoForm({
         <p className="text-[11px] text-muted-foreground">As naturezas classificam o título (rateio) — a soma é o valor total. Crie/edite naturezas em Financeiro → Naturezas Financeiras.</p>
       </div>
 
-      {/* Centro de custo — só saída sem material com destino de custo (despesa/CIF).
-          Natureza patrimonial (imposto/empréstimo) não exige e o campo não aparece. */}
-      {exigeCentro && (
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Centro de custo <span className="text-red-500">*</span></Label>
-          <ComboboxWithCreate
-            value={centroCustoId}
-            onChange={setCentroCustoId}
-            placeholder="Selecionar centro de custo..."
-            triggerClassName="h-10 rounded-lg"
-            options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
-          />
-          <p className="text-[11px] text-muted-foreground">Obrigatório para despesa/CIF — classificação gerencial do débito.</p>
-        </div>
-      )}
+      {/* Valores detalhados (estilo Nibo): centro de custo, retenção de impostos,
+          desconto e juros/multa em abas. Centro obrigatório (despesa/CIF) força o
+          bloco aberto; retenções e desconto aguardam as naturezas padrão. */}
+      <div className="rounded-xl border border-border bg-muted/40">
+        <button
+          type="button"
+          onClick={() => { if (!exigeCentro) setDetalhado((v) => !v); }}
+          className="w-full flex items-center gap-2.5 px-4 py-3 text-left"
+        >
+          <span
+            className={cn(
+              "relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors",
+              detalhado ? "bg-info" : "bg-muted-foreground/30",
+            )}
+          >
+            <span className={cn(
+              "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all",
+              detalhado ? "left-[18px]" : "left-0.5",
+            )} />
+          </span>
+          <span className="text-sm font-medium text-foreground">Valores detalhados</span>
+          {exigeCentro && <span className="text-[11px] text-muted-foreground">(centro de custo obrigatório p/ despesa/CIF)</span>}
+        </button>
+
+        {detalhado && (
+          <div className="px-4 pb-4 space-y-3">
+            {/* Abas */}
+            <div className="flex items-center gap-1 border-b border-border text-sm">
+              {([
+                ["centro", "Centro de custo"],
+                ["retencao", "Retenção de impostos"],
+                ["desconto", "Desconto"],
+                ["juros", "Juros e multa"],
+              ] as const).map(([id, rotulo]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setAbaDetalhe(id)}
+                  className={cn(
+                    "px-3 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap",
+                    abaDetalhe === id
+                      ? "border-info text-foreground font-medium"
+                      : "border-transparent text-info hover:text-info/80",
+                  )}
+                >
+                  {rotulo}
+                  {id === "centro" && exigeCentro && <span className="text-red-500 ml-0.5">*</span>}
+                </button>
+              ))}
+            </div>
+
+            {abaDetalhe === "centro" && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Centro de custo {exigeCentro && <span className="text-red-500">*</span>}
+                </Label>
+                <ComboboxWithCreate
+                  value={centroCustoId}
+                  onChange={setCentroCustoId}
+                  placeholder="Selecionar centro de custo..."
+                  noneLabel="(Nenhum)"
+                  triggerClassName="h-10 rounded-lg"
+                  menuMinWidth={360}
+                  options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {exigeCentro
+                    ? "Obrigatório para despesa/CIF — classificação gerencial do débito."
+                    : "Classificação gerencial do título (opcional)."}
+                </p>
+              </div>
+            )}
+
+            {abaDetalhe === "retencao" && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 gap-3">
+                  {["ISS", "IRPJ", "CSLL", "INSS", "PIS", "COFINS", "Outras"].map((imp) => (
+                    <div key={imp} className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{imp}</Label>
+                      <Input disabled placeholder="0,00" className="h-9 text-right font-mono bg-card" />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Em breve — as retenções dependem das naturezas padrão de impostos retidos (reorganização das naturezas em análise).
+                </p>
+              </div>
+            )}
+
+            {abaDetalhe === "desconto" && (
+              <div className="space-y-2">
+                <div className="w-48 space-y-1">
+                  <Label className="text-xs text-muted-foreground">Valor</Label>
+                  <Input disabled placeholder="0,00" className="h-9 text-right font-mono bg-card" />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Em breve — o desconto depende da natureza padrão de Descontos {isReceber ? "Concedidos" : "Obtidos"} (reorganização das naturezas em análise).
+                </p>
+              </div>
+            )}
+
+            {abaDetalhe === "juros" && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Juros</Label>
+                    <Input value={valorJuros} onChange={(e) => setValorJuros(e.target.value)} disabled={!pago} placeholder="0,00" className="h-9 text-right font-mono bg-card" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Multas</Label>
+                    <Input value={valorMulta} onChange={(e) => setValorMulta(e.target.value)} disabled={!pago} placeholder="0,00" className="h-9 text-right font-mono bg-card" />
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {pago
+                    ? `Somam ao valor ${isReceber ? "recebido" : "pago"} (o principal do título continua sendo a soma das naturezas).`
+                    : "Disponível só no já pago/recebido — num agendamento, os juros e a multa são informados na baixa do título."}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {erro && <p className="text-sm text-danger bg-danger/10 px-3 py-2 rounded-lg">{erro}</p>}
 

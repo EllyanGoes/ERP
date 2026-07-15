@@ -31,6 +31,12 @@ const schema = z.object({
   // Centro de custo gerencial do título (só saída sem material, quando o destino é
   // despesa/CIF). O razão segue pela natureza; centro é dimensão gerencial do título.
   centroCustoId: z.string().optional().nullable().transform((v) => v || null),
+  // Valores detalhados (só status PAGAMENTO): juros/multa pagos além do principal.
+  // Mesma convenção da baixa (src/lib/baixa-titulo.ts): valorPago = principal,
+  // juros/multa nas colunas próprias e o caixa sai pelo efetivo (principal+j+m) —
+  // o motor contábil deriva juros/multa pela fórmula por colunas (Σ caixa − pago).
+  valorJuros: z.coerce.number().min(0).optional().default(0),
+  valorMulta: z.coerce.number().min(0).optional().default(0),
   linhas: z.array(z.object({
     naturezaFinanceiraId: z.string().min(1, "Selecione a natureza financeira de cada linha"),
     detalhamento: z.string().optional().nullable(),
@@ -81,6 +87,11 @@ export async function POST(req: NextRequest) {
   // separados. valorOriginal = soma das linhas; a 1ª natureza é a "principal"
   // (fallback da contabilização); rateio só quando há 2+ naturezas.
   const total = Math.round(f.linhas.reduce((s, l) => s + l.valor, 0) * 100) / 100;
+  // Juros/multa só existem num pagamento já realizado; no agendamento nascem
+  // zerados e são informados depois, na baixa.
+  const valorJuros = pago ? Math.round((f.valorJuros ?? 0) * 100) / 100 : 0;
+  const valorMulta = pago ? Math.round((f.valorMulta ?? 0) * 100) / 100 : 0;
+  const totalCaixa = Math.round((total + valorJuros + valorMulta) * 100) / 100;
   const natPrincipal = f.linhas[0].naturezaFinanceiraId;
   const descricaoTitulo = f.descricao?.trim() || (f.linhas.length === 1 ? (f.linhas[0].detalhamento?.trim() || "Lançamento avulso") : "Lançamento avulso");
   const rateio = f.linhas.length > 1
@@ -95,6 +106,7 @@ export async function POST(req: NextRequest) {
           data: {
             empresaId, numero, clienteId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao: descricaoTitulo,
             valorOriginal: total, valorPago: pago ? total : 0,
+            valorJuros, valorMulta,
             dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
@@ -104,7 +116,7 @@ export async function POST(req: NextRequest) {
         });
         if (pago) {
           await tx.lancamentoFinanceiro.create({
-            data: { empresaId, tipo: "RECEITA", descricao: `Recebimento ${numero}`, valor: total, dataLancamento: pagamento!, contaReceberId: cr.id, contaBancariaId: contaBancariaId! },
+            data: { empresaId, tipo: "RECEITA", descricao: `Recebimento ${numero}`, valor: totalCaixa, dataLancamento: pagamento!, contaReceberId: cr.id, contaBancariaId: contaBancariaId! },
           });
         }
         return { id: cr.id, numero: cr.numero };
@@ -113,6 +125,7 @@ export async function POST(req: NextRequest) {
           data: {
             empresaId, numero, fornecedorId, beneficiarioTipo: benTipo, beneficiarioId: benId, descricao: descricaoTitulo,
             valorOriginal: total, valorPago: pago ? total : 0,
+            valorJuros, valorMulta,
             dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
@@ -123,7 +136,7 @@ export async function POST(req: NextRequest) {
         });
         if (pago) {
           await tx.lancamentoFinanceiro.create({
-            data: { empresaId, tipo: "DESPESA", descricao: `Pagamento ${numero}`, valor: total, dataLancamento: pagamento!, contaPagarId: cp.id, contaBancariaId: contaBancariaId! },
+            data: { empresaId, tipo: "DESPESA", descricao: `Pagamento ${numero}`, valor: totalCaixa, dataLancamento: pagamento!, contaPagarId: cp.id, contaBancariaId: contaBancariaId! },
           });
         }
         return { id: cp.id, numero: cp.numero };
