@@ -5,7 +5,8 @@ import { prismaSemEscopo } from "@/lib/prisma";
 // partir de compoeCusto (→PEP-MD), capitaliza (→Imobilizado) e centro fabril
 // (→CIF/Despesa). O TES só CARREGA o comportamento e sugere almoxarifado/centro —
 // NÃO decide destino nem carrega conta contábil. Referencia o almoxarifado por
-// NOME (resolvido por empresa) e o centro por CÓDIGO (CentroCusto é global).
+// NOME e o centro por CÓDIGO, ambos resolvidos NA EMPRESA (CentroCusto é
+// cadastrado por empresa; centro ausente na empresa → null).
 
 export type TesPadrao = {
   codigo: string;
@@ -18,7 +19,7 @@ export type TesPadrao = {
   geraFinanceiro: boolean;
   geraFiscal: boolean;
   cfop: string | null;
-  centroSugeridoCodigo: string | null; // resolvido p/ centroCustoSugeridoId (global)
+  centroSugeridoCodigo: string | null; // resolvido p/ centroCustoSugeridoId (na empresa)
 };
 
 export const TES_PADRAO: TesPadrao[] = [
@@ -43,13 +44,13 @@ export const TES_PADRAO: TesPadrao[] = [
 
 /**
  * Cria (idempotente) o conjunto padrão de TES numa empresa. Resolve o almoxarifado
- * por NOME (na empresa) e o centro sugerido por CÓDIGO (global); ausente → null.
+ * por NOME e o centro sugerido por CÓDIGO, ambos na empresa; ausente → null.
  * Só cria o que ainda não existe (por empresaId+codigo) — NUNCA sobrescreve edições.
  */
 export async function garantirTiposOperacaoPadrao(empresaId: string): Promise<{ criados: number; jaExistiam: number }> {
   const [locais, centros, existentes] = await Promise.all([
     prismaSemEscopo.localEstoque.findMany({ where: { empresaId }, select: { id: true, nome: true } }),
-    prismaSemEscopo.centroCusto.findMany({ select: { id: true, codigo: true } }),
+    prismaSemEscopo.centroCusto.findMany({ where: { empresaId }, select: { id: true, codigo: true } }),
     prismaSemEscopo.tipoOperacao.findMany({ where: { empresaId }, select: { codigo: true } }),
   ]);
   const localPorNome = new Map(locais.map((l) => [l.nome, l.id]));

@@ -89,7 +89,11 @@ model Notificacao {
 
 model CentroCusto {
   id                     String                   @id @default(cuid())
-  codigo                 String                   @unique
+  // Cadastro POR EMPRESA: cada empresa tem sua própria lista de centros de
+  // custo (o código repete entre empresas — unique composto empresaId+codigo).
+  // Default nominal (padrão da Fase 1): o proxy de sessão carimba a empresa ativa.
+  empresaId              String                   @default("emp_tramontin")
+  codigo                 String
   nome                   String
   grupoCentroCustoId     String?
   ativo                  Boolean                  @default(true)
@@ -98,6 +102,7 @@ model CentroCusto {
   fabril                 Boolean                  @default(false)
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
+  empresa                Empresa                  @relation(fields: [empresaId], references: [id])
   grupoCentroCusto       GrupoCentroCusto?        @relation(fields: [grupoCentroCustoId], references: [id])
   necessidadesCompra     NecessidadeCompra[]
   requisicoesCompra      RequisicaoMaterial[]
@@ -112,7 +117,9 @@ model CentroCusto {
   criadoPor              String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor          String? // autoria: última edição manual (proxy de sessão)
 
+  @@unique([empresaId, codigo])
   @@index([grupoCentroCustoId])
+  @@index([empresaId])
 }
 
 // TES (Tipo de Entrada e Saída): preset de COMPORTAMENTO operacional de uma
@@ -1445,6 +1452,7 @@ model Empresa {
   colaboradores             Colaborador[]           @relation("ColaboradorEmpresas")
   conferenciaCompras        ConferenciaCompra[]
   conferenciaCompraItems    ConferenciaCompraItem[]
+  centrosCusto              CentroCusto[]
   contaPagars               ContaPagar[]
   contaRecebers             ContaReceber[]
   folhasPagamento           FolhaPagamento[]
