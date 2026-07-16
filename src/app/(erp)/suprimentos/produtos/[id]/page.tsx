@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
   Loader2, Package, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown,
   BarChart2, ShieldCheck, RefreshCw, Clock, AlertOctagon, AlertTriangle,
   ClipboardList, FileText, PackageCheck, ExternalLink, Info as InfoIcon, Star, Activity, Ruler,
+  Factory, CalendarDays,
 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Autoria } from "@/components/shared/Autoria";
@@ -47,6 +49,8 @@ type Movimentacao = {
   loteId: string | null;
   localEstoqueId?: string | null;
   valorUnitario?: unknown;
+  ordemProducaoId?: string | null;
+  ordemProducao?: { numero: string } | null;
   lote?: { dataMovimentacao: string | null } | null;
   localEstoque?: { id: string; nome: string; filial: { id: string; razaoSocial: string } | null } | null;
   unidade?: { id: string; sigla: string; nome: string } | null;
@@ -263,6 +267,8 @@ export default function ProdutoDetailPage() {
   const [movSort, setMovSort] = useState<"desc" | "asc">("desc");
   // Visualização: tabela (padrão) ou gráfico diário (entradas × saídas por dia).
   const [movView, setMovView] = useState<"tabela" | "grafico">("tabela");
+  // Agrupar a tabela por DIA de negócio (cabeçalho com totais do dia).
+  const [movAgruparDia, setMovAgruparDia] = usePersistedState("produto:movs:agrupar-dia", false);
 
   // Inserir Saldo Inicial
   const [showSaldoDialog, setShowSaldoDialog] = useState(false);
@@ -1961,8 +1967,20 @@ export default function ProdutoDetailPage() {
                   </span>
                 </>
               )}
+              {/* Agrupar por dia (só na tabela) */}
+              <button
+                type="button"
+                onClick={() => setMovAgruparDia((v) => !v)}
+                className={cn(
+                  "ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-colors",
+                  movAgruparDia ? "bg-info/10 border-info/40 text-info font-medium" : "border-border text-muted-foreground hover:bg-muted",
+                )}
+                title="Agrupar as movimentações por dia, com totais do dia"
+              >
+                <CalendarDays className="w-4 h-4" /> Agrupar por dia
+              </button>
               {/* Toggle de visualização: tabela x gráfico diário */}
-              <div className="ml-auto inline-flex rounded-lg border border-border overflow-hidden text-sm">
+              <div className="inline-flex rounded-lg border border-border overflow-hidden text-sm">
                 <button
                   type="button"
                   onClick={() => setMovView("tabela")}
@@ -2059,7 +2077,8 @@ export default function ProdutoDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {movsOrdenadas.map((m) => (
+                    {(() => {
+                      const linha = (m: Movimentacao) => (
                       <tr key={m.id} className="hover:bg-info/10 group/row">
                         <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                           {dataNegocioMov(m)}
@@ -2095,7 +2114,17 @@ export default function ProdutoDetailPage() {
                           {m.valorUnitario != null && decimalToNumber(m.valorUnitario) > 0 ? formatBRL(decimalToNumber(m.valorUnitario)) : "—"}
                         </td>
                         <td className="px-4 py-3">
-                          {(m.pedidoVendaItemId || m.conferenciaItemId) ? (
+                          {m.ordemProducaoId ? (
+                            // Produção: a OP de origem, clicável — abre a ordem.
+                            <Link
+                              href={`/pcp/ordens/${m.ordemProducaoId}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-xs font-medium bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full hover:underline"
+                              title="Abrir a ordem de produção"
+                            >
+                              <Factory className="w-3 h-3" />{m.ordemProducao?.numero ?? "OP"}
+                            </Link>
+                          ) : (m.pedidoVendaItemId || m.conferenciaItemId) ? (
                             <span className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full">
                               <RefreshCw className="w-3 h-3" />Automática
                             </span>
@@ -2168,7 +2197,37 @@ export default function ProdutoDetailPage() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                      if (!movAgruparDia) return movsOrdenadas.map(linha);
+                      // Agrupa pelo DIA de negócio, na ordem de aparição (respeita
+                      // o sort asc/desc); cabeçalho do dia com totais.
+                      const grupos = new Map<string, Movimentacao[]>();
+                      for (const m of movsOrdenadas) {
+                        const dia = diaNegocioMov(m);
+                        if (!grupos.has(dia)) grupos.set(dia, []);
+                        grupos.get(dia)!.push(m);
+                      }
+                      const nf = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+                      return Array.from(grupos.entries()).map(([dia, itens]) => {
+                        const ent = itens.filter((x) => x.tipo === "ENTRADA").reduce((s, x) => s + decimalToNumber(x.quantidade), 0);
+                        const sai = itens.filter((x) => x.tipo === "SAIDA").reduce((s, x) => s + decimalToNumber(x.quantidade), 0);
+                        return (
+                          <Fragment key={dia}>
+                            <tr className="bg-muted/70">
+                              <td colSpan={12} className="px-4 py-2 text-xs font-semibold text-foreground">
+                                <span className="inline-flex items-center gap-2">
+                                  <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" /> {formatDate(dia)}
+                                  <span className="font-normal text-muted-foreground">· {itens.length} mov.</span>
+                                  {ent > 0 && <span className="text-success">+{nf(ent)}</span>}
+                                  {sai > 0 && <span className="text-danger">−{nf(sai)}</span>}
+                                </span>
+                              </td>
+                            </tr>
+                            {itens.map(linha)}
+                          </Fragment>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>

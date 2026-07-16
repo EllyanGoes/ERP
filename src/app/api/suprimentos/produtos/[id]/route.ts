@@ -36,6 +36,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
           documento: true, observacoes: true, createdAt: true,
           pedidoVendaItemId: true, conferenciaItemId: true, loteId: true,
           localEstoqueId: true, valorUnitario: true,
+          ordemProducaoId: true,
+          ordemProducao: { select: { numero: true } },
           lote: { select: { dataMovimentacao: true } },
           localEstoque: { select: { id: true, nome: true, filial: { select: { id: true, razaoSocial: true } } } },
           unidade: { select: { id: true, sigla: true, nome: true } },
