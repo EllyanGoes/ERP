@@ -8,6 +8,7 @@ import {
 type Mov = {
   tipo: string;
   quantidade: unknown;
+  data?: string | null; // data de negócio (ex.: dia planejado da OP)
   lote?: { dataMovimentacao: string | null } | null;
   createdAt: string;
 };
@@ -28,7 +29,7 @@ export default function MovimentacoesDiariasChart({ movs, saldoAtual }: { movs: 
   const dados = useMemo(() => {
     const map = new Map<string, { entrada: number; saida: number }>();
     for (const m of movs) {
-      const d = new Date(m.lote?.dataMovimentacao ?? m.createdAt);
+      const d = new Date(m.data ?? m.lote?.dataMovimentacao ?? m.createdAt);
       if (Number.isNaN(d.getTime())) continue;
       const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
       const cur = map.get(key) ?? { entrada: 0, saida: 0 };

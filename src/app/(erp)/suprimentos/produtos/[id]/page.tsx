@@ -49,6 +49,7 @@ type Movimentacao = {
   loteId: string | null;
   localEstoqueId?: string | null;
   valorUnitario?: unknown;
+  data?: string | null; // data de negócio (ex.: dia planejado da OP)
   ordemProducaoId?: string | null;
   ordemProducao?: { numero: string } | null;
   lote?: { dataMovimentacao: string | null } | null;
@@ -161,17 +162,20 @@ function formatDateTime(d: string) {
   });
 }
 
-// Data de NEGÓCIO da movimentação: date-only em UTC (lote.dataMovimentacao).
-// Exibida SEM converter fuso — senão 15/07 00:00Z vira "14/07, 21:00" em BRT.
+// Data de NEGÓCIO da movimentação: date-only em UTC — m.data (ex.: dia planejado
+// da OP na produção) ou lote.dataMovimentacao (movimentação manual). Exibida SEM
+// converter fuso — senão 15/07 00:00Z vira "14/07, 21:00" em BRT.
 // Sem data de negócio, cai no createdAt (timestamp real, aí sim com hora local).
-type ComDataNegocio = { lote?: { dataMovimentacao: string | null } | null; createdAt: string };
+type ComDataNegocio = { data?: string | null; lote?: { dataMovimentacao: string | null } | null; createdAt: string };
 function dataNegocioMov(m: ComDataNegocio): string {
-  return m.lote?.dataMovimentacao ? formatDate(m.lote.dataMovimentacao) : formatDateTime(m.createdAt);
+  const negocio = m.data ?? m.lote?.dataMovimentacao;
+  return negocio ? formatDate(negocio) : formatDateTime(m.createdAt);
 }
 // Mesmo dia como "YYYY-MM-DD" (para filtro de período e edição via DatePicker).
 function diaNegocioMov(m: ComDataNegocio): string {
-  return m.lote?.dataMovimentacao
-    ? String(m.lote.dataMovimentacao).slice(0, 10)
+  const negocio = m.data ?? m.lote?.dataMovimentacao;
+  return negocio
+    ? String(negocio).slice(0, 10)
     : new Date(m.createdAt).toLocaleDateString("sv-SE");
 }
 
@@ -809,8 +813,8 @@ export default function ProdutoDetailPage() {
 
     // Ordena cronologicamente (mais antigo → mais recente) para o saldo correr de cima a baixo
     const ordenadas = [...movs].sort((a, b) => {
-      const da = new Date(a.lote?.dataMovimentacao ?? a.createdAt).getTime();
-      const db = new Date(b.lote?.dataMovimentacao ?? b.createdAt).getTime();
+      const da = new Date(a.data ?? a.lote?.dataMovimentacao ?? a.createdAt).getTime();
+      const db = new Date(b.data ?? b.lote?.dataMovimentacao ?? b.createdAt).getTime();
       return da - db;
     });
 
@@ -1894,8 +1898,8 @@ export default function ProdutoDetailPage() {
           });
           // Ordena pela data exibida (lote.dataMovimentacao ?? createdAt), conforme o toggle.
           const movsOrdenadas = [...movsVisiveis].sort((a, b) => {
-            const da = new Date(a.lote?.dataMovimentacao ?? a.createdAt).getTime();
-            const db = new Date(b.lote?.dataMovimentacao ?? b.createdAt).getTime();
+            const da = new Date(a.data ?? a.lote?.dataMovimentacao ?? a.createdAt).getTime();
+            const db = new Date(b.data ?? b.lote?.dataMovimentacao ?? b.createdAt).getTime();
             return movSort === "desc" ? db - da : da - db;
           });
           const temFiltro = !!movPeriodo.from || !!movPeriodo.to || !!movLocalFilter || !!movTipoFilter;
@@ -2462,7 +2466,7 @@ export default function ProdutoDetailPage() {
           const corte = new Date();
           corte.setDate(corte.getDate() - periodoDias);
 
-          const movPeriodo  = item.movimentacoes.filter((m) => new Date(m.lote?.dataMovimentacao ?? m.createdAt) >= corte);
+          const movPeriodo  = item.movimentacoes.filter((m) => new Date(m.data ?? m.lote?.dataMovimentacao ?? m.createdAt) >= corte);
           const saidasPer   = movPeriodo.filter((m) => m.tipo === "SAIDA");
           const entradasPer = movPeriodo.filter((m) => m.tipo === "ENTRADA");
 

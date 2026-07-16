@@ -180,6 +180,17 @@ export async function postMovimento(
     const item = await tx.item.findUnique({ where: { id: args.itemId }, select: { descricao: true } });
     assertSaldoNaoNegativo([{ itemId: args.itemId, descricao: item?.descricao ?? null, saldoAtual: saldoAntes, saldoDepois }]);
   }
+  // Data de NEGÓCIO do movimento = dia PLANEJADO da OP (date-only, UTC midnight).
+  // Apontamentos retroativos (lançar o backlog de vários dias de uma vez) caem no
+  // dia certo do extrato, não no dia do registro (createdAt continua auditando).
+  const op = await tx.ordemProducao.findUnique({
+    where: { id: args.ordemProducaoId },
+    select: { dataPrevistaInicio: true, dataPrevista: true },
+  });
+  const prevista = op?.dataPrevistaInicio ?? op?.dataPrevista ?? null;
+  const dataNegocio = prevista
+    ? new Date(Date.UTC(prevista.getUTCFullYear(), prevista.getUTCMonth(), prevista.getUTCDate()))
+    : null;
   await tx.movimentacaoEstoque.create({
     data: {
       itemId: args.itemId,
@@ -193,6 +204,7 @@ export async function postMovimento(
       observacoes: args.observacoes,
       ordemProducaoId: args.ordemProducaoId,
       loteId: args.loteId ?? null,
+      data: dataNegocio,
       criadoPor: "Produção",
     },
   });

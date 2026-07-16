@@ -33,7 +33,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         select: {
           id: true, tipo: true, quantidade: true,
           saldoAntes: true, saldoDepois: true,
-          documento: true, observacoes: true, createdAt: true,
+          documento: true, observacoes: true, createdAt: true, data: true,
           pedidoVendaItemId: true, conferenciaItemId: true, loteId: true,
           localEstoqueId: true, valorUnitario: true,
           ordemProducaoId: true,
