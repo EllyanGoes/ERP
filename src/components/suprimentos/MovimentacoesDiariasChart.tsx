@@ -77,10 +77,11 @@ export default function MovimentacoesDiariasChart({ movs, saldoAtual, onDayClick
             data={dados}
             margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
             onClick={(e) => {
-              // Drill-down: o payload ativo carrega a chave do dia (YYYY-MM-DD).
-              // (cast: o tipo do handler do recharts não declara activePayload)
-              const st = e as { activePayload?: { payload?: { key?: string } }[] } | null;
-              const key = st?.activePayload?.[0]?.payload?.key;
+              // Drill-down (recharts v3): o handler entrega o ÍNDICE do tick ativo
+              // (activeIndex/activeTooltipIndex), não mais o payload — resolve a
+              // chave do dia (YYYY-MM-DD) pelo índice no array de dados.
+              const idx = Number(e?.activeIndex ?? e?.activeTooltipIndex);
+              const key = Number.isFinite(idx) ? dados[idx]?.key : undefined;
               if (key && onDayClick) onDayClick(key);
             }}
           >
