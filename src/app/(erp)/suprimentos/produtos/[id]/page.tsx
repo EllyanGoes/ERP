@@ -2976,11 +2976,24 @@ export default function ProdutoDetailPage() {
       {/* ── Drill-down do gráfico: documentos geradores do dia ──────────── */}
       {movDiaDetalhe && typeof window !== "undefined" && createPortal(
         (() => {
-          // Mesmos filtros ativos da aba (local/tipo) + o dia clicado.
-          const doDia = item.movimentacoes.filter((m) =>
-            diaNegocioMov(m) === movDiaDetalhe &&
-            (!movLocalFilter || (m.localEstoqueId ?? m.localEstoque?.id ?? "") === movLocalFilter) &&
-            (!movTipoFilter || m.tipo === movTipoFilter));
+          // Mesmos filtros ativos da aba (período/local/tipo) — o conjunto do gráfico.
+          const visiveis = item.movimentacoes.filter((m) => {
+            const dia = diaNegocioMov(m);
+            if (movPeriodo.from && dia < movPeriodo.from) return false;
+            if (movPeriodo.to && dia > movPeriodo.to) return false;
+            if (movLocalFilter && (m.localEstoqueId ?? m.localEstoque?.id ?? "") !== movLocalFilter) return false;
+            if (movTipoFilter && m.tipo !== movTipoFilter) return false;
+            return true;
+          });
+          const doDia = visiveis.filter((m) => diaNegocioMov(m) === movDiaDetalhe);
+          // Saldo TOTAL do material no fim do dia — mesmo cálculo da linha do
+          // gráfico: âncora no estoque atual, recuando pelo líquido dos dias
+          // seguintes ao dia clicado.
+          const netDe = (arr: Movimentacao[]) => arr.reduce((s, m) => {
+            const q = decimalToNumber(m.quantidade);
+            return s + (m.tipo === "ENTRADA" ? q : m.tipo === "SAIDA" ? -q : 0);
+          }, 0);
+          const saldoFimDia = estoqueTotalTodas - netDe(visiveis.filter((m) => diaNegocioMov(m) > movDiaDetalhe));
           const nf = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
           const somaQ = (arr: Movimentacao[]) => arr.reduce((s, m) => s + decimalToNumber(m.quantidade), 0);
           // Documento GERADOR da movimentação, clicável: OP, minuta, DE — ou manual.
@@ -3043,11 +3056,16 @@ export default function ProdutoDetailPage() {
                     <>
                       {secao("Entradas", entradas, "success")}
                       {secao("Saídas", saidas, "danger")}
-                      <p className="text-xs text-muted-foreground text-right">
-                        Saldo do dia: <span className={cn("font-semibold tabular-nums", somaQ(entradas) - somaQ(saidas) >= 0 ? "text-success" : "text-danger")}>
-                          {somaQ(entradas) - somaQ(saidas) >= 0 ? "+" : "−"}{nf(Math.abs(somaQ(entradas) - somaQ(saidas)))}
-                        </span>
-                      </p>
+                      <div className="flex items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2">
+                        <p className="text-xs text-muted-foreground">
+                          Movimento do dia: <span className={cn("font-semibold tabular-nums", somaQ(entradas) - somaQ(saidas) >= 0 ? "text-success" : "text-danger")}>
+                            {somaQ(entradas) - somaQ(saidas) >= 0 ? "+" : "−"}{nf(Math.abs(somaQ(entradas) - somaQ(saidas)))}
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Saldo do material no fim do dia: <span className="font-bold tabular-nums text-foreground">{nf(saldoFimDia)}</span>
+                        </p>
+                      </div>
                     </>
                   )}
                 </div>
