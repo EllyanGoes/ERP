@@ -83,12 +83,21 @@ export async function encargosConferencia(
     where: { id: conferenciaId },
     select: {
       frete: true, desconto: true,
-      itens: { select: { quantidadeRecebida: true, vlrUnitario: true } },
+      itens: { select: { quantidadeRecebida: true, vlrUnitario: true, vlrTotal: true, desconto: true } },
       pedido: { select: { frete: true, seguro: true, despesas: true, vrDesconto: true, itens: { select: { valorTotal: true } } } },
     },
   });
   if (!conf) return { base: 0, encargos: 0, desconto: 0, liquido: 0 };
-  const base = r2(conf.itens.reduce((s, it) => s + num(it.quantidadeRecebida) * num(it.vlrUnitario), 0));
+  // Base = Σ vlrTotal da LINHA conferida (valor EXATO confirmado no DE). Recompor
+  // qtd × vlrUnitario perdia dinheiro duas vezes: o unitário persistido é
+  // arredondado a 2 casas (preço real pode ter 3-4, ex.: 2,282 → 2,28; PC-0117
+  // nascia 58,40 em vez de 58,46) e o desconto % da linha era ignorado.
+  // Fallback (linha antiga sem vlrTotal): qtd × unitário × (1 − desconto%).
+  const base = r2(conf.itens.reduce((s, it) => {
+    if (it.vlrTotal != null) return s + num(it.vlrTotal);
+    const pct = num(it.desconto);
+    return s + num(it.quantidadeRecebida) * num(it.vlrUnitario) * (1 - (pct > 0 ? pct / 100 : 0));
+  }, 0));
   let encargos = r2(num(conf.frete));
   let desconto = r2(num(conf.desconto));
   if (encargos <= 0 && desconto <= 0 && conf.pedido) {
