@@ -157,6 +157,20 @@ function formatDateTime(d: string) {
   });
 }
 
+// Data de NEGÓCIO da movimentação: date-only em UTC (lote.dataMovimentacao).
+// Exibida SEM converter fuso — senão 15/07 00:00Z vira "14/07, 21:00" em BRT.
+// Sem data de negócio, cai no createdAt (timestamp real, aí sim com hora local).
+type ComDataNegocio = { lote?: { dataMovimentacao: string | null } | null; createdAt: string };
+function dataNegocioMov(m: ComDataNegocio): string {
+  return m.lote?.dataMovimentacao ? formatDate(m.lote.dataMovimentacao) : formatDateTime(m.createdAt);
+}
+// Mesmo dia como "YYYY-MM-DD" (para filtro de período e edição via DatePicker).
+function diaNegocioMov(m: ComDataNegocio): string {
+  return m.lote?.dataMovimentacao
+    ? String(m.lote.dataMovimentacao).slice(0, 10)
+    : new Date(m.createdAt).toLocaleDateString("sv-SE");
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function ProdutoDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -392,10 +406,8 @@ export default function ProdutoDetailPage() {
   }
 
   function openEditSaldoDialog(m: Movimentacao) {
-    const today = new Date().toISOString().slice(0, 10);
-    const movDate = m.lote?.dataMovimentacao
-      ? new Date(m.lote.dataMovimentacao).toISOString().slice(0, 10)
-      : new Date(m.createdAt).toISOString().slice(0, 10);
+    const today = new Date().toLocaleDateString("sv-SE");
+    const movDate = diaNegocioMov(m);
 
     // Determine what unit was used and reverse-convert quantity to that unit
     const selectedIU = m.unidade ? itemUnidades.find((iu) => iu.unidade.id === m.unidade!.id) : null;
@@ -446,7 +458,9 @@ export default function ProdutoDetailPage() {
             quantidade: qtdBase,
             unidadeId: saldoForm.unidadeEntradaId || null,
             valorUnitario: saldoForm.custo ? parseFloat(saldoForm.custo) : null,
-            dataMovimentacao: saldoForm.data ? new Date(saldoForm.data + "T00:00:00").toISOString() : null,
+            // Date-only cru: a API grava como UTC-midnight (mesmo padrão da
+            // tela de inserção) — com "T00:00:00" local virava 03:00Z.
+            dataMovimentacao: saldoForm.data || null,
           }),
         });
         if (!res.ok) { setSaldoError((await res.json()).error || "Erro ao salvar"); return; }
@@ -459,7 +473,9 @@ export default function ProdutoDetailPage() {
             tipo: "ENTRADA",
             documento: "SALDO-INICIAL",
             observacoes: "Saldo inicial inserido manualmente",
-            dataMovimentacao: saldoForm.data ? new Date(saldoForm.data + "T00:00:00").toISOString() : null,
+            // Date-only cru: a API grava como UTC-midnight (mesmo padrão da
+            // tela de inserção) — com "T00:00:00" local virava 03:00Z.
+            dataMovimentacao: saldoForm.data || null,
             itens: [{
               itemId: id,
               localEstoqueId: saldoForm.localEstoqueId,
@@ -661,8 +677,8 @@ export default function ProdutoDetailPage() {
     // Pre-select the principal unit (may already be loaded)
     const principal = itemUnidades.find((iu) => iu.isPrincipal);
     const defaultUnidadeId = principal?.unidade.id ?? item?.unidade?.id ?? "";
-    const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    setMovForm({ tipo: "ENTRADA", localEstoqueId: "", localDestinoId: "", unidadeId: defaultUnidadeId, quantidade: "", valorUnitario: "", documento: "", observacoes: "", dataMovimentacao: nowLocal });
+    const hoje = new Date().toLocaleDateString("sv-SE"); // date-only, dia local
+    setMovForm({ tipo: "ENTRADA", localEstoqueId: "", localDestinoId: "", unidadeId: defaultUnidadeId, quantidade: "", valorUnitario: "", documento: "", observacoes: "", dataMovimentacao: hoje });
     setMovError("");
     setShowMovDialog(true);
     if (locaisEstoque.length === 0) {
@@ -838,7 +854,7 @@ export default function ProdutoDetailPage() {
       const unLin  = m.unidade?.sigla || un;
       const origem = (m.pedidoVendaItemId || m.conferenciaItemId) ? "Automática" : "Manual";
       return [
-        formatDateTime(m.lote?.dataMovimentacao ?? m.createdAt),
+        dataNegocioMov(m),
         m.tipo,
         `${sign}${nf(decimalToNumber(m.quantidade))}`,
         unLin,
@@ -1859,13 +1875,13 @@ export default function ProdutoDetailPage() {
 
         {/* ── MOVIMENTAÇÕES ───────────────────────────────────────────────── */}
         {tab === "movimentacoes" && (() => {
-          // ── Period filter ──────────────────────────────────────────────
-          const inicio = movPeriodo.from ? new Date(movPeriodo.from + "T00:00:00") : null;
-          const fim    = movPeriodo.to   ? new Date(movPeriodo.to   + "T23:59:59") : null;
+          // ── Period filter ── compara o DIA de negócio como string YYYY-MM-DD
+          // (a data de negócio é UTC-midnight; comparar com limites locais
+          // excluiria o próprio dia do filtro).
           const movsVisiveis = item.movimentacoes.filter((m) => {
-            const d = new Date(m.lote?.dataMovimentacao ?? m.createdAt);
-            if (inicio && d < inicio) return false;
-            if (fim    && d > fim)    return false;
+            const dia = diaNegocioMov(m);
+            if (movPeriodo.from && dia < movPeriodo.from) return false;
+            if (movPeriodo.to   && dia > movPeriodo.to)   return false;
             if (movLocalFilter && (m.localEstoqueId ?? m.localEstoque?.id ?? "") !== movLocalFilter) return false;
             if (movTipoFilter && m.tipo !== movTipoFilter) return false;
             return true;
@@ -2046,7 +2062,7 @@ export default function ProdutoDetailPage() {
                     {movsOrdenadas.map((m) => (
                       <tr key={m.id} className="hover:bg-info/10 group/row">
                         <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
-                          {formatDateTime(m.lote?.dataMovimentacao ?? m.createdAt)}
+                          {dataNegocioMov(m)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={cn(
@@ -2121,10 +2137,6 @@ export default function ProdutoDetailPage() {
                                     const fator = selIU && !selIU.isPrincipal && selIU.fatorConversao ? Number(selIU.fatorConversao) : 1;
                                     const qtdBase = parseFloat(String(m.quantidade));
                                     const qtdDisplay = fator !== 1 ? (qtdBase / fator) : qtdBase;
-                                    const movDate = m.lote?.dataMovimentacao
-                                      ? new Date(m.lote.dataMovimentacao)
-                                      : new Date(m.createdAt);
-                                    const localDT = new Date(movDate.getTime() - movDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
                                     setEditMov({
                                       id: m.id,
                                       tipo: m.tipo,
@@ -2134,7 +2146,9 @@ export default function ProdutoDetailPage() {
                                       valorUnitario: m.valorUnitario ? String(parseFloat(String(m.valorUnitario))) : "",
                                       documento: m.documento ?? "",
                                       observacoes: m.observacoes ?? "",
-                                      dataMovimentacao: localDT,
+                                      // Date-only (YYYY-MM-DD), igual à tela de inserção —
+                                      // a data de negócio não tem hora.
+                                      dataMovimentacao: diaNegocioMov(m),
                                     });
                                   })()
                                 }
@@ -3017,13 +3031,12 @@ export default function ProdutoDetailPage() {
                 </div>
               )}
 
-              {/* Data e Hora */}
+              {/* Data da movimentação — date-only, igual à tela de inserção */}
               <div className="space-y-1.5">
-                <Label>Data e Hora</Label>
-                <Input
-                  type="datetime-local"
+                <Label>Data da Movimentação</Label>
+                <DatePicker
                   value={editMov.dataMovimentacao}
-                  onChange={(e) => setEditMov((p) => p ? { ...p, dataMovimentacao: e.target.value } : p)}
+                  onChange={(v) => setEditMov((p) => p ? { ...p, dataMovimentacao: v } : p)}
                 />
               </div>
 
@@ -3749,13 +3762,12 @@ export default function ProdutoDetailPage() {
                 </div>
               )}
 
-              {/* Data e Hora */}
+              {/* Data da movimentação — date-only, igual à tela de inserção */}
               <div className="space-y-1.5">
-                <Label>Data e Hora</Label>
-                <Input
-                  type="datetime-local"
+                <Label>Data da Movimentação</Label>
+                <DatePicker
                   value={movForm.dataMovimentacao}
-                  onChange={(e) => setMovForm((p) => ({ ...p, dataMovimentacao: e.target.value }))}
+                  onChange={(v) => setMovForm((p) => ({ ...p, dataMovimentacao: v }))}
                 />
               </div>
 

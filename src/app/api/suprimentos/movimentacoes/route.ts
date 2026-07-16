@@ -349,7 +349,7 @@ export async function GET(req: NextRequest) {
         localEstoque: { select: { id: true, nome: true } },
         clienteDono:  { select: { id: true, razaoSocial: true } },
         unidade:      { select: { id: true, sigla: true, nome: true } },
-        lote:         { select: { id: true, numero: true, tipo: true, documento: true, observacoes: true, createdAt: true } },
+        lote:         { select: { id: true, numero: true, tipo: true, documento: true, observacoes: true, createdAt: true, dataMovimentacao: true } },
         // expose origin fields so the UI can tell manual vs automatic
         pedidoVendaItem:  { select: { id: true } },
         conferenciaItem:  { select: { id: true } },
@@ -383,7 +383,9 @@ export async function GET(req: NextRequest) {
             documento:   mov.lote.documento,
             observacoes: mov.lote.observacoes,
             createdAt:   mov.lote.createdAt.toISOString(),
-            data:        (mov.data ?? mov.lote.createdAt).toISOString(),
+            // Data de negócio do lote manual (dataMovimentacao) tem prioridade —
+            // sem ela a lista mostrava o dia do REGISTRO, não o digitado.
+            data:        (mov.data ?? mov.lote.dataMovimentacao ?? mov.lote.createdAt).toISOString(),
             itens:       [],
           });
         }
