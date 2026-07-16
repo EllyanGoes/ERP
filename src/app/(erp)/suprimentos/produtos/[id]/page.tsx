@@ -39,6 +39,7 @@ type Movimentacao = {
   saldoDepois: unknown;
   documento: string | null;
   observacoes: string | null;
+  minutaId?: string | null;
   minutaFisica?: string | null;
   minutaDataEmissao?: string | null;
   minutaDataEntrega?: string | null;
@@ -273,6 +274,8 @@ export default function ProdutoDetailPage() {
   const [movView, setMovView] = useState<"tabela" | "grafico">("tabela");
   // Agrupar a tabela por DIA de negócio (cabeçalho com totais do dia).
   const [movAgruparDia, setMovAgruparDia] = usePersistedState("produto:movs:agrupar-dia", false);
+  // Drill-down do gráfico: dia clicado (YYYY-MM-DD) → popup com os documentos do dia.
+  const [movDiaDetalhe, setMovDiaDetalhe] = useState<string | null>(null);
 
   // Inserir Saldo Inicial
   const [showSaldoDialog, setShowSaldoDialog] = useState(false);
@@ -2050,7 +2053,7 @@ export default function ProdutoDetailPage() {
                 </p>
               </div>
             ) : movView === "grafico" ? (
-              <MovimentacoesDiariasChart movs={movsOrdenadas} saldoAtual={estoqueTotalTodas} />
+              <MovimentacoesDiariasChart movs={movsOrdenadas} saldoAtual={estoqueTotalTodas} onDayClick={setMovDiaDetalhe} />
             ) : (
               <div className="rounded-xl border border-border overflow-hidden">
                 <table className="w-full text-sm">
@@ -2969,6 +2972,91 @@ export default function ProdutoDetailPage() {
         })()}
 
       </div>
+
+      {/* ── Drill-down do gráfico: documentos geradores do dia ──────────── */}
+      {movDiaDetalhe && typeof window !== "undefined" && createPortal(
+        (() => {
+          // Mesmos filtros ativos da aba (local/tipo) + o dia clicado.
+          const doDia = item.movimentacoes.filter((m) =>
+            diaNegocioMov(m) === movDiaDetalhe &&
+            (!movLocalFilter || (m.localEstoqueId ?? m.localEstoque?.id ?? "") === movLocalFilter) &&
+            (!movTipoFilter || m.tipo === movTipoFilter));
+          const nf = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+          const somaQ = (arr: Movimentacao[]) => arr.reduce((s, m) => s + decimalToNumber(m.quantidade), 0);
+          // Documento GERADOR da movimentação, clicável: OP, minuta, DE — ou manual.
+          const docGerador = (m: Movimentacao) => m.ordemProducaoId ? (
+            <Link href={`/pcp/ordens/${m.ordemProducaoId}`} className="inline-flex items-center gap-1 text-xs font-medium bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full hover:underline" title="Abrir a ordem de produção">
+              <Factory className="w-3 h-3" />{m.ordemProducao?.numero ?? "OP"}
+            </Link>
+          ) : m.minutaId ? (
+            <Link href={`/comercial/minutas/${m.minutaId}`} className="inline-flex items-center gap-1 text-xs font-medium bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full hover:underline" title="Abrir a minuta">
+              <FileText className="w-3 h-3" />{m.documento}{m.minutaFisica ? ` · ${m.minutaFisica}` : ""}
+            </Link>
+          ) : m.conferenciaId ? (
+            <Link href={`/suprimentos/conferencias/${m.conferenciaId}`} className="inline-flex items-center gap-1 text-xs font-medium bg-info/10 text-info px-2 py-0.5 rounded-full hover:underline" title="Abrir o documento de entrada">
+              <PackageCheck className="w-3 h-3" />{m.documento ?? "DE"}
+            </Link>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{m.documento ?? "Manual"}</span>
+          );
+          const secao = (titulo: string, arr: Movimentacao[], tone: "success" | "danger") => arr.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between px-1 mb-1.5">
+                <p className={cn("text-xs font-semibold uppercase tracking-wide", tone === "success" ? "text-success" : "text-danger")}>
+                  {titulo} ({arr.length})
+                </p>
+                <span className={cn("text-xs font-semibold tabular-nums", tone === "success" ? "text-success" : "text-danger")}>
+                  {tone === "success" ? "+" : "−"}{nf(somaQ(arr))}
+                </span>
+              </div>
+              <div className="rounded-lg border border-border divide-y divide-border">
+                {arr.map((m) => (
+                  <div key={m.id} className="flex items-center gap-3 px-3 py-2">
+                    {docGerador(m)}
+                    <span className="text-xs text-muted-foreground truncate flex-1" title={m.observacoes ?? undefined}>{m.observacoes || "—"}</span>
+                    <span className={cn("text-sm font-semibold tabular-nums shrink-0", tone === "success" ? "text-success" : "text-danger")}>
+                      {tone === "success" ? "+" : "−"}{nf(decimalToNumber(m.quantidade))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+          const entradas = doDia.filter((m) => m.tipo === "ENTRADA");
+          const saidas = doDia.filter((m) => m.tipo === "SAIDA");
+          return (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => setMovDiaDetalhe(null)}>
+              <div className="bg-card rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-6 pb-4">
+                  <div>
+                    <h3 className="font-semibold text-foreground">Movimentações de {formatDate(movDiaDetalhe)}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5 font-mono">{item.codigo} — {item.descricao}</p>
+                  </div>
+                  <button type="button" onClick={() => setMovDiaDetalhe(null)} className="text-muted-foreground hover:text-foreground">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="px-6 pb-6 space-y-4 overflow-y-auto">
+                  {doDia.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma movimentação neste dia (com os filtros atuais).</p>
+                  ) : (
+                    <>
+                      {secao("Entradas", entradas, "success")}
+                      {secao("Saídas", saidas, "danger")}
+                      <p className="text-xs text-muted-foreground text-right">
+                        Saldo do dia: <span className={cn("font-semibold tabular-nums", somaQ(entradas) - somaQ(saidas) >= 0 ? "text-success" : "text-danger")}>
+                          {somaQ(entradas) - somaQ(saidas) >= 0 ? "+" : "−"}{nf(Math.abs(somaQ(entradas) - somaQ(saidas)))}
+                        </span>
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })(),
+        document.body,
+      )}
 
       {/* ── Edit movimentação dialog ─────────────────────────────────────── */}
       {editMov && typeof window !== "undefined" && createPortal(

@@ -57,7 +57,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const minutas = numerosMinuta.length
     ? await prisma.minuta.findMany({
         where: { numero: { in: numerosMinuta } },
-        select: { numero: true, numeroFisico: true, dataEmissao: true, dataEntrega: true },
+        select: { id: true, numero: true, numeroFisico: true, dataEmissao: true, dataEntrega: true },
       })
     : [];
   const minutaPorNumero = new Map(minutas.map((mn) => [mn.numero, mn]));
@@ -79,6 +79,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     const mn = m.documento ? minutaPorNumero.get(m.documento) : undefined;
     return {
       ...m,
+      minutaId: mn?.id ?? null,
       minutaFisica: mn?.numeroFisico ?? null,
       minutaDataEmissao: mn?.dataEmissao ?? null,
       minutaDataEntrega: mn?.dataEntrega ?? null,

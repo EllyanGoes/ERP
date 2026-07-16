@@ -24,8 +24,9 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000;
 // produto (`saldoAtual`): anda só com movimentação e termina no estoque de hoje
 // — nunca cai sem saída. (Não usa saldoDepois, que é por local e "pula" quando a
 // última mov do dia é de outro local.) Recebe a lista já filtrada (respeita
-// período/local/tipo escolhidos).
-export default function MovimentacoesDiariasChart({ movs, saldoAtual }: { movs: Mov[]; saldoAtual?: number | null }) {
+// período/local/tipo escolhidos). `onDayClick` habilita o drill-down: clique no
+// dia devolve a chave YYYY-MM-DD para o chamador abrir o detalhe.
+export default function MovimentacoesDiariasChart({ movs, saldoAtual, onDayClick }: { movs: Mov[]; saldoAtual?: number | null; onDayClick?: (dia: string) => void }) {
   const dados = useMemo(() => {
     const map = new Map<string, { entrada: number; saida: number }>();
     for (const m of movs) {
@@ -49,6 +50,7 @@ export default function MovimentacoesDiariasChart({ movs, saldoAtual }: { movs: 
     return dias.map((d) => {
       acc += d.entrada - d.saida;
       return {
+        key: d.key,
         label: new Date(d.key + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
         entrada: d.entrada,
         saida: d.saida,
@@ -67,10 +69,21 @@ export default function MovimentacoesDiariasChart({ movs, saldoAtual }: { movs: 
     <div className="rounded-xl border border-border bg-card p-4">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">
         Movimentação diária — entradas × saídas + saldo ({dados.length} dia{dados.length !== 1 ? "s" : ""})
+        {onDayClick && <span className="ml-2 normal-case font-normal text-muted-foreground/70">· clique num dia para ver os documentos</span>}
       </p>
-      <div className="h-80 w-full">
+      <div className={onDayClick ? "h-80 w-full [&_.recharts-wrapper]:cursor-pointer" : "h-80 w-full"}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={dados} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+          <ComposedChart
+            data={dados}
+            margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+            onClick={(e) => {
+              // Drill-down: o payload ativo carrega a chave do dia (YYYY-MM-DD).
+              // (cast: o tipo do handler do recharts não declara activePayload)
+              const st = e as { activePayload?: { payload?: { key?: string } }[] } | null;
+              const key = st?.activePayload?.[0]?.payload?.key;
+              if (key && onDayClick) onDayClick(key);
+            }}
+          >
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-border" />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={16} />
             <YAxis yAxisId="qtd" tick={{ fontSize: 11 }} width={52} />
