@@ -500,23 +500,30 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       </div>
         <NovaContaButton tipo="receber" />
       </div>
-      {/* Linha 2: totais em blocos compactos coloridos. */}
-      {resumo && (
+      {/* Linha 2: totais em blocos compactos coloridos — clicáveis, cada um
+          aplica o filtro de status correspondente (toggle: reclicar volta p/ Todas). */}
+      {resumo && (() => {
+        const toggle = (s: StatusFiltro) => setStatusFiltro((cur) => (cur === s ? "TODOS" : s));
+        return (
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-lg bg-info/10 px-3 py-1.5">
+          <button type="button" onClick={() => toggle("ABERTA")} title="Filtrar por Em aberto"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-info/10 px-3 py-1.5 transition-shadow hover:bg-info/20 cursor-pointer", statusFiltro === "ABERTA" && "ring-2 ring-info")}>
             <span className="text-xs font-medium text-info">Em aberto</span>
             <span className="text-sm font-bold text-info tabular-nums">{formatBRL(resumo.emAberto)}</span>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5">
+          </button>
+          <button type="button" onClick={() => toggle("VENCIDA")} title="Filtrar por Vencidas"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", statusFiltro === "VENCIDA" && "ring-2 ring-danger")}>
             <span className="text-xs font-medium text-danger">Vencido</span>
             <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(resumo.vencido)}</span>
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5">
+          </button>
+          <button type="button" onClick={() => toggle("PAGA")} title="Filtrar por Recebidas"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 transition-shadow hover:bg-success/20 cursor-pointer", statusFiltro === "PAGA" && "ring-2 ring-success")}>
             <span className="text-xs font-medium text-success">Recebido no mês</span>
             <span className="text-sm font-bold text-success tabular-nums">{formatBRL(resumo.recebidoMes)}</span>
-          </div>
+          </button>
         </div>
-      )}
+        );
+      })()}
       </div>
       {agrupamento !== "none" ? (
         <div className="rounded-xl border border-border overflow-hidden bg-card shadow-md">
