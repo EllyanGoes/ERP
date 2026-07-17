@@ -24,6 +24,7 @@ import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, Exte
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
+import CheckboxFilter from "@/components/shared/CheckboxFilter";
 import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
 import { cn } from "@/lib/utils";
 
@@ -140,13 +141,24 @@ function casaStatus(c: ContaRow, f: StatusFiltro): boolean {
   }
 }
 
-const FILTROS_PAGAR: { key: StatusFiltro; label: string }[] = [
-  { key: "TODOS", label: "Todas" },
+// Status reais selecionáveis no filtro de múltipla escolha (sem "TODOS": todos
+// marcados = todas). "VENCIDA" é derivado e SOBREPÕE ABERTA/PARCIAL — é uma
+// lente extra (marcar só ela mostra o subconjunto vencido).
+const STATUS_PAGAR: { key: Exclude<StatusFiltro, "TODOS">; label: string }[] = [
   { key: "ABERTA", label: "Em aberto" },
   { key: "PARCIAL", label: "Parciais" },
   { key: "VENCIDA", label: "Vencidas" },
   { key: "PAGA", label: "Pagas" },
 ];
+const STATUS_PAGAR_KEYS = STATUS_PAGAR.map((s) => s.key) as string[];
+
+// Conjuntos de status por bloco de total (clique nos totais aplica um preset).
+const SET_ABERTO = ["ABERTA", "PARCIAL"];
+const SET_VENCIDO = ["VENCIDA"];
+const SET_PAGO = ["PAGA"];
+function mesmoSet(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((x) => b.includes(x));
+}
 
 type Resumo = { emAberto: number; vencido: number; pagoMes: number };
 
@@ -155,7 +167,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
   // Filtros persistidos por usuário (padrão do sistema — sobrevivem a trocar de aba).
-  const [statusFiltro, setStatusFiltro] = usePersistedState<StatusFiltro>("financeiro:contas-pagar:status", "ABERTA");
+  // Status é múltipla escolha (chave nova para não colidir com o valor antigo
+  // de seleção única). Padrão: em aberto (ABERTA + PARCIAL).
+  const [statusSel, setStatusSel] = usePersistedState<string[]>("financeiro:contas-pagar:status-multi", SET_ABERTO);
   const [contaFiltro, setContaFiltro] = usePersistedState<string>("financeiro:contas-pagar:conta", "");
   // Busca na barra de filtros (vale para a tabela E para a visão agrupada).
   const [busca, setBusca] = useState("");
@@ -170,7 +184,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const contasFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return contas.filter((c) => {
-      if (statusFiltro !== "TODOS" && !casaStatus(c, statusFiltro)) return false;
+      // Status: OR sobre os marcados (nenhum marcado → nada, igual às listagens).
+      if (!statusSel.some((s) => casaStatus(c, s as StatusFiltro))) return false;
       if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
       if (!dentroDoPeriodo(c, periodo)) return false;
       if (!q) return true;
@@ -178,7 +193,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, statusFiltro, contaFiltro, busca, periodo]);
+  }, [contas, statusSel, contaFiltro, busca, periodo]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [editar, setEditar] = useState<ContaRow | null>(null);
@@ -458,15 +473,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             </button>
           )}
         </div>
-        {/* Status: dropdown único no estilo das listagens. */}
-        <FilterSelect
-          value={statusFiltro}
-          onChange={(v) => setStatusFiltro(v as StatusFiltro)}
-          active={statusFiltro !== "ABERTA"}
-          options={FILTROS_PAGAR.map((f) => ({
+        {/* Status: múltipla escolha (checkboxes) no estilo das listagens. */}
+        <CheckboxFilter
+          values={statusSel}
+          onChange={setStatusSel}
+          noun="status"
+          options={STATUS_PAGAR.map((f) => ({
             value: f.key,
             label: f.label,
-            hint: String(f.key === "TODOS" ? contas.length : contas.filter((c) => casaStatus(c, f.key)).length),
+            hint: String(contas.filter((c) => casaStatus(c, f.key)).length),
           }))}
         />
         {/* Contagem de títulos filtrados. */}
@@ -504,23 +519,23 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         <NovaContaButton tipo="pagar" />
       </div>
       {/* Linha 2: totais em blocos compactos coloridos — clicáveis, cada um
-          aplica o filtro de status correspondente (toggle: reclicar volta p/ Todas). */}
+          aplica o preset de status (toggle: reclicar marca todos os status). */}
       {resumo && (() => {
-        const toggle = (s: StatusFiltro) => setStatusFiltro((cur) => (cur === s ? "TODOS" : s));
+        const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_PAGAR_KEYS : set));
         return (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => toggle("ABERTA")} title="Filtrar por Em aberto"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", statusFiltro === "ABERTA" && "ring-2 ring-warning")}>
+          <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_ABERTO) && "ring-2 ring-warning")}>
             <span className="text-xs font-medium text-warning">A Pagar</span>
             <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(resumo.emAberto)}</span>
           </button>
-          <button type="button" onClick={() => toggle("VENCIDA")} title="Filtrar por Vencidas"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", statusFiltro === "VENCIDA" && "ring-2 ring-danger")}>
+          <button type="button" onClick={() => toggle(SET_VENCIDO)} title="Filtrar por Vencidas"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
             <span className="text-xs font-medium text-danger">Vencido</span>
             <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(resumo.vencido)}</span>
           </button>
-          <button type="button" onClick={() => toggle("PAGA")} title="Filtrar por Pagas"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 transition-shadow hover:bg-muted/70 cursor-pointer", statusFiltro === "PAGA" && "ring-2 ring-foreground/40")}>
+          <button type="button" onClick={() => toggle(SET_PAGO)} title="Filtrar por Pagas"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 transition-shadow hover:bg-muted/70 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-foreground/40")}>
             <span className="text-xs font-medium text-muted-foreground">Pago no mês</span>
             <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(resumo.pagoMes)}</span>
           </button>
