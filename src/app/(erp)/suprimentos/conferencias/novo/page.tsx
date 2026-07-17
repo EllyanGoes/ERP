@@ -281,7 +281,7 @@ export default function NovoDocumentoEntradaPage() {
   const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
 
   // Aba ativa do rodapé (padrão Protheus: Duplicatas em destaque)
-  const [aba, setAba] = useState<"duplicatas" | "totais" | "estoque" | "outros">("duplicatas");
+  const [aba, setAba] = useState<"duplicatas" | "totais" | "outros">("duplicatas");
 
   // Items
   const [itens, setItens]                       = useState<ItemRow[]>([emptyRow()]);
@@ -652,65 +652,6 @@ export default function NovoDocumentoEntradaPage() {
   const despesasNum = parseFloat(despesas) || 0;
   const descontoNum = parseFloat(desconto) || 0;
   const vlrBruto    = vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum;
-
-  // Conteúdo da aba "Local de Estoque" (movido do topo para o rodapé em abas).
-  const localEstoquePanel = (
-    <div className="flex flex-wrap items-start gap-6">
-      {/* Toggle */}
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">Modo de entrada</Label>
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
-          <button
-            type="button"
-            onClick={() => handleModoChange("GLOBAL")}
-            className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-              modoLocalEstoque === "GLOBAL"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Global
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModoChange("POR_ITEM")}
-            className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-              modoLocalEstoque === "POR_ITEM"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Por Item
-          </button>
-        </div>
-      </div>
-
-      {/* Global selector */}
-      {modoLocalEstoque === "GLOBAL" && (
-        <div className="space-y-1.5 flex-1 max-w-xs">
-          <Label className="text-xs text-muted-foreground">
-            Local de Estoque <span className="text-red-500">*</span>
-          </Label>
-          <ComboboxWithCreate
-            value={localEstoqueGlobalId}
-            onChange={handleGlobalLocalChange}
-            placeholder="Selecionar local..."
-            noneLabel="Selecionar local"
-            triggerClassName={cn("h-9 rounded-md", !localEstoqueGlobalId && "border-red-300")}
-            options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
-          />
-        </div>
-      )}
-
-      {modoLocalEstoque === "POR_ITEM" && (
-        <p className="text-xs text-muted-foreground self-end pb-1.5">
-          O local de estoque será definido individualmente para cada item na tabela abaixo.
-        </p>
-      )}
-    </div>
-  );
 
   async function handleSubmit() {
     setError("");
@@ -1149,8 +1090,53 @@ export default function NovoDocumentoEntradaPage() {
 
         {/* ── Items Table ──────────────────────────────────────────────────── */}
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardHeader className="pb-2 flex flex-row items-center gap-4 flex-wrap">
             <CardTitle className="text-base">Itens</CardTitle>
+
+            {/* Local de Estoque — modo de entrada, na linha do título */}
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Local de Estoque:</span>
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+                <button
+                  type="button"
+                  onClick={() => handleModoChange("GLOBAL")}
+                  className={cn(
+                    "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                    modoLocalEstoque === "GLOBAL"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Global
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModoChange("POR_ITEM")}
+                  className={cn(
+                    "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                    modoLocalEstoque === "POR_ITEM"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Por Item
+                </button>
+              </div>
+              {modoLocalEstoque === "GLOBAL" && (
+                <div className="w-56">
+                  <ComboboxWithCreate
+                    value={localEstoqueGlobalId}
+                    onChange={handleGlobalLocalChange}
+                    placeholder="Selecionar local..."
+                    noneLabel="Selecionar local"
+                    menuMinWidth={280}
+                    triggerClassName={cn("h-8 rounded-md text-xs", !localEstoqueGlobalId && "border-red-300")}
+                    options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                  />
+                </div>
+              )}
+            </div>
+
             <Button type="button" size="sm" variant="outline" onClick={addRow}>
               <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Item
             </Button>
@@ -1408,7 +1394,6 @@ export default function NovoDocumentoEntradaPage() {
             {([
               { id: "duplicatas", label: "Duplicatas" },
               { id: "totais", label: "Totais" },
-              { id: "estoque", label: "Local de Estoque" },
               { id: "outros", label: "Outros" },
             ] as const).map((t) => (
               <button
@@ -1478,9 +1463,6 @@ export default function NovoDocumentoEntradaPage() {
                 </div>
               </div>
             )}
-
-            {/* ── Aba Local de Estoque ────────────────────────────────────── */}
-            {aba === "estoque" && localEstoquePanel}
 
             {/* ── Aba Outros ──────────────────────────────────────────────── */}
             {aba === "outros" && (

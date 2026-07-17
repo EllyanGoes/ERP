@@ -229,7 +229,7 @@ export default function DocumentoEntradaDetailPage() {
   const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
 
   // Aba ativa do rodapé (padrão Protheus: Duplicatas em destaque)
-  const [aba, setAba] = useState<"duplicatas" | "totais" | "estoque" | "outros">("duplicatas");
+  const [aba, setAba] = useState<"duplicatas" | "totais" | "outros">("duplicatas");
 
   // Fornecedor search (editable)
   const [fornecedorId, setFornecedorId] = useState("");
@@ -739,7 +739,6 @@ export default function DocumentoEntradaDetailPage() {
   // Fornecedor info: prefer standalone fornecedor, fallback to pedido.fornecedor
   const fornInfo: FornecedorInfo | null = conferencia.fornecedor ?? conferencia.pedido?.fornecedor ?? null;
   const fornNome = fornInfo ? (fornInfo.nomeFantasia || fornInfo.razaoSocial) : "—";
-  const codigoForn = fornInfo ? fornInfo.id.slice(-8).toUpperCase() : "—";
 
   // Totals
   const vlrMercadoria = itemsEditable
@@ -838,73 +837,6 @@ export default function DocumentoEntradaDetailPage() {
 
   const condicaoNomeAtual = condicoes.find((c) => c.id === condicaoPagamentoId)?.nome
     ?? duplicatasPreview.condicao?.nome ?? null;
-
-  // Conteúdo da aba "Local de Estoque" (movido do topo para o rodapé em abas).
-  const localEstoquePanel = (
-    <div className="flex flex-col md:flex-row md:items-end gap-4">
-      {/* Mode toggle */}
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">Modo de entrada</Label>
-        <div className="flex items-center border border-border rounded-lg p-0.5 bg-muted w-fit">
-          <button
-            type="button"
-            onClick={() => nfEditable && handleModoChange("GLOBAL")}
-            className={cn(
-              "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
-              modoLocalEstoque === "GLOBAL"
-                ? "bg-card text-info shadow-sm border border-info/30"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Global
-          </button>
-          <button
-            type="button"
-            onClick={() => nfEditable && handleModoChange("POR_ITEM")}
-            className={cn(
-              "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
-              modoLocalEstoque === "POR_ITEM"
-                ? "bg-card text-info shadow-sm border border-info/30"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Por Item
-          </button>
-        </div>
-      </div>
-
-      {/* Global local selector */}
-      {modoLocalEstoque === "GLOBAL" && (
-        <div className="space-y-1.5 flex-1 max-w-xs">
-          <Label className="text-xs text-muted-foreground">
-            Local de Estoque <span className="text-red-500">*</span>
-          </Label>
-          {nfEditable ? (
-            <ComboboxWithCreate
-              value={localEstoqueGlobalId}
-              onChange={(v) => handleGlobalLocalChange(v)}
-              placeholder="Selecionar local..."
-              noneLabel="Selecionar local..."
-              triggerClassName={cn("h-9 rounded-md", !localEstoqueGlobalId && "border-red-300")}
-              options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
-            />
-          ) : (
-            <Input
-              value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
-              readOnly
-              className="bg-muted"
-            />
-          )}
-        </div>
-      )}
-
-      {modoLocalEstoque === "POR_ITEM" && (
-        <p className="text-xs text-muted-foreground pb-1.5">
-          O local de estoque será definido individualmente para cada item na tabela abaixo.
-        </p>
-      )}
-    </div>
-  );
 
   return (
     <div>
@@ -1343,8 +1275,61 @@ export default function DocumentoEntradaDetailPage() {
         {/* ── Itens ────────────────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 flex-wrap">
               <CardTitle className="text-base">Itens</CardTitle>
+
+              {/* Local de Estoque — modo de entrada, na linha do título */}
+              <div className="ml-auto flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Local de Estoque:</span>
+                <div className="flex items-center border border-border rounded-lg p-0.5 bg-muted w-fit">
+                  <button
+                    type="button"
+                    onClick={() => nfEditable && handleModoChange("GLOBAL")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                      modoLocalEstoque === "GLOBAL"
+                        ? "bg-card text-info shadow-sm border border-info/30"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Global
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => nfEditable && handleModoChange("POR_ITEM")}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                      modoLocalEstoque === "POR_ITEM"
+                        ? "bg-card text-info shadow-sm border border-info/30"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Por Item
+                  </button>
+                </div>
+                {modoLocalEstoque === "GLOBAL" && (
+                  <div className="w-56">
+                    {nfEditable ? (
+                      <ComboboxWithCreate
+                        value={localEstoqueGlobalId}
+                        onChange={(v) => handleGlobalLocalChange(v)}
+                        placeholder="Selecionar local..."
+                        noneLabel="Selecionar local..."
+                        menuMinWidth={280}
+                        triggerClassName={cn("h-8 rounded-md text-xs", !localEstoqueGlobalId && "border-red-300")}
+                        options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                      />
+                    ) : (
+                      <Input
+                        value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
+                        readOnly
+                        className="bg-muted h-8 text-xs"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+
               {itemsEditable && (
                 <button
                   type="button"
@@ -1835,13 +1820,12 @@ export default function DocumentoEntradaDetailPage() {
           </CardContent>
         </Card>
 
-        {/* ── Abas (rodapé estilo Protheus): Duplicatas | Totais | Local | Outros ── */}
+        {/* ── Abas (rodapé estilo Protheus): Duplicatas | Totais | Outros ── */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
           <div className="flex items-center gap-1 border-b border-border bg-muted px-2 flex-wrap">
             {([
               { id: "duplicatas", label: "Duplicatas" },
               { id: "totais", label: "Totais" },
-              { id: "estoque", label: "Local de Estoque", alerta: showLocalAlert },
               { id: "outros", label: "Outros" },
             ] as const).map((t) => (
               <button
@@ -1856,9 +1840,6 @@ export default function DocumentoEntradaDetailPage() {
                 )}
               >
                 {t.label}
-                {"alerta" in t && t.alerta && (
-                  <span className="absolute top-1.5 right-1 w-1.5 h-1.5 rounded-full bg-danger" />
-                )}
               </button>
             ))}
             <div className="ml-auto pr-3 py-2.5 text-sm text-muted-foreground whitespace-nowrap">
@@ -2021,9 +2002,6 @@ export default function DocumentoEntradaDetailPage() {
                 </div>
               </div>
             )}
-
-            {/* ── Aba Local de Estoque ────────────────────────────────────── */}
-            {aba === "estoque" && localEstoquePanel}
 
             {/* ── Aba Outros ──────────────────────────────────────────────── */}
             {aba === "outros" && (
