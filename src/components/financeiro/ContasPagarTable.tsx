@@ -420,8 +420,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
 
   return (
     <>
-      {/* Botão de novo lançamento fixo no canto superior direito; os filtros
-          ocupam a área restante e quebram de linha sem empurrá-lo. */}
+      <div className="space-y-2">
+      {/* Linha 1: todos os filtros + botão de novo lançamento (canto sup. direito). */}
       <div className="flex items-start gap-2">
       <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
         {/* Status: droplist de enum fixo (padrão do sistema — select nativo). */}
@@ -446,14 +446,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             </button>
           )}
         </div>
-        {/* Resumo compacto (no lugar dos cards grandes — a tabela ganha a tela) */}
-        {resumo && (
-          <div className="flex items-center gap-3 px-1 text-xs whitespace-nowrap">
-            <span className="text-muted-foreground">A Pagar <span className="font-semibold text-warning">{formatBRL(resumo.emAberto)}</span></span>
-            <span className="text-muted-foreground">Vencido <span className="font-semibold text-danger">{formatBRL(resumo.vencido)}</span></span>
-            <span className="text-muted-foreground">Pago no mês <span className="font-semibold text-foreground">{formatBRL(resumo.pagoMes)}</span></span>
-          </div>
-        )}
         <button
           type="button"
           onClick={() => setAgrupamento((v) => (v === "vencimento" ? "none" : "vencimento"))}
@@ -490,6 +482,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         )}
       </div>
         <NovaContaButton tipo="pagar" />
+      </div>
+      {/* Linha 2: totais. */}
+      {resumo && (
+        <div className="flex flex-wrap items-center gap-4 text-sm whitespace-nowrap">
+          <span className="text-muted-foreground">A Pagar <span className="font-semibold text-warning">{formatBRL(resumo.emAberto)}</span></span>
+          <span className="text-muted-foreground">Vencido <span className="font-semibold text-danger">{formatBRL(resumo.vencido)}</span></span>
+          <span className="text-muted-foreground">Pago no mês <span className="font-semibold text-foreground">{formatBRL(resumo.pagoMes)}</span></span>
+        </div>
+      )}
       </div>
       {agrupado ? (
         <div className="rounded-xl border border-border overflow-hidden bg-card">
