@@ -502,26 +502,28 @@ export default function DocumentoEntradaDetailPage() {
     );
   }
 
-  async function salvarConferencia() {
+  // Retorna true quando salvou com sucesso — a conclusão depende disso para não
+  // concluir com dados desatualizados (ex.: condição de pagamento não persistida).
+  async function salvarConferencia(): Promise<boolean> {
     setValidationError("");
-    if (!fornecedorId) { setValidationError("Fornecedor é obrigatório."); return; }
-    if (!tipoNota)     { setValidationError("Tipo é obrigatório."); return; }
-    if (!dtEmissao)    { setValidationError("DT Emissão é obrigatória."); return; }
+    if (!fornecedorId) { setValidationError("Fornecedor é obrigatório."); return false; }
+    if (!tipoNota)     { setValidationError("Tipo é obrigatório."); return false; }
+    if (!dtEmissao)    { setValidationError("DT Emissão é obrigatória."); return false; }
     if (modoLocalEstoque === "GLOBAL" && !localEstoqueGlobalId) {
-      setValidationError("Local de Estoque é obrigatório."); return;
+      setValidationError("Local de Estoque é obrigatório."); return false;
     }
     if (modoLocalEstoque === "POR_ITEM") {
       const allItems = [...editItems, ...newItems];
       const semLocal = allItems.some((i) => !i.localEstoqueId);
-      if (semLocal) { setValidationError("Todos os itens precisam ter um Local de Estoque definido."); return; }
+      if (semLocal) { setValidationError("Todos os itens precisam ter um Local de Estoque definido."); return false; }
     }
     // TES e centro de custo são obrigatórios por item.
     const todosItens = [...editItems, ...newItems];
-    if (todosItens.some((i) => !i.tesId)) { setValidationError("Selecione o TES em cada item."); return; }
-    if (todosItens.some((i) => !i.centroCustoId)) { setValidationError("Informe o centro de custo em cada item."); return; }
+    if (todosItens.some((i) => !i.tesId)) { setValidationError("Selecione o TES em cada item."); return false; }
+    if (todosItens.some((i) => !i.centroCustoId)) { setValidationError("Informe o centro de custo em cada item."); return false; }
     // Capex: linha que capitaliza exige o bem (imobilizado).
     if (todosItens.some((i) => i.capitaliza && !i.imobilizadoId)) {
-      setValidationError("Item que capitaliza exige o bem (imobilizado)."); return;
+      setValidationError("Item que capitaliza exige o bem (imobilizado)."); return false;
     }
 
     setSaving(true);
@@ -593,12 +595,14 @@ export default function DocumentoEntradaDetailPage() {
       const json = await res.json();
       if (!res.ok) {
         setActionError(json.error || "Erro ao salvar");
-        return;
+        return false;
       }
       setNewItems([]); // clear pending new items after save
       await load();
+      return true;
     } catch {
       setActionError("Erro de conexão");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -641,7 +645,11 @@ export default function DocumentoEntradaDetailPage() {
     setActioning(true);
     setActionError("");
     try {
-      await salvarConferencia();
+      // Persiste o formulário ANTES de concluir. Se o salvar falhar (validação
+      // ou erro de rede), aborta — concluir com dados antigos gerava títulos
+      // com a condição de pagamento errada (ex.: à vista em vez de parcelado).
+      const salvou = await salvarConferencia();
+      if (!salvou) return;
 
       const res = await fetch(`/api/suprimentos/conferencias/${id}/concluir`, {
         method: "POST",
@@ -1125,11 +1133,11 @@ export default function DocumentoEntradaDetailPage() {
         )}
 
         {/* ── Seção 1: Dados do Documento ───────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2">
+        <Card size="sm">
+          <CardHeader className="pb-1">
             <CardTitle className="text-base">Dados do Documento</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2.5">
 
             {/* Tipo de Documento */}
             <div className="space-y-1.5">
@@ -1266,8 +1274,8 @@ export default function DocumentoEntradaDetailPage() {
         </Card>
 
         {/* ── Seção 2: Fornecedor ───────────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2">
+        <Card size="sm">
+          <CardHeader className="pb-1">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Fornecedor</CardTitle>
               {conferencia.pedido && (
@@ -1281,7 +1289,7 @@ export default function DocumentoEntradaDetailPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2.5">
               <div className="space-y-1.5 md:col-span-2">
                 <Label className="text-xs text-muted-foreground">
                   Fornecedor <span className="text-red-500">*</span>
