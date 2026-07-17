@@ -33,6 +33,7 @@ type Props = {
   preview: PreviewDuplicatas | null;
   condicaoNome: string | null;
   fornecedorNome?: string | null;
+  concluida?: boolean; // documento já concluído → sem títulos não há "prévia": a conclusão não gerou financeiro
   headerControls?: ReactNode; // slot: Condição de Pagamento + Natureza Financeira controladas pela página
 };
 
@@ -41,7 +42,14 @@ function parcelaLabel(n: number | null, total: number | null): string {
   return `${n ?? 1}/${total}`;
 }
 
-export default function DuplicatasTab({ titulosReais, preview, condicaoNome, fornecedorNome, headerControls }: Props) {
+// Status exibido: título em aberto sem data de vencimento ganha o status
+// derivado SEM_VENCIMENTO (mesmo padrão do VENCIDA nas listagens).
+function statusExibido(t: TituloResumo): string {
+  if (!t.dataVencimento && (t.status === "ABERTA" || t.status === "PARCIAL")) return "SEM_VENCIMENTO";
+  return t.status;
+}
+
+export default function DuplicatasTab({ titulosReais, preview, condicaoNome, fornecedorNome, concluida, headerControls }: Props) {
   const [detalhe, setDetalhe] = useState<TituloResumo | null>(null);
   const temReais = titulosReais.length > 0;
 
@@ -113,7 +121,7 @@ export default function DuplicatasTab({ titulosReais, preview, condicaoNome, for
                     <td className="px-4 py-2.5 text-center text-muted-foreground">{parcelaLabel(t.parcelaNumero, t.parcelaTotal)}</td>
                     <td className="px-4 py-2.5">{t.dataVencimento ? formatDate(t.dataVencimento) : "A combinar"}</td>
                     <td className="px-4 py-2.5 text-right font-medium">{formatBRL(decimalToNumber(t.valorOriginal))}</td>
-                    <td className="px-4 py-2.5 text-center"><StatusBadge status={t.status} /></td>
+                    <td className="px-4 py-2.5 text-center"><StatusBadge status={statusExibido(t)} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -127,6 +135,14 @@ export default function DuplicatasTab({ titulosReais, preview, condicaoNome, for
                 </tr>
               </tfoot>
             </table>
+          </div>
+        ) : concluida && !preview?.bloqueio ? (
+          /* ── Concluído sem títulos vinculados (fluxo antigo/sem financeiro) ── */
+          <div className="flex items-start gap-2 bg-muted border border-border rounded-lg p-4 text-sm text-muted-foreground">
+            <Info className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>
+              Documento <b>concluído sem títulos a pagar vinculados</b> — a conclusão não gerou financeiro (fluxo antigo, sem fornecedor ou sem valor). Se o pagamento existe, ele foi lançado direto no Contas a Pagar, sem vínculo com este documento.
+            </p>
           </div>
         ) : preview && preview.parcelas.length > 0 ? (
           /* ── Prévia (antes de concluir) — reage à condição selecionada ── */
@@ -181,7 +197,7 @@ export default function DuplicatasTab({ titulosReais, preview, condicaoNome, for
           open={!!detalhe}
           onOpenChange={(o) => !o && setDetalhe(null)}
           numero={detalhe.numero}
-          status={detalhe.status}
+          status={statusExibido(detalhe)}
           criadoPor={detalhe.criadoPor}
           atualizadoPor={detalhe.atualizadoPor}
           campos={buildCampos(detalhe, fornecedorNome)}

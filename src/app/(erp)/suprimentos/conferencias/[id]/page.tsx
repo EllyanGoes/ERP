@@ -1967,6 +1967,7 @@ export default function DocumentoEntradaDetailPage() {
                 preview={duplicatasPreview}
                 condicaoNome={condicaoNomeAtual}
                 fornecedorNome={fornNome}
+                concluida={isConcluded || isDivergencia}
                 headerControls={
                   <>
                     <div className="space-y-1">
