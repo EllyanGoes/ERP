@@ -10,9 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida, cn } from "@/lib/utils";
-import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X } from "lucide-react";
+import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
+import FilterSelect from "@/components/shared/FilterSelect";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
@@ -421,52 +422,47 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       {/* Linha 1: todos os filtros + botão de novo lançamento (canto sup. direito). */}
       <div className="flex items-start gap-2">
       <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-        {/* Status: droplist de enum fixo (padrão do sistema — select nativo). */}
-        <select
-          value={statusFiltro}
-          onChange={(e) => setStatusFiltro(e.target.value as StatusFiltro)}
-          className="h-9 rounded-lg border border-border bg-card px-2.5 text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
-        >
-          {FILTROS_RECEBER.map((f) => {
-            const n = f.key === "TODOS" ? contas.length : contas.filter((c) => casaStatus(c, f.key)).length;
-            return <option key={f.key} value={f.key}>{f.label} ({n})</option>;
-          })}
-        </select>
-        {/* Busca na barra (vale p/ tabela e visão agrupada) */}
-        <div className="relative">
-          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        {/* Busca (mesmo padrão das listagens: à esquerda, com limpar). */}
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar número, cliente…"
-            className="h-9 w-52 rounded-lg border border-border bg-card pl-8 pr-7 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
           {busca && (
-            <button type="button" onClick={() => setBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground" title="Limpar busca">
+            <button type="button" onClick={() => setBusca("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground" title="Limpar busca">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setAgrupamento((v) => (v === "vencimento" ? "none" : "vencimento"))}
-          className={cn(
-            "ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
-            agrupamento === "vencimento" ? "bg-blue-600 border-blue-600 text-white" : "bg-card border-border text-muted-foreground hover:bg-muted",
-          )}
-          title="Agrupar por data de vencimento"
-        >
-          <CalendarClock className="w-4 h-4" /> Vencimento
-        </button>
-        <button
-          type="button"
-          onClick={() => setAgrupamento((v) => (v === "cliente" ? "none" : "cliente"))}
-          className={cn(
-            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
-            agrupamento === "cliente" ? "bg-blue-600 border-blue-600 text-white" : "bg-card border-border text-muted-foreground hover:bg-muted",
-          )}
-          title="Agrupar por cliente"
-        >
-          <Building2 className="w-4 h-4" /> Cliente
-        </button>
+        {/* Status: dropdown único no estilo das listagens. */}
+        <FilterSelect
+          value={statusFiltro}
+          onChange={(v) => setStatusFiltro(v as StatusFiltro)}
+          active={statusFiltro !== "ABERTA"}
+          options={FILTROS_RECEBER.map((f) => ({
+            value: f.key,
+            label: f.label,
+            hint: String(f.key === "TODOS" ? contas.length : contas.filter((c) => casaStatus(c, f.key)).length),
+          }))}
+        />
+        {/* Contagem de títulos filtrados. */}
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {contasFiltradas.length} título{contasFiltradas.length !== 1 ? "s" : ""}
+        </span>
+        {/* Agrupamento: um único dropdown (Não agrupar / Vencimento / Cliente). */}
+        <FilterSelect
+          value={agrupamento}
+          onChange={(v) => setAgrupamento(v as "none" | "vencimento" | "cliente")}
+          active={agrupamento !== "none"}
+          icon={<Layers className="w-3.5 h-3.5" />}
+          menuWidth="w-48"
+          options={[
+            { value: "none", label: "Não agrupar" },
+            { value: "vencimento", label: "Por vencimento" },
+            { value: "cliente", label: "Por cliente" },
+          ]}
+        />
         {contasDisponiveis.length > 0 && (
-          <div className="w-72">
+          <div className="w-64">
             <ComboboxWithCreate
               value={contaFiltro}
               onChange={setContaFiltro}
@@ -538,7 +534,8 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
           data={contasFiltradas}
           columns={columns}
           hideSearch
-          containerClassName="shadow-md"
+          containerClassName="shadow-md rounded-xl"
+          headerClassName="bg-muted"
           focusId={focusId}
           getRowId={(c) => c.id}
           onRowClick={(row) => setDetalhe(row)}

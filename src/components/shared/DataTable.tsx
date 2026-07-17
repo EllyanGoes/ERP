@@ -32,9 +32,11 @@ interface DataTableProps<T> {
   hideSearch?: boolean;
   // Classe extra no container da tabela (ex.: sombra para destacar do fundo).
   containerClassName?: string;
+  // Classe extra na linha de cabeçalho (ex.: bg-muted no padrão das listagens).
+  headerClassName?: string;
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName }: DataTableProps<T>) {
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName }: DataTableProps<T>) {
   const pathname = usePathname();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -148,7 +150,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
-              <TableRow key={hg.id} className="hover:bg-transparent border-b border-border">
+              <TableRow key={hg.id} className={cn("hover:bg-transparent border-b border-border", headerClassName)}>
                 {hg.headers.map((header) => (
                   <TableHead key={header.id} className="text-xs font-medium text-muted-foreground uppercase tracking-wide py-3">
                     {header.isPlaceholder ? null : (
