@@ -100,6 +100,13 @@ export default function CondicoesPagamentoPage() {
   };
   const cancel = () => { setEditingId(null); setError(null); };
 
+  useEffect(() => {
+    if (editingId === null) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setEditingId(null); setError(null); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editingId]);
+
   const save = async () => {
     setSaving(true); setError(null);
     const url = editingId === "new"
@@ -127,7 +134,7 @@ export default function CondicoesPagamentoPage() {
         title="Condições de Pagamento"
         breadcrumbs={[{ label: "Suprimentos" }, { label: "Cadastros" }, { label: "Condições de Pagamento" }]}
       />
-      <div className="px-8 pb-8 max-w-3xl space-y-6">
+      <div className="px-8 pb-8 max-w-5xl space-y-6">
 
         {/* Info banner */}
         <div className="flex items-start gap-3 bg-info/10 border border-info/20 rounded-xl p-4 text-sm text-info">
@@ -140,18 +147,10 @@ export default function CondicoesPagamentoPage() {
         {/* Header row */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">{rows.length} condição(ões) cadastrada(s)</p>
-          <Button size="sm" onClick={startNew} disabled={editingId !== null}>
+          <Button size="sm" onClick={startNew}>
             <Plus className="w-4 h-4 mr-1" /> Nova Condição
           </Button>
         </div>
-
-        {/* Inline form — new */}
-        {editingId === "new" && (
-          <CondicaoForm
-            form={form} setForm={setForm} saving={saving} error={error}
-            onSave={save} onCancel={cancel} isNew
-          />
-        )}
 
         {/* List */}
         <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
@@ -170,8 +169,7 @@ export default function CondicoesPagamentoPage() {
               ) : rows.length === 0 ? (
                 <tr><td colSpan={4} className="py-10 text-center text-muted-foreground text-xs">Nenhuma condição cadastrada</td></tr>
               ) : rows.map((r) => (
-                <>
-                  <tr key={r.id} className={cn("border-b border-border last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-info/10" : "hover:bg-muted")}>
+                  <tr key={r.id} className={cn("border-b border-border last:border-0 hover:bg-muted", !r.ativo && "opacity-50")}>
                     <td className="px-4 py-3 font-medium text-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         {r.nome}
@@ -181,7 +179,7 @@ export default function CondicoesPagamentoPage() {
                       </span>
                       <span className="block text-[11px] font-normal text-muted-foreground">{resumoCondicao(r)}</span>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[260px] truncate">{r.descricao || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[420px] truncate">{r.descricao || "—"}</td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => toggleAtivo(r)}>
                         {r.ativo
@@ -191,32 +189,34 @@ export default function CondicoesPagamentoPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">
-                        {editingId === r.id ? null : (
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                            onClick={() => startEdit(r)} disabled={editingId !== null}>
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          onClick={() => startEdit(r)}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </td>
                   </tr>
-                  {editingId === r.id && (
-                    <tr key={`${r.id}-edit`} className="bg-info/10 border-b">
-                      <td colSpan={4} className="px-4 py-4">
-                        <CondicaoForm
-                          form={form} setForm={setForm} saving={saving} error={error}
-                          onSave={save} onCancel={cancel}
-                        />
-                        <Autoria criadoPor={r.criadoPor} atualizadoPor={r.atualizadoPor} className="mt-2 px-1" />
-                      </td>
-                    </tr>
-                  )}
-                </>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Popup de criação/edição — mesmo padrão do board de OPs */}
+      {editingId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={cancel}>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <CondicaoForm
+              form={form} setForm={setForm} saving={saving} error={error}
+              onSave={save} onCancel={cancel} isNew={editingId === "new"}
+            />
+            {editingId !== "new" && (() => {
+              const r = rows.find((x) => x.id === editingId);
+              return r ? <Autoria criadoPor={r.criadoPor} atualizadoPor={r.atualizadoPor} className="px-5 pb-4 -mt-1" /> : null;
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -232,14 +232,17 @@ function CondicaoForm({ form, setForm, saving, error, onSave, onCancel, isNew }:
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
   return (
-    <div className={cn("rounded-xl border border-info/30 bg-card p-5 space-y-4", isNew && "mb-2")}>
-      <p className="text-sm font-semibold text-foreground">{isNew ? "Nova condição de pagamento" : "Editar condição"}</p>
+    <div className="p-5 space-y-4">
+      <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+        {isNew ? <Plus className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+        {isNew ? "Nova condição de pagamento" : "Editar condição"}
+      </h2>
 
       <div className="space-y-4">
         {/* Nome */}
         <div>
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
-          <Input value={form.nome} onChange={set("nome")} placeholder="Ex: A Vista, 30/60 DDL, Faturado..." autoFocus={isNew}
+          <Input value={form.nome} onChange={set("nome")} placeholder="Ex: A Vista, 30/60 DDL, Faturado..." autoFocus
             onKeyDown={(e) => { if (e.key === "Enter") onSave(); if (e.key === "Escape") onCancel(); }} />
         </div>
 
