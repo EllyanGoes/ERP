@@ -45,12 +45,21 @@ export async function GET(req: NextRequest) {
         empresaId: true,
         numero: true,
         valorTotal: true,
+        // Financeiro do pedido — usados na prévia de duplicatas do novo DE.
+        condicaoPagamentoId: true,
+        condicoesPagamento: true,
+        frete: true,
+        seguro: true,
+        despesas: true,
+        vrDesconto: true,
+        intragrupo: true,
         fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         itens: {
           select: {
             id: true,
             quantidade: true,
             precoUnitario: true,
+            valorTotal: true,
             item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
           },
         },

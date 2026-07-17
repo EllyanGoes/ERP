@@ -95,6 +95,8 @@ export async function POST(req: NextRequest) {
     seguro,
     despesas,
     desconto,
+    condicaoPagamentoId,
+    naturezaFinanceiraId,
     itens,
     confirmAvulso,
   } = body;
@@ -209,6 +211,8 @@ export async function POST(req: NextRequest) {
         seguro: seguro != null ? parseFloat(String(seguro)) : null,
         despesas: despesas != null ? parseFloat(String(despesas)) : null,
         desconto: desconto != null ? parseFloat(String(desconto)) : null,
+        condicaoPagamentoId: condicaoPagamentoId || null,
+        naturezaFinanceiraId: naturezaFinanceiraId || null,
         observacoes: observacoes?.trim() || null,
         itens: {
           create: itens.map((it: {

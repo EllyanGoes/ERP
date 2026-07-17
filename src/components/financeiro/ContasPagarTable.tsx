@@ -158,6 +158,7 @@ const STATUS_PAGAR_KEYS = STATUS_PAGAR.map((s) => s.key) as string[];
 // Conjuntos de status por bloco de total (clique nos totais aplica um preset).
 const SET_ABERTO = ["ABERTA", "PARCIAL"];
 const SET_VENCIDO = ["VENCIDA"];
+const SET_SEM_VENC = ["SEM_VENCIMENTO"];
 const SET_PAGO = ["PAGA"];
 function mesmoSet(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((x) => b.includes(x));
@@ -532,6 +533,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           aplica o preset de status (toggle: reclicar marca todos os status). */}
       {resumo && (() => {
         const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_PAGAR_KEYS : set));
+        // Saldo em aberto dos títulos SEM data de vencimento (permuta/faturado) —
+        // derivado da lista (não vem no resumo do servidor).
+        const semVencimento = contas.reduce((s, c) => {
+          if ((c.status !== "ABERTA" && c.status !== "PARCIAL") || c.dataVencimento) return s;
+          return s + decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+        }, 0);
         return (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto"
@@ -543,6 +550,11 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
             <span className="text-xs font-medium text-danger">Vencido</span>
             <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(resumo.vencido)}</span>
+          </button>
+          <button type="button" onClick={() => toggle(SET_SEM_VENC)} title="Filtrar por Sem vencimento"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-1.5 transition-shadow hover:bg-violet-500/20 cursor-pointer", mesmoSet(statusSel, SET_SEM_VENC) && "ring-2 ring-violet-500")}>
+            <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Sem vencimento</span>
+            <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(semVencimento)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_PAGO)} title="Filtrar por Pagas"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 transition-shadow hover:bg-muted/70 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-foreground/40")}>

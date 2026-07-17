@@ -18,6 +18,9 @@ import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import ModoToggle from "@/components/suprimentos/ModoToggle";
+import DuplicatasTab from "@/components/suprimentos/DuplicatasTab";
+import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
+import { previewDuplicatasDE, type CondicaoFull } from "@/lib/duplicatas-preview";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -47,11 +50,20 @@ type PedidoOption = {
   id: string;
   numero: string;
   valorTotal?: unknown;
+  // Financeiro do pedido (prévia de duplicatas)
+  condicaoPagamentoId?: string | null;
+  condicoesPagamento?: string | null;
+  frete?: unknown;
+  seguro?: unknown;
+  despesas?: unknown;
+  vrDesconto?: unknown;
+  intragrupo?: boolean | null;
   fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null };
   itens: Array<{
     id: string;
     quantidade: unknown;
     precoUnitario?: unknown;
+    valorTotal?: unknown;
     unidadeId?: string | null;
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
   }>;
@@ -308,6 +320,12 @@ export default function NovoDocumentoEntradaPage() {
   const [despesas, setDespesas] = useState("");
   const [desconto, setDesconto] = useState("");
 
+  // Financeiro (aba Duplicatas — mesmo padrão da tela de detalhe)
+  const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
+  const [condicoes, setCondicoes] = useState<CondicaoFull[]>([]);
+  const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
+  const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
+
   // Form state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState("");
@@ -334,6 +352,16 @@ export default function NovoDocumentoEntradaPage() {
     fetch("/api/usuarios")
       .then((r) => r.json())
       .then((j) => setUsuarios(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  // Condições de pagamento + naturezas (aba Duplicatas)
+  useEffect(() => {
+    fetch("/api/suprimentos/condicoes-pagamento").then((r) => r.json())
+      .then((j) => setCondicoes(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json())
+      .then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
@@ -608,6 +636,8 @@ export default function NovoDocumentoEntradaPage() {
     setPcPopoverOpen(false);
     setPedidoSearch("");
     setPedidoOptions([]);
+    // Herda a condição de pagamento do pedido (o usuário pode trocar na aba Duplicatas)
+    if (p.condicaoPagamentoId) setCondicaoPagamentoId(p.condicaoPagamentoId);
     // Auto-fill fornecedor from pedido
     selectFornecedor({
       id: p.fornecedor.id,
@@ -705,6 +735,43 @@ export default function NovoDocumentoEntradaPage() {
   const descontoNum = parseFloat(desconto) || 0;
   const vlrBruto    = vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum;
 
+  // Prévia das duplicatas — mesmo motor da tela de detalhe (precedência do servidor).
+  const duplicatasPreview = previewDuplicatasDE({
+    itens: itens.map((r) => ({
+      vlrTotal: parseFloat(r.vlrTotal) || 0,
+      quantidadeRecebida: parseFloat(r.quantidadeRecebida) || 0,
+      vlrUnitario: parseFloat(r.vlrUnitario) || 0,
+      desconto: parseFloat(r.desconto) || 0,
+    })),
+    vrTotalNF: 0,
+    freteDE: freteNum,
+    descontoDE: descontoNum,
+    pedido: vinculadoPedido
+      ? {
+          frete: decimalToNumber(vinculadoPedido.frete),
+          seguro: decimalToNumber(vinculadoPedido.seguro),
+          despesas: decimalToNumber(vinculadoPedido.despesas),
+          vrDesconto: decimalToNumber(vinculadoPedido.vrDesconto),
+          subtotalItens: vinculadoPedido.itens.reduce(
+            (s, pi) => s + (pi.valorTotal != null
+              ? decimalToNumber(pi.valorTotal)
+              : decimalToNumber(pi.quantidade) * decimalToNumber(pi.precoUnitario)),
+            0,
+          ),
+          valorTotal: decimalToNumber(vinculadoPedido.valorTotal),
+          intragrupo: !!vinculadoPedido.intragrupo,
+          condicaoPagamentoId: vinculadoPedido.condicaoPagamentoId ?? null,
+          condicoesPagamento: vinculadoPedido.condicoesPagamento ?? null,
+        }
+      : null,
+    temFornecedor: !!fornecedorId,
+    condicaoIdDE: condicaoPagamentoId || null,
+    condicoes,
+    dtEmissao: dtEmissao || null,
+  });
+  const condicaoNomeAtual = condicoes.find((c) => c.id === condicaoPagamentoId)?.nome
+    ?? duplicatasPreview.condicao?.nome ?? null;
+
   async function handleSubmit() {
     setError("");
 
@@ -765,6 +832,8 @@ export default function NovoDocumentoEntradaPage() {
         seguro:   seguroNum   > 0 ? seguroNum   : null,
         despesas: despesasNum > 0 ? despesasNum : null,
         desconto: descontoNum > 0 ? descontoNum : null,
+        condicaoPagamentoId: condicaoPagamentoId || null,
+        naturezaFinanceiraId: naturezaFinanceiraId || null,
         itens: validItens.map((r, idx) => ({
           itemId: r.itemId,
           quantidadePedida: parseFloat(r.quantidadePedida),
@@ -1492,22 +1561,43 @@ export default function NovoDocumentoEntradaPage() {
           </div>
 
           <div className="p-3">
-            {/* ── Aba Duplicatas (na criação, as parcelas são definidas na tela do documento) ── */}
+            {/* ── Aba Duplicatas — mesmo padrão da tela de detalhe ─────────── */}
             {aba === "duplicatas" && (
-              <div className="flex items-start gap-2 bg-info/10 border border-info/20 rounded-lg p-4 text-sm text-info">
-                <FileText className="w-4 h-4 mt-0.5 shrink-0" />
-                <div>
-                  {vinculadoPedido ? (
-                    <p>
-                      As <b>duplicatas</b> (parcelas do contas a pagar) serão geradas na <b>conclusão</b> do documento, conforme a condição de pagamento do pedido <span className="font-mono">{vinculadoPedido.numero}</span>. Você poderá conferir e ajustar a condição na tela do documento após incluir.
-                    </p>
-                  ) : (
-                    <p>
-                      A <b>condição de pagamento</b> e as <b>duplicatas</b> são definidas na tela do documento, após a inclusão. Valor previsto do título: <b>{formatBRL(vlrBruto)}</b>.
-                    </p>
-                  )}
-                </div>
-              </div>
+              <DuplicatasTab
+                titulosReais={[]}
+                preview={duplicatasPreview}
+                condicaoNome={condicaoNomeAtual}
+                fornecedorNome={selectedFornecedor?.nomeFantasia || selectedFornecedor?.razaoSocial || null}
+                headerControls={
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
+                      <ComboboxWithCreate
+                        value={condicaoPagamentoId}
+                        onChange={(v) => setCondicaoPagamentoId(v)}
+                        noneLabel={vinculadoPedido ? "— Herdar do pedido / à vista —" : "— À vista —"}
+                        triggerClassName="h-9 rounded-md"
+                        options={condicoes.map((c) => ({ value: c.id, label: c.nome }))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Natureza Financeira</Label>
+                      <NaturezaCombobox
+                        value={naturezaFinanceiraId}
+                        onChange={setNaturezaFinanceiraId}
+                        naturezas={naturezas}
+                        placeholder="— Selecionar natureza —"
+                      />
+                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
+                        <FileText className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>
+                          Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>.
+                        </span>
+                      </p>
+                    </div>
+                  </>
+                }
+              />
             )}
 
             {/* ── Aba Totais ──────────────────────────────────────────────── */}
