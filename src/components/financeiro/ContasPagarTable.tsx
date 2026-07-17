@@ -24,6 +24,7 @@ import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, Exte
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
+import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
 import { cn } from "@/lib/utils";
 
 // Linha do rateio gerencial por natureza no modal de baixa.
@@ -107,6 +108,24 @@ function filtrarTaxaNaturezas(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt[] {
     .filter((n): n is TaxaNaturezaOpt => !!n);
 }
 
+// Data (Date|string) → "YYYY-MM-DD" para comparar com o range do filtro.
+function isoDia(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return "";
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+// Casa a data de vencimento do título com o período (limites inclusivos, cada
+// ponta opcional). Sem período → passa tudo.
+function dentroDoPeriodo(c: { dataVencimento: Date | string }, p: DateRange): boolean {
+  if (!p.from && !p.to) return true;
+  const iso = isoDia(c.dataVencimento);
+  if (!iso) return false;
+  if (p.from && iso < p.from) return false;
+  if (p.to && iso > p.to) return false;
+  return true;
+}
+
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
 
 // Casa a conta com o filtro de status. "VENCIDA" é derivado (em aberto/parcial
@@ -140,6 +159,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const [contaFiltro, setContaFiltro] = usePersistedState<string>("financeiro:contas-pagar:conta", "");
   // Busca na barra de filtros (vale para a tabela E para a visão agrupada).
   const [busca, setBusca] = useState("");
+  // Período por data de vencimento (persistido por usuário — padrão do sistema).
+  const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-pagar:periodo", { from: "", to: "" });
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
@@ -151,12 +172,13 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     return contas.filter((c) => {
       if (statusFiltro !== "TODOS" && !casaStatus(c, statusFiltro)) return false;
       if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
+      if (!dentroDoPeriodo(c, periodo)) return false;
       if (!q) return true;
       const o = origemPagar(c);
       return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, statusFiltro, contaFiltro, busca]);
+  }, [contas, statusFiltro, contaFiltro, busca, periodo]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [editar, setEditar] = useState<ContaRow | null>(null);
@@ -464,6 +486,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             { value: "fornecedor", label: "Por fornecedor" },
           ]}
         />
+        {/* Período por data de vencimento. */}
+        <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período (vencimento)" />
         {contasDisponiveis.length > 0 && (
           <div className="w-64">
             <ComboboxWithCreate
@@ -479,12 +503,21 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       </div>
         <NovaContaButton tipo="pagar" />
       </div>
-      {/* Linha 2: totais. */}
+      {/* Linha 2: totais em blocos compactos coloridos. */}
       {resumo && (
-        <div className="flex flex-wrap items-center gap-4 text-sm whitespace-nowrap">
-          <span className="text-muted-foreground">A Pagar <span className="font-semibold text-warning">{formatBRL(resumo.emAberto)}</span></span>
-          <span className="text-muted-foreground">Vencido <span className="font-semibold text-danger">{formatBRL(resumo.vencido)}</span></span>
-          <span className="text-muted-foreground">Pago no mês <span className="font-semibold text-foreground">{formatBRL(resumo.pagoMes)}</span></span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5">
+            <span className="text-xs font-medium text-warning">A Pagar</span>
+            <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(resumo.emAberto)}</span>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5">
+            <span className="text-xs font-medium text-danger">Vencido</span>
+            <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(resumo.vencido)}</span>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Pago no mês</span>
+            <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(resumo.pagoMes)}</span>
+          </div>
         </div>
       )}
       </div>
