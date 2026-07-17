@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -786,7 +786,9 @@ export default function DocumentoEntradaDetailPage() {
   })();
 
   // Prévia das parcelas (antes de concluir) — replica a precedência do servidor.
-  const duplicatasPreview = useMemo(() => {
+  // Cálculo direto (não useMemo): este ponto está DEPOIS dos early returns de
+  // loading/erro, então um hook aqui quebraria as regras de hooks do React.
+  const duplicatasPreview = (() => {
     const itensPreview = itemsEditable
       ? editItems.map((ei) => ({
           vlrTotal: parseFloat(ei.vlrTotal) || 0,
@@ -824,8 +826,7 @@ export default function DocumentoEntradaDetailPage() {
       condicoes,
       dtEmissao: dtEmissao || null,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemsEditable, editItems, conferencia, vrTotalNum, freteNum, descontoNum, fornecedorId, condicaoPagamentoId, condicoes, dtEmissao]);
+  })();
 
   const condicaoNomeAtual = condicoes.find((c) => c.id === condicaoPagamentoId)?.nome
     ?? duplicatasPreview.condicao?.nome ?? null;
