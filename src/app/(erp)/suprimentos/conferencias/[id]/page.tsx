@@ -1435,7 +1435,7 @@ export default function DocumentoEntradaDetailPage() {
                         <td className="px-3 py-2">
                           {canEdit && ei ? (
                             <select value={ei.tesId} onChange={(e) => applyTesEdit(item.id, e.target.value)}
-                              className={cn("h-7 rounded text-xs w-full border bg-card px-1", !ei.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
+                              className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ei.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
                               <option value="">— TES —</option>
                               {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
                             </select>
@@ -1452,7 +1452,8 @@ export default function DocumentoEntradaDetailPage() {
                                 value={ei.localEstoqueId}
                                 onChange={(v) => updateEditItem(item.id, "localEstoqueId", v)}
                                 noneLabel="—"
-                                triggerClassName={cn("h-7 rounded text-xs", !ei.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
+                                menuMinWidth={280}
+                                triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ei.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                                 options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                               />
                             ) : (
@@ -1468,7 +1469,8 @@ export default function DocumentoEntradaDetailPage() {
                               value={ei.centroCustoId}
                               onChange={(v) => updateEditItem(item.id, "centroCustoId", v)}
                               noneLabel="—"
-                              triggerClassName={cn("h-7 rounded text-xs min-w-[9rem]", !ei.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
+                              menuMinWidth={300}
+                              triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ei.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                               options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                             />
                           ) : (
@@ -1496,7 +1498,7 @@ export default function DocumentoEntradaDetailPage() {
                               {ei.capitaliza && (
                                 <>
                                   <select value={ei.imobilizadoId} onChange={(e) => updateEditItem(item.id, "imobilizadoId", e.target.value)}
-                                    className={cn("h-7 rounded text-xs w-full border bg-card px-1", !ei.imobilizadoId ? "border-red-400 bg-danger/10" : "border-border")}>
+                                    className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ei.imobilizadoId ? "border-red-400 bg-danger/10" : "border-border")}>
                                     <option value="">— Bem (obrigatório) —</option>
                                     {imobilizados.map((b) => <option key={b.id} value={b.id}>{b.descricao}</option>)}
                                   </select>
@@ -1696,7 +1698,7 @@ export default function DocumentoEntradaDetailPage() {
                       {/* TES */}
                       <td className="px-3 py-2">
                         <select value={ni.tesId} onChange={(e) => applyTesNew(ni._key, e.target.value)}
-                          className={cn("h-7 rounded text-xs w-full border bg-card px-1", !ni.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
+                          className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ni.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
                           <option value="">— TES —</option>
                           {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
                         </select>
@@ -1707,7 +1709,8 @@ export default function DocumentoEntradaDetailPage() {
                             value={ni.localEstoqueId}
                             onChange={(v) => updateNewItem(ni._key, "localEstoqueId", v)}
                             noneLabel="—"
-                            triggerClassName={cn("h-7 rounded text-xs", !ni.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
+                            menuMinWidth={280}
+                            triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ni.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                             options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                           />
                         </td>
@@ -1718,7 +1721,8 @@ export default function DocumentoEntradaDetailPage() {
                           value={ni.centroCustoId}
                           onChange={(v) => updateNewItem(ni._key, "centroCustoId", v)}
                           noneLabel="—"
-                          triggerClassName={cn("h-7 rounded text-xs min-w-[9rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
+                          menuMinWidth={300}
+                          triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                           options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                         />
                       </td>
@@ -1741,7 +1745,7 @@ export default function DocumentoEntradaDetailPage() {
                           {ni.capitaliza && (
                             <>
                               <select value={ni.imobilizadoId} onChange={(e) => updateNewItem(ni._key, "imobilizadoId", e.target.value)}
-                                className={cn("h-7 rounded text-xs w-full border bg-card px-1", !ni.imobilizadoId ? "border-red-400 bg-danger/10" : "border-border")}>
+                                className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ni.imobilizadoId ? "border-red-400 bg-danger/10" : "border-border")}>
                                 <option value="">— Bem (obrigatório) —</option>
                                 {imobilizados.map((b) => <option key={b.id} value={b.id}>{b.descricao}</option>)}
                               </select>
@@ -1825,7 +1829,7 @@ export default function DocumentoEntradaDetailPage() {
 
         {/* ── Abas (rodapé estilo Protheus): Duplicatas | Totais | Local | Outros ── */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="flex items-center gap-1 border-b border-border bg-muted px-2 overflow-x-auto">
+          <div className="flex items-center gap-1 border-b border-border bg-muted px-2 flex-wrap">
             {([
               { id: "duplicatas", label: "Duplicatas" },
               { id: "totais", label: "Totais" },

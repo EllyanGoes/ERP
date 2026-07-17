@@ -1227,7 +1227,8 @@ export default function NovoDocumentoEntradaPage() {
                               value={row.localEstoqueId}
                               onChange={(v) => updateItem(row._key, "localEstoqueId", v)}
                               noneLabel="—"
-                              triggerClassName={cn("h-7 rounded text-xs", !row.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
+                              menuMinWidth={280}
+                              triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !row.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                               options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                             />
                           </td>
@@ -1236,7 +1237,7 @@ export default function NovoDocumentoEntradaPage() {
                         {/* TES — preset de comportamento; preenche as flags da linha */}
                         <td className="px-3 py-2">
                           <select value={row.tesId} onChange={(e) => applyTes(row._key, e.target.value)}
-                            className={cn("h-7 rounded text-xs w-full border bg-card px-1", !row.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
+                            className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]", !row.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
                             <option value="">— TES —</option>
                             {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
                           </select>
@@ -1248,7 +1249,8 @@ export default function NovoDocumentoEntradaPage() {
                             value={row.centroCustoId}
                             onChange={(v) => updateItem(row._key, "centroCustoId", v)}
                             noneLabel="—"
-                            triggerClassName={cn("h-7 rounded text-xs min-w-[9rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
+                            menuMinWidth={300}
+                            triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                             options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                           />
                         </td>
@@ -1402,7 +1404,7 @@ export default function NovoDocumentoEntradaPage() {
 
         {/* ── Abas (rodapé estilo Protheus): Duplicatas | Totais | Local | Outros ── */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="flex items-center gap-1 border-b border-border bg-muted px-2 overflow-x-auto">
+          <div className="flex items-center gap-1 border-b border-border bg-muted px-2 flex-wrap">
             {([
               { id: "duplicatas", label: "Duplicatas" },
               { id: "totais", label: "Totais" },
