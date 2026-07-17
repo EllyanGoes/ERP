@@ -493,7 +493,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       )}
       </div>
       {agrupado ? (
-        <div className="rounded-xl border border-border overflow-hidden bg-card">
+        <div className="rounded-xl border border-border overflow-hidden bg-card shadow-md">
           {grupos.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhuma conta.</div>
           ) : grupos.map((g) => {
@@ -544,6 +544,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           data={contasFiltradas}
           columns={columns}
           hideSearch
+          containerClassName="shadow-md"
           focusId={focusId}
           getRowId={(c) => c.id}
           onRowClick={(row) => setDetalhe(row)}

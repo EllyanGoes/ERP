@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida, cn } from "@/lib/utils";
-import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil } from "lucide-react";
+import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
@@ -83,7 +85,9 @@ const FILTROS_RECEBER: { key: StatusFiltro; label: string }[] = [
   { key: "PAGA", label: "Recebidas" },
 ];
 
-export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
+type Resumo = { emAberto: number; vencido: number; recebidoMes: number };
+
+export default function ContasReceberTable({ contas, resumo }: { contas: ContaRow[]; resumo?: Resumo }) {
   const router = useRouter();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
@@ -91,19 +95,25 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
   // Filtros persistidos por usuário (padrão do sistema — sobrevivem a trocar de aba).
   const [statusFiltro, setStatusFiltro] = usePersistedState<StatusFiltro>("financeiro:contas-receber:status", "ABERTA");
   const [contaFiltro, setContaFiltro] = usePersistedState<string>("financeiro:contas-receber:conta", "");
+  // Busca na barra de filtros (vale para a tabela E para a visão agrupada).
+  const [busca, setBusca] = useState("");
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of contas) for (const cc of c.contasContrapartida ?? []) m.set(cc.id, cc.nome);
     return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [contas]);
-  const contasFiltradas = useMemo(
-    () => contas.filter((c) =>
-      (statusFiltro === "TODOS" || casaStatus(c, statusFiltro)) &&
-      (contaFiltro === "" || (c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)),
-    ),
-    [contas, statusFiltro, contaFiltro],
-  );
+  const contasFiltradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return contas.filter((c) => {
+      if (statusFiltro !== "TODOS" && !casaStatus(c, statusFiltro)) return false;
+      if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
+      if (!q) return true;
+      const o = origemReceber(c);
+      return [c.numero, c.cliente?.razaoSocial, c.descricao, o.ref, o.label]
+        .some((v) => v?.toLowerCase().includes(q));
+    });
+  }, [contas, statusFiltro, contaFiltro, busca]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
@@ -237,43 +247,65 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
     );
   }
 
+  // Ações da linha num menu de 3 pontinhos ao fim da linha (Receber/Estornar/
+  // Editar). Reusadas na tabela e na visão agrupada.
   function renderAcoes(c: ContaRow) {
     const s = c.status;
-    if (s === "PAGA" || s === "PARCIAL") {
-      return (
-        <div className="flex justify-end gap-1">
-          {s === "PARCIAL" && <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); abrir(c); }}>Receber</Button>}
-          <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700" onClick={(e) => { e.stopPropagation(); estornar(c); }}>Estornar</Button>
-        </div>
-      );
-    }
-    return s !== "CANCELADA"
-      ? <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); abrir(c); }}>Receber</Button>
-      : null;
+    const podeReceber = s !== "PAGA" && s !== "CANCELADA";
+    const podeEstornar = s === "PAGA" || s === "PARCIAL";
+    if (!podeReceber && !podeEstornar && !isAdmin) return null;
+    return (
+      <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground" title="Ações" />}>
+            <MoreVertical className="w-4 h-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-auto min-w-36">
+            {podeReceber && (
+              <DropdownMenuItem onClick={() => abrir(c)}>
+                <Wallet className="w-4 h-4 text-emerald-600" /> Receber
+              </DropdownMenuItem>
+            )}
+            {podeEstornar && (
+              <DropdownMenuItem onClick={() => estornar(c)}>
+                <RotateCcw className="w-4 h-4 text-amber-600" /> Estornar
+              </DropdownMenuItem>
+            )}
+            {isAdmin && (
+              <DropdownMenuItem onClick={() => setEditar(c)}>
+                <Pencil className="w-4 h-4" /> Editar
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    );
   }
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
-    { id: "cliente", header: "Cliente", cell: ({ row }) => renderCliente(row.original) },
-    { accessorKey: "descricao", header: "Descrição", cell: ({ row }) => <span className="text-sm">{row.original.descricao}</span> },
+    { id: "cliente", header: "Cliente", cell: ({ row }) => (
+      <div className="max-w-[13rem] truncate" title={row.original.cliente?.razaoSocial ?? undefined}>{renderCliente(row.original, "block truncate")}</div>
+    ) },
+    { accessorKey: "descricao", header: "Descrição", cell: ({ row }) => (
+      <div className="max-w-[22rem] truncate text-sm" title={row.original.descricao}>{row.original.descricao}</div>
+    ) },
+    // Só o CÓDIGO do documento de origem (o nome do processo fica no tooltip);
+    // sem código (manual, encontro, recorrência…), mostra o rótulo mesmo.
     { id: "origem", header: "Origem", cell: ({ row }) => {
       const o = origemReceber(row.original);
-      return (
-        <span className="inline-flex flex-col leading-tight items-start">
-          <span className="text-xs text-foreground">{o.label}</span>
-          {o.ref && (o.pedidoId ? (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); router.push(`/pedidos-venda/${o.pedidoId}`); }}
-              className="font-mono text-[10px] text-info hover:underline"
-              title="Abrir o pedido de venda"
-            >
-              {o.ref}
-            </button>
-          ) : (
-            <span className="font-mono text-[10px] text-muted-foreground">{o.ref}</span>
-          ))}
-        </span>
+      if (!o.ref) return <span className="text-xs text-muted-foreground">{o.label}</span>;
+      return o.pedidoId ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); router.push(`/pedidos-venda/${o.pedidoId}`); }}
+          className="font-mono text-xs text-info hover:underline"
+          title={`${o.label} — abrir`}
+        >
+          {o.ref}
+        </button>
+      ) : (
+        <span className="font-mono text-xs text-muted-foreground" title={o.label}>{o.ref}</span>
       );
     } },
     {
@@ -292,28 +324,16 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
       header: "Conta",
       cell: ({ row }) => {
         const cs = row.original.contasContrapartida ?? [];
-        return cs.length ? <span className="text-xs text-muted-foreground">{cs.map((c) => c.nome).join(" + ")}</span> : <span className="text-muted-foreground/60">—</span>;
+        const txt = cs.map((c) => c.nome).join(" + ");
+        return cs.length ? <div className="max-w-[10rem] truncate text-xs text-muted-foreground" title={txt}>{txt}</div> : <span className="text-muted-foreground/60">—</span>;
       },
     },
     {
       id: "actions",
       header: "",
-      cell: ({ row }) => {
-        const s = row.original.status;
-        if (s === "PAGA" || s === "PARCIAL") {
-          return (
-            <div className="flex justify-end gap-1">
-              {s === "PARCIAL" && <Button variant="outline" size="sm" onClick={() => abrir(row.original)}>Receber</Button>}
-              <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700" onClick={() => estornar(row.original)}>Estornar</Button>
-            </div>
-          );
-        }
-        return s !== "CANCELADA"
-          ? <Button variant="outline" size="sm" onClick={() => abrir(row.original)}>Receber</Button>
-          : null;
-      },
+      cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
     },
-  ], [contasBanco]);
+  ], [contasBanco, isAdmin]);
 
   // Estorna o recebimento: o título volta para "em aberto" e o lançamento no
   // caixa/banco é removido.
@@ -397,26 +417,32 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
-        {FILTROS_RECEBER.map((f) => {
-          const n = f.key === "TODOS" ? contas.length : contas.filter((c) => casaStatus(c, f.key)).length;
-          const ativo = statusFiltro === f.key;
-          return (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setStatusFiltro(f.key)}
-              className={
-                "px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors " +
-                (ativo
-                  ? "bg-blue-600 border-blue-600 text-white"
-                  : "bg-card border-border text-muted-foreground hover:bg-muted")
-              }
-            >
-              {f.label} <span className={ativo ? "opacity-80" : "text-muted-foreground"}>{n}</span>
+      <div className="space-y-2">
+      {/* Linha 1: todos os filtros + botão de novo lançamento (canto sup. direito). */}
+      <div className="flex items-start gap-2">
+      <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+        {/* Status: droplist de enum fixo (padrão do sistema — select nativo). */}
+        <select
+          value={statusFiltro}
+          onChange={(e) => setStatusFiltro(e.target.value as StatusFiltro)}
+          className="h-9 rounded-lg border border-border bg-card px-2.5 text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          {FILTROS_RECEBER.map((f) => {
+            const n = f.key === "TODOS" ? contas.length : contas.filter((c) => casaStatus(c, f.key)).length;
+            return <option key={f.key} value={f.key}>{f.label} ({n})</option>;
+          })}
+        </select>
+        {/* Busca na barra (vale p/ tabela e visão agrupada) */}
+        <div className="relative">
+          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar número, cliente…"
+            className="h-9 w-52 rounded-lg border border-border bg-card pl-8 pr-7 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          {busca && (
+            <button type="button" onClick={() => setBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-muted-foreground" title="Limpar busca">
+              <X className="w-3.5 h-3.5" />
             </button>
-          );
-        })}
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setAgrupamento((v) => (v === "vencimento" ? "none" : "vencimento"))}
@@ -440,19 +466,31 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
           <Building2 className="w-4 h-4" /> Cliente
         </button>
         {contasDisponiveis.length > 0 && (
-          <div className="w-60">
+          <div className="w-72">
             <ComboboxWithCreate
               value={contaFiltro}
               onChange={setContaFiltro}
               noneLabel="Todas as contas"
               triggerClassName="h-9 rounded-lg"
+              menuMinWidth={340}
               options={contasDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
             />
           </div>
         )}
       </div>
+        <NovaContaButton tipo="receber" />
+      </div>
+      {/* Linha 2: totais. */}
+      {resumo && (
+        <div className="flex flex-wrap items-center gap-4 text-sm whitespace-nowrap">
+          <span className="text-muted-foreground">Em aberto <span className="font-semibold text-info">{formatBRL(resumo.emAberto)}</span></span>
+          <span className="text-muted-foreground">Vencido <span className="font-semibold text-danger">{formatBRL(resumo.vencido)}</span></span>
+          <span className="text-muted-foreground">Recebido no mês <span className="font-semibold text-success">{formatBRL(resumo.recebidoMes)}</span></span>
+        </div>
+      )}
+      </div>
       {agrupamento !== "none" ? (
-        <div className="rounded-xl border border-border overflow-hidden bg-card">
+        <div className="rounded-xl border border-border overflow-hidden bg-card shadow-md">
           {grupos.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhuma conta.</div>
           ) : grupos.map((g) => {
@@ -470,13 +508,20 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
                     <div
                       key={c.id}
                       onClick={() => setDetalhe(c)}
-                      className="grid grid-cols-[7rem_1.2fr_1.4fr_8rem_6.5rem_5rem_auto] gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm"
+                      className={cn(
+                        "grid gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm",
+                        // Agrupado por cliente: a coluna de cliente some (já é o
+                        // cabeçalho do grupo). Por vencimento, mostra o cliente.
+                        agrupamento === "cliente"
+                          ? "grid-cols-[7rem_1.4fr_8rem_6.5rem_5rem_auto]"
+                          : "grid-cols-[7rem_1.2fr_1.4fr_8rem_6.5rem_5rem_auto]",
+                      )}
                     >
                       <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
-                      {renderCliente(c, "truncate")}
+                      {agrupamento !== "cliente" && renderCliente(c, "truncate")}
                       <span className="truncate text-muted-foreground">{c.descricao}</span>
                       {(() => { const o = origemReceber(c); return (
-                        <span className="truncate text-xs text-muted-foreground" title={o.ref ? `${o.label} · ${o.ref}` : o.label}>{o.label}{o.ref ? ` ${o.ref}` : ""}</span>
+                        <span className="truncate text-xs text-muted-foreground font-mono" title={o.ref ? `${o.label} · ${o.ref}` : o.label}>{o.ref || o.label}</span>
                       ); })()}
                       <span className="font-medium tabular-nums text-right">{formatBRL(decimalToNumber(c.valorOriginal))}</span>
                       <StatusBadge status={c.status} />
@@ -492,7 +537,8 @@ export default function ContasReceberTable({ contas }: { contas: ContaRow[] }) {
         <DataTable
           data={contasFiltradas}
           columns={columns}
-          searchPlaceholder="Buscar por número, cliente ou descrição..."
+          hideSearch
+          containerClassName="shadow-md"
           focusId={focusId}
           getRowId={(c) => c.id}
           onRowClick={(row) => setDetalhe(row)}

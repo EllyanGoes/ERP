@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, ArrowUpDown } from "lucide-react";
 
 const LINHAS_OPCOES = [10, 20, 50, 100, 200];
@@ -29,9 +30,11 @@ interface DataTableProps<T> {
   // Esconde a busca interna — a tela renderiza a busca na própria barra de
   // filtros e entrega `data` já filtrado.
   hideSearch?: boolean;
+  // Classe extra no container da tabela (ex.: sombra para destacar do fundo).
+  containerClassName?: string;
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch }: DataTableProps<T>) {
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName }: DataTableProps<T>) {
   const pathname = usePathname();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -127,7 +130,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
           </div>
         </div>
       )}
-      <div className="rounded-lg border border-border bg-card overflow-x-auto">
+      <div className={cn("rounded-lg border border-border bg-card overflow-x-auto", containerClassName)}>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
