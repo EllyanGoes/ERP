@@ -23,6 +23,18 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
               email: true,
             },
           },
+          // Cobre o pagamento antecipado (PA): o título nasce no pedido, com
+          // pedidoCompraId mas sem conferenciaId — não apareceria em contasPagar abaixo.
+          contasPagar: {
+            select: {
+              id: true, numero: true, descricao: true, valorOriginal: true, valorPago: true,
+              dataVencimento: true, dataPagamento: true, dataCompetencia: true, status: true,
+              parcelaNumero: true, parcelaTotal: true, notaFiscal: true, criadoPor: true, atualizadoPor: true,
+            },
+            orderBy: [{ dataVencimento: "asc" }, { numero: "asc" }],
+          },
+          // Subtotal do pedido p/ o rateio de encargos na prévia das duplicatas.
+          itens: { select: { valorTotal: true } },
         },
       },
       fornecedor: {
@@ -34,6 +46,15 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
           contato: true,
           email: true,
         },
+      },
+      // Títulos gerados por este documento de entrada (parcelas do contas a pagar).
+      contasPagar: {
+        select: {
+          id: true, numero: true, descricao: true, valorOriginal: true, valorPago: true,
+          dataVencimento: true, dataPagamento: true, dataCompetencia: true, status: true,
+          parcelaNumero: true, parcelaTotal: true, notaFiscal: true, criadoPor: true, atualizadoPor: true,
+        },
+        orderBy: [{ dataVencimento: "asc" }, { numero: "asc" }],
       },
       localEstoque: { select: { id: true, nome: true } },
       itens: {

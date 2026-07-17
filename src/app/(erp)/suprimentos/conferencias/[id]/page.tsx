@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -19,6 +19,8 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { useEscToClose } from "@/lib/use-esc-to-close";
+import DuplicatasTab, { type TituloResumo } from "@/components/suprimentos/DuplicatasTab";
+import { previewDuplicatasDE, type CondicaoFull } from "@/lib/duplicatas-preview";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -109,10 +111,15 @@ type Conferencia = {
     seguro: unknown;
     despesas: unknown;
     vrDesconto: unknown;
+    valorTotal: unknown;
+    intragrupo: boolean | null;
     fornecedor: FornecedorInfo;
+    contasPagar?: TituloResumo[];
+    itens?: { valorTotal: unknown }[];
   } | null;
   fornecedor: FornecedorInfo | null;
   itens: ConferenciaItem[];
+  contasPagar?: TituloResumo[];
   criadoPor?: string | null;
   atualizadoPor?: string | null;
 };
@@ -210,7 +217,7 @@ export default function DocumentoEntradaDetailPage() {
   const [despesas, setDespesas] = useState("");
   const [desconto, setDesconto] = useState("");
   const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
-  const [condicoes, setCondicoes] = useState<{ id: string; nome: string }[]>([]);
+  const [condicoes, setCondicoes] = useState<CondicaoFull[]>([]);
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
   const [validationError, setValidationError] = useState("");
@@ -220,6 +227,9 @@ export default function DocumentoEntradaDetailPage() {
   // Local de estoque (header-level)
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
   const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
+
+  // Aba ativa do rodapé (padrão Protheus: Duplicatas em destaque)
+  const [aba, setAba] = useState<"duplicatas" | "totais" | "estoque" | "outros">("duplicatas");
 
   // Fornecedor search (editable)
   const [fornecedorId, setFornecedorId] = useState("");
@@ -762,6 +772,131 @@ export default function DocumentoEntradaDetailPage() {
     ? vrTotalNum
     : r2(vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum + freteHerdado - descontoHerdado);
 
+  // ── Duplicatas ──────────────────────────────────────────────────────────
+  // Títulos reais já gerados (dedup entre os da conferência e os do pedido — PA).
+  const titulosReais: TituloResumo[] = (() => {
+    const vistos = new Set<string>();
+    const out: TituloResumo[] = [];
+    for (const t of [...(conferencia.contasPagar ?? []), ...(conferencia.pedido?.contasPagar ?? [])]) {
+      if (vistos.has(t.id)) continue;
+      vistos.add(t.id);
+      out.push(t);
+    }
+    return out;
+  })();
+
+  // Prévia das parcelas (antes de concluir) — replica a precedência do servidor.
+  const duplicatasPreview = useMemo(() => {
+    const itensPreview = itemsEditable
+      ? editItems.map((ei) => ({
+          vlrTotal: parseFloat(ei.vlrTotal) || 0,
+          quantidadeRecebida: parseFloat(ei.quantidadeRecebida) || 0,
+          vlrUnitario: parseFloat(ei.vlrUnitario) || 0,
+          desconto: parseFloat(ei.desconto) || 0,
+        }))
+      : conferencia.itens.map((i) => ({
+          vlrTotal: decimalToNumber(i.vlrTotal) || 0,
+          quantidadeRecebida: decimalToNumber(i.quantidadeRecebida),
+          vlrUnitario: decimalToNumber(i.vlrUnitario),
+          desconto: decimalToNumber(i.desconto),
+        }));
+    const ped = conferencia.pedido;
+    return previewDuplicatasDE({
+      itens: itensPreview,
+      vrTotalNF: vrTotalNum,
+      freteDE: freteNum,
+      descontoDE: descontoNum,
+      pedido: ped
+        ? {
+            frete: decimalToNumber(ped.frete),
+            seguro: decimalToNumber(ped.seguro),
+            despesas: decimalToNumber(ped.despesas),
+            vrDesconto: decimalToNumber(ped.vrDesconto),
+            subtotalItens: (ped.itens ?? []).reduce((s, it) => s + decimalToNumber(it.valorTotal), 0),
+            valorTotal: decimalToNumber(ped.valorTotal),
+            intragrupo: !!ped.intragrupo,
+            condicaoPagamentoId: ped.condicaoPagamentoId,
+            condicoesPagamento: ped.condicoesPagamento,
+          }
+        : null,
+      temFornecedor: !!fornecedorId,
+      condicaoIdDE: condicaoPagamentoId || null,
+      condicoes,
+      dtEmissao: dtEmissao || null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsEditable, editItems, conferencia, vrTotalNum, freteNum, descontoNum, fornecedorId, condicaoPagamentoId, condicoes, dtEmissao]);
+
+  const condicaoNomeAtual = condicoes.find((c) => c.id === condicaoPagamentoId)?.nome
+    ?? duplicatasPreview.condicao?.nome ?? null;
+
+  // Conteúdo da aba "Local de Estoque" (movido do topo para o rodapé em abas).
+  const localEstoquePanel = (
+    <div className="flex flex-col md:flex-row md:items-end gap-4">
+      {/* Mode toggle */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Modo de entrada</Label>
+        <div className="flex items-center border border-border rounded-lg p-0.5 bg-muted w-fit">
+          <button
+            type="button"
+            onClick={() => nfEditable && handleModoChange("GLOBAL")}
+            className={cn(
+              "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
+              modoLocalEstoque === "GLOBAL"
+                ? "bg-card text-info shadow-sm border border-info/30"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Global
+          </button>
+          <button
+            type="button"
+            onClick={() => nfEditable && handleModoChange("POR_ITEM")}
+            className={cn(
+              "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
+              modoLocalEstoque === "POR_ITEM"
+                ? "bg-card text-info shadow-sm border border-info/30"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Por Item
+          </button>
+        </div>
+      </div>
+
+      {/* Global local selector */}
+      {modoLocalEstoque === "GLOBAL" && (
+        <div className="space-y-1.5 flex-1 max-w-xs">
+          <Label className="text-xs text-muted-foreground">
+            Local de Estoque <span className="text-red-500">*</span>
+          </Label>
+          {nfEditable ? (
+            <ComboboxWithCreate
+              value={localEstoqueGlobalId}
+              onChange={(v) => handleGlobalLocalChange(v)}
+              placeholder="Selecionar local..."
+              noneLabel="Selecionar local..."
+              triggerClassName={cn("h-9 rounded-md", !localEstoqueGlobalId && "border-red-300")}
+              options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+            />
+          ) : (
+            <Input
+              value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
+              readOnly
+              className="bg-muted"
+            />
+          )}
+        </div>
+      )}
+
+      {modoLocalEstoque === "POR_ITEM" && (
+        <p className="text-xs text-muted-foreground pb-1.5">
+          O local de estoque será definido individualmente para cada item na tabela abaixo.
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div>
       {/* SC atendida toast */}
@@ -1196,77 +1331,7 @@ export default function DocumentoEntradaDetailPage() {
           </CardContent>
         </Card>
 
-        {/* ── Seção 3: Local de Estoque ────────────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Local de Estoque</h2>
-          </div>
-          <div className="p-4 flex flex-col md:flex-row md:items-end gap-4">
-            {/* Mode toggle */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Modo de entrada</Label>
-              <div className="flex items-center border border-border rounded-lg p-0.5 bg-muted w-fit">
-                <button
-                  type="button"
-                  onClick={() => nfEditable && handleModoChange("GLOBAL")}
-                  className={cn(
-                    "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
-                    modoLocalEstoque === "GLOBAL"
-                      ? "bg-card text-info shadow-sm border border-info/30"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Global
-                </button>
-                <button
-                  type="button"
-                  onClick={() => nfEditable && handleModoChange("POR_ITEM")}
-                  className={cn(
-                    "px-4 py-1.5 rounded-md text-xs font-medium transition-colors",
-                    modoLocalEstoque === "POR_ITEM"
-                      ? "bg-card text-info shadow-sm border border-info/30"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Por Item
-                </button>
-              </div>
-            </div>
-
-            {/* Global local selector */}
-            {modoLocalEstoque === "GLOBAL" && (
-              <div className="space-y-1.5 flex-1 max-w-xs">
-                <Label className="text-xs text-muted-foreground">
-                  Local de Estoque <span className="text-red-500">*</span>
-                </Label>
-                {nfEditable ? (
-                  <ComboboxWithCreate
-                    value={localEstoqueGlobalId}
-                    onChange={(v) => handleGlobalLocalChange(v)}
-                    placeholder="Selecionar local..."
-                    noneLabel="Selecionar local..."
-                    triggerClassName={cn("h-9 rounded-md", !localEstoqueGlobalId && "border-red-300")}
-                    options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
-                  />
-                ) : (
-                  <Input
-                    value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
-                    readOnly
-                    className="bg-muted"
-                  />
-                )}
-              </div>
-            )}
-
-            {modoLocalEstoque === "POR_ITEM" && (
-              <p className="text-xs text-muted-foreground pb-1.5">
-                O local de estoque será definido individualmente para cada item na tabela abaixo.
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ── Seção 4: Itens ───────────────────────────────────────────────── */}
+        {/* ── Itens ────────────────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -1757,49 +1822,92 @@ export default function DocumentoEntradaDetailPage() {
           </CardContent>
         </Card>
 
-        {/* ── Seção 4: Totais ──────────────────────────────────────────────── */}
+        {/* ── Abas (rodapé estilo Protheus): Duplicatas | Totais | Local | Outros ── */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Totais</h2>
+          <div className="flex items-center gap-1 border-b border-border bg-muted px-2 overflow-x-auto">
+            {([
+              { id: "duplicatas", label: "Duplicatas" },
+              { id: "totais", label: "Totais" },
+              { id: "estoque", label: "Local de Estoque", alerta: showLocalAlert },
+              { id: "outros", label: "Outros" },
+            ] as const).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setAba(t.id)}
+                className={cn(
+                  "relative px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors -mb-px border-b-2",
+                  aba === t.id
+                    ? "border-info text-info"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.label}
+                {"alerta" in t && t.alerta && (
+                  <span className="absolute top-1.5 right-1 w-1.5 h-1.5 rounded-full bg-danger" />
+                )}
+              </button>
+            ))}
+            <div className="ml-auto pr-3 py-2.5 text-sm text-muted-foreground whitespace-nowrap">
+              Vlr. Líquido: <b className="text-foreground">{vlrLiquido > 0 ? formatBRL(vlrLiquido) : "—"}</b>
+            </div>
           </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Vlr. Mercadoria</Label>
-              {itemsEditable ? (
-                <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-muted text-right" />
-              ) : (
-                <Input value={vlrMercadoria > 0 ? formatBRL(vlrMercadoria) : "—"} readOnly className="bg-muted text-right" />
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
-              {nfEditable ? (
-                <ComboboxWithCreate
-                  value={condicaoPagamentoId}
-                  onChange={(v) => setCondicaoPagamentoId(v)}
-                  noneLabel="— Herdar do pedido / à vista —"
-                  triggerClassName="h-9 rounded-md"
-                  options={condicoes.map((c) => ({ value: c.id, label: c.nome }))}
-                />
-              ) : (
-                <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-muted" />
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Natureza Financeira</Label>
-              {nfEditable ? (
-                <NaturezaCombobox
-                  value={naturezaFinanceiraId}
-                  onChange={setNaturezaFinanceiraId}
-                  naturezas={naturezas}
-                  placeholder="— Selecionar natureza —"
-                />
-              ) : (
-                <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-muted" />
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Frete</Label>
+
+          <div className="p-4">
+            {/* ── Aba Duplicatas ──────────────────────────────────────────── */}
+            {aba === "duplicatas" && (
+              <DuplicatasTab
+                titulosReais={titulosReais}
+                preview={duplicatasPreview}
+                condicaoNome={condicaoNomeAtual}
+                fornecedorNome={fornNome}
+                headerControls={
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
+                      {nfEditable ? (
+                        <ComboboxWithCreate
+                          value={condicaoPagamentoId}
+                          onChange={(v) => setCondicaoPagamentoId(v)}
+                          noneLabel="— Herdar do pedido / à vista —"
+                          triggerClassName="h-9 rounded-md"
+                          options={condicoes.map((c) => ({ value: c.id, label: c.nome }))}
+                        />
+                      ) : (
+                        <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-muted" />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Natureza Financeira</Label>
+                      {nfEditable ? (
+                        <NaturezaCombobox
+                          value={naturezaFinanceiraId}
+                          onChange={setNaturezaFinanceiraId}
+                          naturezas={naturezas}
+                          placeholder="— Selecionar natureza —"
+                        />
+                      ) : (
+                        <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-muted" />
+                      )}
+                    </div>
+                  </>
+                }
+              />
+            )}
+
+            {/* ── Aba Totais ──────────────────────────────────────────────── */}
+            {aba === "totais" && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Vlr. Mercadoria</Label>
+                  {itemsEditable ? (
+                    <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-muted text-right" />
+                  ) : (
+                    <Input value={vlrMercadoria > 0 ? formatBRL(vlrMercadoria) : "—"} readOnly className="bg-muted text-right" />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Frete</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -1890,38 +1998,44 @@ export default function DocumentoEntradaDetailPage() {
                 />
               </div>
             )}
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Vlr. Líquido</Label>
-              <Input
-                value={vlrLiquido > 0 ? formatBRL(vlrLiquido) : "—"}
-                readOnly
-                className="bg-info/10 text-right font-bold text-blue-900 border-info/30"
-              />
-            </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Vlr. Líquido</Label>
+                  <Input
+                    value={vlrLiquido > 0 ? formatBRL(vlrLiquido) : "—"}
+                    readOnly
+                    className="bg-info/10 text-right font-bold text-blue-900 border-info/30"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── Aba Local de Estoque ────────────────────────────────────── */}
+            {aba === "estoque" && localEstoquePanel}
+
+            {/* ── Aba Outros ──────────────────────────────────────────────── */}
+            {aba === "outros" && (
+              <div className="space-y-4">
+                {(isEditable || isDivergencia || (isConcluded && isAdmin)) && (
+                  <div className="space-y-1.5 max-w-xs">
+                    <Label>Responsável pela Conferência</Label>
+                    <ComboboxWithCreate
+                      value={usuarioResponsavelId}
+                      onChange={(v) => {
+                        const selected = usuarios.find((u) => u.id === v);
+                        setUsuarioResponsavelId(v);
+                        setResponsavel(selected?.nome ?? "");
+                      }}
+                      noneLabel="— Selecionar usuário —"
+                      triggerClassName="h-9 rounded-md"
+                      options={usuarios.map((u) => ({ value: u.id, label: u.nome }))}
+                    />
+                  </div>
+                )}
+                <Autoria criadoPor={conferencia.criadoPor} atualizadoPor={conferencia.atualizadoPor} />
+              </div>
+            )}
           </div>
         </div>
-
-        {/* ── Responsável ──────────────────────────────────────────────────── */}
-        {(isEditable || isDivergencia || (isConcluded && isAdmin)) && (
-          <Card>
-            <CardContent className="pt-4">
-              <div className="space-y-1.5 max-w-xs">
-                <Label>Responsável pela Conferência</Label>
-                <ComboboxWithCreate
-                  value={usuarioResponsavelId}
-                  onChange={(v) => {
-                    const selected = usuarios.find((u) => u.id === v);
-                    setUsuarioResponsavelId(v);
-                    setResponsavel(selected?.nome ?? "");
-                  }}
-                  noneLabel="— Selecionar usuário —"
-                  triggerClassName="h-9 rounded-md"
-                  options={usuarios.map((u) => ({ value: u.id, label: u.nome }))}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
 
         {/* ── Actions ──────────────────────────────────────────────────────── */}
@@ -1953,8 +2067,6 @@ export default function DocumentoEntradaDetailPage() {
             </Button>
           )}
         </div>
-
-        <Autoria criadoPor={conferencia.criadoPor} atualizadoPor={conferencia.atualizadoPor} />
       </div>
 
       {/* ── Popup: novos vínculos fornecedor × produto ───────────────────────── */}

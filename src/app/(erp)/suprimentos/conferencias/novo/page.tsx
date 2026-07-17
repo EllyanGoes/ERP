@@ -280,6 +280,9 @@ export default function NovoDocumentoEntradaPage() {
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
   const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
 
+  // Aba ativa do rodapé (padrão Protheus: Duplicatas em destaque)
+  const [aba, setAba] = useState<"duplicatas" | "totais" | "estoque" | "outros">("duplicatas");
+
   // Items
   const [itens, setItens]                       = useState<ItemRow[]>([emptyRow()]);
   const [produtos, setProdutos]                 = useState<Produto[]>([]);
@@ -649,6 +652,65 @@ export default function NovoDocumentoEntradaPage() {
   const despesasNum = parseFloat(despesas) || 0;
   const descontoNum = parseFloat(desconto) || 0;
   const vlrBruto    = vlrMercadoria + freteNum + seguroNum + despesasNum - descontoNum;
+
+  // Conteúdo da aba "Local de Estoque" (movido do topo para o rodapé em abas).
+  const localEstoquePanel = (
+    <div className="flex flex-wrap items-start gap-6">
+      {/* Toggle */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Modo de entrada</Label>
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
+          <button
+            type="button"
+            onClick={() => handleModoChange("GLOBAL")}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+              modoLocalEstoque === "GLOBAL"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Global
+          </button>
+          <button
+            type="button"
+            onClick={() => handleModoChange("POR_ITEM")}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+              modoLocalEstoque === "POR_ITEM"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Por Item
+          </button>
+        </div>
+      </div>
+
+      {/* Global selector */}
+      {modoLocalEstoque === "GLOBAL" && (
+        <div className="space-y-1.5 flex-1 max-w-xs">
+          <Label className="text-xs text-muted-foreground">
+            Local de Estoque <span className="text-red-500">*</span>
+          </Label>
+          <ComboboxWithCreate
+            value={localEstoqueGlobalId}
+            onChange={handleGlobalLocalChange}
+            placeholder="Selecionar local..."
+            noneLabel="Selecionar local"
+            triggerClassName={cn("h-9 rounded-md", !localEstoqueGlobalId && "border-red-300")}
+            options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+          />
+        </div>
+      )}
+
+      {modoLocalEstoque === "POR_ITEM" && (
+        <p className="text-xs text-muted-foreground self-end pb-1.5">
+          O local de estoque será definido individualmente para cada item na tabela abaixo.
+        </p>
+      )}
+    </div>
+  );
 
   async function handleSubmit() {
     setError("");
@@ -1085,70 +1147,6 @@ export default function NovoDocumentoEntradaPage() {
           </CardContent>
         </Card>
 
-        {/* ── Local de Estoque ─────────────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Local de Estoque</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap items-start gap-6">
-              {/* Toggle */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Modo de entrada</Label>
-                <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
-                  <button
-                    type="button"
-                    onClick={() => handleModoChange("GLOBAL")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-                      modoLocalEstoque === "GLOBAL"
-                        ? "bg-card text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Global
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleModoChange("POR_ITEM")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-                      modoLocalEstoque === "POR_ITEM"
-                        ? "bg-card text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Por Item
-                  </button>
-                </div>
-              </div>
-
-              {/* Global selector */}
-              {modoLocalEstoque === "GLOBAL" && (
-                <div className="space-y-1.5 flex-1 max-w-xs">
-                  <Label className="text-xs text-muted-foreground">
-                    Local de Estoque <span className="text-red-500">*</span>
-                  </Label>
-                  <ComboboxWithCreate
-                    value={localEstoqueGlobalId}
-                    onChange={handleGlobalLocalChange}
-                    placeholder="Selecionar local..."
-                    noneLabel="Selecionar local"
-                    triggerClassName={cn("h-9 rounded-md", !localEstoqueGlobalId && "border-red-300")}
-                    options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
-                  />
-                </div>
-              )}
-
-              {modoLocalEstoque === "POR_ITEM" && (
-                <p className="text-xs text-muted-foreground self-end pb-1.5">
-                  O local de estoque será definido individualmente para cada item na tabela abaixo.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* ── Items Table ──────────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -1402,62 +1400,107 @@ export default function NovoDocumentoEntradaPage() {
           </CardContent>
         </Card>
 
-        {/* ── Totals ───────────────────────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Totais</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Vlr. Mercadoria</Label>
-                <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-muted text-right font-medium" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Frete</Label>
-                <Input type="number" step="0.01" min="0" value={frete} onChange={(e) => setFrete(e.target.value)} placeholder="0,00" className="text-right" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Seguro</Label>
-                <Input type="number" step="0.01" min="0" value={seguro} onChange={(e) => setSeguro(e.target.value)} placeholder="0,00" className="text-right" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Despesas</Label>
-                <Input type="number" step="0.01" min="0" value={despesas} onChange={(e) => setDespesas(e.target.value)} placeholder="0,00" className="text-right" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Desconto</Label>
-                <Input type="number" step="0.01" min="0" value={desconto} onChange={(e) => setDesconto(e.target.value)} placeholder="0,00" className="text-right" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Vlr. Bruto</Label>
-                <Input value={formatBRL(vlrBruto)} readOnly className="bg-info/10 text-right font-bold text-blue-900 border-info/30" />
-              </div>
+        {/* ── Abas (rodapé estilo Protheus): Duplicatas | Totais | Local | Outros ── */}
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="flex items-center gap-1 border-b border-border bg-muted px-2 overflow-x-auto">
+            {([
+              { id: "duplicatas", label: "Duplicatas" },
+              { id: "totais", label: "Totais" },
+              { id: "estoque", label: "Local de Estoque" },
+              { id: "outros", label: "Outros" },
+            ] as const).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setAba(t.id)}
+                className={cn(
+                  "relative px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors -mb-px border-b-2",
+                  aba === t.id
+                    ? "border-info text-info"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+            <div className="ml-auto pr-3 py-2.5 text-sm text-muted-foreground whitespace-nowrap">
+              Vlr. Bruto: <b className="text-foreground">{formatBRL(vlrBruto)}</b>
             </div>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* ── Responsável ──────────────────────────────────────────────────── */}
-        <Card>
-          <CardContent className="pt-4">
-            <div className="space-y-1.5 max-w-xs">
-              <Label>
-                Responsável pela Conferência <span className="text-red-500">*</span>
-              </Label>
-              <ComboboxWithCreate
-                value={usuarioResponsavelId}
-                onChange={(v) => {
-                  setUsuarioResponsavelId(v);
-                  setResponsavel(usuarios.find((u) => u.id === v)?.nome ?? "");
-                }}
-                placeholder="— Selecionar usuário —"
-                noneLabel="Selecionar usuário"
-                triggerClassName={cn("h-9 rounded-md", !usuarioResponsavelId && "border-red-300")}
-                options={usuarios.map((u) => ({ value: u.id, label: u.nome }))}
-              />
-            </div>
-          </CardContent>
-        </Card>
+          <div className="p-4">
+            {/* ── Aba Duplicatas (na criação, as parcelas são definidas na tela do documento) ── */}
+            {aba === "duplicatas" && (
+              <div className="flex items-start gap-2 bg-info/10 border border-info/20 rounded-lg p-4 text-sm text-info">
+                <FileText className="w-4 h-4 mt-0.5 shrink-0" />
+                <div>
+                  {vinculadoPedido ? (
+                    <p>
+                      As <b>duplicatas</b> (parcelas do contas a pagar) serão geradas na <b>conclusão</b> do documento, conforme a condição de pagamento do pedido <span className="font-mono">{vinculadoPedido.numero}</span>. Você poderá conferir e ajustar a condição na tela do documento após incluir.
+                    </p>
+                  ) : (
+                    <p>
+                      A <b>condição de pagamento</b> e as <b>duplicatas</b> são definidas na tela do documento, após a inclusão. Valor previsto do título: <b>{formatBRL(vlrBruto)}</b>.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Aba Totais ──────────────────────────────────────────────── */}
+            {aba === "totais" && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Vlr. Mercadoria</Label>
+                  <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-muted text-right font-medium" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Frete</Label>
+                  <Input type="number" step="0.01" min="0" value={frete} onChange={(e) => setFrete(e.target.value)} placeholder="0,00" className="text-right" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Seguro</Label>
+                  <Input type="number" step="0.01" min="0" value={seguro} onChange={(e) => setSeguro(e.target.value)} placeholder="0,00" className="text-right" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Despesas</Label>
+                  <Input type="number" step="0.01" min="0" value={despesas} onChange={(e) => setDespesas(e.target.value)} placeholder="0,00" className="text-right" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Desconto</Label>
+                  <Input type="number" step="0.01" min="0" value={desconto} onChange={(e) => setDesconto(e.target.value)} placeholder="0,00" className="text-right" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Vlr. Bruto</Label>
+                  <Input value={formatBRL(vlrBruto)} readOnly className="bg-info/10 text-right font-bold text-blue-900 border-info/30" />
+                </div>
+              </div>
+            )}
+
+            {/* ── Aba Local de Estoque ────────────────────────────────────── */}
+            {aba === "estoque" && localEstoquePanel}
+
+            {/* ── Aba Outros ──────────────────────────────────────────────── */}
+            {aba === "outros" && (
+              <div className="space-y-1.5 max-w-xs">
+                <Label>
+                  Responsável pela Conferência <span className="text-red-500">*</span>
+                </Label>
+                <ComboboxWithCreate
+                  value={usuarioResponsavelId}
+                  onChange={(v) => {
+                    setUsuarioResponsavelId(v);
+                    setResponsavel(usuarios.find((u) => u.id === v)?.nome ?? "");
+                  }}
+                  placeholder="— Selecionar usuário —"
+                  noneLabel="Selecionar usuário"
+                  triggerClassName={cn("h-9 rounded-md", !usuarioResponsavelId && "border-red-300")}
+                  options={usuarios.map((u) => ({ value: u.id, label: u.nome }))}
+                />
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* ── Actions ──────────────────────────────────────────────────────── */}
         <div className="flex gap-3">
