@@ -115,10 +115,23 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId, data]);
 
+  const seletorLinhas = (
+    <select
+      value={pageSize}
+      onChange={(e) => setPageSize(Number(e.target.value))}
+      className="h-8 rounded-md border border-border bg-card px-1.5 text-xs text-muted-foreground"
+      title="Linhas por página"
+    >
+      {LINHAS_OPCOES.map((n) => <option key={n} value={n}>{n} por página</option>)}
+    </select>
+  );
+
   return (
     <div className="space-y-4">
-      {!hideSearch && (
-        <div className="flex items-center gap-2">
+      {/* Barra superior: busca à esquerda (quando visível) e o seletor de linhas
+          por página no canto superior direito da tabela. */}
+      <div className="flex items-center gap-2">
+        {!hideSearch && (
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -128,8 +141,9 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
               className="pl-9"
             />
           </div>
-        </div>
-      )}
+        )}
+        <div className="ml-auto">{seletorLinhas}</div>
+      </div>
       <div className={cn("rounded-lg border border-border bg-card overflow-x-auto", containerClassName)}>
         <Table>
           <TableHeader>
@@ -192,17 +206,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
       </div>
       {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span className="inline-flex items-center gap-2">
-          {table.getFilteredRowModel().rows.length} registros
-          <select
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            className="h-7 rounded-md border border-border bg-card px-1.5 text-xs text-muted-foreground"
-            title="Linhas por página"
-          >
-            {LINHAS_OPCOES.map((n) => <option key={n} value={n}>{n} por página</option>)}
-          </select>
-        </span>
+        <span>{table.getFilteredRowModel().rows.length} registros</span>
         <div className="flex items-center gap-1">
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => table.setPageIndex(0)} disabled={!table.getCanPreviousPage()}>
             <ChevronsLeft className="h-4 w-4" />
