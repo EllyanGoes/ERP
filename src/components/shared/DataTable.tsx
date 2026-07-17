@@ -144,7 +144,12 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
             />
           </div>
         )}
-        <div className="ml-auto">{seletorLinhas}</div>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+            {table.getFilteredRowModel().rows.length} registro(s)
+          </span>
+          {seletorLinhas}
+        </div>
       </div>
       <div className={cn("rounded-lg border border-border bg-card overflow-x-auto", containerClassName)}>
         <Table>

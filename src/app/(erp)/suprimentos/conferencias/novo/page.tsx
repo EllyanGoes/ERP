@@ -970,7 +970,7 @@ export default function NovoDocumentoEntradaPage() {
         }
       />
 
-      <div className="px-6 pb-6 max-w-6xl space-y-4">
+      <div className="px-6 pb-6 space-y-4">
         {error && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {error}
@@ -1075,11 +1075,11 @@ export default function NovoDocumentoEntradaPage() {
         )}
 
         {/* ── Dados do Documento ───────────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2">
+        <Card size="sm">
+          <CardHeader className="pb-1">
             <CardTitle className="text-base">Dados do Documento</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2.5">
 
             {/* Tipo de Documento */}
             <div className="space-y-1.5">
@@ -1170,12 +1170,12 @@ export default function NovoDocumentoEntradaPage() {
         </Card>
 
         {/* ── Fornecedor ───────────────────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2">
+        <Card size="sm">
+          <CardHeader className="pb-1">
             <CardTitle className="text-base">Fornecedor</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-x-4 gap-y-2.5">
               <div className="space-y-1.5 md:col-span-2">
                 <Label className="text-xs text-muted-foreground">
                   Fornecedor <span className="text-red-500">*</span>
@@ -1195,16 +1195,14 @@ export default function NovoDocumentoEntradaPage() {
                 />
               </div>
 
-              {selectedFornecedor && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">CNPJ / CPF</Label>
-                  <Input
-                    value={selectedFornecedor.cpfCnpj ?? "—"}
-                    readOnly
-                    className="bg-muted font-mono"
-                  />
-                </div>
-              )}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">CNPJ / CPF</Label>
+                <Input
+                  value={selectedFornecedor?.cpfCnpj ?? "—"}
+                  readOnly
+                  className="bg-muted font-mono text-xs"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
