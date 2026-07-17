@@ -11,11 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
+import { useSession } from "@/lib/session-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
+import ModoToggle from "@/components/suprimentos/ModoToggle";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -235,6 +237,7 @@ function ProdSearchCell({
 
 export default function NovoDocumentoEntradaPage() {
   const searchParams = useSearchParams();
+  const { user } = useSession();
 
   // Documento fields
   const [tipoDocumento, setTipoDocumento] = useState<"NF" | "SN">("NF");
@@ -279,6 +282,12 @@ export default function NovoDocumentoEntradaPage() {
   // Local de Estoque (Global vs Por Item)
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
   const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
+
+  // TES e Centro de custo também têm modo Global/Por Item (só UI — aplica às linhas).
+  const [modoTes, setModoTes] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
+  const [tesGlobalId, setTesGlobalId] = useState("");
+  const [modoCentro, setModoCentro] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
+  const [centroGlobalId, setCentroGlobalId] = useState("");
 
   // Aba ativa do rodapé (padrão Protheus: Duplicatas em destaque)
   const [aba, setAba] = useState<"duplicatas" | "totais" | "outros">("duplicatas");
@@ -327,6 +336,15 @@ export default function NovoDocumentoEntradaPage() {
       .then((j) => setUsuarios(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
+
+  // Responsável default = usuário logado (quem dá a entrada); pode trocar manualmente.
+  useEffect(() => {
+    if (usuarioResponsavelId || responsavel || usuarios.length === 0 || !user) return;
+    const me = usuarios.find((u) => u.id === user.id)
+      ?? usuarios.find((u) => u.nome.toLowerCase() === user.nome.toLowerCase());
+    if (me) { setUsuarioResponsavelId(me.id); setResponsavel(me.nome); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuarios, user]);
 
   // Load produtos
   useEffect(() => {
@@ -383,6 +401,35 @@ export default function NovoDocumentoEntradaPage() {
       } else { next.compoeCusto = null; }
       return next;
     }));
+  }
+
+  // TES global — aplica o preset a TODAS as linhas.
+  function applyTesGlobal(tesId: string) {
+    setTesGlobalId(tesId);
+    const tes = tesList.find((t) => t.id === tesId);
+    setItens((prev) => prev.map((r) => {
+      const next = { ...r, tesId };
+      if (tes) {
+        next.compoeCusto = tes.compoeCusto;
+        if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
+        if (tes.centroCustoSugeridoId && modoCentro === "POR_ITEM") next.centroCustoId = tes.centroCustoSugeridoId;
+      } else { next.compoeCusto = null; }
+      return next;
+    }));
+  }
+  function handleModoTesChange(novo: "GLOBAL" | "POR_ITEM") {
+    setModoTes(novo);
+    if (novo === "GLOBAL" && tesGlobalId) applyTesGlobal(tesGlobalId);
+  }
+
+  // Centro de custo global — aplica a todas as linhas.
+  function applyCentroGlobal(ccId: string) {
+    setCentroGlobalId(ccId);
+    setItens((prev) => prev.map((r) => ({ ...r, centroCustoId: ccId })));
+  }
+  function handleModoCentroChange(novo: "GLOBAL" | "POR_ITEM") {
+    setModoCentro(novo);
+    if (novo === "GLOBAL" && centroGlobalId) applyCentroGlobal(centroGlobalId);
   }
 
   // Busca PCs para vincular. Sem termo → lista os PCs "em aberto" (sem DE);
@@ -638,6 +685,11 @@ export default function NovoDocumentoEntradaPage() {
   function addRow() {
     const row = emptyRow();
     if (modoLocalEstoque === "GLOBAL") row.localEstoqueId = localEstoqueGlobalId;
+    if (modoTes === "GLOBAL" && tesGlobalId) {
+      row.tesId = tesGlobalId;
+      row.compoeCusto = tesList.find((t) => t.id === tesGlobalId)?.compoeCusto ?? null;
+    }
+    if (modoCentro === "GLOBAL" && centroGlobalId) row.centroCustoId = centroGlobalId;
     setItens((prev) => [...prev, row]);
   }
 
@@ -1090,56 +1142,67 @@ export default function NovoDocumentoEntradaPage() {
 
         {/* ── Items Table ──────────────────────────────────────────────────── */}
         <Card>
-          <CardHeader className="pb-2 flex flex-row items-center gap-4 flex-wrap">
+          <CardHeader className="pb-2 flex flex-row items-center gap-x-4 gap-y-2 flex-wrap">
             <CardTitle className="text-base">Itens</CardTitle>
 
-            {/* Local de Estoque — modo de entrada, na linha do título */}
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Local de Estoque:</span>
-              <div className="flex items-center gap-1 bg-muted rounded-lg p-1 w-fit">
-                <button
-                  type="button"
-                  onClick={() => handleModoChange("GLOBAL")}
-                  className={cn(
-                    "px-3 py-1 rounded-md text-xs font-medium transition-all",
-                    modoLocalEstoque === "GLOBAL"
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Global
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleModoChange("POR_ITEM")}
-                  className={cn(
-                    "px-3 py-1 rounded-md text-xs font-medium transition-all",
-                    modoLocalEstoque === "POR_ITEM"
-                      ? "bg-card text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  Por Item
-                </button>
+            <div className="ml-auto flex items-center gap-x-4 gap-y-2 flex-wrap">
+              {/* TES — modo Global/Por Item */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">TES:</span>
+                <ModoToggle value={modoTes} onChange={handleModoTesChange} editable />
+                {modoTes === "GLOBAL" && (
+                  <select
+                    value={tesGlobalId}
+                    onChange={(e) => applyTesGlobal(e.target.value)}
+                    className={cn("h-8 rounded-md text-xs border bg-card px-1.5 w-44", !tesGlobalId ? "border-red-300" : "border-border")}
+                  >
+                    <option value="">— TES —</option>
+                    {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                  </select>
+                )}
               </div>
-              {modoLocalEstoque === "GLOBAL" && (
-                <div className="w-56">
-                  <ComboboxWithCreate
-                    value={localEstoqueGlobalId}
-                    onChange={handleGlobalLocalChange}
-                    placeholder="Selecionar local..."
-                    noneLabel="Selecionar local"
-                    menuMinWidth={280}
-                    triggerClassName={cn("h-8 rounded-md text-xs", !localEstoqueGlobalId && "border-red-300")}
-                    options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
-                  />
-                </div>
-              )}
-            </div>
 
-            <Button type="button" size="sm" variant="outline" onClick={addRow}>
-              <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Item
-            </Button>
+              {/* Centro de custo — modo Global/Por Item */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Centro:</span>
+                <ModoToggle value={modoCentro} onChange={handleModoCentroChange} editable />
+                {modoCentro === "GLOBAL" && (
+                  <div className="w-48">
+                    <ComboboxWithCreate
+                      value={centroGlobalId}
+                      onChange={applyCentroGlobal}
+                      noneLabel="—"
+                      menuMinWidth={300}
+                      triggerClassName={cn("h-8 rounded-md text-xs", !centroGlobalId && "border-red-300")}
+                      options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Local de Estoque — modo Global/Por Item */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Local:</span>
+                <ModoToggle value={modoLocalEstoque} onChange={handleModoChange} editable />
+                {modoLocalEstoque === "GLOBAL" && (
+                  <div className="w-56">
+                    <ComboboxWithCreate
+                      value={localEstoqueGlobalId}
+                      onChange={handleGlobalLocalChange}
+                      placeholder="Selecionar local..."
+                      noneLabel="Selecionar local"
+                      menuMinWidth={280}
+                      triggerClassName={cn("h-8 rounded-md text-xs", !localEstoqueGlobalId && "border-red-300")}
+                      options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <Button type="button" size="sm" variant="outline" onClick={addRow}>
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Item
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -1154,8 +1217,12 @@ export default function NovoDocumentoEntradaPage() {
                         Local Estoque <span className="text-red-500">*</span>
                       </th>
                     )}
-                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[150px]" title="TES: preset de comportamento. Não decide destino.">TES <span className="text-red-500">*</span></th>
-                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[140px]" title="Centro de custo (herança/orçamento). Não classifica destino de custo.">Centro de custo <span className="text-red-500">*</span></th>
+                    {modoTes === "POR_ITEM" && (
+                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[150px]" title="TES: preset de comportamento. Não decide destino.">TES <span className="text-red-500">*</span></th>
+                    )}
+                    {modoCentro === "POR_ITEM" && (
+                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[140px]" title="Centro de custo (herança/orçamento). Não classifica destino de custo.">Centro de custo <span className="text-red-500">*</span></th>
+                    )}
                     <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs w-14">U.M.</th>
                     <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Qtd. Pedida</th>
                     <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Qtd. Recebida</th>
@@ -1221,25 +1288,29 @@ export default function NovoDocumentoEntradaPage() {
                         )}
 
                         {/* TES — preset de comportamento; preenche as flags da linha */}
-                        <td className="px-2 py-1.5">
-                          <select value={row.tesId} onChange={(e) => applyTes(row._key, e.target.value)}
-                            className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]", !row.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
-                            <option value="">— TES —</option>
-                            {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
-                          </select>
-                        </td>
+                        {modoTes === "POR_ITEM" && (
+                          <td className="px-2 py-1.5">
+                            <select value={row.tesId} onChange={(e) => applyTes(row._key, e.target.value)}
+                              className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]", !row.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
+                              <option value="">— TES —</option>
+                              {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                            </select>
+                          </td>
+                        )}
 
                         {/* Centro de custo — obrigatório; não classifica destino */}
-                        <td className="px-2 py-1.5">
-                          <ComboboxWithCreate
-                            value={row.centroCustoId}
-                            onChange={(v) => updateItem(row._key, "centroCustoId", v)}
-                            noneLabel="—"
-                            menuMinWidth={300}
-                            triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                            options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
-                          />
-                        </td>
+                        {modoCentro === "POR_ITEM" && (
+                          <td className="px-2 py-1.5">
+                            <ComboboxWithCreate
+                              value={row.centroCustoId}
+                              onChange={(v) => updateItem(row._key, "centroCustoId", v)}
+                              noneLabel="—"
+                              menuMinWidth={300}
+                              triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
+                              options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                            />
+                          </td>
+                        )}
 
                         {/* U.M. — unidade de compra (base ou alternativa). A conversão
                             p/ a unidade de estoque é feita na conclusão da conferência. */}

@@ -20,6 +20,7 @@ import DatePicker from "@/components/shared/DatePicker";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { useEscToClose } from "@/lib/use-esc-to-close";
 import DuplicatasTab, { type TituloResumo } from "@/components/suprimentos/DuplicatasTab";
+import ModoToggle from "@/components/suprimentos/ModoToggle";
 import { previewDuplicatasDE, type CondicaoFull } from "@/lib/duplicatas-preview";
 
 const UF_LIST = [
@@ -232,6 +233,13 @@ export default function DocumentoEntradaDetailPage() {
   const [modoLocalEstoque, setModoLocalEstoque] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
   const [localEstoqueGlobalId, setLocalEstoqueGlobalId] = useState("");
 
+  // TES e Centro de custo também têm modo Global/Por Item. É só UI: o valor
+  // global é aplicado a todas as linhas (a persistência continua por item).
+  const [modoTes, setModoTes] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
+  const [tesGlobalId, setTesGlobalId] = useState("");
+  const [modoCentro, setModoCentro] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
+  const [centroGlobalId, setCentroGlobalId] = useState("");
+
   // Aba ativa do rodapé (padrão Protheus: Duplicatas em destaque)
   const [aba, setAba] = useState<"duplicatas" | "totais" | "outros">("duplicatas");
 
@@ -289,6 +297,17 @@ export default function DocumentoEntradaDetailPage() {
 
       const resolvedModo = conf.modoLocalEstoque === "GLOBAL" ? "GLOBAL" : "POR_ITEM";
       const globalLocalId = conf.localEstoqueId ?? "";
+
+      // TES/Centro: se todas as linhas já compartilham o mesmo valor (não vazio),
+      // abre em modo Global com esse valor; senão, Por Item.
+      const tesIds = conf.itens.map((i) => i.tesId ?? "");
+      const tesUnico = tesIds.length > 0 && tesIds.every((t) => t === tesIds[0]) ? tesIds[0] : "";
+      setModoTes(tesUnico ? "GLOBAL" : "POR_ITEM");
+      setTesGlobalId(tesUnico || "");
+      const ccIds = conf.itens.map((i) => i.centroCustoId ?? "");
+      const ccUnico = ccIds.length > 0 && ccIds.every((c) => c === ccIds[0]) ? ccIds[0] : "";
+      setModoCentro(ccUnico ? "GLOBAL" : "POR_ITEM");
+      setCentroGlobalId(ccUnico || "");
       setEditItems(
         conf.itens.map((i) => {
           // Unidades de compra: base (sigla do item) + alternativas (fator).
@@ -437,6 +456,7 @@ export default function DocumentoEntradaDetailPage() {
   }
 
   function addNewItemRow(produto: ProdutoOption) {
+    const tesG = modoTes === "GLOBAL" ? tesList.find((t) => t.id === tesGlobalId) : undefined;
     setNewItems((prev) => [
       ...prev,
       {
@@ -452,9 +472,9 @@ export default function DocumentoEntradaDetailPage() {
         vlrICMS: "",
         desconto: "",
         localEstoqueId: localEstoqueGlobalId,
-        centroCustoId: "",
-        tesId: "",
-        compoeCusto: null,
+        centroCustoId: modoCentro === "GLOBAL" ? centroGlobalId : "",
+        tesId: modoTes === "GLOBAL" ? tesGlobalId : "",
+        compoeCusto: tesG ? tesG.compoeCusto : null,
         capitaliza: false,
         imobilizadoId: "",
         componenteSubstituidoId: "",
@@ -486,6 +506,39 @@ export default function DocumentoEntradaDetailPage() {
     setLocalEstoqueGlobalId(localId);
     // propagate to all items immediately
     setEditItems((prev) => prev.map((i) => ({ ...i, localEstoqueId: localId })));
+  }
+
+  // TES global — aplica o preset a TODAS as linhas (mesmos efeitos do applyTesEdit).
+  function applyTesGlobal(tesId: string) {
+    setTesGlobalId(tesId);
+    const tes = tesList.find((t) => t.id === tesId);
+    const aplicar = <T extends { tesId: string; compoeCusto: boolean | null; localEstoqueId: string; centroCustoId: string; capitaliza: boolean; imobilizadoId: string; componenteSubstituidoId: string }>(i: T): T => {
+      const next = { ...i, tesId };
+      if (tes) {
+        next.compoeCusto = tes.compoeCusto;
+        if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
+        if (tes.centroCustoSugeridoId && modoCentro === "POR_ITEM") next.centroCustoId = tes.centroCustoSugeridoId;
+        if (!tes.permiteCapitalizar) { next.capitaliza = false; next.imobilizadoId = ""; next.componenteSubstituidoId = ""; }
+      } else { next.compoeCusto = null; }
+      return next;
+    };
+    setEditItems((prev) => prev.map(aplicar));
+    setNewItems((prev) => prev.map(aplicar));
+  }
+  function handleModoTesChange(novo: "GLOBAL" | "POR_ITEM") {
+    setModoTes(novo);
+    if (novo === "GLOBAL" && tesGlobalId) applyTesGlobal(tesGlobalId);
+  }
+
+  // Centro de custo global — aplica a todas as linhas.
+  function applyCentroGlobal(ccId: string) {
+    setCentroGlobalId(ccId);
+    setEditItems((prev) => prev.map((i) => ({ ...i, centroCustoId: ccId })));
+    setNewItems((prev) => prev.map((i) => ({ ...i, centroCustoId: ccId })));
+  }
+  function handleModoCentroChange(novo: "GLOBAL" | "POR_ITEM") {
+    setModoCentro(novo);
+    if (novo === "GLOBAL" && centroGlobalId) applyCentroGlobal(centroGlobalId);
   }
 
   // Auto-calc vlrTotal when vlrUnitario, quantidadeRecebida, or desconto changes
@@ -1243,7 +1296,7 @@ export default function DocumentoEntradaDetailPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-x-4 gap-y-2.5">
               <div className="space-y-1.5 md:col-span-2">
                 <Label className="text-xs text-muted-foreground">
                   Fornecedor <span className="text-red-500">*</span>
@@ -1297,70 +1350,89 @@ export default function DocumentoEntradaDetailPage() {
         {/* ── Itens ────────────────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-2">
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
               <CardTitle className="text-base">Itens</CardTitle>
 
-              {/* Local de Estoque — modo de entrada, na linha do título */}
-              <div className="ml-auto flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Local de Estoque:</span>
-                <div className="flex items-center border border-border rounded-lg p-0.5 bg-muted w-fit">
-                  <button
-                    type="button"
-                    onClick={() => nfEditable && handleModoChange("GLOBAL")}
-                    className={cn(
-                      "px-3 py-1 rounded-md text-xs font-medium transition-colors",
-                      modoLocalEstoque === "GLOBAL"
-                        ? "bg-card text-info shadow-sm border border-info/30"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Global
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => nfEditable && handleModoChange("POR_ITEM")}
-                    className={cn(
-                      "px-3 py-1 rounded-md text-xs font-medium transition-colors",
-                      modoLocalEstoque === "POR_ITEM"
-                        ? "bg-card text-info shadow-sm border border-info/30"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    Por Item
-                  </button>
-                </div>
-                {modoLocalEstoque === "GLOBAL" && (
-                  <div className="w-56">
-                    {nfEditable ? (
-                      <ComboboxWithCreate
-                        value={localEstoqueGlobalId}
-                        onChange={(v) => handleGlobalLocalChange(v)}
-                        placeholder="Selecionar local..."
-                        noneLabel="Selecionar local..."
-                        menuMinWidth={280}
-                        triggerClassName={cn("h-8 rounded-md text-xs", !localEstoqueGlobalId && "border-red-300")}
-                        options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
-                      />
+              <div className="ml-auto flex items-center gap-x-4 gap-y-2 flex-wrap">
+                {/* TES — modo Global/Por Item */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">TES:</span>
+                  <ModoToggle value={modoTes} onChange={handleModoTesChange} editable={itemsEditable} />
+                  {modoTes === "GLOBAL" && (
+                    itemsEditable ? (
+                      <select
+                        value={tesGlobalId}
+                        onChange={(e) => applyTesGlobal(e.target.value)}
+                        className={cn("h-8 rounded-md text-xs border bg-card px-1.5 w-44", !tesGlobalId ? "border-red-300" : "border-border")}
+                      >
+                        <option value="">— TES —</option>
+                        {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                      </select>
                     ) : (
-                      <Input
-                        value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
-                        readOnly
-                        className="bg-muted h-8 text-xs"
-                      />
-                    )}
-                  </div>
+                      <span className="text-xs text-foreground">{tesList.find((t) => t.id === tesGlobalId)?.codigo ?? "—"}</span>
+                    )
+                  )}
+                </div>
+
+                {/* Centro de custo — modo Global/Por Item */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Centro:</span>
+                  <ModoToggle value={modoCentro} onChange={handleModoCentroChange} editable={itemsEditable} />
+                  {modoCentro === "GLOBAL" && (
+                    itemsEditable ? (
+                      <div className="w-48">
+                        <ComboboxWithCreate
+                          value={centroGlobalId}
+                          onChange={applyCentroGlobal}
+                          noneLabel="—"
+                          menuMinWidth={300}
+                          triggerClassName={cn("h-8 rounded-md text-xs", !centroGlobalId && "border-red-300")}
+                          options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-foreground">{centrosCusto.find((c) => c.id === centroGlobalId)?.codigo ?? "—"}</span>
+                    )
+                  )}
+                </div>
+
+                {/* Local de Estoque — modo Global/Por Item */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Local:</span>
+                  <ModoToggle value={modoLocalEstoque} onChange={handleModoChange} editable={nfEditable} />
+                  {modoLocalEstoque === "GLOBAL" && (
+                    <div className="w-56">
+                      {nfEditable ? (
+                        <ComboboxWithCreate
+                          value={localEstoqueGlobalId}
+                          onChange={(v) => handleGlobalLocalChange(v)}
+                          placeholder="Selecionar local..."
+                          noneLabel="Selecionar local..."
+                          menuMinWidth={280}
+                          triggerClassName={cn("h-8 rounded-md text-xs", !localEstoqueGlobalId && "border-red-300")}
+                          options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
+                        />
+                      ) : (
+                        <Input
+                          value={locaisEstoque.find((l) => l.id === localEstoqueGlobalId)?.nome ?? "—"}
+                          readOnly
+                          className="bg-muted h-8 text-xs"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {itemsEditable && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddRow((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs font-medium text-info hover:text-info transition-colors"
+                  >
+                    <span className="text-base leading-none">+</span> Adicionar item
+                  </button>
                 )}
               </div>
-
-              {itemsEditable && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddRow((v) => !v)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-info hover:text-info transition-colors"
-                >
-                  <span className="text-base leading-none">+</span> Adicionar item
-                </button>
-              )}
             </div>
           </CardHeader>
           {/* ── Busca de produto para adicionar ──────────────────────────── */}
@@ -1411,11 +1483,15 @@ export default function DocumentoEntradaDetailPage() {
                     <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">#NF</th>
                     <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Produto</th>
                     <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Descrição</th>
-                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="TES: preset de comportamento que preenche as flags da linha. Não decide destino.">TES</th>
+                    {modoTes === "POR_ITEM" && (
+                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="TES: preset de comportamento que preenche as flags da linha. Não decide destino.">TES</th>
+                    )}
                     {modoLocalEstoque === "POR_ITEM" && (
                       <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Local Estoque</th>
                     )}
-                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
+                    {modoCentro === "POR_ITEM" && (
+                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
+                    )}
                     <th className="text-center px-2 py-2 font-medium text-muted-foreground text-xs" title="Capitaliza (imobilizado): marca a linha como capex e exige o bem. Herança/orçamento na entrada.">Capex</th>
                     <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">U.M.</th>
                     <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Qtd. Pedida</th>
@@ -1447,17 +1523,19 @@ export default function DocumentoEntradaDetailPage() {
                         <td className="px-2 py-1.5 text-xs text-foreground max-w-[200px]">{item.item.descricao}</td>
 
                         {/* TES — preset de comportamento (preenche as flags); não decide destino */}
-                        <td className="px-2 py-1.5">
-                          {canEdit && ei ? (
-                            <select value={ei.tesId} onChange={(e) => applyTesEdit(item.id, e.target.value)}
-                              className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ei.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
-                              <option value="">— TES —</option>
-                              {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
-                            </select>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">{tesList.find((t) => t.id === item.tesId)?.codigo ?? "—"}</span>
-                          )}
-                        </td>
+                        {modoTes === "POR_ITEM" && (
+                          <td className="px-2 py-1.5">
+                            {canEdit && ei ? (
+                              <select value={ei.tesId} onChange={(e) => applyTesEdit(item.id, e.target.value)}
+                                className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ei.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
+                                <option value="">— TES —</option>
+                                {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                              </select>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">{tesList.find((t) => t.id === item.tesId)?.codigo ?? "—"}</span>
+                            )}
+                          </td>
+                        )}
 
                         {/* Local Estoque — only shown in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
@@ -1478,20 +1556,22 @@ export default function DocumentoEntradaDetailPage() {
                         )}
 
                         {/* Centro de custo — herdado do pedido, editável; não classifica destino */}
-                        <td className="px-2 py-1.5">
-                          {canEdit && ei ? (
-                            <ComboboxWithCreate
-                              value={ei.centroCustoId}
-                              onChange={(v) => updateEditItem(item.id, "centroCustoId", v)}
-                              noneLabel="—"
-                              menuMinWidth={300}
-                              triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ei.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                              options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground">{item.centroCusto ? `${item.centroCusto.codigo} - ${item.centroCusto.nome}` : "—"}</span>
-                          )}
-                        </td>
+                        {modoCentro === "POR_ITEM" && (
+                          <td className="px-2 py-1.5">
+                            {canEdit && ei ? (
+                              <ComboboxWithCreate
+                                value={ei.centroCustoId}
+                                onChange={(v) => updateEditItem(item.id, "centroCustoId", v)}
+                                noneLabel="—"
+                                menuMinWidth={300}
+                                triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ei.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
+                                options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">{item.centroCusto ? `${item.centroCusto.codigo} - ${item.centroCusto.nome}` : "—"}</span>
+                            )}
+                          </td>
+                        )}
 
                         {/* Capex — capitaliza (carga/orçamento na entrada); exige o bem */}
                         <td className="px-2 py-1.5 text-center">
@@ -1710,13 +1790,15 @@ export default function DocumentoEntradaDetailPage() {
                       <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground">{ni.codigo}</td>
                       <td className="px-2 py-1.5 text-xs text-foreground max-w-[200px]">{ni.descricao}</td>
                       {/* TES */}
-                      <td className="px-2 py-1.5">
-                        <select value={ni.tesId} onChange={(e) => applyTesNew(ni._key, e.target.value)}
-                          className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ni.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
-                          <option value="">— TES —</option>
-                          {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
-                        </select>
-                      </td>
+                      {modoTes === "POR_ITEM" && (
+                        <td className="px-2 py-1.5">
+                          <select value={ni.tesId} onChange={(e) => applyTesNew(ni._key, e.target.value)}
+                            className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ni.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
+                            <option value="">— TES —</option>
+                            {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
+                          </select>
+                        </td>
+                      )}
                       {modoLocalEstoque === "POR_ITEM" && (
                         <td className="px-2 py-1.5">
                           <ComboboxWithCreate
@@ -1730,16 +1812,18 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
                       )}
                       {/* Centro de custo */}
-                      <td className="px-2 py-1.5">
-                        <ComboboxWithCreate
-                          value={ni.centroCustoId}
-                          onChange={(v) => updateNewItem(ni._key, "centroCustoId", v)}
-                          noneLabel="—"
-                          menuMinWidth={300}
-                          triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                          options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
-                        />
-                      </td>
+                      {modoCentro === "POR_ITEM" && (
+                        <td className="px-2 py-1.5">
+                          <ComboboxWithCreate
+                            value={ni.centroCustoId}
+                            onChange={(v) => updateNewItem(ni._key, "centroCustoId", v)}
+                            noneLabel="—"
+                            menuMinWidth={300}
+                            triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
+                            options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                          />
+                        </td>
+                      )}
                       {/* Capex */}
                       <td className="px-2 py-1.5 text-center">
                         <div className="flex flex-col items-center gap-1">
