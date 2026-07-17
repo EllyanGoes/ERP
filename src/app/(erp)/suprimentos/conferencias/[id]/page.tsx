@@ -14,7 +14,7 @@ import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { useRouter } from "next/navigation";
-import { ShieldAlert, Save, Loader2, Trash2, LinkIcon, Pencil } from "lucide-react";
+import { ShieldAlert, Save, Loader2, Trash2, LinkIcon, Pencil, Info } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
@@ -1995,6 +1995,12 @@ export default function DocumentoEntradaDetailPage() {
                       ) : (
                         <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-muted" />
                       )}
+                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
+                        <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>
+                          Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>, não da natureza.
+                        </span>
+                      </p>
                     </div>
                   </>
                 }
