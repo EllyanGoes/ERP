@@ -127,7 +127,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
           </div>
         </div>
       )}
-      <div className="rounded-lg border border-border bg-card">
+      <div className="rounded-lg border border-border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (

@@ -318,8 +318,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         )}
       </span>
     ) },
-    { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => renderFornecedor(row.original) },
-    { accessorKey: "descricao", header: "Descrição" },
+    { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => (
+      <div className="max-w-[13rem] truncate" title={row.original.fornecedor?.razaoSocial ?? undefined}>{renderFornecedor(row.original, "block truncate")}</div>
+    ) },
+    { accessorKey: "descricao", header: "Descrição", cell: ({ row }) => (
+      <div className="max-w-[22rem] truncate text-muted-foreground" title={row.original.descricao}>{row.original.descricao}</div>
+    ) },
     // Só o CÓDIGO do documento de origem (o nome do processo fica no tooltip);
     // sem código (manual, folha, recorrência…), mostra o rótulo mesmo.
     { id: "origem", header: "Origem", cell: ({ row }) => {
@@ -353,13 +357,16 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       header: "Conta",
       cell: ({ row }) => {
         const cs = row.original.contasContrapartida ?? [];
-        return cs.length ? <span className="text-xs text-muted-foreground">{cs.map((c) => c.nome).join(" + ")}</span> : <span className="text-muted-foreground/60">—</span>;
+        const txt = cs.map((c) => c.nome).join(" + ");
+        return cs.length ? <div className="max-w-[10rem] truncate text-xs text-muted-foreground" title={txt}>{txt}</div> : <span className="text-muted-foreground/60">—</span>;
       },
     },
     {
       id: "actions",
       header: "",
-      cell: ({ row }) => renderAcoes(row.original),
+      // Coluna estreita e fixa à direita — o menu de 3 pontos nunca é empurrado
+      // para fora da tela.
+      cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
     },
   ], [contasBanco, isAdmin]);
 
@@ -414,25 +421,17 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        {FILTROS_PAGAR.map((f) => {
-          const n = f.key === "TODOS" ? contas.length : contas.filter((c) => casaStatus(c, f.key)).length;
-          const ativo = statusFiltro === f.key;
-          return (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setStatusFiltro(f.key)}
-              className={
-                "px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors " +
-                (ativo
-                  ? "bg-blue-600 border-blue-600 text-white"
-                  : "bg-card border-border text-muted-foreground hover:bg-muted")
-              }
-            >
-              {f.label} <span className={ativo ? "opacity-80" : "text-muted-foreground"}>{n}</span>
-            </button>
-          );
-        })}
+        {/* Status: droplist de enum fixo (padrão do sistema — select nativo). */}
+        <select
+          value={statusFiltro}
+          onChange={(e) => setStatusFiltro(e.target.value as StatusFiltro)}
+          className="h-9 rounded-lg border border-border bg-card px-2.5 text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          {FILTROS_PAGAR.map((f) => {
+            const n = f.key === "TODOS" ? contas.length : contas.filter((c) => casaStatus(c, f.key)).length;
+            return <option key={f.key} value={f.key}>{f.label} ({n})</option>;
+          })}
+        </select>
         {/* Busca na barra (vale p/ tabela e visão agrupada) */}
         <div className="relative">
           <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -475,12 +474,13 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           <Building2 className="w-4 h-4" /> Fornecedor
         </button>
         {contasDisponiveis.length > 0 && (
-          <div className="w-60">
+          <div className="w-72">
             <ComboboxWithCreate
               value={contaFiltro}
               onChange={setContaFiltro}
               noneLabel="Todas as contas"
               triggerClassName="h-9 rounded-lg"
+              menuMinWidth={340}
               options={contasDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
             />
           </div>
