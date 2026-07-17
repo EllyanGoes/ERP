@@ -181,7 +181,7 @@ function ProdSearchCell({
           style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: 220, overflowY: "auto" }}
         >
           {filtered.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-muted-foreground italic">Nenhum resultado.</p>
+            <p className="px-2 py-1.5 text-xs text-muted-foreground italic">Nenhum resultado.</p>
           ) : filtered.map((p) => (
             <button
               key={p.id}
@@ -191,7 +191,7 @@ function ProdSearchCell({
                 setQuery(p.descricao);
                 setOpen(false);
               }}
-              className="w-full text-left px-3 py-2 text-xs hover:bg-muted border-b border-gray-50 last:border-0"
+              className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted border-b border-gray-50 last:border-0"
             >
               <span className="font-mono text-muted-foreground mr-2">{p.codigo}</span>
               <span className="font-medium text-foreground">{p.descricao}</span>
@@ -849,7 +849,7 @@ export default function NovoDocumentoEntradaPage() {
         }
       />
 
-      <div className="px-8 pb-8 max-w-6xl space-y-6">
+      <div className="px-6 pb-6 max-w-6xl space-y-4">
         {error && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {error}
@@ -884,7 +884,7 @@ export default function NovoDocumentoEntradaPage() {
               {pcMatches.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between gap-3 bg-card border border-amber-100 rounded-lg px-3 py-2"
+                  className="flex items-center justify-between gap-3 bg-card border border-amber-100 rounded-lg px-2 py-1.5"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -941,7 +941,7 @@ export default function NovoDocumentoEntradaPage() {
         )}
 
         {!vinculadoPedido && avulsoConfirmed && (
-          <div className="flex items-center justify-between bg-muted border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between bg-muted border border-border rounded-lg px-2 py-1.5 text-xs text-muted-foreground">
             <span>Documento avulso — sem vínculo com Pedido de Compra.</span>
             <button
               type="button"
@@ -1146,25 +1146,25 @@ export default function NovoDocumentoEntradaPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted border-b border-border">
                   <tr>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-8">#NF</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Produto</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs min-w-[180px]">Descrição</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs w-8">#NF</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs w-24">Produto</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[180px]">Descrição</th>
                     {modoLocalEstoque === "POR_ITEM" && (
-                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs min-w-[130px]">
+                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[130px]">
                         Local Estoque <span className="text-red-500">*</span>
                       </th>
                     )}
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs min-w-[150px]" title="TES: preset de comportamento. Não decide destino.">TES <span className="text-red-500">*</span></th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs min-w-[140px]" title="Centro de custo (herança/orçamento). Não classifica destino de custo.">Centro de custo <span className="text-red-500">*</span></th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-14">U.M.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Qtd. Pedida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Qtd. Recebida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Vlr. Unit.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-20">% Desc.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Vlr. Total</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Vlr. IPI</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs w-24">Vlr. ICMS</th>
-                    <th className="text-center px-3 py-2.5 font-medium text-muted-foreground text-xs w-20">Status</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[150px]" title="TES: preset de comportamento. Não decide destino.">TES <span className="text-red-500">*</span></th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[140px]" title="Centro de custo (herança/orçamento). Não classifica destino de custo.">Centro de custo <span className="text-red-500">*</span></th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs w-14">U.M.</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Qtd. Pedida</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Qtd. Recebida</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Vlr. Unit.</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-20">% Desc.</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Vlr. Total</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Vlr. IPI</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Vlr. ICMS</th>
+                    <th className="text-center px-2 py-2 font-medium text-muted-foreground text-xs w-20">Status</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
@@ -1183,15 +1183,15 @@ export default function NovoDocumentoEntradaPage() {
 
                     return (
                       <tr key={row._key} className="hover:bg-muted">
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{idx + 1}</td>
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{idx + 1}</td>
 
                         {/* Produto — código */}
-                        <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                        <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground">
                           {row.codigo || "—"}
                         </td>
 
                         {/* Descrição — search cell */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <ProdSearchCell
                             rowKey={row._key}
                             value={prodSearch}
@@ -1208,7 +1208,7 @@ export default function NovoDocumentoEntradaPage() {
 
                         {/* Local Estoque — only in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-1.5">
                             <ComboboxWithCreate
                               value={row.localEstoqueId}
                               onChange={(v) => updateItem(row._key, "localEstoqueId", v)}
@@ -1221,7 +1221,7 @@ export default function NovoDocumentoEntradaPage() {
                         )}
 
                         {/* TES — preset de comportamento; preenche as flags da linha */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <select value={row.tesId} onChange={(e) => applyTes(row._key, e.target.value)}
                             className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]", !row.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
                             <option value="">— TES —</option>
@@ -1230,7 +1230,7 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* Centro de custo — obrigatório; não classifica destino */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <ComboboxWithCreate
                             value={row.centroCustoId}
                             onChange={(v) => updateItem(row._key, "centroCustoId", v)}
@@ -1243,7 +1243,7 @@ export default function NovoDocumentoEntradaPage() {
 
                         {/* U.M. — unidade de compra (base ou alternativa). A conversão
                             p/ a unidade de estoque é feita na conclusão da conferência. */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {unidadesItem && unidadesItem.length > 1 ? (
                             <div className="flex flex-col gap-0.5">
                               <select
@@ -1273,7 +1273,7 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* Qtd. Pedida */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="number"
                             step="0.001"
@@ -1285,7 +1285,7 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* Qtd. Recebida */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="number"
                             step="0.001"
@@ -1297,7 +1297,7 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* Vlr. Unit */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="number"
                             step="0.01"
@@ -1309,7 +1309,7 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* % Desc. */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <div className="relative w-20 ml-auto">
                             <Input
                               type="number"
@@ -1325,7 +1325,7 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* Vlr. Total */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="number"
                             step="0.01"
@@ -1337,7 +1337,7 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* Vlr. IPI */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="number"
                             step="0.01"
@@ -1349,7 +1349,7 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* Vlr. ICMS */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <Input
                             type="number"
                             step="0.01"
@@ -1361,14 +1361,14 @@ export default function NovoDocumentoEntradaPage() {
                         </td>
 
                         {/* Status */}
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-2 py-1.5 text-center">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}>
                             {itemStatus.label}
                           </span>
                         </td>
 
                         {/* Delete */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {itens.length > 1 && (
                             <button
                               type="button"
@@ -1415,7 +1415,7 @@ export default function NovoDocumentoEntradaPage() {
             </div>
           </div>
 
-          <div className="p-4">
+          <div className="p-3">
             {/* ── Aba Duplicatas (na criação, as parcelas são definidas na tela do documento) ── */}
             {aba === "duplicatas" && (
               <div className="flex items-start gap-2 bg-info/10 border border-info/20 rounded-lg p-4 text-sm text-info">

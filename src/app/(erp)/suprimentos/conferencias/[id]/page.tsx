@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { useRouter } from "next/navigation";
-import { ShieldAlert, Save, Loader2, Trash2, LinkIcon } from "lucide-react";
+import { ShieldAlert, Save, Loader2, Trash2, LinkIcon, Pencil } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
@@ -182,9 +182,13 @@ function getItemStatus(pedida: number, recebida: number): { label: string; cls: 
 
 export default function DocumentoEntradaDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
   const router = useRouter();
+
+  // Modo detalhes por padrão; edição só ao clicar em "Editar" (ou ?edit=1).
+  const [modoEdicao, setModoEdicao] = useState(searchParams.get("edit") === "1");
 
   const [conferencia, setConferencia] = useState<Conferencia | null>(null);
   const [loading, setLoading] = useState(true);
@@ -599,6 +603,7 @@ export default function DocumentoEntradaDetailPage() {
       }
       setNewItems([]); // clear pending new items after save
       await load();
+      setModoEdicao(false); // salvou → volta ao modo detalhes
       return true;
     } catch {
       setActionError("Erro de conexão");
@@ -718,11 +723,13 @@ export default function DocumentoEntradaDetailPage() {
   const isEditable    = conferencia.status === "EM_CONFERENCIA";
   const isDivergencia = conferencia.status === "DIVERGENCIA";
   const isConcluded   = conferencia.status === "CONCLUIDA";
-  // Divergência é re-editável por qualquer usuário; Concluída só por admin
-  const canEdit       = isPendente || isEditable || isDivergencia || (isConcluded && isAdmin);
+  // Divergência é re-editável por qualquer usuário; Concluída só por admin.
+  // O status permite editar, mas os campos só destravam no modo edição (botão Editar).
+  const canEditStatus = isPendente || isEditable || isDivergencia || (isConcluded && isAdmin);
+  const canEdit       = canEditStatus && modoEdicao;
   const nfEditable    = canEdit;
   const isSN = tipoNota === "SN";
-  const itemsEditable = isEditable || isDivergencia || (isConcluded && isAdmin);
+  const itemsEditable = (isEditable || isDivergencia || (isConcluded && isAdmin)) && modoEdicao;
 
   // Detect missing local de estoque (only relevant while editable)
   const missingLocalGlobal = itemsEditable && modoLocalEstoque === "GLOBAL" && !localEstoqueGlobalId;
@@ -945,26 +952,26 @@ export default function DocumentoEntradaDetailPage() {
                 <table className="w-full text-xs">
                   <thead className="bg-muted border-b border-border">
                     <tr>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Produto</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qtd. Pedida</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Qtd. Recebida</th>
-                      <th className="text-right px-3 py-2 font-medium text-muted-foreground">Diferença</th>
+                      <th className="text-left px-2 py-1.5 font-medium text-muted-foreground">Produto</th>
+                      <th className="text-right px-2 py-1.5 font-medium text-muted-foreground">Qtd. Pedida</th>
+                      <th className="text-right px-2 py-1.5 font-medium text-muted-foreground">Qtd. Recebida</th>
+                      <th className="text-right px-2 py-1.5 font-medium text-muted-foreground">Diferença</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {divergentItems.map((it) => (
                       <tr key={it.codigo}>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <span className="font-mono text-muted-foreground mr-1.5">{it.codigo}</span>
                           <span className="text-foreground">{it.descricao}</span>
                         </td>
-                        <td className="px-3 py-2 text-right text-muted-foreground">
+                        <td className="px-2 py-1.5 text-right text-muted-foreground">
                           {it.pedida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
                         </td>
-                        <td className="px-3 py-2 text-right text-muted-foreground">
+                        <td className="px-2 py-1.5 text-right text-muted-foreground">
                           {it.recebida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
                         </td>
-                        <td className={`px-3 py-2 text-right font-semibold ${it.recebida < it.pedida ? "text-danger" : "text-success"}`}>
+                        <td className={`px-2 py-1.5 text-right font-semibold ${it.recebida < it.pedida ? "text-danger" : "text-success"}`}>
                           {it.recebida > it.pedida ? "+" : ""}
                           {(it.recebida - it.pedida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {it.unidade}
                         </td>
@@ -1007,13 +1014,28 @@ export default function DocumentoEntradaDetailPage() {
         action={
           <div className="flex items-center gap-2">
             <StatusBadge status={conferencia.status} />
-            {canEdit && (
-              <Button size="sm" onClick={salvarConferencia} disabled={saving}>
-                {saving
-                  ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</>
-                  : <><Save className="w-4 h-4 mr-1.5" />Salvar</>
-                }
+            {canEditStatus && !modoEdicao && (
+              <Button size="sm" onClick={() => setModoEdicao(true)}>
+                <Pencil className="w-4 h-4 mr-1.5" />Editar
               </Button>
+            )}
+            {modoEdicao && (
+              <>
+                <Button size="sm" onClick={salvarConferencia} disabled={saving}>
+                  {saving
+                    ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Salvando...</>
+                    : <><Save className="w-4 h-4 mr-1.5" />Salvar</>
+                  }
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setModoEdicao(false); setValidationError(""); load(); }}
+                  disabled={saving}
+                >
+                  Cancelar
+                </Button>
+              </>
             )}
             {!confirmDelete ? (
               <Button
@@ -1048,7 +1070,7 @@ export default function DocumentoEntradaDetailPage() {
         }
       />
 
-      <div className="px-8 pb-8 space-y-6">
+      <div className="px-6 pb-6 space-y-4">
         {(actionError || validationError) && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {validationError || actionError}
@@ -1364,7 +1386,7 @@ export default function DocumentoEntradaDetailPage() {
                         <button
                           key={p.id}
                           type="button"
-                          className="w-full text-left px-3 py-2 hover:bg-info/10 flex items-center gap-2 text-sm"
+                          className="w-full text-left px-2 py-1.5 hover:bg-info/10 flex items-center gap-2 text-sm"
                           onClick={() => addNewItemRow(p)}
                         >
                           <span className="font-mono text-xs text-muted-foreground shrink-0">{p.codigo}</span>
@@ -1386,24 +1408,24 @@ export default function DocumentoEntradaDetailPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted border-b border-border">
                   <tr>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">#NF</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Produto</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Descrição</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs" title="TES: preset de comportamento que preenche as flags da linha. Não decide destino.">TES</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">#NF</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Produto</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Descrição</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="TES: preset de comportamento que preenche as flags da linha. Não decide destino.">TES</th>
                     {modoLocalEstoque === "POR_ITEM" && (
-                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Local Estoque</th>
+                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Local Estoque</th>
                     )}
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs" title="Capitaliza (imobilizado): marca a linha como capex e exige o bem. Herança/orçamento na entrada.">Capex</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">U.M.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Qtd. Pedida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Qtd. Recebida</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Vlr. Unit.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">% Desc.</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Vlr. Total</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Vlr. IPI</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-muted-foreground text-xs">Vlr. ICMS</th>
-                    <th className="text-center px-3 py-2.5 font-medium text-muted-foreground text-xs">Status</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
+                    <th className="text-center px-2 py-2 font-medium text-muted-foreground text-xs" title="Capitaliza (imobilizado): marca a linha como capex e exige o bem. Herança/orçamento na entrada.">Capex</th>
+                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">U.M.</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Qtd. Pedida</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Qtd. Recebida</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Vlr. Unit.</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">% Desc.</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Vlr. Total</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Vlr. IPI</th>
+                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Vlr. ICMS</th>
+                    <th className="text-center px-2 py-2 font-medium text-muted-foreground text-xs">Status</th>
                     {itemsEditable && <th className="w-8" />}
                   </tr>
                 </thead>
@@ -1420,12 +1442,12 @@ export default function DocumentoEntradaDetailPage() {
                         key={item.id}
                         className={`hover:bg-muted ${item.divergencia && !itemsEditable ? "bg-warning/10" : ""}`}
                       >
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{idx + 1}</td>
-                        <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
-                        <td className="px-3 py-2 text-xs text-foreground max-w-[200px]">{item.item.descricao}</td>
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{idx + 1}</td>
+                        <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
+                        <td className="px-2 py-1.5 text-xs text-foreground max-w-[200px]">{item.item.descricao}</td>
 
                         {/* TES — preset de comportamento (preenche as flags); não decide destino */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {canEdit && ei ? (
                             <select value={ei.tesId} onChange={(e) => applyTesEdit(item.id, e.target.value)}
                               className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ei.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
@@ -1439,7 +1461,7 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* Local Estoque — only shown in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-1.5">
                             {canEdit && ei ? (
                               <ComboboxWithCreate
                                 value={ei.localEstoqueId}
@@ -1456,7 +1478,7 @@ export default function DocumentoEntradaDetailPage() {
                         )}
 
                         {/* Centro de custo — herdado do pedido, editável; não classifica destino */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {canEdit && ei ? (
                             <ComboboxWithCreate
                               value={ei.centroCustoId}
@@ -1472,20 +1494,19 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
 
                         {/* Capex — capitaliza (carga/orçamento na entrada); exige o bem */}
-                        <td className="px-3 py-2 align-top">
+                        <td className="px-2 py-1.5 text-center">
                           {canEdit && ei ? (
-                            <div className="space-y-1">
+                            <div className="flex flex-col items-center gap-1">
                               {(() => {
                                 const t = tesList.find((x) => x.id === ei.tesId);
                                 const bloq = !!t && !t.permiteCapitalizar;
                                 return (
-                                  <label className={cn("flex items-center gap-1.5 text-xs", bloq ? "opacity-40 cursor-not-allowed" : "cursor-pointer")}
-                                    title={bloq ? "O TES desta linha não permite capitalizar" : undefined}>
-                                    <input type="checkbox" checked={ei.capitaliza} disabled={bloq}
-                                      onChange={(e) => updateEditItem(item.id, "capitaliza", e.target.checked)}
-                                      className="w-3.5 h-3.5 rounded border-border" />
-                                    <span className="text-muted-foreground">Capitaliza</span>
-                                  </label>
+                                  <input type="checkbox" checked={ei.capitaliza} disabled={bloq}
+                                    onChange={(e) => updateEditItem(item.id, "capitaliza", e.target.checked)}
+                                    title={bloq
+                                      ? "O TES desta linha não permite capitalizar"
+                                      : "Capitaliza (imobilizado): marca a linha como capex e exige o bem"}
+                                    className={cn("w-3.5 h-3.5 rounded border-border", bloq ? "opacity-40 cursor-not-allowed" : "cursor-pointer")} />
                                 );
                               })()}
                               {ei.capitaliza && (
@@ -1508,15 +1529,15 @@ export default function DocumentoEntradaDetailPage() {
                           )}
                         </td>
 
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{item.item.unidadeMedida}</td>
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{item.item.unidadeMedida}</td>
 
                         {/* Qtd. Pedida */}
-                        <td className="px-3 py-2 text-right text-xs text-foreground">
+                        <td className="px-2 py-1.5 text-right text-xs text-foreground">
                           {qtdPedida.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                         </td>
 
                         {/* Qtd. Recebida (+ unidade de compra, se houver) */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {itemsEditable && ei ? (
                             <div className="flex flex-col items-end gap-1">
                               <div className="flex items-center gap-1">
@@ -1557,7 +1578,7 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
 
                         {/* Vlr. Unit (por unidade de compra; mostra o custo na base) */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {itemsEditable && ei ? (
                             <div className="flex flex-col items-end gap-1">
                               <Input
@@ -1586,7 +1607,7 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
 
                         {/* % Desc. */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {itemsEditable && ei ? (
                             <div className="relative w-20 ml-auto">
                               <Input
@@ -1610,7 +1631,7 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
 
                         {/* Vlr. Total */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {itemsEditable && ei ? (
                             <Input
                               type="number"
@@ -1630,7 +1651,7 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
 
                         {/* Vlr. IPI */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {itemsEditable && ei ? (
                             <Input
                               type="number"
@@ -1650,7 +1671,7 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
 
                         {/* Vlr. ICMS */}
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           {itemsEditable && ei ? (
                             <Input
                               type="number"
@@ -1670,7 +1691,7 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
 
                         {/* Status */}
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-2 py-1.5 text-center">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}
                           >
@@ -1685,11 +1706,11 @@ export default function DocumentoEntradaDetailPage() {
                   {/* ── Novas linhas adicionadas ─────────────────────────── */}
                   {newItems.map((ni) => (
                     <tr key={ni._key} className="bg-info/10 hover:bg-info/10">
-                      <td className="px-3 py-2 text-xs text-blue-400">+</td>
-                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{ni.codigo}</td>
-                      <td className="px-3 py-2 text-xs text-foreground max-w-[200px]">{ni.descricao}</td>
+                      <td className="px-2 py-1.5 text-xs text-blue-400">+</td>
+                      <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground">{ni.codigo}</td>
+                      <td className="px-2 py-1.5 text-xs text-foreground max-w-[200px]">{ni.descricao}</td>
                       {/* TES */}
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1.5">
                         <select value={ni.tesId} onChange={(e) => applyTesNew(ni._key, e.target.value)}
                           className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ni.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
                           <option value="">— TES —</option>
@@ -1697,7 +1718,7 @@ export default function DocumentoEntradaDetailPage() {
                         </select>
                       </td>
                       {modoLocalEstoque === "POR_ITEM" && (
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-1.5">
                           <ComboboxWithCreate
                             value={ni.localEstoqueId}
                             onChange={(v) => updateNewItem(ni._key, "localEstoqueId", v)}
@@ -1709,7 +1730,7 @@ export default function DocumentoEntradaDetailPage() {
                         </td>
                       )}
                       {/* Centro de custo */}
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1.5">
                         <ComboboxWithCreate
                           value={ni.centroCustoId}
                           onChange={(v) => updateNewItem(ni._key, "centroCustoId", v)}
@@ -1720,19 +1741,18 @@ export default function DocumentoEntradaDetailPage() {
                         />
                       </td>
                       {/* Capex */}
-                      <td className="px-3 py-2 align-top">
-                        <div className="space-y-1">
+                      <td className="px-2 py-1.5 text-center">
+                        <div className="flex flex-col items-center gap-1">
                           {(() => {
                             const t = tesList.find((x) => x.id === ni.tesId);
                             const bloq = !!t && !t.permiteCapitalizar;
                             return (
-                              <label className={cn("flex items-center gap-1.5 text-xs", bloq ? "opacity-40 cursor-not-allowed" : "cursor-pointer")}
-                                title={bloq ? "O TES desta linha não permite capitalizar" : undefined}>
-                                <input type="checkbox" checked={ni.capitaliza} disabled={bloq}
-                                  onChange={(e) => updateNewItem(ni._key, "capitaliza", e.target.checked)}
-                                  className="w-3.5 h-3.5 rounded border-border" />
-                                <span className="text-muted-foreground">Capitaliza</span>
-                              </label>
+                              <input type="checkbox" checked={ni.capitaliza} disabled={bloq}
+                                onChange={(e) => updateNewItem(ni._key, "capitaliza", e.target.checked)}
+                                title={bloq
+                                  ? "O TES desta linha não permite capitalizar"
+                                  : "Capitaliza (imobilizado): marca a linha como capex e exige o bem"}
+                                className={cn("w-3.5 h-3.5 rounded border-border", bloq ? "opacity-40 cursor-not-allowed" : "cursor-pointer")} />
                             );
                           })()}
                           {ni.capitaliza && (
@@ -1751,9 +1771,9 @@ export default function DocumentoEntradaDetailPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{ni.unidadeMedida}</td>
-                      <td className="px-3 py-2 text-right text-xs text-muted-foreground">—</td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1.5 text-xs text-muted-foreground">{ni.unidadeMedida}</td>
+                      <td className="px-2 py-1.5 text-right text-xs text-muted-foreground">—</td>
+                      <td className="px-2 py-1.5">
                         <Input
                           type="number" step="0.001" min="0"
                           className="w-24 ml-auto text-right h-7 text-xs"
@@ -1761,7 +1781,7 @@ export default function DocumentoEntradaDetailPage() {
                           onChange={(e) => updateNewItem(ni._key, "quantidadeRecebida", e.target.value)}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1.5">
                         <Input
                           type="number" step="0.01" min="0"
                           className="w-24 ml-auto text-right h-7 text-xs"
@@ -1769,7 +1789,7 @@ export default function DocumentoEntradaDetailPage() {
                           onChange={(e) => updateNewItem(ni._key, "vlrUnitario", e.target.value)}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1.5">
                         <div className="relative w-20 ml-auto">
                           <Input
                             type="number" step="0.01" min="0" max="100"
@@ -1780,7 +1800,7 @@ export default function DocumentoEntradaDetailPage() {
                           <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1.5">
                         <Input
                           type="number" step="0.01" min="0"
                           className="w-24 ml-auto text-right h-7 text-xs"
@@ -1788,7 +1808,7 @@ export default function DocumentoEntradaDetailPage() {
                           onChange={(e) => updateNewItem(ni._key, "vlrTotal", e.target.value)}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1.5">
                         <Input
                           type="number" step="0.01" min="0"
                           className="w-24 ml-auto text-right h-7 text-xs"
@@ -1796,7 +1816,7 @@ export default function DocumentoEntradaDetailPage() {
                           onChange={(e) => updateNewItem(ni._key, "vlrIPI", e.target.value)}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1.5">
                         <Input
                           type="number" step="0.01" min="0"
                           className="w-24 ml-auto text-right h-7 text-xs"
@@ -1804,7 +1824,7 @@ export default function DocumentoEntradaDetailPage() {
                           onChange={(e) => updateNewItem(ni._key, "vlrICMS", e.target.value)}
                         />
                       </td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-2 py-1.5 text-center">
                         <button
                           type="button"
                           onClick={() => removeNewItem(ni._key)}
@@ -1847,7 +1867,7 @@ export default function DocumentoEntradaDetailPage() {
             </div>
           </div>
 
-          <div className="p-4">
+          <div className="p-3">
             {/* ── Aba Duplicatas ──────────────────────────────────────────── */}
             {aba === "duplicatas" && (
               <DuplicatasTab

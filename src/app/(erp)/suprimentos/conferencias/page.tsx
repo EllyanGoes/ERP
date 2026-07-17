@@ -210,7 +210,7 @@ function RowActionsMenu({ doc, onDeleted }: { doc: ConferenciaRow; onDeleted: ()
           </button>
           <button
             className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-            onClick={(e) => { e.stopPropagation(); setOpen(false); router.push(`/suprimentos/conferencias/${doc.id}`); }}
+            onClick={(e) => { e.stopPropagation(); setOpen(false); router.push(`/suprimentos/conferencias/${doc.id}?edit=1`); }}
           >
             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
             Editar
