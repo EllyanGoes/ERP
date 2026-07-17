@@ -420,7 +420,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Botão de novo lançamento fixo no canto superior direito; os filtros
+          ocupam a área restante e quebram de linha sem empurrá-lo. */}
+      <div className="flex items-start gap-2">
+      <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
         {/* Status: droplist de enum fixo (padrão do sistema — select nativo). */}
         <select
           value={statusFiltro}
@@ -485,6 +488,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             />
           </div>
         )}
+      </div>
         <NovaContaButton tipo="pagar" />
       </div>
       {agrupado ? (
