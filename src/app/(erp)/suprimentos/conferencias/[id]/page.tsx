@@ -1360,14 +1360,16 @@ export default function DocumentoEntradaDetailPage() {
                   <ModoToggle value={modoTes} onChange={handleModoTesChange} editable={itemsEditable} />
                   {modoTes === "GLOBAL" && (
                     itemsEditable ? (
-                      <select
-                        value={tesGlobalId}
-                        onChange={(e) => applyTesGlobal(e.target.value)}
-                        className={cn("h-8 rounded-md text-xs border bg-card px-1.5 w-44", !tesGlobalId ? "border-red-300" : "border-border")}
-                      >
-                        <option value="">— TES —</option>
-                        {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
-                      </select>
+                      <div className="w-48">
+                        <ComboboxWithCreate
+                          value={tesGlobalId}
+                          onChange={applyTesGlobal}
+                          noneLabel="— TES —"
+                          menuMinWidth={300}
+                          triggerClassName={cn("h-8 rounded-md text-xs", !tesGlobalId && "border-red-300")}
+                          options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
+                        />
+                      </div>
                     ) : (
                       <span className="text-xs text-foreground">{tesList.find((t) => t.id === tesGlobalId)?.codigo ?? "—"}</span>
                     )
@@ -1526,11 +1528,14 @@ export default function DocumentoEntradaDetailPage() {
                         {modoTes === "POR_ITEM" && (
                           <td className="px-2 py-1.5">
                             {canEdit && ei ? (
-                              <select value={ei.tesId} onChange={(e) => applyTesEdit(item.id, e.target.value)}
-                                className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ei.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
-                                <option value="">— TES —</option>
-                                {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
-                              </select>
+                              <ComboboxWithCreate
+                                value={ei.tesId}
+                                onChange={(v) => applyTesEdit(item.id, v)}
+                                noneLabel="— TES —"
+                                menuMinWidth={300}
+                                triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ei.tesId && "border-red-400 bg-danger/10 text-danger")}
+                                options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
+                              />
                             ) : (
                               <span className="text-xs text-muted-foreground">{tesList.find((t) => t.id === item.tesId)?.codigo ?? "—"}</span>
                             )}
@@ -1792,11 +1797,14 @@ export default function DocumentoEntradaDetailPage() {
                       {/* TES */}
                       {modoTes === "POR_ITEM" && (
                         <td className="px-2 py-1.5">
-                          <select value={ni.tesId} onChange={(e) => applyTesNew(ni._key, e.target.value)}
-                            className={cn("h-7 rounded text-xs w-full border bg-card px-1.5 min-w-[11rem]",!ni.tesId ? "border-red-400 bg-danger/10" : "border-border")}>
-                            <option value="">— TES —</option>
-                            {tesList.map((t) => <option key={t.id} value={t.id}>{t.codigo} {t.nome}</option>)}
-                          </select>
+                          <ComboboxWithCreate
+                            value={ni.tesId}
+                            onChange={(v) => applyTesNew(ni._key, v)}
+                            noneLabel="— TES —"
+                            menuMinWidth={300}
+                            triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ni.tesId && "border-red-400 bg-danger/10 text-danger")}
+                            options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
+                          />
                         </td>
                       )}
                       {modoLocalEstoque === "POR_ITEM" && (
