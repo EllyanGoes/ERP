@@ -1603,7 +1603,7 @@ export default function NovoDocumentoEntradaPage() {
                       </p>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Natureza Financeira</Label>
+                      <Label className="text-xs text-muted-foreground">Natureza Financeira (prevista)</Label>
                       <NaturezaCombobox
                         value={naturezaFinanceiraId}
                         onChange={setNaturezaFinanceiraId}
