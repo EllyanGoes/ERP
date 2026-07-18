@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, ArrowUpDown } from "lucide-react";
+import ColumnConfigurator from "@/components/shared/ColumnConfigurator";
 
 const LINHAS_OPCOES = [10, 20, 50, 100, 200];
 
@@ -34,9 +35,16 @@ interface DataTableProps<T> {
   containerClassName?: string;
   // Classe extra na linha de cabeçalho (ex.: bg-muted no padrão das listagens).
   headerClassName?: string;
+  // Habilita o botão "Colunas" (reordenar/ocultar, persistido por tela).
+  columnConfig?: boolean;
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName }: DataTableProps<T>) {
+// Id estável de uma coluna do tanstack (id explícito ou accessorKey).
+function colId<T>(c: ColumnDef<T>): string {
+  return c.id ?? String((c as { accessorKey?: string }).accessorKey ?? "");
+}
+
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig }: DataTableProps<T>) {
   const pathname = usePathname();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -44,9 +52,31 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
   // Linhas por página: escolha do usuário persistida por tela (padrão do sistema).
   const [pageSize, setPageSize] = usePersistedState<number>(`datatable:${pathname}:linhas`, 20);
 
+  // ── Configuração de colunas (ordem + visibilidade), persistida por tela ────
+  // Configuráveis = colunas com header de texto; as demais (ex.: ações, header
+  // vazio) são fixas: sempre visíveis, mantidas ao final na ordem original.
+  const configuraveis = columns.filter((c) => colId(c) && typeof c.header === "string" && c.header);
+  const fixas = columns.filter((c) => !configuraveis.includes(c));
+  const allColIds = configuraveis.map(colId);
+  const [colOrder, setColOrder] = usePersistedState<string[]>(`datatable:${pathname}:col-ordem`, allColIds);
+  const [colVis, setColVis] = usePersistedState<Record<string, boolean>>(`datatable:${pathname}:col-vis`, {});
+  // Ordem efetiva: a persistida (só ids que ainda existem) + colunas novas no fim.
+  const ordemEfetiva = [
+    ...colOrder.filter((id) => allColIds.includes(id)),
+    ...allColIds.filter((id) => !colOrder.includes(id)),
+  ];
+  const visiveisOrdenadas = ordemEfetiva
+    .filter((id) => colVis[id] !== false)
+    .map((id) => configuraveis.find((c) => colId(c) === id))
+    .filter((c): c is ColumnDef<T> => !!c);
+  const colunasAtivas = columnConfig
+    // Nunca renderizar tabela sem colunas de dados (tudo oculto → mostra todas).
+    ? [...(visiveisOrdenadas.length > 0 ? visiveisOrdenadas : configuraveis), ...fixas]
+    : columns;
+
   const table = useReactTable({
     data,
-    columns,
+    columns: colunasAtivas,
     state: { sorting, globalFilter },
     ...(globalFilterFn ? { globalFilterFn } : {}),
     ...(getRowId ? { getRowId: (orig: T) => getRowId(orig) } : {}),
@@ -149,6 +179,19 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
             {table.getFilteredRowModel().rows.length} registro(s)
           </span>
           {seletorLinhas}
+          {columnConfig && (
+            <ColumnConfigurator
+              columns={configuraveis.map((c) => ({
+                id: colId(c),
+                label: String(c.header),
+              }))}
+              order={ordemEfetiva}
+              onOrderChange={setColOrder}
+              visibility={colVis}
+              onVisibilityChange={(id, visible) => setColVis((prev) => ({ ...prev, [id]: visible }))}
+              onShowAll={() => setColVis({})}
+            />
+          )}
         </div>
       </div>
       <div className={cn("rounded-lg border border-border bg-card overflow-x-auto", containerClassName)}>

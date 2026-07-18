@@ -30,6 +30,7 @@ import PagamentosInput, {
 
 type ContaRow = {
   id: string; numero: string; descricao: string; status: string;
+  parcelaNumero?: number | null; parcelaTotal?: number | null;
   dataVencimento: Date | string; dataPagamento: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
   cliente: { id: string; razaoSocial: string };
@@ -84,26 +85,30 @@ function dentroDoPeriodo(c: { dataVencimento: Date | string }, p: DateRange): bo
   return true;
 }
 
-type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "PAGA";
+type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "SEM_VENCIMENTO" | "PAGA";
 
-// Casa a conta com o filtro de status. "VENCIDA" é derivado (em aberto/parcial
-// com vencimento passado), não um status do banco.
+// Casa a conta com o filtro de status. "VENCIDA" e "SEM_VENCIMENTO" são
+// derivados (não são status do banco): vencida = em aberto/parcial com
+// vencimento passado; sem vencimento = em aberto/parcial sem data (faturado).
 function casaStatus(c: ContaRow, f: StatusFiltro): boolean {
   switch (f) {
     case "ABERTA":  return c.status === "ABERTA";
     case "PARCIAL": return c.status === "PARCIAL";
     case "VENCIDA": return (c.status === "ABERTA" || c.status === "PARCIAL") && isVencida(c.dataVencimento, c.dataPagamento);
+    case "SEM_VENCIMENTO": return (c.status === "ABERTA" || c.status === "PARCIAL") && !c.dataVencimento;
     case "PAGA":    return c.status === "PAGA";
     default:        return true;
   }
 }
 
 // Status reais selecionáveis no filtro de múltipla escolha (sem "TODOS": todos
-// marcados = todas). "VENCIDA" é derivado e SOBREPÕE ABERTA/PARCIAL.
+// marcados = todas). "VENCIDA" e "SEM_VENCIMENTO" são derivados e SOBREPÕEM
+// ABERTA/PARCIAL.
 const STATUS_RECEBER: { key: Exclude<StatusFiltro, "TODOS">; label: string }[] = [
   { key: "ABERTA", label: "Em aberto" },
   { key: "PARCIAL", label: "Parciais" },
   { key: "VENCIDA", label: "Vencidas" },
+  { key: "SEM_VENCIMENTO", label: "Sem vencimento" },
   { key: "PAGA", label: "Recebidas" },
 ];
 const STATUS_RECEBER_KEYS = STATUS_RECEBER.map((s) => s.key) as string[];
@@ -346,16 +351,34 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       );
     } },
     {
+      id: "parcela",
+      header: "Parcela",
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {row.original.parcelaTotal && row.original.parcelaTotal > 1
+            ? `${row.original.parcelaNumero ?? 1}/${row.original.parcelaTotal}`
+            : "Única"}
+        </span>
+      ),
+    },
+    {
       accessorKey: "dataVencimento",
       header: "Vencimento",
       cell: ({ row }) => {
+        if (!row.original.dataVencimento) return <span className="text-muted-foreground italic">A combinar</span>;
         const vencida = isVencida(row.original.dataVencimento, row.original.dataPagamento);
         return <span className={vencida ? "text-danger font-medium" : "text-muted-foreground"}>{formatDate(row.original.dataVencimento)}</span>;
       },
     },
     { accessorKey: "valorOriginal", header: "Valor", cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
     { accessorKey: "valorPago", header: "Pago", cell: ({ row }) => <span className="text-success">{formatBRL(decimalToNumber(row.original.valorPago))}</span> },
-    { accessorKey: "status", header: "Status", cell: ({ row }) => <StatusBadge status={row.original.status} /> },
+    { accessorKey: "status", header: "Status", cell: ({ row }) => (
+      <StatusBadge status={
+        !row.original.dataVencimento && (row.original.status === "ABERTA" || row.original.status === "PARCIAL")
+          ? "SEM_VENCIMENTO"
+          : row.original.status
+      } />
+    ) },
     {
       id: "conta",
       header: "Conta",
@@ -588,6 +611,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
           data={contasFiltradas}
           columns={columns}
           hideSearch
+          columnConfig
           containerClassName="shadow-md rounded-xl"
           headerClassName="bg-muted"
           focusId={focusId}

@@ -33,6 +33,7 @@ type RateioLinha = { key: string; naturezaFinanceiraId: string; detalhamento: st
 
 type ContaRow = {
   id: string; numero: string; descricao: string; categoria: string | null; status: string; antecipado?: boolean;
+  parcelaNumero?: number | null; parcelaTotal?: number | null;
   dataVencimento: Date | string; dataPagamento: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
   fornecedor: { id: string; razaoSocial: string } | null;
@@ -385,6 +386,17 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       );
     } },
     {
+      id: "parcela",
+      header: "Parcela",
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {row.original.parcelaTotal && row.original.parcelaTotal > 1
+            ? `${row.original.parcelaNumero ?? 1}/${row.original.parcelaTotal}`
+            : "Única"}
+        </span>
+      ),
+    },
+    {
       accessorKey: "dataVencimento",
       header: "Vencimento",
       cell: ({ row }) => {
@@ -617,6 +629,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           data={contasFiltradas}
           columns={columns}
           hideSearch
+          columnConfig
           containerClassName="shadow-md rounded-xl"
           headerClassName="bg-muted"
           focusId={focusId}

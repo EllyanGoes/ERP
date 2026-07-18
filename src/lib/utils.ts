@@ -90,8 +90,11 @@ export function getStatusPedidoColor(status: string): string {
   }
 }
 
-export function isVencida(dataVencimento: Date | string, dataPagamento?: Date | string | null): boolean {
+export function isVencida(dataVencimento: Date | string | null | undefined, dataPagamento?: Date | string | null): boolean {
   if (dataPagamento) return false
+  // Sem data de vencimento (permuta/faturado) nunca é "vencida" — new Date(null)
+  // viraria 1970 e marcava esses títulos como vencidos.
+  if (!dataVencimento) return false
   return new Date(dataVencimento) < new Date()
 }
 
