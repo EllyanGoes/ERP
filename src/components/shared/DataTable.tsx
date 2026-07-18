@@ -37,6 +37,9 @@ interface DataTableProps<T> {
   headerClassName?: string;
   // Habilita o botão "Colunas" (reordenar/ocultar, persistido por tela).
   columnConfig?: boolean;
+  // Substantivo do contador de linhas (singular; pluraliza com "s").
+  // Ex.: "título" → "101 títulos". Padrão: "registro".
+  itemLabel?: string;
 }
 
 // Id estável de uma coluna do tanstack (id explícito ou accessorKey).
@@ -44,7 +47,7 @@ function colId<T>(c: ColumnDef<T>): string {
   return c.id ?? String((c as { accessorKey?: string }).accessorKey ?? "");
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig }: DataTableProps<T>) {
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro" }: DataTableProps<T>) {
   const pathname = usePathname();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -176,7 +179,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
         )}
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-            {table.getFilteredRowModel().rows.length} registro(s)
+            {table.getFilteredRowModel().rows.length} {itemLabel}{table.getFilteredRowModel().rows.length === 1 ? "" : "s"}
           </span>
           {seletorLinhas}
           {columnConfig && (

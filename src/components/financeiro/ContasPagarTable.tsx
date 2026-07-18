@@ -507,10 +507,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             hint: String(contas.filter((c) => casaStatus(c, f.key)).length),
           }))}
         />
-        {/* Contagem de títulos filtrados. */}
-        <span className="text-xs text-muted-foreground whitespace-nowrap">
-          {contasFiltradas.length} título{contasFiltradas.length !== 1 ? "s" : ""}
-        </span>
         {/* Agrupamento: um único dropdown (Não agrupar / Vencimento / Fornecedor). */}
         <FilterSelect
           value={agrupamento}
@@ -630,6 +626,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           columns={columns}
           hideSearch
           columnConfig
+          itemLabel="título"
           containerClassName="shadow-md rounded-xl"
           headerClassName="bg-muted"
           focusId={focusId}
