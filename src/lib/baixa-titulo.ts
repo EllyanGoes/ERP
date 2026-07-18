@@ -26,7 +26,6 @@ import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 import { recomputarStatusPedido, recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { naturezaSistema } from "@/lib/natureza-sistema";
-import { garantirContaPermuta } from "@/lib/permuta";
 import type { PagamentoFormData } from "@/lib/validations/financeiro";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -206,40 +205,33 @@ export async function baixarTitulo(
     }
   }
 
-  // ── Permuta: quitação por bens/serviços → conta TRANSITÓRIA ───────────────
-  // Linha cuja forma tem tipo PERMUTA passa pela conta "Permutas a liquidar"
-  // (derivada, nunca escolhida). Garantida ANTES de qualquer escrita e via
-  // prismaSemEscopo (idempotente): a analítica contábil precisa existir quando
-  // o chamador recontabilizar o título pós-commit.
-  const ehPermuta = (l: LinhaBaixa) => tipoDaForma(l.forma) === "PERMUTA";
-  let contaPermutaId: string | null = null;
-  if (linhas.some(ehPermuta)) {
-    contaPermutaId = (await garantirContaPermuta(conta.empresaId)).id;
+  // Permuta NÃO é forma de baixa unilateral: as duas pernas (CP e CR do mesmo
+  // parceiro) liquidam juntas pelo Encontro de Contas com motivo PERMUTA —
+  // mesmo lançamento atômico D Fornecedor / C Cliente, sem transitória.
+  if (linhas.some((l) => tipoDaForma(l.forma) === "PERMUTA")) {
+    return { erro: { msg: "Permuta não é baixa unilateral — quite pelo Encontro de Contas (motivo Permuta), que liquida os dois lados no mesmo lançamento.", status: 422 }, conta: null };
   }
 
-  // Conta de destino/origem efetiva por linha: permuta → transitória de
-  // permuta; maquineta → conta da administradora (derivadas, nunca escolhidas);
-  // sentinel "caixa-geral" (ou linha sem conta) cai na conta padrão do título
-  // ou no caixa da empresa.
+  // Conta de destino/origem efetiva por linha: maquineta → conta da
+  // administradora (derivada, nunca escolhida); sentinel "caixa-geral" (ou
+  // linha sem conta) cai na conta padrão do título ou no caixa da empresa.
   const linhasComConta = linhas.map((l) => {
     const maq = l.maquinetaId ? maqDe.get(l.maquinetaId) : undefined;
     return {
       ...l,
       taxaLinha: taxaDaLinha(l),
-      contaEfetiva: ehPermuta(l) && contaPermutaId
-        ? contaPermutaId
-        : maq
-          ? maq.administradora.contaBancariaId
-          : l.contaBancariaId && l.contaBancariaId !== "caixa-geral"
-            ? l.contaBancariaId
-            : (conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId)),
+      contaEfetiva: maq
+        ? maq.administradora.contaBancariaId
+        : l.contaBancariaId && l.contaBancariaId !== "caixa-geral"
+          ? l.contaBancariaId
+          : (conta.contaBancariaId ?? contaCaixaIdDaEmpresa(conta.empresaId)),
     };
   });
   // Trava: forma eletrônica não pode cair no Caixa em Dinheiro (se há banco).
-  // Validada ANTES de qualquer escrita. Linhas com maquineta ou permuta ficam
-  // de fora: a conta é derivada, não escolhida.
+  // Validada ANTES de qualquer escrita. Linha com maquineta fica de fora: a
+  // conta é derivada da administradora, não escolhida.
   const ruim = await formaEletronicaNoCaixa(tx, conta.empresaId,
-    linhasComConta.filter((l) => !l.maquinetaId && !ehPermuta(l)).map((l) => ({ forma: l.forma, contaBancariaId: l.contaEfetiva })));
+    linhasComConta.filter((l) => !l.maquinetaId).map((l) => ({ forma: l.forma, contaBancariaId: l.contaEfetiva })));
   if (ruim) {
     const como = isReceber ? "recebida no" : "paga pelo";
     const qual = isReceber ? "destino" : "origem";
@@ -282,9 +274,8 @@ export async function baixarTitulo(
 
   // Um lançamento por forma (cada um na sua conta). Linha de maquineta entra
   // pelo LÍQUIDO (valor − taxa), com maquinetaId (projeção de repasse). Multa/
-  // juros são dinheiro real: entram na 1ª linha sem maquineta E sem permuta
-  // (senão na 1ª mesmo).
-  const idxExtra = Math.max(0, linhasComConta.findIndex((l) => !l.maquinetaId && !ehPermuta(l)));
+  // juros entram na 1ª linha sem maquineta (senão na 1ª mesmo).
+  const idxExtra = Math.max(0, linhasComConta.findIndex((l) => !l.maquinetaId));
   for (let i = 0; i < linhasComConta.length; i++) {
     const l = linhasComConta[i];
     const extra = i === idxExtra ? valorMulta + valorJuros : 0;

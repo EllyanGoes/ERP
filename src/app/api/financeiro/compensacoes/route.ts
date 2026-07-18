@@ -19,6 +19,9 @@ const schema = z.object({
   receber: z.array(ajuste).min(1),
   pagar: z.array(ajuste).min(1),
   modoResiduo: z.enum(["PARCIAL", "NOVA_PARCELA"]).default("PARCIAL"),
+  // Motivo do encontro: compensação de dívidas recíprocas ou permuta (troca de
+  // mercadoria/serviço). Mesmas partidas — muda a história contada no razão.
+  motivo: z.enum(["COMPENSACAO", "PERMUTA"]).default("COMPENSACAO"),
   observacoes: z.string().optional(),
 });
 
@@ -31,7 +34,7 @@ export async function GET() {
     where: { empresaId },
     orderBy: { createdAt: "desc" },
     select: {
-      id: true, numero: true, data: true, valorCompensado: true, modoResiduo: true, status: true,
+      id: true, numero: true, data: true, valorCompensado: true, modoResiduo: true, motivo: true, status: true,
       itens: {
         select: {
           tipo: true,
@@ -48,7 +51,7 @@ export async function GET() {
     const parceiro = partes.length === 0 ? "—" : partes.length === 1 ? partes[0] : `${partes[0]} +${partes.length - 1}`;
     return {
       id: r.id, numero: r.numero, data: r.data,
-      valorCompensado: decimalToNumber(r.valorCompensado), modoResiduo: r.modoResiduo, status: r.status,
+      valorCompensado: decimalToNumber(r.valorCompensado), modoResiduo: r.modoResiduo, motivo: r.motivo, status: r.status,
       parceiro, nReceber, nPagar, qtdItens: r.itens.length,
     };
   });
@@ -107,7 +110,7 @@ export async function POST(req: NextRequest) {
   const criado = await prismaSemEscopo.compensacao.create({
     data: {
       empresaId, numero, cpfCnpj: "", clienteId: null, fornecedorId: null,
-      valorCompensado: net.min, modoResiduo: f.modoResiduo, status: "RASCUNHO",
+      valorCompensado: net.min, modoResiduo: f.modoResiduo, motivo: f.motivo, status: "RASCUNHO",
       observacoes: f.observacoes ?? null, criadoPor: auth.session.nome ?? null,
       // Guarda a seleção inteira (todos os títulos) + ajustes, com a parcela compensada
       // efetiva como prévia. A confirmação recalcula o valor real e cria os resíduos.

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (modo === "realizado") {
     const lfs = await prisma.lancamentoFinanceiro.findMany({
       // Exclui transferências e as baixas da transitória de compensação (não é caixa).
-      where: { transferenciaParId: null, contaBancaria: { compensacao: false, permuta: false } },
+      where: { transferenciaParId: null, contaBancaria: { compensacao: false } },
       select: { dataLancamento: true, tipo: true, valor: true },
     });
     for (const lf of lfs) {

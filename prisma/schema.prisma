@@ -824,6 +824,10 @@ model Compensacao {
   // "PARCIAL" (resíduo fica aberto nos originais) | "NOVA_PARCELA" (quita 100% e
   // cria um título novo com a diferença).
   modoResiduo                String   @default("PARCIAL")
+  // Motivo do encontro: "COMPENSACAO" (dívidas recíprocas) | "PERMUTA" (troca de
+  // mercadoria/serviço por mercadoria/serviço). Mesmo motor e mesmas partidas
+  // (D Fornecedor / C Cliente pelo netado) — muda só a história contada no razão.
+  motivo                     String   @default("COMPENSACAO")
   // "RASCUNHO" | "CONFIRMADA" | "ESTORNADA".
   status                     String   @default("RASCUNHO")
   contaBancariaCompensacaoId String?
@@ -902,10 +906,6 @@ model ContaBancaria {
   // as baixas dos dois lados passam por ela e a zeram. Filtrada de fluxo de caixa,
   // saldos e dropdowns de baixa.
   compensacao      Boolean                @default(false)
-  // Conta TRANSITÓRIA de permuta ("Permutas a liquidar"): quitação por bens/
-  // serviços. Baixa de CP credita, baixa de CR debita — zera quando os dois lados
-  // liquidam. Mesmo tratamento da compensação (fora de fluxo de caixa/dropdowns).
-  permuta          Boolean                @default(false)
   // Conta de TERCEIROS: dinheiro de 3º sob guarda da empresa. A conta contábil vai
   // p/ "Contas de Terceiros" (1.1.6), não Disponibilidades (1.1.1). terceiroNome = de quem é.
   ehTerceiro       Boolean                @default(false)
@@ -3295,8 +3295,9 @@ enum TipoFormaPagamento {
   CARTAO_CREDITO
   CARTAO_DEBITO
   CHEQUE
-  // Quitação por bens/serviços no lugar de dinheiro (total ou parcial). A baixa
-  // credita a conta transitória "Permutas a liquidar" — nunca caixa/banco.
+  // Quitação por bens/serviços no lugar de dinheiro. NÃO é forma de baixa
+  // unilateral: liquida pelo Encontro de Contas (motivo PERMUTA). No título,
+  // serve de rótulo da forma PREVISTA (herdada do Documento de Entrada).
   PERMUTA
   OUTROS
 }

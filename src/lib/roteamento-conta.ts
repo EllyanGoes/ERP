@@ -6,7 +6,7 @@
 
 type DbRoteamento = {
   contaBancaria: {
-    findFirst(args: { where: { empresaId: string; tipo: { not: "CAIXA" }; ativo: true; compensacao: false; permuta: false }; select: { id: true } }): Promise<{ id: string } | null>;
+    findFirst(args: { where: { empresaId: string; tipo: { not: "CAIXA" }; ativo: true; compensacao: false }; select: { id: true } }): Promise<{ id: string } | null>;
     findMany(args: { where: { id: { in: string[] } }; select: { id: true; tipo: true; ehTerceiro: true } }): Promise<{ id: string; tipo: string; ehTerceiro: boolean }[]>;
   };
   formaPagamento: {
@@ -26,10 +26,10 @@ export async function formaEletronicaNoCaixa(
   empresaId: string,
   linhas: LinhaRoteamento[],
 ): Promise<LinhaRoteamento | null> {
-  // Transitórias (compensação/permuta) não contam como banco de verdade — sem
-  // elas na conta, uma empresa só-caixa não deve ter a trava ativada.
+  // A transitória de compensação não conta como banco de verdade — sem ela,
+  // uma empresa só-caixa não deve ter a trava ativada.
   const temBanco = await db.contaBancaria.findFirst({
-    where: { empresaId, tipo: { not: "CAIXA" }, ativo: true, compensacao: false, permuta: false },
+    where: { empresaId, tipo: { not: "CAIXA" }, ativo: true, compensacao: false },
     select: { id: true },
   });
   if (!temBanco) return null;

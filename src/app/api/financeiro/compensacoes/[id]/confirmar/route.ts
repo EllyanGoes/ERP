@@ -41,12 +41,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const comp = await prismaSemEscopo.compensacao.findFirst({
     where: { id: params.id, empresaId },
     select: {
-      id: true, numero: true, status: true, modoResiduo: true,
+      id: true, numero: true, status: true, modoResiduo: true, motivo: true,
       itens: { select: { tipo: true, contaReceberId: true, contaPagarId: true, juros: true, multa: true, desconto: true, acrescimo: true } },
     },
   });
   if (!comp) return NextResponse.json({ error: "Compensação não encontrada" }, { status: 404 });
   if (comp.status !== "RASCUNHO") return NextResponse.json({ error: "Compensação já confirmada ou estornada." }, { status: 409 });
+  // Rótulo do motivo — conta a história certa no razão/extratos.
+  const rotulo = comp.motivo === "PERMUTA" ? "Permuta" : "Compensação";
 
   // Ajustes por título (guardados no rascunho).
   const ajById = new Map<string, Aj>();
@@ -142,7 +144,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         const vp = r2(decimalToNumber(t.valorPago) + ap.principal);
         const lf = await tx.lancamentoFinanceiro.create({
           data: {
-            empresaId, tipo: tipo === "RECEBER" ? "RECEITA" : "DESPESA", descricao: `Compensação ${comp.numero}`,
+            empresaId, tipo: tipo === "RECEBER" ? "RECEITA" : "DESPESA", descricao: `${rotulo} ${comp.numero}`,
             valor: ap.principal, dataLancamento: agora,
             ...(tipo === "RECEBER" ? { contaReceberId: t.id } : { contaPagarId: t.id }), contaBancariaId: cbComp.id,
           },
@@ -186,10 +188,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         // CP é numerado sem o ano (CP-0110); CR mantém o formato com ano.
         const numero = (prefixo === "CP" ? generateSimpleDocNumber : generateDocNumber)(prefixo, seq.ultimo);
         if (r.tipo === "RECEBER") {
-          const nova = await tx.contaReceber.create({ data: { empresaId, numero, clienteId: r.clienteId, descricao: `Resíduo compensação ${comp.numero}`, valorOriginal: r.valor, dataVencimento: r.venc, status: "ABERTA", compensacaoOrigemId: comp.id }, select: { id: true } });
+          const nova = await tx.contaReceber.create({ data: { empresaId, numero, clienteId: r.clienteId, descricao: `Resíduo ${rotulo.toLowerCase()} ${comp.numero}`, valorOriginal: r.valor, dataVencimento: r.venc, status: "ABERTA", compensacaoOrigemId: comp.id }, select: { id: true } });
           residuoIds.push({ tipo: "RECEBER", id: nova.id });
         } else {
-          const nova = await tx.contaPagar.create({ data: { empresaId, numero, fornecedorId: r.fornecedorId, descricao: `Resíduo compensação ${comp.numero}`, valorOriginal: r.valor, dataVencimento: r.venc, status: "ABERTA", compensacaoOrigemId: comp.id }, select: { id: true } });
+          const nova = await tx.contaPagar.create({ data: { empresaId, numero, fornecedorId: r.fornecedorId, descricao: `Resíduo ${rotulo.toLowerCase()} ${comp.numero}`, valorOriginal: r.valor, dataVencimento: r.venc, status: "ABERTA", compensacaoOrigemId: comp.id }, select: { id: true } });
           residuoIds.push({ tipo: "PAGAR", id: nova.id });
         }
       }

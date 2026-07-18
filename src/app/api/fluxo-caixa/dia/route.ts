@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   // fora transferências. Mapeia para o mesmo formato (cr/cp) do drill-down.
   if (modo === "realizado") {
     const lfs = await prisma.lancamentoFinanceiro.findMany({
-      where: { transferenciaParId: null, dataLancamento: { gte: inicio, lte: fim }, contaBancaria: { compensacao: false, permuta: false } },
+      where: { transferenciaParId: null, dataLancamento: { gte: inicio, lte: fim }, contaBancaria: { compensacao: false } },
       orderBy: { dataLancamento: "asc" },
       select: {
         id: true, tipo: true, descricao: true, valor: true, favorecido: true,

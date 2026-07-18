@@ -259,8 +259,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     setErro(null);
     setDataPag(new Date().toISOString().split("T")[0]);
     const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
-    // Forma prevista do título (herdada do DE, ex.: permuta) pré-preenche a 1ª linha.
-    const formaPrev = row.formaPagamentoPrevista?.nome ?? "";
+    // Forma prevista do título (herdada do DE) pré-preenche a 1ª linha — exceto
+    // permuta, que não é forma de baixa (quita-se pelo Encontro de Contas).
+    const prev = row.formaPagamentoPrevista;
+    const formaPrev = prev && prev.tipo !== "PERMUTA" ? prev.nome : "";
     setLinhas([novaLinhaPagamento(formaPrev, contaPadraoParaForma(formaPrev, formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
     // Rateio por natureza: pré-carrega o existente ou 1 linha com o valor do título.
     const valOrig = decimalToNumber(row.valorOriginal);
@@ -721,6 +723,13 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               <Label>Data do Pagamento</Label>
               <DatePicker value={dataPag} onChange={(v) => setDataPag(v)} className="mt-1 w-full" />
             </div>
+            {selected?.formaPagamentoPrevista?.tipo === "PERMUTA" && (
+              <div className="rounded-lg bg-violet-50 dark:bg-violet-500/10 border border-violet-300/50 px-3 py-2 text-xs text-violet-700 dark:text-violet-300">
+                Título previsto como <b>permuta</b> — quite pelo <b>Encontro de Contas</b> (motivo Permuta),
+                que liquida o CP e o CR do parceiro no mesmo lançamento. A baixa abaixo vale para
+                pagamento em dinheiro/banco.
+              </div>
+            )}
             <PagamentosInput
               linhas={linhas}
               setLinhas={setLinhas}
@@ -728,7 +737,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               contas={contasBanco}
               total={saldo}
               menuMinWidth={340}
-              permitirPermuta
             />
             {/* Encargos da baixa: juros/multa saem do caixa além do título; a
                 taxa/tarifa é retida (paga MENOS) — quitação = linhas + taxa. */}

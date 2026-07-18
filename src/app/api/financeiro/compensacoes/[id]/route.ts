@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const c = await prismaSemEscopo.compensacao.findFirst({
     where: { id: params.id, empresaId },
     select: {
-      id: true, numero: true, data: true, valorCompensado: true, modoResiduo: true, status: true,
+      id: true, numero: true, data: true, valorCompensado: true, modoResiduo: true, motivo: true, status: true,
       observacoes: true, criadoPor: true, atualizadoPor: true, createdAt: true,
       itens: {
         select: {
@@ -37,7 +37,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   return NextResponse.json({
     data: {
-      id: c.id, numero: c.numero, data: c.data, status: c.status, modoResiduo: c.modoResiduo,
+      id: c.id, numero: c.numero, data: c.data, status: c.status, modoResiduo: c.modoResiduo, motivo: c.motivo,
       valorCompensado: decimalToNumber(c.valorCompensado), observacoes: c.observacoes, criadoPor: c.criadoPor, atualizadoPor: c.atualizadoPor, createdAt: c.createdAt,
       parceiro: partes.length === 0 ? "—" : partes.length === 1 ? partes[0] : `${partes[0]} +${partes.length - 1}`,
       itens: c.itens.map((i) => ({

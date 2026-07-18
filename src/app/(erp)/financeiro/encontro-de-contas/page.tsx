@@ -19,7 +19,7 @@ type Elegivel = {
 };
 type Compensacao = {
   id: string; numero: string; parceiro: string; data: string;
-  valorCompensado: number; modoResiduo: string; status: string; nReceber: number; nPagar: number;
+  valorCompensado: number; modoResiduo: string; motivo?: string; status: string; nReceber: number; nPagar: number;
 };
 type TituloAberto = { id: string; numero: string; descricao: string; parceiro: string; dataVencimento: string | null; saldo: number };
 
@@ -107,6 +107,7 @@ export default function EncontroDeContasPage() {
                 <tr>
                   <th className="text-left font-medium px-3 py-2">Número</th>
                   <th className="text-left font-medium px-3 py-2">Partes</th>
+                  <th className="text-left font-medium px-3 py-2">Motivo</th>
                   <th className="text-center font-medium px-3 py-2">Títulos</th>
                   <th className="text-right font-medium px-3 py-2">Valor</th>
                   <th className="text-left font-medium px-3 py-2">Resíduo</th>
@@ -118,6 +119,13 @@ export default function EncontroDeContasPage() {
                   <tr key={c.id} className="border-t border-border hover:bg-muted/40 cursor-pointer" onClick={() => setDetalheId(c.id)}>
                     <td className="px-3 py-2 font-medium">{c.numero}</td>
                     <td className="px-3 py-2 truncate max-w-[240px]">{c.parceiro}</td>
+                    <td className="px-3 py-2">
+                      {c.motivo === "PERMUTA" ? (
+                        <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400">Permuta</span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Compensação</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-center text-xs text-muted-foreground">{c.nReceber}↓ · {c.nPagar}↑</td>
                     <td className="px-3 py-2 text-right tabular-nums">{formatBRL(c.valorCompensado)}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{c.modoResiduo === "NOVA_PARCELA" ? "Nova parcela" : "Parcial"}</td>
@@ -157,6 +165,9 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
   const setCol = (k: keyof typeof colFiltros, v: string) => setColFiltros((p) => ({ ...p, [k]: v }));
   const limparFiltros = () => setColFiltros({ carteira: "", numero: "", parceiro: "", vencimento: "" });
   const [modo, setModo] = useState<"PARCIAL" | "NOVA_PARCELA">("PARCIAL");
+  // Motivo do encontro: compensação de dívidas (default) ou permuta. Mesmas
+  // partidas (D Fornecedor / C Cliente) — muda a história contada no razão.
+  const [motivo, setMotivo] = useState<"COMPENSACAO" | "PERMUTA">("COMPENSACAO");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -226,6 +237,7 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
         receber: linhas.filter((l) => l.carteira === "R" && sel.has(l.id)).map(corpo),
         pagar: linhas.filter((l) => l.carteira === "P" && sel.has(l.id)).map(corpo),
         modoResiduo: houveAjuste ? "PARCIAL" : modo,
+        motivo,
       }),
     });
     if (!res.ok) { setError((await res.json()).error ?? "Erro ao criar."); setSaving(false); return; }
@@ -348,6 +360,16 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
               <div><p className="text-xs text-muted-foreground">Resíduo</p><p className={cn("font-medium tabular-nums", residual > 0.005 ? "text-amber-600 dark:text-amber-400" : "")}>{formatBRL(residual)}</p>{residual > 0.005 && <p className="text-[11px] text-muted-foreground">no lado {selR > selP ? "a receber" : "a pagar"}</p>}</div>
             </div>
 
+            {/* Motivo do encontro — permuta é o mesmo netting com outro rótulo */}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setMotivo("COMPENSACAO")} className={cn("flex-1 rounded-md border px-3 py-2 text-sm text-left", motivo === "COMPENSACAO" ? "border-primary bg-primary/5" : "border-border")}>
+                <span className="font-medium">Compensação de dívidas</span><br /><span className="text-xs text-muted-foreground">Dívidas recíprocas em dinheiro que se anulam.</span>
+              </button>
+              <button type="button" onClick={() => setMotivo("PERMUTA")} className={cn("flex-1 rounded-md border px-3 py-2 text-sm text-left", motivo === "PERMUTA" ? "border-primary bg-primary/5" : "border-border")}>
+                <span className="font-medium">Permuta</span><br /><span className="text-xs text-muted-foreground">Mercadoria/serviço por mercadoria/serviço — quita os dois lados no mesmo lançamento.</span>
+              </button>
+            </div>
+
             {residual > 0.005 && !houveAjuste && (
               <div className="flex gap-2">
                 <button type="button" onClick={() => setModo("PARCIAL")} className={cn("flex-1 rounded-md border px-3 py-2 text-sm text-left", modo === "PARCIAL" ? "border-primary bg-primary/5" : "border-border")}>
@@ -377,7 +399,7 @@ function SelecaoDialog({ preParceiro, onClose, onCriado }: { preParceiro?: strin
 
 // ── Diálogo de detalhe / confirmação / estorno ───────────────────────────────
 type Detalhe = {
-  id: string; numero: string; parceiro: string; status: string; modoResiduo: string;
+  id: string; numero: string; parceiro: string; status: string; modoResiduo: string; motivo?: string;
   valorCompensado: number; observacoes: string | null; criadoPor: string | null; atualizadoPor?: string | null;
   itens: { id: string; tipo: string; numero: string; descricao: string; parte: string; valorAplicado: number; juros: number; multa: number; desconto: number; acrescimo: number }[];
   residuos: { tipo: string; numero: string; valor: number; status: string }[];
@@ -421,6 +443,9 @@ function DetalheDialog({ id, onClose, onMudou }: { id: string; onClose: () => vo
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">{d?.numero ?? "Compensação"}
+            {d?.motivo === "PERMUTA" && (
+              <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400">Permuta</span>
+            )}
             {d && <Badge className={cn("font-normal", STATUS_BADGE[d.status])}>{d.status}</Badge>}
           </DialogTitle>
           <DialogDescription>{d?.parceiro}</DialogDescription>

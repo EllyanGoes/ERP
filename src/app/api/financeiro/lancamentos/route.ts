@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const data = await prisma.lancamentoFinanceiro.findMany({
     where: {
-      ...(contaBancariaId ? { contaBancariaId } : { contaBancaria: { compensacao: false, permuta: false } }),
+      ...(contaBancariaId ? { contaBancariaId } : { contaBancaria: { compensacao: false } }),
       ...(tipo ? { tipo: tipo as any } : {}),
     },
     include: {

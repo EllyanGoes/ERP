@@ -81,14 +81,11 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const auth = await requireModulo("financeiro");
   if (!auth.ok) return auth.response;
 
-  // As transitórias do sistema (compensação do Encontro de Contas e permuta)
-  // não podem ser excluídas/inativadas — as baixas passam por elas.
-  const conta = await prisma.contaBancaria.findUnique({ where: { id: params.id }, select: { compensacao: true, permuta: true } });
+  // A transitória de compensação (Encontro de Contas) é gerada pelo sistema e
+  // não pode ser excluída/inativada — as baixas do encontro passam por ela.
+  const conta = await prisma.contaBancaria.findUnique({ where: { id: params.id }, select: { compensacao: true } });
   if (conta?.compensacao) {
     return NextResponse.json({ error: "A conta de compensação (Encontro de Contas) não pode ser excluída." }, { status: 400 });
-  }
-  if (conta?.permuta) {
-    return NextResponse.json({ error: "A conta transitória de permuta não pode ser excluída." }, { status: 400 });
   }
 
   const count = await prisma.lancamentoFinanceiro.count({ where: { contaBancariaId: params.id } });

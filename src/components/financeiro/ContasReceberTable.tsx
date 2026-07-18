@@ -682,7 +682,6 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
               contas={contasBanco}
               total={saldo}
               usarMaquinetas
-              permitirPermuta
             />
             {/* Encargos da baixa: juros/multa entram no caixa além do título; a
                 taxa/tarifa é retida (recebe MENOS) — quitação = linhas + taxa. */}
