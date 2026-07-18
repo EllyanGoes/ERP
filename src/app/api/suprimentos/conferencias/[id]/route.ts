@@ -56,6 +56,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         },
         orderBy: [{ dataVencimento: "asc" }, { numero: "asc" }],
       },
+      formaPagamento: { select: { id: true, nome: true, tipo: true } },
       localEstoque: { select: { id: true, nome: true } },
       itens: {
         include: {
@@ -121,6 +122,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     desconto,
     vrTotal,
     condicaoPagamentoId,
+    formaPagamentoId,
     naturezaFinanceiraId,
   } = body;
 
@@ -234,6 +236,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (desconto !== undefined) updateData.desconto = desconto != null ? parseFloat(String(desconto)) : null;
     if (vrTotal !== undefined) updateData.vrTotal = vrTotal != null ? parseFloat(String(vrTotal)) : null;
     if (condicaoPagamentoId !== undefined) updateData.condicaoPagamentoId = condicaoPagamentoId || null;
+    if (formaPagamentoId !== undefined) updateData.formaPagamentoId = formaPagamentoId || null;
     if (naturezaFinanceiraId !== undefined) updateData.naturezaFinanceiraId = naturezaFinanceiraId || null;
 
     await tx.conferenciaCompra.update({

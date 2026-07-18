@@ -17,6 +17,8 @@ export async function gerarContasPagarDoDocumento(
     // Documento de Entrada que originou o título (ausente no PA, que nasce no pedido).
     conferenciaId?: string | null;
     numeroPedido: string; valorTotal: unknown; dataBase: Date | string; naturezaFinanceiraId?: string | null;
+    // Forma de pagamento PREVISTA (meio de quitação, ex.: permuta) — herdada do DE.
+    formaPagamentoPrevistaId?: string | null;
     // PA: título nascido no PEDIDO (adiantamento a fornecedor), não na entrada.
     antecipado?: boolean;
   },
@@ -44,6 +46,7 @@ export async function gerarContasPagarDoDocumento(
         conferenciaId: doc.conferenciaId ?? null,
         antecipado,
         naturezaFinanceiraId: doc.naturezaFinanceiraId ?? null,
+        formaPagamentoPrevistaId: doc.formaPagamentoPrevistaId ?? null,
         descricao: p.parcelaTotal ? `${baseDesc} (${p.parcelaNumero}/${p.parcelaTotal})` : baseDesc,
         valorOriginal: p.valor,
         dataVencimento: p.dataVencimento,

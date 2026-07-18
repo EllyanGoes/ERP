@@ -489,6 +489,9 @@ model ConferenciaCompra {
   pedidoId             String?                 @unique
   status               StatusConferenciaCompra @default(PENDENTE)
   condicaoPagamentoId  String?
+  // Forma de pagamento PREVISTA (meio de quitação: PIX, dinheiro, permuta…);
+  // a condição estrutura o prazo, a forma define como quita. Carimba os títulos.
+  formaPagamentoId     String?
   naturezaFinanceiraId String?
   dataConferencia      DateTime?
   responsavel          String?
@@ -514,6 +517,7 @@ model ConferenciaCompra {
   updatedAt            DateTime                @updatedAt
   pedido               PedidoCompra?           @relation(fields: [pedidoId], references: [id])
   condicaoPagamentoRef CondicaoPagamento?      @relation("CondPgtoConferencia", fields: [condicaoPagamentoId], references: [id])
+  formaPagamento       FormaPagamento?         @relation("FormaPgtoConferencia", fields: [formaPagamentoId], references: [id])
   naturezaFinanceira   NaturezaFinanceira?     @relation(fields: [naturezaFinanceiraId], references: [id])
   fornecedor           Fornecedor?             @relation(fields: [fornecedorId], references: [id])
   localEstoque         LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
@@ -640,6 +644,10 @@ model ContaPagar {
   dataCompetencia       DateTime?
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?
+  // Forma PREVISTA de quitação (herdada do Documento de Entrada; ex.: permuta).
+  // Distinta de formaPagamento (string-resumo do que foi efetivamente baixado).
+  formaPagamentoPrevistaId String?
+  formaPagamentoPrevista   FormaPagamento? @relation("FormaPrevistaCP", fields: [formaPagamentoPrevistaId], references: [id])
   notaFiscal            String?
   intragrupo            Boolean                @default(false)
   // Folha de pagamento: quando true, a provisão já foi feita pela apropriação da
@@ -690,6 +698,7 @@ model ContaPagar {
   @@index([grupoParcelamentoId])
   @@index([recorrenciaId])
   @@index([empresaId])
+  @@index([formaPagamentoPrevistaId])
 }
 
 // Rateio gerencial de um título a pagar por natureza financeira (definido na baixa).
@@ -893,6 +902,10 @@ model ContaBancaria {
   // as baixas dos dois lados passam por ela e a zeram. Filtrada de fluxo de caixa,
   // saldos e dropdowns de baixa.
   compensacao      Boolean                @default(false)
+  // Conta TRANSITÓRIA de permuta ("Permutas a liquidar"): quitação por bens/
+  // serviços. Baixa de CP credita, baixa de CR debita — zera quando os dois lados
+  // liquidam. Mesmo tratamento da compensação (fora de fluxo de caixa/dropdowns).
+  permuta          Boolean                @default(false)
   // Conta de TERCEIROS: dinheiro de 3º sob guarda da empresa. A conta contábil vai
   // p/ "Contas de Terceiros" (1.1.6), não Disponibilidades (1.1.1). terceiroNome = de quem é.
   ehTerceiro       Boolean                @default(false)
@@ -1599,6 +1612,9 @@ model FormaPagamento {
   updatedAt       DateTime           @updatedAt
   criadoPor       String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor   String? // autoria: última edição manual (proxy de sessão)
+
+  conferencias         ConferenciaCompra[] @relation("FormaPgtoConferencia")
+  contasPagarPrevistas ContaPagar[]        @relation("FormaPrevistaCP")
 }
 
 model Fornecedor {
@@ -3279,6 +3295,9 @@ enum TipoFormaPagamento {
   CARTAO_CREDITO
   CARTAO_DEBITO
   CHEQUE
+  // Quitação por bens/serviços no lugar de dinheiro (total ou parcial). A baixa
+  // credita a conta transitória "Permutas a liquidar" — nunca caixa/banco.
+  PERMUTA
   OUTROS
 }
 

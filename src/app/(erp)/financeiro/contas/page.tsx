@@ -25,6 +25,7 @@ type Conta = {
   saldoAtual: number;
   ativo: boolean;
   compensacao?: boolean;
+  permuta?: boolean;
   ehTerceiro?: boolean;
   terceiroNome?: string | null;
   banco: { id: string; nome: string } | null;
@@ -70,6 +71,7 @@ export default function ContasBancariasPage() {
     if (agrupar === "none") return null;
     const chaveDe = (c: Conta) =>
       c.compensacao ? "Compensação"
+        : c.permuta ? "Compensação"
         : agrupar === "titularidade" ? (c.ehTerceiro ? "Terceiros" : "Da empresa")
         : TIPO_LABEL[c.tipo];
     const ordem = agrupar === "titularidade" ? ORDEM_TIT : ORDEM_TIPO;
@@ -206,6 +208,13 @@ export default function ContasBancariasPage() {
                           className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400"
                         >
                           <ShieldCheck className="w-3 h-3" /> Compensação
+                        </span>
+                      ) : c.permuta ? (
+                        <span
+                          title="Conta transitória de permuta — quitação por bens/serviços; gerada pelo sistema, não pode ser excluída."
+                          className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400"
+                        >
+                          <ShieldCheck className="w-3 h-3" /> Permuta
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5">

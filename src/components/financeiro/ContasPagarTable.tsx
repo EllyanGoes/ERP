@@ -34,6 +34,9 @@ type RateioLinha = { key: string; naturezaFinanceiraId: string; detalhamento: st
 type ContaRow = {
   id: string; numero: string; descricao: string; categoria: string | null; status: string; antecipado?: boolean;
   parcelaNumero?: number | null; parcelaTotal?: number | null;
+  // Forma PREVISTA de quitação (herdada do DE; ex.: permuta) — distinta do
+  // formaPagamento (resumo do que foi efetivamente baixado).
+  formaPagamentoPrevista?: { id: string; nome: string; tipo?: string } | null;
   dataVencimento: Date | string; dataPagamento: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
   fornecedor: { id: string; razaoSocial: string } | null;
@@ -256,7 +259,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     setErro(null);
     setDataPag(new Date().toISOString().split("T")[0]);
     const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
-    setLinhas([novaLinhaPagamento("", contaPadraoParaForma("", formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
+    // Forma prevista do título (herdada do DE, ex.: permuta) pré-preenche a 1ª linha.
+    const formaPrev = row.formaPagamentoPrevista?.nome ?? "";
+    setLinhas([novaLinhaPagamento(formaPrev, contaPadraoParaForma(formaPrev, formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
     // Rateio por natureza: pré-carrega o existente ou 1 linha com o valor do título.
     const valOrig = decimalToNumber(row.valorOriginal);
     setRateio(
@@ -670,7 +675,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           // TES e Centro de custo — SOMENTE LEITURA (definidos no material, não aqui).
           { label: "TES (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).tes}</span> },
           { label: "Centro de custo (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).centro}</span> },
-          { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{formatDate(detalhe.dataVencimento)}</span> },
+          { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{detalhe.dataVencimento ? formatDate(detalhe.dataVencimento) : "A combinar"}</span> },
+          ...(detalhe.formaPagamentoPrevista ? [{ label: "Forma prevista", valor: detalhe.formaPagamentoPrevista.nome }] : []),
           { label: "Valor", valor: formatBRL(vo) },
           { label: "Pago", valor: formatBRL(vp) },
           { label: "Saldo", valor: <span className="font-medium">{formatBRL(vo - vp)}</span> },
@@ -722,6 +728,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               contas={contasBanco}
               total={saldo}
               menuMinWidth={340}
+              permitirPermuta
             />
             {/* Encargos da baixa: juros/multa saem do caixa além do título; a
                 taxa/tarifa é retida (paga MENOS) — quitação = linhas + taxa. */}

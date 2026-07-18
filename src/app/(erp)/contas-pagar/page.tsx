@@ -12,6 +12,7 @@ export default async function ContasPagarPage() {
       contaBancaria: { select: { id: true, nome: true } },
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
       naturezas: { select: { naturezaFinanceiraId: true, detalhamento: true, valor: true } },
+      formaPagamentoPrevista: { select: { id: true, nome: true, tipo: true } },
       centroCusto: { select: { codigo: true, nome: true } },
       // DE de origem (pedido OU avulsa): número clicável + TES/centro dos itens
       // do documento — a fonte real da classificação (o pedido raramente tem).

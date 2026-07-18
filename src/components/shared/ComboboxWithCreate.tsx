@@ -72,6 +72,8 @@ export default function ComboboxWithCreate({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // Navegação por teclado: índice destacado na lista (setas ↑/↓ + Enter).
+  const [hi, setHi] = useState(0);
   const [createModal, setCreateModal] = useState<{ value: string } | null>(null);
   // Locally created options so they appear immediately after inline creation
   const [extraOptions, setExtraOptions] = useState<ComboboxOption[]>([]);
@@ -154,11 +156,56 @@ export default function ComboboxWithCreate({
   );
   const showCreate = !!createHref && search.trim().length > 0;
 
+  // Lista NAVEGÁVEL na ordem exibida: "nenhum" (quando permitido) + disponíveis
+  // (agrupadas seguem a ordem de 1ª aparição do grupo). Desabilitadas ficam fora.
+  const navValues: string[] = (() => {
+    const disponiveis = filtered.filter((o) => !disabledValues.includes(o.value));
+    let ordenadas = disponiveis;
+    if (disponiveis.some((o) => o.group)) {
+      const ordem: string[] = [];
+      const porGrupo = new Map<string, ComboboxOption[]>();
+      for (const o of disponiveis) {
+        const g = o.group ?? "Outros";
+        if (!porGrupo.has(g)) { porGrupo.set(g, []); ordem.push(g); }
+        porGrupo.get(g)!.push(o);
+      }
+      ordenadas = ordem.flatMap((g) => porGrupo.get(g)!);
+    }
+    return [...(allowNone ? [""] : []), ...ordenadas.map((o) => o.value)];
+  })();
+  const hiClamped = Math.min(hi, Math.max(0, navValues.length - 1));
+  const hiValue = navValues[hiClamped];
+
   function select(v: string) {
     onChange(v);
     setOpen(false);
     setSearch("");
   }
+
+  // Setas movem o destaque; Enter confirma; Escape fecha. O item destacado é
+  // mantido à vista no scroll do menu.
+  function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHi((p) => Math.min(p + 1, Math.max(0, navValues.length - 1)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHi((p) => Math.max(p - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (navValues.length > 0) select(hiValue);
+      else if (showCreate) handleCreate();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      setSearch("");
+    }
+  }
+  useEffect(() => { setHi(0); }, [search, open]);
+  useEffect(() => {
+    if (!open) return;
+    dropdownRef.current?.querySelector(`[data-nav-idx="${hiClamped}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [hiClamped, open]);
 
   function handleCreate() {
     if (!createHref) return;
@@ -230,6 +277,7 @@ export default function ComboboxWithCreate({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={onSearchKeyDown}
               placeholder="Buscar..."
               className="flex-1 text-sm outline-none bg-transparent placeholder:text-muted-foreground"
             />
@@ -245,10 +293,12 @@ export default function ComboboxWithCreate({
             {allowNone && (
               <button
                 type="button"
+                data-nav-idx={0}
                 onClick={() => select("")}
                 className={cn(
                   "w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted transition-colors text-left",
-                  value === "" && "bg-info/10 text-info"
+                  value === "" && "bg-info/10 text-info",
+                  hiValue === "" && "bg-muted ring-1 ring-inset ring-info/40"
                 )}
               >
                 <span className="text-muted-foreground italic">{noneLabel}</span>
@@ -270,10 +320,12 @@ export default function ComboboxWithCreate({
               const renderOpt = (opt: ComboboxOption) => {
                 const isDisabled = disabledValues.includes(opt.value);
                 const isSelected = value === opt.value;
+                const navIdx = isDisabled ? -1 : navValues.indexOf(opt.value);
                 return (
                   <button
                     key={opt.value}
                     type="button"
+                    {...(navIdx >= 0 ? { "data-nav-idx": navIdx } : {})}
                     onClick={() => { if (!isDisabled) select(opt.value); }}
                     disabled={isDisabled}
                     className={cn(
@@ -282,7 +334,8 @@ export default function ComboboxWithCreate({
                         ? "cursor-not-allowed bg-success/10 text-muted-foreground"
                         : isSelected
                         ? "bg-info/10 text-info hover:bg-info/10"
-                        : "hover:bg-muted"
+                        : "hover:bg-muted",
+                      !isDisabled && navIdx >= 0 && hiValue === opt.value && "bg-muted ring-1 ring-inset ring-info/40"
                     )}
                   >
                     {/* Label — custom render, or bold code + blue saldo */}

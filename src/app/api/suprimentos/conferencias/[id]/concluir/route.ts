@@ -354,6 +354,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               conferenciaId: conferencia.id,
               fornecedorId: conferencia.fornecedorId,
               naturezaFinanceiraId: conferencia.naturezaFinanceiraId ?? null,
+              formaPagamentoPrevistaId: conferencia.formaPagamentoId ?? null,
               descricao: p.parcelaTotal ? `${baseDesc} (${p.parcelaNumero}/${p.parcelaTotal})` : baseDesc,
               valorOriginal: p.valor,
               dataVencimento: p.dataVencimento,
@@ -437,6 +438,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
               valorTotal,
               dataBase: conferencia.dtEmissao ?? hojeUTC,
               naturezaFinanceiraId: conferencia.naturezaFinanceiraId,
+              formaPagamentoPrevistaId: conferencia.formaPagamentoId,
             }, condicao);
             await recomputarStatusFinanceiroCompra(tx, pc.id);
           }

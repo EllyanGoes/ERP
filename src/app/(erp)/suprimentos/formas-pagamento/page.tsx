@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Plus, Pencil, Check, ToggleLeft, ToggleRight, Loader2, Info,
-  Banknote, CreditCard, Smartphone, Building2, FileText, BookCheck, HelpCircle,
+  Banknote, CreditCard, Smartphone, Building2, FileText, BookCheck, HelpCircle, Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Autoria } from "@/components/shared/Autoria";
@@ -19,6 +19,7 @@ const TIPOS = [
   { value: "CARTAO_DEBITO",  label: "Cartão de Débito", icon: CreditCard,  color: "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/15" },
   { value: "DINHEIRO",       label: "Dinheiro",         icon: Banknote,    color: "text-success bg-success/10" },
   { value: "CHEQUE",         label: "Cheque",           icon: BookCheck,   color: "text-muted-foreground bg-muted" },
+  { value: "PERMUTA",        label: "Permuta",          icon: Repeat,      color: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/15" },
   { value: "OUTROS",         label: "Outros",           icon: HelpCircle,  color: "text-muted-foreground bg-muted" },
 ] as const;
 
@@ -71,6 +72,13 @@ export default function FormasPagamentoPage() {
   };
   const cancel = () => { setEditingId(null); setError(null); };
 
+  useEffect(() => {
+    if (editingId === null) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setEditingId(null); setError(null); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editingId]);
+
   const save = async () => {
     setSaving(true); setError(null);
     const url = editingId === "new"
@@ -105,30 +113,26 @@ export default function FormasPagamentoPage() {
         title="Formas de Pagamento"
         breadcrumbs={[{ label: "Suprimentos" }, { label: "Cadastros" }, { label: "Formas de Pagamento" }]}
       />
-      <div className="px-8 pb-8 max-w-3xl space-y-6">
+      <div className="px-8 pb-8 max-w-5xl space-y-6">
 
         {/* Info */}
         <div className="flex items-start gap-3 bg-info/10 border border-info/20 rounded-xl p-4 text-sm text-info">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <p>
-            Cadastro das formas de pagamento — representa como os pagamentos e recebimentos
-            são realizados fisicamente (PIX, Boleto, Cartão, etc.).
+            A forma de pagamento é o <b>meio de quitação</b> — como o pagamento/recebimento acontece
+            (PIX, boleto, cartão, dinheiro… e <b>permuta</b>, que substitui dinheiro por bens/serviços,
+            total ou parcialmente). Não confundir com a <b>condição de pagamento</b>, que estrutura o
+            <b> prazo</b> do negócio (à vista, parcelado, sem vencimento).
           </p>
         </div>
 
         {/* Header */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">{rows.length} forma(s) cadastrada(s)</p>
-          <Button size="sm" onClick={startNew} disabled={editingId !== null}>
+          <Button size="sm" onClick={startNew}>
             <Plus className="w-4 h-4 mr-1" /> Nova Forma
           </Button>
         </div>
-
-        {/* Inline new form */}
-        {editingId === "new" && (
-          <FormaForm form={form} setForm={setForm} saving={saving} error={error}
-            onSave={save} onCancel={cancel} isNew />
-        )}
 
         {/* Table */}
         <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
@@ -148,11 +152,10 @@ export default function FormasPagamentoPage() {
               ) : rows.length === 0 ? (
                 <tr><td colSpan={5} className="py-10 text-center text-muted-foreground text-xs">Nenhuma forma de pagamento cadastrada</td></tr>
               ) : rows.map((r) => (
-                <>
-                  <tr key={r.id} className={cn("border-b border-border last:border-0", !r.ativo && "opacity-50", editingId === r.id ? "bg-info/10" : "hover:bg-muted")}>
+                  <tr key={r.id} className={cn("border-b border-border last:border-0 hover:bg-muted", !r.ativo && "opacity-50")}>
                     <td className="px-4 py-3 font-medium text-foreground">{r.nome}</td>
                     <td className="px-4 py-3"><TipoBadge tipo={r.tipo} /></td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[200px] truncate">{r.descricao ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs max-w-[300px] truncate">{r.descricao ?? "—"}</td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => toggleAtivo(r)}>
                         {r.ativo
@@ -161,24 +164,12 @@ export default function FormasPagamentoPage() {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {editingId !== r.id && (
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          onClick={() => startEdit(r)} disabled={editingId !== null}>
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => startEdit(r)}>
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
                     </td>
                   </tr>
-                  {editingId === r.id && (
-                    <tr key={`${r.id}-edit`} className="bg-info/10 border-b">
-                      <td colSpan={5} className="px-4 py-4">
-                        <FormaForm form={form} setForm={setForm} saving={saving} error={error}
-                          onSave={save} onCancel={cancel} />
-                        <Autoria criadoPor={r.criadoPor} atualizadoPor={r.atualizadoPor} className="mt-2 px-1" />
-                      </td>
-                    </tr>
-                  )}
-                </>
               ))}
             </tbody>
           </table>
@@ -205,6 +196,22 @@ export default function FormasPagamentoPage() {
           </div>
         )}
       </div>
+
+      {/* Popup de criação/edição — mesmo padrão do cadastro de condições */}
+      {editingId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={cancel}>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <FormaForm
+              form={form} setForm={setForm} saving={saving} error={error}
+              onSave={save} onCancel={cancel} isNew={editingId === "new"}
+            />
+            {editingId !== "new" && (() => {
+              const r = rows.find((x) => x.id === editingId);
+              return r ? <Autoria criadoPor={r.criadoPor} atualizadoPor={r.atualizadoPor} className="px-5 pb-4 -mt-1" /> : null;
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -217,15 +224,18 @@ function FormaForm({ form, setForm, saving, error, onSave, onCancel, isNew }: {
   isNew?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-info/30 bg-card p-5 space-y-4">
-      <p className="text-sm font-semibold text-foreground">{isNew ? "Nova forma de pagamento" : "Editar forma"}</p>
+    <div className="p-5 space-y-4">
+      <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+        {isNew ? <Plus className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+        {isNew ? "Nova forma de pagamento" : "Editar forma"}
+      </h2>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
           <Input value={form.nome}
             onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-            placeholder="Ex: PIX Banco do Brasil" autoFocus={isNew}
+            placeholder="Ex: PIX Banco do Brasil" autoFocus
             onKeyDown={(e) => { if (e.key === "Enter") onSave(); if (e.key === "Escape") onCancel(); }} />
         </div>
 

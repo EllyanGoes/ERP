@@ -12,7 +12,7 @@ import { cn, formatBRL } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 export type FormaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
-export type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean; ehTerceiro?: boolean };
+export type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean; ehTerceiro?: boolean; compensacao?: boolean; permuta?: boolean };
 export type MaquinetaOpt = {
   id: string;
   nome: string;
@@ -67,6 +67,12 @@ export function formaEhCartao(nome: string, formas: FormaOpt[]): boolean {
   return tipo === "CARTAO_CREDITO" || tipo === "CARTAO_DEBITO";
 }
 
+/** É PERMUTA (quitação por bens/serviços)? A conta é derivada no back — a
+ *  transitória "Permutas a liquidar" — nunca escolhida pelo operador. */
+export function formaEhPermuta(nome: string, formas: FormaOpt[]): boolean {
+  return tipoDaForma(nome, formas) === "PERMUTA";
+}
+
 /** Taxa % da maquineta para o tipo da forma (null se não cadastrada). */
 export function taxaMaquinetaPct(m: MaquinetaOpt | undefined, forma: string, formas: FormaOpt[]): number | null {
   const tipo = tipoDaForma(forma, formas);
@@ -102,9 +108,10 @@ export function contaEhCaixa(contaId: string, contas: ContaOpt[]): boolean {
   return contas.some((c) => c.id === contaId && c.tipo === "CAIXA" && !c.ehTerceiro);
 }
 
-/** A empresa tem alguma conta bancária (não-Caixa) cadastrada? */
+/** A empresa tem alguma conta bancária (não-Caixa) cadastrada? Transitórias
+ *  (compensação/permuta) não contam — não são banco de verdade. */
 export function temContaBanco(contas: ContaOpt[]): boolean {
-  return contas.some((c) => c.ativo !== false && c.tipo !== "CAIXA" && c.id !== "caixa-geral");
+  return contas.some((c) => c.ativo !== false && c.tipo !== "CAIXA" && c.id !== "caixa-geral" && !c.compensacao && !c.permuta);
 }
 
 /**
@@ -114,6 +121,7 @@ export function temContaBanco(contas: ContaOpt[]): boolean {
  * Sem nenhum banco cadastrado, cai no Caixa (única conta disponível).
  */
 export function contaPadraoParaForma(forma: string, formas: FormaOpt[], contas: ContaOpt[]): string {
+  if (formaEhPermuta(forma, formas)) return ""; // conta derivada no back (transitória)
   if (formaEhDinheiro(forma, formas)) return contaCaixaPadrao(contas);
   return temContaBanco(contas) ? "" : contaCaixaPadrao(contas);
 }
@@ -129,8 +137,9 @@ export function pagamentoContaInvalida(linhas: LinhaPagamento[], formas: FormaOp
   return linhas.find((l) =>
     parseValorBR(l.valor) > 0 &&
     !formaEhDinheiro(l.forma, formas) &&
-    // Cartão com maquineta: a conta é DERIVADA (administradora) — isenta da trava.
+    // Cartão com maquineta e permuta: a conta é DERIVADA — isentas da trava.
     !(formaEhCartao(l.forma, formas) && l.maquinetaId) &&
+    !formaEhPermuta(l.forma, formas) &&
     (!l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contas))
   ) ?? null;
 }
@@ -145,7 +154,7 @@ export function pagamentoCartaoSemMaquineta(linhas: LinhaPagamento[], formas: Fo
 }
 
 export default function PagamentosInput({
-  linhas, setLinhas, formas, contas, total, mostrarConta = true, menuMinWidth, usarMaquinetas = false,
+  linhas, setLinhas, formas, contas, total, mostrarConta = true, menuMinWidth, usarMaquinetas = false, permitirPermuta = false,
 }: {
   linhas: LinhaPagamento[];
   setLinhas: (fn: (prev: LinhaPagamento[]) => LinhaPagamento[]) => void;
@@ -158,6 +167,9 @@ export default function PagamentosInput({
   // lugar da conta (a conta efetiva é a da administradora, derivada no back).
   // Só ligar em fluxos cuja API aceita `maquinetaId` (PDV / venda balcão).
   usarMaquinetas?: boolean;
+  // Permuta (quitação por bens/serviços) só faz sentido na BAIXA de títulos —
+  // os fluxos de venda/PDV não a oferecem (default). Modais de CP/CR ligam.
+  permitirPermuta?: boolean;
 }) {
   const pago = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
   const temDinheiro = linhas.some((l) => parseValorBR(l.valor) > 0 && formaEhDinheiro(l.forma, formas));
@@ -187,7 +199,8 @@ export default function PagamentosInput({
       if (l._key !== key) return l;
       const cartao = usarMaquinetas && formaEhCartao(novaForma, formas);
       let conta = l.contaBancariaId;
-      if (cartao) conta = ""; // conta derivada da administradora (no back)
+      if (formaEhPermuta(novaForma, formas)) conta = ""; // conta derivada (transitória de permuta)
+      else if (cartao) conta = ""; // conta derivada da administradora (no back)
       else if (formaEhDinheiro(novaForma, formas)) conta = contaCaixaPadrao(contas);
       else if (contaEhCaixa(l.contaBancariaId, contas)) conta = temContaBanco(contas) ? "" : l.contaBancariaId;
       const maquinetaId = cartao
@@ -204,9 +217,12 @@ export default function PagamentosInput({
     setLinhas((prev) => prev.length > 1 ? prev.filter((l) => l._key !== key) : prev);
   }
 
-  const contasOpts = contas.filter((c) => c.ativo !== false);
+  // Contas transitórias (compensação/permuta) nunca são escolhidas à mão.
+  const contasOpts = contas.filter((c) => c.ativo !== false && !c.compensacao && !c.permuta);
   // Só oferece o "Caixa Geral" legado se a empresa não tiver nenhum caixa.
   const temCaixa = contasOpts.some((c) => c.tipo === "CAIXA" || c.id === "caixa-geral");
+  // Formas oferecidas: permuta só nos fluxos que a permitem (baixa de títulos).
+  const formasOpts = formas.filter((f) => f.ativo !== false && (permitirPermuta || f.tipo !== "PERMUTA"));
 
   return (
     <div className="space-y-2">
@@ -219,6 +235,7 @@ export default function PagamentosInput({
 
       {linhas.map((l) => {
         const cartao = usarMaquinetas && formaEhCartao(l.forma, formas);
+        const permuta = formaEhPermuta(l.forma, formas);
         const maq = cartao ? maquinetas?.find((m) => m.id === l.maquinetaId) : undefined;
         const pct = cartao ? taxaMaquinetaPct(maq, l.forma, formas) : null;
         const valorNum = parseValorBR(l.valor);
@@ -236,13 +253,19 @@ export default function PagamentosInput({
               menuMinWidth={menuMinWidth}
               triggerClassName="h-9 rounded-lg w-full min-w-0"
               options={[
-                ...formas.filter((f) => f.ativo !== false).map((f) => ({ value: f.nome, label: f.nome })),
+                ...formasOpts.map((f) => ({ value: f.nome, label: f.nome })),
                 // preserva a forma já escolhida que não está mais na lista ativa
-                ...(l.forma && !formas.some((f) => f.nome === l.forma) ? [{ value: l.forma, label: l.forma }] : []),
+                ...(l.forma && !formasOpts.some((f) => f.nome === l.forma) ? [{ value: l.forma, label: l.forma }] : []),
               ]}
             />
           </div>
-          {mostrarConta && cartao ? (
+          {mostrarConta && permuta ? (
+            // Permuta: a conta é a transitória "Permutas a liquidar", derivada no
+            // back — exibida travada (padrão da maquineta: derivada, não escolhida).
+            <div className="h-9 rounded-lg border border-border bg-muted px-3 flex items-center text-sm text-muted-foreground truncate" title="Conta transitória derivada automaticamente — a baixa não passa por caixa/banco.">
+              Permutas a liquidar
+            </div>
+          ) : mostrarConta && cartao ? (
             // Cartão: escolhe a MAQUINETA (a conta efetiva é a da administradora,
             // derivada no back; a taxa vem da TaxaMaquineta do tipo da forma).
             <ComboboxWithCreate
@@ -330,9 +353,11 @@ export function pagamentosPayload(linhas: LinhaPagamento[], formas: FormaOpt[]) 
     .filter((l) => l.forma && parseValorBR(l.valor) > 0)
     .map((l) => {
       const comMaquineta = !!l.maquinetaId && formaEhCartao(l.forma, formas);
+      // Permuta: conta derivada no back (transitória) — não envia conta.
+      const permuta = formaEhPermuta(l.forma, formas);
       return {
         forma: l.forma,
-        contaBancariaId: comMaquineta ? null : (l.contaBancariaId || "caixa-geral"),
+        contaBancariaId: comMaquineta || permuta ? null : (l.contaBancariaId || "caixa-geral"),
         valor: parseValorBR(l.valor),
         troco: formaEhDinheiro(l.forma, formas),
         ...(comMaquineta ? { maquinetaId: l.maquinetaId } : {}),

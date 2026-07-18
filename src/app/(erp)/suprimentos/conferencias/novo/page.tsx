@@ -323,6 +323,8 @@ export default function NovoDocumentoEntradaPage() {
   // Financeiro (aba Duplicatas — mesmo padrão da tela de detalhe)
   const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
   const [condicoes, setCondicoes] = useState<CondicaoFull[]>([]);
+  const [formaPagamentoId, setFormaPagamentoId] = useState("");
+  const [formasPagamento, setFormasPagamento] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
 
@@ -362,6 +364,9 @@ export default function NovoDocumentoEntradaPage() {
       .catch(() => {});
     fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json())
       .then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    fetch("/api/suprimentos/formas-pagamento").then((r) => r.json())
+      .then((j) => setFormasPagamento(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
   }, []);
 
@@ -833,6 +838,7 @@ export default function NovoDocumentoEntradaPage() {
         despesas: despesasNum > 0 ? despesasNum : null,
         desconto: descontoNum > 0 ? descontoNum : null,
         condicaoPagamentoId: condicaoPagamentoId || null,
+        formaPagamentoId: formaPagamentoId || null,
         naturezaFinanceiraId: naturezaFinanceiraId || null,
         itens: validItens.map((r, idx) => ({
           itemId: r.itemId,
@@ -1218,12 +1224,12 @@ export default function NovoDocumentoEntradaPage() {
                 <span className="text-xs text-muted-foreground">TES:</span>
                 <ModoToggle value={modoTes} onChange={handleModoTesChange} editable />
                 {modoTes === "GLOBAL" && (
-                  <div className="w-48">
+                  <div className="w-64">
                     <ComboboxWithCreate
                       value={tesGlobalId}
                       onChange={applyTesGlobal}
                       noneLabel="— TES —"
-                      menuMinWidth={300}
+                      menuMinWidth={420}
                       triggerClassName={cn("h-8 rounded-md text-xs", !tesGlobalId && "border-red-300")}
                       options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
                     />
@@ -1236,12 +1242,12 @@ export default function NovoDocumentoEntradaPage() {
                 <span className="text-xs text-muted-foreground">Centro:</span>
                 <ModoToggle value={modoCentro} onChange={handleModoCentroChange} editable />
                 {modoCentro === "GLOBAL" && (
-                  <div className="w-48">
+                  <div className="w-64">
                     <ComboboxWithCreate
                       value={centroGlobalId}
                       onChange={applyCentroGlobal}
                       noneLabel="—"
-                      menuMinWidth={300}
+                      menuMinWidth={420}
                       triggerClassName={cn("h-8 rounded-md text-xs", !centroGlobalId && "border-red-300")}
                       options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                     />
@@ -1254,13 +1260,13 @@ export default function NovoDocumentoEntradaPage() {
                 <span className="text-xs text-muted-foreground">Local:</span>
                 <ModoToggle value={modoLocalEstoque} onChange={handleModoChange} editable />
                 {modoLocalEstoque === "GLOBAL" && (
-                  <div className="w-56">
+                  <div className="w-64">
                     <ComboboxWithCreate
                       value={localEstoqueGlobalId}
                       onChange={handleGlobalLocalChange}
                       placeholder="Selecionar local..."
                       noneLabel="Selecionar local"
-                      menuMinWidth={280}
+                      menuMinWidth={360}
                       triggerClassName={cn("h-8 rounded-md text-xs", !localEstoqueGlobalId && "border-red-300")}
                       options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                     />
@@ -1349,7 +1355,7 @@ export default function NovoDocumentoEntradaPage() {
                               value={row.localEstoqueId}
                               onChange={(v) => updateItem(row._key, "localEstoqueId", v)}
                               noneLabel="—"
-                              menuMinWidth={280}
+                              menuMinWidth={360}
                               triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !row.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                               options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                             />
@@ -1363,7 +1369,7 @@ export default function NovoDocumentoEntradaPage() {
                               value={row.tesId}
                               onChange={(v) => applyTes(row._key, v)}
                               noneLabel="— TES —"
-                              menuMinWidth={300}
+                              menuMinWidth={420}
                               triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !row.tesId && "border-red-400 bg-danger/10 text-danger")}
                               options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
                             />
@@ -1377,7 +1383,7 @@ export default function NovoDocumentoEntradaPage() {
                               value={row.centroCustoId}
                               onChange={(v) => updateItem(row._key, "centroCustoId", v)}
                               noneLabel="—"
-                              menuMinWidth={300}
+                              menuMinWidth={420}
                               triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                               options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                             />
@@ -1577,6 +1583,24 @@ export default function NovoDocumentoEntradaPage() {
                         triggerClassName="h-9 rounded-md"
                         options={condicoes.map((c) => ({ value: c.id, label: c.nome }))}
                       />
+                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
+                        <FileText className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>A condição estrutura o <b>prazo</b> do negócio (à vista, parcelado, sem vencimento).</span>
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Forma de Pagamento (prevista)</Label>
+                      <ComboboxWithCreate
+                        value={formaPagamentoId}
+                        onChange={setFormaPagamentoId}
+                        noneLabel="— Definir na baixa —"
+                        triggerClassName="h-9 rounded-md"
+                        options={formasPagamento.filter((f) => f.ativo !== false).map((f) => ({ value: f.id, label: f.nome }))}
+                      />
+                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
+                        <FileText className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>A forma é o <b>meio de quitação</b> (PIX, dinheiro, permuta…) — <b>permuta</b> substitui dinheiro por bens/serviços, total ou parcialmente.</span>
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Natureza Financeira</Label>

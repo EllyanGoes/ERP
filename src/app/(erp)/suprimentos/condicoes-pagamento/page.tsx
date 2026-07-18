@@ -140,7 +140,9 @@ export default function CondicoesPagamentoPage() {
         <div className="flex items-start gap-3 bg-info/10 border border-info/20 rounded-xl p-4 text-sm text-info">
           <Info className="w-4 h-4 mt-0.5 shrink-0" />
           <p>
-            A condição de pagamento define a forma de pagamento acordada em uma negociação comercial.
+            A condição de pagamento estrutura o <b>prazo</b> do negócio — à vista, parcelado,
+            sem vencimento. Não confundir com a <b>forma de pagamento</b>, que é o meio de
+            quitação (PIX, dinheiro, permuta…), definida no documento/baixa.
           </p>
         </div>
 

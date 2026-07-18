@@ -98,6 +98,7 @@ type Conferencia = {
   desconto: unknown;
   vrTotal: unknown;
   condicaoPagamentoId: string | null;
+  formaPagamentoId: string | null;
   naturezaFinanceiraId: string | null;
   pedidoId: string | null;
   localEstoqueId: string | null;
@@ -223,6 +224,8 @@ export default function DocumentoEntradaDetailPage() {
   const [desconto, setDesconto] = useState("");
   const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
   const [condicoes, setCondicoes] = useState<CondicaoFull[]>([]);
+  const [formaPagamentoId, setFormaPagamentoId] = useState("");
+  const [formasPagamento, setFormasPagamento] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
   const [validationError, setValidationError] = useState("");
@@ -284,6 +287,7 @@ export default function DocumentoEntradaDetailPage() {
       setUfOrigem(conf.ufOrigem ?? "");
       // Condição do DE: usa a do próprio DE, senão herda a do pedido.
       setCondicaoPagamentoId(conf.condicaoPagamentoId ?? conf.pedido?.condicaoPagamentoId ?? "");
+      setFormaPagamentoId(conf.formaPagamentoId ?? "");
       setNaturezaFinanceiraId(conf.naturezaFinanceiraId ?? "");
       setFrete(decimalToNumber(conf.frete) > 0 ? String(decimalToNumber(conf.frete)) : "");
       const forn = conf.fornecedor ?? conf.pedido?.fornecedor ?? null;
@@ -354,6 +358,9 @@ export default function DocumentoEntradaDetailPage() {
   useEffect(() => {
     fetch("/api/suprimentos/condicoes-pagamento").then((r) => r.json())
       .then((j) => setCondicoes(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    fetch("/api/suprimentos/formas-pagamento").then((r) => r.json())
+      .then((j) => setFormasPagamento(Array.isArray(j) ? j : (j.data ?? [])))
       .catch(() => {});
     fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json())
       .then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? [])))
@@ -605,6 +612,7 @@ export default function DocumentoEntradaDetailPage() {
           despesas: despesas ? parseFloat(despesas) : null,
           desconto: desconto ? parseFloat(desconto) : null,
           condicaoPagamentoId: condicaoPagamentoId || null,
+          formaPagamentoId: formaPagamentoId || null,
           naturezaFinanceiraId: naturezaFinanceiraId || null,
           itens: [
             ...editItems.map((i) => ({
@@ -1360,12 +1368,12 @@ export default function DocumentoEntradaDetailPage() {
                   <ModoToggle value={modoTes} onChange={handleModoTesChange} editable={itemsEditable} />
                   {modoTes === "GLOBAL" && (
                     itemsEditable ? (
-                      <div className="w-48">
+                      <div className="w-64">
                         <ComboboxWithCreate
                           value={tesGlobalId}
                           onChange={applyTesGlobal}
                           noneLabel="— TES —"
-                          menuMinWidth={300}
+                          menuMinWidth={420}
                           triggerClassName={cn("h-8 rounded-md text-xs", !tesGlobalId && "border-red-300")}
                           options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
                         />
@@ -1382,12 +1390,12 @@ export default function DocumentoEntradaDetailPage() {
                   <ModoToggle value={modoCentro} onChange={handleModoCentroChange} editable={itemsEditable} />
                   {modoCentro === "GLOBAL" && (
                     itemsEditable ? (
-                      <div className="w-48">
+                      <div className="w-64">
                         <ComboboxWithCreate
                           value={centroGlobalId}
                           onChange={applyCentroGlobal}
                           noneLabel="—"
-                          menuMinWidth={300}
+                          menuMinWidth={420}
                           triggerClassName={cn("h-8 rounded-md text-xs", !centroGlobalId && "border-red-300")}
                           options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                         />
@@ -1403,14 +1411,14 @@ export default function DocumentoEntradaDetailPage() {
                   <span className="text-xs text-muted-foreground">Local:</span>
                   <ModoToggle value={modoLocalEstoque} onChange={handleModoChange} editable={nfEditable} />
                   {modoLocalEstoque === "GLOBAL" && (
-                    <div className="w-56">
+                    <div className="w-64">
                       {nfEditable ? (
                         <ComboboxWithCreate
                           value={localEstoqueGlobalId}
                           onChange={(v) => handleGlobalLocalChange(v)}
                           placeholder="Selecionar local..."
                           noneLabel="Selecionar local..."
-                          menuMinWidth={280}
+                          menuMinWidth={360}
                           triggerClassName={cn("h-8 rounded-md text-xs", !localEstoqueGlobalId && "border-red-300")}
                           options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                         />
@@ -1532,7 +1540,7 @@ export default function DocumentoEntradaDetailPage() {
                                 value={ei.tesId}
                                 onChange={(v) => applyTesEdit(item.id, v)}
                                 noneLabel="— TES —"
-                                menuMinWidth={300}
+                                menuMinWidth={420}
                                 triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ei.tesId && "border-red-400 bg-danger/10 text-danger")}
                                 options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
                               />
@@ -1550,7 +1558,7 @@ export default function DocumentoEntradaDetailPage() {
                                 value={ei.localEstoqueId}
                                 onChange={(v) => updateEditItem(item.id, "localEstoqueId", v)}
                                 noneLabel="—"
-                                menuMinWidth={280}
+                                menuMinWidth={360}
                                 triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ei.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                                 options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                               />
@@ -1568,7 +1576,7 @@ export default function DocumentoEntradaDetailPage() {
                                 value={ei.centroCustoId}
                                 onChange={(v) => updateEditItem(item.id, "centroCustoId", v)}
                                 noneLabel="—"
-                                menuMinWidth={300}
+                                menuMinWidth={420}
                                 triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ei.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                                 options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                               />
@@ -1801,7 +1809,7 @@ export default function DocumentoEntradaDetailPage() {
                             value={ni.tesId}
                             onChange={(v) => applyTesNew(ni._key, v)}
                             noneLabel="— TES —"
-                            menuMinWidth={300}
+                            menuMinWidth={420}
                             triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ni.tesId && "border-red-400 bg-danger/10 text-danger")}
                             options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
                           />
@@ -1813,7 +1821,7 @@ export default function DocumentoEntradaDetailPage() {
                             value={ni.localEstoqueId}
                             onChange={(v) => updateNewItem(ni._key, "localEstoqueId", v)}
                             noneLabel="—"
-                            menuMinWidth={280}
+                            menuMinWidth={360}
                             triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ni.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                             options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                           />
@@ -1826,7 +1834,7 @@ export default function DocumentoEntradaDetailPage() {
                             value={ni.centroCustoId}
                             onChange={(v) => updateNewItem(ni._key, "centroCustoId", v)}
                             noneLabel="—"
-                            menuMinWidth={300}
+                            menuMinWidth={420}
                             triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                             options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                           />
@@ -1983,6 +1991,28 @@ export default function DocumentoEntradaDetailPage() {
                       ) : (
                         <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-muted" />
                       )}
+                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
+                        <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>A condição estrutura o <b>prazo</b> do negócio (à vista, parcelado, sem vencimento).</span>
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Forma de Pagamento (prevista)</Label>
+                      {nfEditable ? (
+                        <ComboboxWithCreate
+                          value={formaPagamentoId}
+                          onChange={setFormaPagamentoId}
+                          noneLabel="— Definir na baixa —"
+                          triggerClassName="h-9 rounded-md"
+                          options={formasPagamento.filter((f) => f.ativo !== false).map((f) => ({ value: f.id, label: f.nome }))}
+                        />
+                      ) : (
+                        <Input value={formasPagamento.find((f) => f.id === formaPagamentoId)?.nome ?? "—"} readOnly className="bg-muted" />
+                      )}
+                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
+                        <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>A forma é o <b>meio de quitação</b> (PIX, dinheiro, permuta…) — <b>permuta</b> substitui dinheiro por bens/serviços, total ou parcialmente.</span>
+                      </p>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Natureza Financeira</Label>

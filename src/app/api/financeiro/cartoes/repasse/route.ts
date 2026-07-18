@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   const destino = await prisma.contaBancaria.findUnique({
     where: { id: contaDestinoId },
-    select: { id: true, empresaId: true, tipo: true, compensacao: true },
+    select: { id: true, empresaId: true, tipo: true, compensacao: true, permuta: true },
   });
   if (!destino) return NextResponse.json({ error: "Conta de destino não encontrada" }, { status: 404 });
   if (destino.id === admin.contaBancariaId) {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   if (destino.empresaId !== admin.empresaId) {
     return NextResponse.json({ error: "Repasse exige contas da MESMA empresa." }, { status: 422 });
   }
-  if (destino.tipo === "CARTAO" || destino.compensacao) {
+  if (destino.tipo === "CARTAO" || destino.compensacao || destino.permuta) {
     return NextResponse.json({ error: "Destino deve ser uma conta banco/caixa da empresa." }, { status: 422 });
   }
 

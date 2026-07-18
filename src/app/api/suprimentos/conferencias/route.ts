@@ -96,6 +96,7 @@ export async function POST(req: NextRequest) {
     despesas,
     desconto,
     condicaoPagamentoId,
+    formaPagamentoId,
     naturezaFinanceiraId,
     itens,
     confirmAvulso,
@@ -212,6 +213,7 @@ export async function POST(req: NextRequest) {
         despesas: despesas != null ? parseFloat(String(despesas)) : null,
         desconto: desconto != null ? parseFloat(String(desconto)) : null,
         condicaoPagamentoId: condicaoPagamentoId || null,
+        formaPagamentoId: formaPagamentoId || null,
         naturezaFinanceiraId: naturezaFinanceiraId || null,
         observacoes: observacoes?.trim() || null,
         itens: {
