@@ -477,13 +477,16 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     },
     { accessorKey: "valorOriginal", header: "Valor", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
     { accessorKey: "valorPago", header: "Pago", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="text-success">{formatBRL(decimalToNumber(row.original.valorPago))}</span> },
-    { accessorKey: "status", header: "Status", cell: ({ row }) => (
-      <StatusBadge status={
-        !row.original.dataVencimento && (row.original.status === "ABERTA" || row.original.status === "PARCIAL")
-          ? "SEM_VENCIMENTO"
-          : row.original.status
-      } />
-    ) },
+    { accessorKey: "status", header: "Status", cell: ({ row }) => {
+      // Status colorido pela MESMA categoria dos blocos: ABERTO vira Sem
+      // vencimento (violeta) / Vencida (vermelho) / A vencer (azul).
+      const c = row.original;
+      let s: string = c.status;
+      if (c.status === "ABERTA") {
+        s = !c.dataVencimento ? "SEM_VENCIMENTO" : isVencida(c.dataVencimento, c.dataPagamento) ? "VENCIDA" : "A_VENCER";
+      }
+      return <StatusBadge status={s} />;
+    } },
     {
       id: "conta",
       header: "Conta",

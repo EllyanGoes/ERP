@@ -552,13 +552,17 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       },
     },
     { accessorKey: "valorOriginal", header: "Valor", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
-    { accessorKey: "status", header: "Status", cell: ({ row }) => (
-      <StatusBadge status={
-        !row.original.dataVencimento && (row.original.status === "ABERTA" || row.original.status === "PARCIAL")
-          ? "SEM_VENCIMENTO"
-          : row.original.status
-      } />
-    ) },
+    { accessorKey: "status", header: "Status", cell: ({ row }) => {
+      // Status colorido pela MESMA categoria dos blocos de totais: título ABERTO
+      // vira Sem vencimento (violeta) / Vencida (vermelho) / A vencer (azul).
+      // Parcial (âmbar, = "A Pagar") e Paga (verde) mantêm o rótulo.
+      const c = row.original;
+      let s: string = c.status;
+      if (c.status === "ABERTA") {
+        s = !c.dataVencimento ? "SEM_VENCIMENTO" : isVencida(c.dataVencimento, c.dataPagamento) ? "VENCIDA" : "A_VENCER";
+      }
+      return <StatusBadge status={s} />;
+    } },
     {
       id: "conta",
       header: "Conta",
@@ -741,9 +745,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(totais.semVenc)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_PAGO)} title="Filtrar por Pagas"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 transition-shadow hover:bg-muted/70 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-foreground/40")}>
-            <span className="text-xs font-medium text-muted-foreground">Pago no mês</span>
-            <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(totais.pagoMes)}</span>
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 transition-shadow hover:bg-success/20 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-success")}>
+            <span className="text-xs font-medium text-success">Pago no mês</span>
+            <span className="text-sm font-bold text-success tabular-nums">{formatBRL(totais.pagoMes)}</span>
           </button>
         </div>
         );

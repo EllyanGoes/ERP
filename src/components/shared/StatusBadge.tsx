@@ -43,6 +43,8 @@ const configs: Record<string, { label: string; className: string }> = {
   PARCIAL: { label: "Parcial", className: "bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300" },
   // Derivado (como VENCIDA): título em aberto sem data de vencimento (ex.: permuta/faturado)
   SEM_VENCIMENTO: { label: "Sem vencimento", className: "bg-violet-100 text-violet-700 dark:bg-violet-400/15 dark:text-violet-300" },
+  // Derivado: título em aberto com vencimento FUTURO — casa a cor do bloco "A vencer".
+  A_VENCER: { label: "A vencer", className: "bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300" },
   // StatusCliente
   ATIVO: { label: "Ativo", className: "bg-green-100 text-green-700 dark:bg-green-400/15 dark:text-green-300" },
   INATIVO: { label: "Inativo", className: "bg-gray-100 text-gray-600 dark:bg-muted dark:text-muted-foreground" },
