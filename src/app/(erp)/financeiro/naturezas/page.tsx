@@ -18,6 +18,7 @@ import {
   Download, Copy, FileText, Check, Search, ChevronRight, CornerDownRight, GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 
 const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO", "MOVIMENTACAO_INTERNA"] as const;
@@ -59,6 +60,7 @@ type Natureza = {
 };
 
 export default function NaturezasPage() {
+  const { user } = useSession();
   const [rows, setRows] = useState<Natureza[]>([]);
   const [subgrupos, setSubgrupos] = useState<Subgrupo[]>([]);
   const [contasResultado, setContasResultado] = useState<ContaResultado[]>([]);
@@ -361,6 +363,13 @@ export default function NaturezasPage() {
             aparece enquanto as naturezas antigas existirem; some após aplicar. */}
         {rows.some((n) => NATUREZAS_ANTIGAS_CMB.has(n.nome)) && (
           <ReorganizacaoCMBBanner onAplicado={load} />
+        )}
+
+        {/* Plano hierárquico de 9 grupos (SÓ Tramontin) — o banner aparece
+            enquanto nenhuma natureza tem código; some depois de aplicado. */}
+        {!loading && rows.length > 0 && !rows.some((n) => n.codigo)
+          && user?.activeEmpresaId === "emp_tramontin" && user?.perfil === "ADMIN" && (
+          <PlanoHierarquicoBanner onAplicado={load} />
         )}
 
         {/* Resumo */}
@@ -924,6 +933,84 @@ type ReorgResultado = {
   errosRecontabilizacao: string[];
   avisos: string[];
 };
+
+type PlanoResultado = {
+  dry: boolean;
+  gruposCriados: string[]; criadas: string[]; jaExistiam: string[];
+  chavesMigradas: string[];
+  desativadas: { nome: string; sucessora: string | null }[];
+  semSucessora: string[];
+  remapeadas: { itens: number; recorrencias: number; conferencias: number };
+  avisos: string[];
+};
+
+// Aplicação única do plano hierárquico de naturezas (9 grupos com código) —
+// só Tramontin; ADMIN. Prévia sempre antes; backup automático no aplicar.
+function PlanoHierarquicoBanner({ onAplicado }: { onAplicado: () => void }) {
+  const [previa, setPrevia] = useState<PlanoResultado | null>(null);
+  const [rodando, setRodando] = useState<"previa" | "aplicar" | null>(null);
+  const [erro, setErro] = useState("");
+  const [feito, setFeito] = useState<PlanoResultado | null>(null);
+
+  async function rodar(dry: boolean) {
+    setRodando(dry ? "previa" : "aplicar"); setErro("");
+    try {
+      const res = await fetch("/api/financeiro/naturezas/aplicar-plano", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dry }),
+      });
+      const j = await res.json();
+      if (!res.ok) { setErro(j.error ?? "Erro ao executar."); return; }
+      if (dry) setPrevia(j.data as PlanoResultado);
+      else { setFeito(j.data as PlanoResultado); setPrevia(null); onAplicado(); }
+    } catch { setErro("Erro de conexão."); }
+    finally { setRodando(null); }
+  }
+
+  return (
+    <div className="rounded-xl border border-info/40 bg-info/10 p-4 space-y-3 text-sm">
+      <p className="font-semibold text-foreground">Plano hierárquico de naturezas (9 grupos) pendente</p>
+      <p className="text-muted-foreground">
+        Cria os 9 grupos e ~36 naturezas com código (1.01 Venda de produção … 9.01 Transferência entre contas),
+        migra as chaves travadas de juros/tarifa/taxa/deságio/multa para o grupo 6, <b>desativa</b> as naturezas
+        antigas apontando a sucessora (histórico intacto) e remapeia os defaults (natureza-padrão do produto,
+        recorrências). Faz backup antes. Veja a prévia primeiro.
+      </p>
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="outline" onClick={() => rodar(true)} disabled={rodando !== null}>
+          {rodando === "previa" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null} Ver prévia
+        </Button>
+        {previa && (
+          <Button size="sm" onClick={() => rodar(false)} disabled={rodando !== null}>
+            {rodando === "aplicar" ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : null} Aplicar agora
+          </Button>
+        )}
+      </div>
+      {erro && <p className="text-danger">{erro}</p>}
+      {previa && (
+        <div className="rounded-lg bg-card border border-border p-3 space-y-1.5 text-xs">
+          <p className="font-semibold">Prévia (nada foi alterado):</p>
+          <p>Grupos: {previa.gruposCriados.length ? previa.gruposCriados.join(", ") : "já existem"}</p>
+          <p>Criações: {previa.criadas.length ? `${previa.criadas.length} naturezas (${previa.criadas.slice(0, 6).join(", ")}${previa.criadas.length > 6 ? "…" : ""})` : "nenhuma pendente"}</p>
+          <p>Chaves migradas: {previa.chavesMigradas.length ? previa.chavesMigradas.join("; ") : "nenhuma"}</p>
+          <p>Desativações: {previa.desativadas.length} natureza(s) antiga(s) — {previa.desativadas.slice(0, 5).map((d) => `${d.nome} → ${d.sucessora ?? "?"}`).join("; ")}{previa.desativadas.length > 5 ? "…" : ""}</p>
+          {previa.semSucessora.length > 0 && (
+            <p className="text-warning">Sem sucessora mapeada (ficam inativas p/ apontar depois): {previa.semSucessora.join(", ")}</p>
+          )}
+          {previa.avisos.map((a, i) => <p key={i} className="text-warning">{a}</p>)}
+        </div>
+      )}
+      {feito && (
+        <div className="rounded-lg bg-success/10 border border-success/30 p-3 text-xs text-success space-y-1">
+          <p className="font-semibold">Aplicado.</p>
+          <p>{feito.gruposCriados.length} grupo(s), {feito.criadas.length} criada(s), {feito.chavesMigradas.length} chave(s) migrada(s), {feito.desativadas.length} desativada(s); defaults: {feito.remapeadas.itens} produto(s), {feito.remapeadas.recorrencias} recorrência(s), {feito.remapeadas.conferencias} DE(s).</p>
+          {feito.avisos.map((a, i) => <p key={i} className="text-warning">{a}</p>)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ReorganizacaoCMBBanner({ onAplicado }: { onAplicado: () => void }) {
   const [previa, setPrevia] = useState<ReorgResultado | null>(null);
