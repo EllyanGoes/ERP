@@ -642,6 +642,9 @@ model ContaPagar {
   dataVencimento        DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento         DateTime?
   dataCompetencia       DateTime?
+  // Data de emissão do documento (NF do fornecedor / lançamento manual). Nos
+  // títulos de compra, quando null, a tela cai na emissão do Documento de Entrada.
+  dataEmissao           DateTime?
   status                StatusConta            @default(ABERTA)
   formaPagamento        String?
   // Forma PREVISTA de quitação (herdada do Documento de Entrada; ex.: permuta).
@@ -750,6 +753,8 @@ model ContaReceber {
   dataVencimento       DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento        DateTime?
   dataCompetencia      DateTime?
+  // Data de emissão do documento / lançamento manual (espelha ContaPagar).
+  dataEmissao          DateTime?
   status               StatusConta            @default(ABERTA)
   formaPagamento       String?
   nossoNumero          String?

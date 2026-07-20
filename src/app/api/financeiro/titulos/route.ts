@@ -29,6 +29,7 @@ const schema = z.object({
   dataPagamento: DATE.optional().nullable(),
   dataVencimento: DATE.optional().nullable(),
   dataCompetencia: DATE.optional().nullable(),
+  dataEmissao: DATE.optional().nullable(),
   // Centro de custo gerencial do título (só saída sem material, quando o destino é
   // despesa/CIF). O razão segue pela natureza; centro é dimensão gerencial do título.
   centroCustoId: z.string().optional().nullable().transform((v) => v || null),
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
   const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
   const venc = dateUTC(f.dataVencimento) ?? dateUTC(hojeSP)!;
   const competencia = dateUTC(f.dataCompetencia);
+  const emissao = dateUTC(f.dataEmissao);
   const pagamento = pago ? (dateUTC(f.dataPagamento) ?? dateUTC(hojeSP)!) : null;
   const contaBancariaId = pago ? (f.contaBancariaId || contaCaixaIdDaEmpresa(empresaId)) : null;
   const prefixo = isReceber ? "CR" : "CP";
@@ -189,7 +191,7 @@ export async function POST(req: NextRequest) {
             valorOriginal: total, valorPago: pago ? total : 0,
             valorJuros, valorMulta,
             ...(valorTaxa > 0 ? { valorTaxa, taxaNaturezaId } : {}),
-            dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
+            dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia, dataEmissao: emissao,
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
@@ -209,7 +211,7 @@ export async function POST(req: NextRequest) {
             valorOriginal: total, valorPago: pago ? total : 0,
             valorJuros, valorMulta,
             ...(valorTaxa > 0 ? { valorTaxa, taxaNaturezaId } : {}),
-            dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia,
+            dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia, dataEmissao: emissao,
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,

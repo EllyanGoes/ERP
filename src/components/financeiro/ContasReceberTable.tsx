@@ -32,6 +32,7 @@ type ContaRow = {
   id: string; numero: string; descricao: string; status: string;
   parcelaNumero?: number | null; parcelaTotal?: number | null;
   dataVencimento: Date | string; dataPagamento: Date | string | null;
+  dataEmissao?: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
   cliente: { id: string; razaoSocial: string };
   // Conta analítica de Clientes a Receber (1.1.2.x) — link p/ o razão do cliente.
@@ -360,6 +361,14 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             : "Única"}
         </span>
       ),
+    },
+    {
+      id: "emissao",
+      header: "Emissão",
+      cell: ({ row }) => {
+        const d = row.original.dataEmissao ?? null;
+        return d ? <span className="text-muted-foreground">{formatDate(d)}</span> : <span className="text-muted-foreground/60">—</span>;
+      },
     },
     {
       accessorKey: "dataVencimento",

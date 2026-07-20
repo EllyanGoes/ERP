@@ -38,18 +38,20 @@ type ContaRow = {
   // formaPagamento (resumo do que foi efetivamente baixado).
   formaPagamentoPrevista?: { id: string; nome: string; tipo?: string } | null;
   dataVencimento: Date | string; dataPagamento: Date | string | null;
+  // Emissão do título (NF/lançamento manual). Fallback na tela: emissão do DE.
+  dataEmissao?: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
   fornecedor: { id: string; razaoSocial: string } | null;
   contasContrapartida?: { id: string; nome: string }[];
   naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown }[];
   pedidoCompra?: {
-    id: string; numero: string; conferencia?: { id: string; numero: string } | null;
+    id: string; numero: string; conferencia?: { id: string; numero: string; dtEmissao?: Date | string | null } | null;
     itens?: { tes?: { codigo: string; nome: string } | null; centroCusto?: { codigo: string; nome: string } | null }[];
   } | null;
   // Documento de Entrada de origem (pedido OU avulsa) — link clicável e fonte
   // preferida do TES/centro (normalizado no server: direto ?? DE do pedido).
   conferencia?: {
-    id: string; numero: string;
+    id: string; numero: string; dtEmissao?: Date | string | null;
     itens?: { tes?: { codigo: string; nome: string } | null; centroCusto?: { codigo: string; nome: string } | null }[];
   } | null;
   // Conta analítica de passivo do fornecedor (2.1.1.x) — link p/ o razão dele.
@@ -406,6 +408,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             : "Única"}
         </span>
       ),
+    },
+    {
+      id: "emissao",
+      header: "Emissão",
+      // Emissão do próprio título; sem ela (compra), cai na emissão do DE.
+      cell: ({ row }) => {
+        const d = row.original.dataEmissao ?? row.original.conferencia?.dtEmissao ?? null;
+        return d ? <span className="text-muted-foreground">{formatDate(d)}</span> : <span className="text-muted-foreground/60">—</span>;
+      },
     },
     {
       accessorKey: "dataVencimento",

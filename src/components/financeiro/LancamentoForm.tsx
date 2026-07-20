@@ -61,6 +61,7 @@ export default function LancamentoForm({
   const [dataPagamento, setDataPagamento] = useState(hojeInput());
   const [dataVencimento, setDataVencimento] = useState(hojeInput());
   const [dataCompetencia, setDataCompetencia] = useState(hojeInput());
+  const [dataEmissao, setDataEmissao] = useState(hojeInput());
   const [linhas, setLinhas] = useState<Linha[]>([novaLinha()]);
   const [contas, setContas] = useState<ContaOpt[]>(contaFixa ? [contaFixa] : []);
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
@@ -86,7 +87,7 @@ export default function LancamentoForm({
       setTipoSel(tipo); setStatus("AGENDAMENTO");
       setBenTipo(tipo === "receber" ? "CLIENTE" : "FORNECEDOR"); setBenId("");
       setContaBancariaId(contaFixa?.id ?? ""); setDescricao("");
-      setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput());
+      setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput()); setDataEmissao(hojeInput());
       setLinhas([novaLinha()]); setCentroCustoId(""); setErro(null);
       setDetalhado(false); setAbaDetalhe("centro"); setValorJuros(""); setValorMulta("");
       setValorDesconto(""); setRetencoes(RETENCAO_VAZIA);
@@ -182,6 +183,7 @@ export default function LancamentoForm({
           dataPagamento: pago ? dataPagamento : null,
           dataVencimento,
           dataCompetencia,
+          dataEmissao,
           centroCustoId: centroCustoId || null,
           valorJuros: jurosNum || 0,
           valorMulta: multaNum || 0,
@@ -265,7 +267,11 @@ export default function LancamentoForm({
       </div>
 
       {/* Datas + Total */}
-      <div className="grid grid-cols-4 gap-3 items-end">
+      <div className="grid grid-cols-5 gap-3 items-end">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Emissão</Label>
+          <DatePicker value={dataEmissao} onChange={(v) => setDataEmissao(v)} className="w-full" />
+        </div>
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">{isReceber ? "Recebimento" : "Pagamento"}</Label>
           <DatePicker value={dataPagamento} onChange={(v) => setDataPagamento(v)} disabled={!pago} className="w-full" />
