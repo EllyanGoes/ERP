@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import {
   useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel,
   getPaginationRowModel, flexRender,
-  type ColumnDef, type SortingState, type FilterFn,
+  type ColumnDef, type SortingState, type FilterFn, type Row,
 } from "@tanstack/react-table";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -40,14 +40,23 @@ interface DataTableProps<T> {
   // Substantivo do contador de linhas (singular; pluraliza com "s").
   // Ex.: "título" → "101 títulos". Padrão: "registro".
   itemLabel?: string;
+  // Agrupamento nativo (opcional): retorna o grupo de cada linha. Quando
+  // definido, a tabela insere cabeçalhos de grupo e ordena as linhas por grupo
+  // (mantendo o sort de coluna dentro do grupo). null desativa por linha.
+  groupBy?: (row: T) => GroupInfo | null;
+  // Conteúdo do cabeçalho de grupo (recebe as linhas COMPLETAS do grupo, não só
+  // as da página). Padrão: rótulo + contagem.
+  renderGroupHeader?: (info: { key: string; label: string; rows: T[] }) => React.ReactNode;
 }
+
+export type GroupInfo = { key: string; label: string; ordem?: number | string };
 
 // Id estável de uma coluna do tanstack (id explícito ou accessorKey).
 function colId<T>(c: ColumnDef<T>): string {
   return c.id ?? String((c as { accessorKey?: string }).accessorKey ?? "");
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro" }: DataTableProps<T>) {
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro", groupBy, renderGroupHeader }: DataTableProps<T>) {
   const pathname = usePathname();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -150,6 +159,65 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId, data]);
 
+  // ── Agrupamento nativo (só quando groupBy é fornecido) ────────────────────
+  // Reordena as linhas (já filtradas/ordenadas) por grupo e pagina a lista
+  // achatada por pageIndex/pageSize — os cabeçalhos de grupo entram no render.
+  const pageIndexCur = table.getState().pagination.pageIndex;
+  const pageSizeCur = table.getState().pagination.pageSize;
+  const sortedRows = table.getSortedRowModel().rows;
+  const grupos = groupBy ? (() => {
+    const keyRows = new Map<string, Row<T>[]>();
+    const keyLabel = new Map<string, string>();
+    const keyOrdem = new Map<string, string | number>();
+    for (const r of sortedRows) {
+      const g = groupBy(r.original) ?? { key: "—", label: "—" };
+      if (!keyRows.has(g.key)) { keyRows.set(g.key, []); keyLabel.set(g.key, g.label); keyOrdem.set(g.key, g.ordem ?? g.label); }
+      keyRows.get(g.key)!.push(r);
+    }
+    const ordered = Array.from(keyRows.keys()).sort((a, b) => {
+      const oa = keyOrdem.get(a)!, ob = keyOrdem.get(b)!;
+      return (typeof oa === "number" && typeof ob === "number") ? oa - ob : String(oa).localeCompare(String(ob), "pt-BR");
+    });
+    const flat = ordered.flatMap((k) => keyRows.get(k)!);
+    return { keyRows, keyLabel, pageRows: flat.slice(pageIndexCur * pageSizeCur, pageIndexCur * pageSizeCur + pageSizeCur) };
+  })() : null;
+
+  // Renderiza uma linha de dados (reusada no modo normal e no agrupado).
+  const renderRow = (row: Row<T>) => (
+    <TableRow
+      key={row.id}
+      data-rowid={row.id}
+      className={`border-b border-border transition-colors ${highlightId === row.id ? "bg-primary/15 ring-2 ring-inset ring-primary" : onRowClick ? "cursor-pointer hover:bg-primary/5" : "hover:bg-muted"}`}
+      onClick={onRowClick ? (e) => {
+        if ((e.target as HTMLElement).closest("button, a, input, select, textarea")) return;
+        onRowClick(row.original);
+      } : undefined}
+    >
+      {row.getVisibleCells().map((cell) => (
+        <TableCell
+          key={cell.id}
+          className={cn(
+            "py-3 text-sm text-foreground/80",
+            (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.className,
+            (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.tdClass,
+            (cell.column.columnDef.meta as { stickyRight?: boolean } | undefined)?.stickyRight &&
+              "sticky right-0 z-10 bg-card shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]",
+          )}
+        >
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </TableCell>
+      ))}
+    </TableRow>
+  );
+
+  const linhaVazia = (
+    <TableRow>
+      <TableCell colSpan={colunasAtivas.length} className="text-center py-12 text-muted-foreground">
+        Nenhum registro encontrado
+      </TableCell>
+    </TableRow>
+  );
+
   const seletorLinhas = (
     <select
       value={pageSize}
@@ -235,44 +303,39 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {columns.map((_, j) => (
+                  {colunasAtivas.map((_, j) => (
                     <TableCell key={j}><div className="h-4 bg-muted rounded animate-pulse" /></TableCell>
                   ))}
                 </TableRow>
               ))
+            ) : grupos ? (
+              // ── Modo agrupado: cabeçalho de grupo + linhas, paginado ──────────
+              grupos.pageRows.length ? (() => {
+                const out: React.ReactNode[] = [];
+                let prev: string | null = null;
+                for (const row of grupos.pageRows) {
+                  const g = groupBy!(row.original) ?? { key: "—", label: "—" };
+                  if (g.key !== prev) {
+                    prev = g.key;
+                    const rowsG = (grupos.keyRows.get(g.key) ?? []).map((r) => r.original);
+                    out.push(
+                      <TableRow key={`grp-${g.key}`} className="bg-muted hover:bg-muted border-y border-border">
+                        <TableCell colSpan={colunasAtivas.length} className="py-2">
+                          {renderGroupHeader ? renderGroupHeader({ key: g.key, label: g.label, rows: rowsG }) : (
+                            <span className="font-semibold text-sm text-foreground">{g.label}<span className="text-xs font-normal text-muted-foreground"> · {rowsG.length}</span></span>
+                          )}
+                        </TableCell>
+                      </TableRow>,
+                    );
+                  }
+                  out.push(renderRow(row));
+                }
+                return out;
+              })() : linhaVazia
             ) : table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-rowid={row.id}
-                  className={`border-b border-border transition-colors ${highlightId === row.id ? "bg-primary/15 ring-2 ring-inset ring-primary" : onRowClick ? "cursor-pointer hover:bg-primary/5" : "hover:bg-muted"}`}
-                  onClick={onRowClick ? (e) => {
-                    if ((e.target as HTMLElement).closest("button, a, input, select, textarea")) return;
-                    onRowClick(row.original);
-                  } : undefined}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        "py-3 text-sm text-foreground/80",
-                        (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.className,
-                        (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.tdClass,
-                        (cell.column.columnDef.meta as { stickyRight?: boolean } | undefined)?.stickyRight &&
-                          "sticky right-0 z-10 bg-card shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]",
-                      )}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map(renderRow)
             ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="text-center py-12 text-muted-foreground">
-                  Nenhum registro encontrado
-                </TableCell>
-              </TableRow>
+              linhaVazia
             )}
           </TableBody>
         </Table>

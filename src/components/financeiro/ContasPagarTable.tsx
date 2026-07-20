@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import DataTable from "@/components/shared/DataTable";
+import DataTable, { type GroupInfo } from "@/components/shared/DataTable";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -456,30 +456,32 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // grupo tem contagem e soma dos valores.
   const [agrupamento, setAgrupamento] = usePersistedState<"none" | "vencimento" | "fornecedor">("financeiro:contas-pagar:agrupamento", "none");
   const agrupado = agrupamento !== "none";
-  const grupos = useMemo(() => {
-    if (agrupamento === "none") return [];
-    const m = new Map<string, { chave: string; label: string; ordem: number | string; itens: ContaRow[] }>();
-    for (const c of contasFiltradas) {
-      if (agrupamento === "vencimento") {
-        const d = c.dataVencimento ? new Date(c.dataVencimento) : null;
-        const chave = d && !isNaN(d.getTime()) ? formatDate(c.dataVencimento) : "Sem vencimento";
-        const ordem = d && !isNaN(d.getTime()) ? d.getTime() : Number.MAX_SAFE_INTEGER;
-        const g = m.get(chave) ?? { chave, label: chave, ordem, itens: [] };
-        g.itens.push(c);
-        m.set(chave, g);
-      } else {
-        const nome = c.fornecedor?.razaoSocial ?? "Sem fornecedor";
-        const g = m.get(nome) ?? { chave: nome, label: nome, ordem: nome.toLowerCase(), itens: [] };
-        g.itens.push(c);
-        m.set(nome, g);
-      }
-    }
-    return Array.from(m.values()).sort((a, b) =>
-      typeof a.ordem === "number" && typeof b.ordem === "number"
-        ? a.ordem - b.ordem
-        : String(a.ordem).localeCompare(String(b.ordem), "pt-BR"),
+  // Agrupamento NATIVO do DataTable: função de grupo por linha + cabeçalho.
+  const groupByFn = useMemo<((c: ContaRow) => GroupInfo | null) | undefined>(() => {
+    if (agrupamento === "none") return undefined;
+    if (agrupamento === "vencimento") return (c) => {
+      const d = c.dataVencimento ? new Date(c.dataVencimento) : null;
+      const ok = !!d && !isNaN(d.getTime());
+      const label = ok ? formatDate(c.dataVencimento) : "Sem vencimento";
+      return { key: label, label, ordem: ok ? d!.getTime() : Number.MAX_SAFE_INTEGER };
+    };
+    return (c) => {
+      const nome = c.fornecedor?.razaoSocial ?? "Sem fornecedor";
+      return { key: c.fornecedor?.id ?? "sem", label: nome, ordem: nome.toLowerCase() };
+    };
+  }, [agrupamento]);
+  const renderGrupoHeader = (info: { key: string; label: string; rows: ContaRow[] }) => {
+    const soma = info.rows.reduce((s, c) => s + decimalToNumber(c.valorOriginal), 0);
+    const temVencido = agrupamento === "vencimento" && info.rows.some((c) => isVencida(c.dataVencimento, c.dataPagamento));
+    return (
+      <div className={cn("flex items-center gap-2 text-sm font-semibold", temVencido ? "text-danger" : "text-foreground")}>
+        {agrupamento === "fornecedor" ? <Building2 className="w-4 h-4" /> : <CalendarClock className="w-4 h-4" />}
+        <span>{info.label}</span>
+        <span className="text-xs font-normal text-muted-foreground">· {info.rows.length} título{info.rows.length !== 1 ? "s" : ""}</span>
+        <span className="ml-auto tabular-nums">{formatBRL(soma)}</span>
+      </div>
     );
-  }, [agrupamento, contasFiltradas]);
+  };
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", cell: ({ row }) => (
@@ -574,6 +576,14 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
     },
   ], [contasBanco, isAdmin]);
+
+  // Ao agrupar, esconde a coluna que virou o cabeçalho do grupo (redundante).
+  const colsParaTabela = useMemo(() => columns.filter((c) => {
+    const id = (c as { id?: string; accessorKey?: string }).id ?? (c as { accessorKey?: string }).accessorKey;
+    if (agrupamento === "fornecedor" && id === "fornecedor") return false;
+    if (agrupamento === "vencimento" && id === "dataVencimento") return false;
+    return true;
+  }), [columns, agrupamento]);
 
   async function handlePagamento() {
     if (!selected) return;
@@ -738,76 +748,20 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         );
       })()}
       </div>
-      {agrupado ? (
-        <div className="rounded-xl border border-border overflow-hidden bg-card shadow-md">
-          {grupos.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhuma conta.</div>
-          ) : grupos.map((g) => {
-            const soma = g.itens.reduce((s, c) => s + decimalToNumber(c.valorOriginal), 0);
-            const vencido = g.itens.some((c) => isVencida(c.dataVencimento, c.dataPagamento));
-            return (
-              <div key={g.chave}>
-                <div className={cn("flex items-center gap-2 px-5 py-2 bg-muted border-y border-border text-sm font-semibold", vencido && agrupamento === "vencimento" ? "text-danger" : "text-foreground")}>
-                  {agrupamento === "fornecedor" ? <Building2 className="w-4 h-4" /> : <CalendarClock className="w-4 h-4" />} {g.label}
-                  <span className="text-xs font-normal text-muted-foreground">· {g.itens.length} título{g.itens.length !== 1 ? "s" : ""}</span>
-                  <span className="ml-auto tabular-nums">{formatBRL(soma)}</span>
-                </div>
-                <div className="divide-y divide-border">
-                  {g.itens.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => setDetalhe(c)}
-                      className={cn(
-                        "grid gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm",
-                        // Agrupado por fornecedor: a coluna de fornecedor some (já é o
-                        // cabeçalho do grupo). Por vencimento, mostra o fornecedor.
-                        // Colunas: [nº] [forn?] [descrição] [origem] [emissão] [vencimento] [valor] [status] [ações]
-                        agrupamento === "fornecedor"
-                          ? "grid-cols-[7rem_1.4fr_8rem_5.5rem_5.5rem_6.5rem_5rem_auto]"
-                          : "grid-cols-[7rem_1.2fr_1.4fr_8rem_5.5rem_5.5rem_6.5rem_5rem_auto]",
-                      )}
-                    >
-                      <span className="inline-flex items-center gap-1 min-w-0">
-                        <span className="font-mono text-xs font-semibold text-info">{c.numero}</span>
-                        {c.antecipado && <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1 text-[9px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado">PA</span>}
-                      </span>
-                      {agrupamento !== "fornecedor" && renderFornecedor(c, "truncate")}
-                      <span className="truncate text-muted-foreground">{c.descricao}</span>
-                      {(() => { const o = origemPagar(c); return (
-                        <span className="truncate text-xs text-muted-foreground font-mono" title={o.ref ? `${o.label} · ${o.ref}` : o.label}>{o.ref || o.label}</span>
-                      ); })()}
-                      {/* Emissão (título ou, na falta, emissão do DE) */}
-                      {(() => { const d = c.dataEmissao ?? c.conferencia?.dtEmissao ?? null; return (
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">{d ? formatDate(d) : "—"}</span>
-                      ); })()}
-                      {/* Vencimento */}
-                      <span className={cn("text-xs whitespace-nowrap", c.dataVencimento && isVencida(c.dataVencimento, c.dataPagamento) ? "text-danger font-medium" : "text-muted-foreground")}>
-                        {c.dataVencimento ? formatDate(c.dataVencimento) : "—"}
-                      </span>
-                      <span className="font-medium tabular-nums text-right">{formatBRL(decimalToNumber(c.valorOriginal))}</span>
-                      <StatusBadge status={c.status} />
-                      {renderAcoes(c)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <DataTable
-          data={contasFiltradas}
-          columns={columns}
-          hideSearch
-          columnConfig
-          itemLabel="título"
-          containerClassName="shadow-md rounded-xl"
-          headerClassName="bg-muted"
-          focusId={focusId}
-          getRowId={(c) => c.id}
-          onRowClick={(row) => setDetalhe(row)}
-        />
-      )}
+      <DataTable
+        data={contasFiltradas}
+        columns={colsParaTabela}
+        hideSearch
+        columnConfig
+        itemLabel="título"
+        containerClassName="shadow-md rounded-xl"
+        headerClassName="bg-muted"
+        focusId={focusId}
+        getRowId={(c) => c.id}
+        onRowClick={(row) => setDetalhe(row)}
+        groupBy={groupByFn}
+        renderGroupHeader={renderGrupoHeader}
+      />
       {detalhe && (() => {
         const podePagar = detalhe.status !== "PAGA" && detalhe.status !== "CANCELADA";
         const vo = decimalToNumber(detalhe.valorOriginal);
