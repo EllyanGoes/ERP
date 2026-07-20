@@ -83,7 +83,9 @@ export async function encargosConferencia(
     where: { id: conferenciaId },
     select: {
       frete: true, desconto: true,
-      itens: { select: { quantidadeRecebida: true, vlrUnitario: true, vlrTotal: true, desconto: true } },
+      // Filhos (componentes) FORA: decompõem o preço do pai — somá-los dobraria
+      // a dívida com o fornecedor.
+      itens: { where: { paiId: null }, select: { quantidadeRecebida: true, vlrUnitario: true, vlrTotal: true, desconto: true } },
       pedido: { select: { frete: true, seguro: true, despesas: true, vrDesconto: true, itens: { select: { valorTotal: true } } } },
     },
   });

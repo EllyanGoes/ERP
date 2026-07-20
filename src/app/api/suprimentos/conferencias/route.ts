@@ -98,6 +98,11 @@ export async function POST(req: NextRequest) {
     condicaoPagamentoId,
     formaPagamentoId,
     naturezaFinanceiraId,
+    valorPagoAntecipado,
+    dataPagoAntecipado,
+    formaPagoAntecipadoId,
+    contaPagoAntecipadoId,
+    parcelasCustom,
     itens,
     confirmAvulso,
   } = body;
@@ -215,59 +220,86 @@ export async function POST(req: NextRequest) {
         condicaoPagamentoId: condicaoPagamentoId || null,
         formaPagamentoId: formaPagamentoId || null,
         naturezaFinanceiraId: naturezaFinanceiraId || null,
+        valorPagoAntecipado: valorPagoAntecipado != null ? parseFloat(String(valorPagoAntecipado)) : null,
+        dataPagoAntecipado: dataPagoAntecipado ? new Date(dataPagoAntecipado) : null,
+        formaPagoAntecipadoId: formaPagoAntecipadoId || null,
+        contaPagoAntecipadoId: contaPagoAntecipadoId || null,
+        parcelasCustom: Array.isArray(parcelasCustom) && parcelasCustom.length > 0 ? parcelasCustom : undefined,
         observacoes: observacoes?.trim() || null,
-        itens: {
-          create: itens.map((it: {
-            itemId: string;
-            unidadeId?: string | null;
-            quantidadePedida: number | string;
-            quantidadeRecebida?: number | string;
-            vlrUnitario?: number | string | null;
-            desconto?: number | string | null;
-            vlrTotal?: number | string | null;
-            vlrIPI?: number | string | null;
-            vlrICMS?: number | string | null;
-            localEstoqueId?: string | null;
-            centroCustoId?: string | null;
-            capitaliza?: boolean | null;
-            imobilizadoId?: string | null;
-            componenteSubstituidoId?: string | null;
-            tesId?: string | null;
-            compoeCusto?: boolean | null;
-            tipoEntrada?: string | null;
-            codFiscal?: string | null;
-          }) => {
-            const qtdPed  = parseFloat(String(it.quantidadePedida));
-            const qtdRec  = it.quantidadeRecebida != null ? parseFloat(String(it.quantidadeRecebida)) : 0;
-            const vlrUnit = it.vlrUnitario != null ? parseFloat(String(it.vlrUnitario)) : null;
-            const pct     = it.desconto != null ? parseFloat(String(it.desconto)) : null;
-            // Use provided vlrTotal; fallback to auto-calc from qtdRec * vlrUnit
-            const vlrTot  = it.vlrTotal != null
-              ? parseFloat(String(it.vlrTotal))
-              : (vlrUnit != null ? qtdRec * vlrUnit : null);
-            return {
-              itemId: it.itemId,
-              unidadeId: it.unidadeId || null,
-              quantidadePedida: qtdPed,
-              quantidadeRecebida: qtdRec,
-              vlrUnitario: vlrUnit,
-              desconto: pct,
-              vlrTotal: vlrTot,
-              vlrIPI: it.vlrIPI != null ? parseFloat(String(it.vlrIPI)) : null,
-              vlrICMS: it.vlrICMS != null ? parseFloat(String(it.vlrICMS)) : null,
-              localEstoqueId: it.localEstoqueId || null,
-              centroCustoId: it.centroCustoId || null,
-              capitaliza: it.capitaliza ?? null,
-              imobilizadoId: it.capitaliza ? (it.imobilizadoId || null) : null,
-              componenteSubstituidoId: it.capitaliza ? (it.componenteSubstituidoId || null) : null,
-              tesId: it.tesId || null,
-              compoeCusto: it.compoeCusto ?? null,
-              tipoEntrada: it.tipoEntrada || null,
-              codFiscal: it.codFiscal || null,
-            };
-          }),
-        },
       },
+    });
+
+    // Itens criados um a um, PAIS antes dos FILHOS: `paiIndex` (índice do pai no
+    // próprio array) vira `paiId` com o id recém-criado — filho é componente que
+    // decompõe o preço do pai (não movimenta estoque nem financeiro).
+    type ItemPayload = {
+      itemId: string;
+      paiIndex?: number | null;
+      unidadeId?: string | null;
+      quantidadePedida: number | string;
+      quantidadeRecebida?: number | string;
+      vlrUnitario?: number | string | null;
+      desconto?: number | string | null;
+      vlrTotal?: number | string | null;
+      vlrIPI?: number | string | null;
+      vlrICMS?: number | string | null;
+      localEstoqueId?: string | null;
+      centroCustoId?: string | null;
+      capitaliza?: boolean | null;
+      imobilizadoId?: string | null;
+      componenteSubstituidoId?: string | null;
+      tesId?: string | null;
+      compoeCusto?: boolean | null;
+      tipoEntrada?: string | null;
+      codFiscal?: string | null;
+    };
+    const itensArr = itens as ItemPayload[];
+    const idsPorIndex: (string | null)[] = itensArr.map(() => null);
+    for (let passo = 0; passo < 2; passo++) {
+      for (let i = 0; i < itensArr.length; i++) {
+        const it = itensArr[i];
+        const ehFilho = it.paiIndex != null && it.paiIndex >= 0;
+        if ((passo === 0) === ehFilho) continue;
+        const qtdPed  = parseFloat(String(it.quantidadePedida));
+        const qtdRec  = it.quantidadeRecebida != null ? parseFloat(String(it.quantidadeRecebida)) : 0;
+        const vlrUnit = it.vlrUnitario != null ? parseFloat(String(it.vlrUnitario)) : null;
+        const pct     = it.desconto != null ? parseFloat(String(it.desconto)) : null;
+        // Use provided vlrTotal; fallback to auto-calc from qtdRec * vlrUnit
+        const vlrTot  = it.vlrTotal != null
+          ? parseFloat(String(it.vlrTotal))
+          : (vlrUnit != null ? qtdRec * vlrUnit : null);
+        const criado = await tx.conferenciaCompraItem.create({
+          data: {
+            conferenciaId: record.id,
+            empresaId: empresaAlvo,
+            itemId: it.itemId,
+            paiId: ehFilho ? idsPorIndex[it.paiIndex!] : null,
+            unidadeId: it.unidadeId || null,
+            quantidadePedida: qtdPed,
+            quantidadeRecebida: qtdRec,
+            vlrUnitario: vlrUnit,
+            desconto: pct,
+            vlrTotal: vlrTot,
+            vlrIPI: it.vlrIPI != null ? parseFloat(String(it.vlrIPI)) : null,
+            vlrICMS: it.vlrICMS != null ? parseFloat(String(it.vlrICMS)) : null,
+            localEstoqueId: it.localEstoqueId || null,
+            centroCustoId: it.centroCustoId || null,
+            capitaliza: it.capitaliza ?? null,
+            imobilizadoId: it.capitaliza ? (it.imobilizadoId || null) : null,
+            componenteSubstituidoId: it.capitaliza ? (it.componenteSubstituidoId || null) : null,
+            tesId: it.tesId || null,
+            compoeCusto: it.compoeCusto ?? null,
+            tipoEntrada: it.tipoEntrada || null,
+            codFiscal: it.codFiscal || null,
+          },
+          select: { id: true },
+        });
+        idsPorIndex[i] = criado.id;
+      }
+    }
+
+    const recordCompleto = await tx.conferenciaCompra.findUnique({
+      where: { id: record.id },
       include: {
         fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         itens: {
@@ -282,7 +314,7 @@ export async function POST(req: NextRequest) {
     // The PC will only transition to RECEBIDO when the DE is concluded (concluir endpoint).
     // Changing PC status on DE creation would be premature — items haven't been received yet.
 
-    return record;
+    return recordCompleto ?? record;
   });
 
   return NextResponse.json({ data: conferencia }, { status: 201 });

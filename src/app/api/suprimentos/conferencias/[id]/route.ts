@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { requireModulo, requireModuloAny } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
@@ -127,11 +128,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     condicaoPagamentoId,
     formaPagamentoId,
     naturezaFinanceiraId,
+    valorPagoAntecipado,
+    dataPagoAntecipado,
+    formaPagoAntecipadoId,
+    contaPagoAntecipadoId,
+    parcelasCustom,
   } = body;
 
   await prisma.$transaction(async (tx) => {
     if (itens && Array.isArray(itens)) {
-      for (const item of itens) {
+      // Pais antes dos filhos: um item novo pode ser COMPONENTE (paiId de item
+      // existente, ou paiIndex apontando para o pai no próprio array quando os
+      // dois são novos). idsPorIndex resolve paiIndex → id recém-criado.
+      const idsPorIndex: (string | null)[] = itens.map((it: { id?: string }) => it.id ?? null);
+      const ehFilho = (it: { paiId?: string | null; paiIndex?: number | null }) =>
+        !!it.paiId || (it.paiIndex != null && it.paiIndex >= 0);
+      const ordem = itens.map((_: unknown, i: number) => i)
+        .sort((a: number, b: number) => (ehFilho(itens[a]) ? 1 : 0) - (ehFilho(itens[b]) ? 1 : 0));
+      for (const idx of ordem) {
+        const item = itens[idx];
         const qtdRecebida = parseFloat(String(item.quantidadeRecebida ?? 0));
         const vlrUnit = item.vlrUnitario != null ? parseFloat(String(item.vlrUnitario)) : undefined;
         const vlrTot = item.vlrTotal != null ? parseFloat(String(item.vlrTotal)) : undefined;
@@ -144,10 +159,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           if (!item.itemId) continue;
           const qtdPedida = parseFloat(String(item.quantidadePedida ?? qtdRecebida));
           const divergencia = Math.abs(qtdRecebida - qtdPedida) > 0.001;
-          await tx.conferenciaCompraItem.create({
+          const criado = await tx.conferenciaCompraItem.create({
             data: {
               conferenciaId: params.id,
               itemId: item.itemId,
+              paiId: item.paiId || (item.paiIndex != null ? idsPorIndex[item.paiIndex] : null),
               unidadeId: item.unidadeId || null,
               quantidadePedida: qtdPedida,
               quantidadeRecebida: qtdRecebida,
@@ -172,6 +188,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               desconto: itemDesconto ?? null,
             },
           });
+          idsPorIndex[idx] = criado.id;
           continue;
         }
 
@@ -241,6 +258,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (condicaoPagamentoId !== undefined) updateData.condicaoPagamentoId = condicaoPagamentoId || null;
     if (formaPagamentoId !== undefined) updateData.formaPagamentoId = formaPagamentoId || null;
     if (naturezaFinanceiraId !== undefined) updateData.naturezaFinanceiraId = naturezaFinanceiraId || null;
+    if (valorPagoAntecipado !== undefined) updateData.valorPagoAntecipado = valorPagoAntecipado != null ? parseFloat(String(valorPagoAntecipado)) : null;
+    if (dataPagoAntecipado !== undefined) updateData.dataPagoAntecipado = dataPagoAntecipado ? new Date(dataPagoAntecipado) : null;
+    if (formaPagoAntecipadoId !== undefined) updateData.formaPagoAntecipadoId = formaPagoAntecipadoId || null;
+    if (contaPagoAntecipadoId !== undefined) updateData.contaPagoAntecipadoId = contaPagoAntecipadoId || null;
+    // Grade manual de duplicatas: array não-vazio persiste; vazio/null limpa
+    // (volta à grade automática da condição).
+    if (parcelasCustom !== undefined) {
+      updateData.parcelasCustom = Array.isArray(parcelasCustom) && parcelasCustom.length > 0
+        ? parcelasCustom
+        : Prisma.DbNull;
+    }
 
     await tx.conferenciaCompra.update({
       where: { id: params.id },

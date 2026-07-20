@@ -21,7 +21,7 @@ import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/Natu
 import { useEscToClose } from "@/lib/use-esc-to-close";
 import DuplicatasTab, { type TituloResumo } from "@/components/suprimentos/DuplicatasTab";
 import ModoToggle from "@/components/suprimentos/ModoToggle";
-import { previewDuplicatasDE, type CondicaoFull } from "@/lib/duplicatas-preview";
+import { previewDuplicatasDE, type CondicaoFull, type ParcelaCustomRow } from "@/lib/duplicatas-preview";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -39,6 +39,8 @@ type LocalEstoque = { id: string; nome: string } | null;
 
 type ConferenciaItem = {
   id: string;
+  // Componente (filho): decompõe o preço da linha pai — não movimenta estoque.
+  paiId?: string | null;
   quantidadePedida: unknown;
   quantidadeRecebida: unknown;
   divergencia: boolean;
@@ -100,6 +102,12 @@ type Conferencia = {
   condicaoPagamentoId: string | null;
   formaPagamentoId: string | null;
   naturezaFinanceiraId: string | null;
+  // Pagamento já realizado (entrada/sinal) + grade manual de duplicatas.
+  valorPagoAntecipado?: unknown;
+  dataPagoAntecipado?: string | null;
+  formaPagoAntecipadoId?: string | null;
+  contaPagoAntecipadoId?: string | null;
+  parcelasCustom?: { valor: number; dataVencimento: string | null }[] | null;
   pedidoId: string | null;
   localEstoqueId: string | null;
   modoLocalEstoque: string | null;
@@ -131,6 +139,7 @@ type UnidadeOpc = { unidadeId: string; sigla: string; fator: number; base: boole
 
 type EditItem = {
   id: string;
+  paiId: string;                 // "" = linha normal; senão, componente do item pai
   quantidadeRecebida: string;
   observacao: string;
   vlrUnitario: string;
@@ -157,6 +166,8 @@ type LocalEstoqueOption = { id: string; nome: string };
 type ProdutoOption = { id: string; codigo: string; descricao: string; unidadeMedida: string };
 type NewItem = {
   _key: string;
+  paiId: string;                 // componente de item EXISTENTE (id da linha pai)
+  paiKey: string;                // componente de item NOVO (_key da linha pai)
   itemId: string;
   codigo: string;
   descricao: string;
@@ -228,6 +239,16 @@ export default function DocumentoEntradaDetailPage() {
   const [formasPagamento, setFormasPagamento] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
+  // Pagamento JÁ REALIZADO (entrada/sinal da fatura) — vira título quitado na conclusão.
+  const [valorPagoAntecipado, setValorPagoAntecipado] = useState("");
+  const [dataPagoAntecipado, setDataPagoAntecipado] = useState("");
+  const [formaPagoAntecipadoId, setFormaPagoAntecipadoId] = useState("");
+  const [contaPagoAntecipadoId, setContaPagoAntecipadoId] = useState("");
+  const [contasBancarias, setContasBancarias] = useState<{ id: string; nome: string; compensacao?: boolean; ativo?: boolean }[]>([]);
+  // Grade manual de duplicatas (null = automática pela condição).
+  const [parcelasCustom, setParcelasCustom] = useState<ParcelaCustomRow[] | null>(null);
+  // Componente: linha pendente aguardando escolha do produto ("+ Componente").
+  const [componenteDe, setComponenteDe] = useState<{ paiId?: string; paiKey?: string; descricao: string } | null>(null);
   const [validationError, setValidationError] = useState("");
   const [localAlertDismissed, setLocalAlertDismissed] = useState(false);
   const [showDivergenciaConfirm, setShowDivergenciaConfirm] = useState(false);
@@ -289,6 +310,11 @@ export default function DocumentoEntradaDetailPage() {
       setCondicaoPagamentoId(conf.condicaoPagamentoId ?? conf.pedido?.condicaoPagamentoId ?? "");
       setFormaPagamentoId(conf.formaPagamentoId ?? "");
       setNaturezaFinanceiraId(conf.naturezaFinanceiraId ?? "");
+      setValorPagoAntecipado(decimalToNumber(conf.valorPagoAntecipado) > 0 ? String(decimalToNumber(conf.valorPagoAntecipado)) : "");
+      setDataPagoAntecipado(conf.dataPagoAntecipado ? conf.dataPagoAntecipado.slice(0, 10) : "");
+      setFormaPagoAntecipadoId(conf.formaPagoAntecipadoId ?? "");
+      setContaPagoAntecipadoId(conf.contaPagoAntecipadoId ?? "");
+      setParcelasCustom(Array.isArray(conf.parcelasCustom) && conf.parcelasCustom.length > 0 ? conf.parcelasCustom : null);
       setFrete(decimalToNumber(conf.frete) > 0 ? String(decimalToNumber(conf.frete)) : "");
       const forn = conf.fornecedor ?? conf.pedido?.fornecedor ?? null;
       setFornecedorId(forn?.id ?? "");
@@ -323,6 +349,7 @@ export default function DocumentoEntradaDetailPage() {
           const unidades: UnidadeOpc[] = [{ unidadeId: "", sigla: baseSigla, fator: 1, base: true }, ...alternativas];
           return {
             id: i.id,
+            paiId: i.paiId ?? "",
             quantidadeRecebida: decimalToNumber(i.quantidadeRecebida).toString(),
             observacao: i.observacao ?? "",
             vlrUnitario: decimalToNumber(i.vlrUnitario) > 0 ? String(decimalToNumber(i.vlrUnitario)) : "",
@@ -373,6 +400,10 @@ export default function DocumentoEntradaDetailPage() {
       .catch(() => {});
     fetch("/api/suprimentos/tipos-operacao").then((r) => r.json())
       .then((j) => setTesList((Array.isArray(j) ? j : (j.data ?? [])).filter((t: { ativo?: boolean; sentido?: string }) => t.ativo !== false && t.sentido !== "SAIDA")))
+      .catch(() => {});
+    // Contas p/ o pagamento já realizado (sem transitórias de compensação).
+    fetch("/api/financeiro/contas").then((r) => r.json())
+      .then((j) => setContasBancarias((Array.isArray(j) ? j : (j.data ?? [])).filter((c: { compensacao?: boolean; ativo?: boolean }) => !c.compensacao && c.ativo !== false)))
       .catch(() => {});
   }, []);
 
@@ -464,10 +495,15 @@ export default function DocumentoEntradaDetailPage() {
 
   function addNewItemRow(produto: ProdutoOption) {
     const tesG = modoTes === "GLOBAL" ? tesList.find((t) => t.id === tesGlobalId) : undefined;
+    // Componente pendente ("+ Componente" numa linha pai): a nova linha nasce filha.
+    const comp = componenteDe;
+    setComponenteDe(null);
     setNewItems((prev) => [
       ...prev,
       {
         _key: `${produto.id}-${Date.now()}`,
+        paiId: comp?.paiId ?? "",
+        paiKey: comp?.paiKey ?? "",
         itemId: produto.id,
         codigo: produto.codigo,
         descricao: produto.descricao,
@@ -577,12 +613,22 @@ export default function DocumentoEntradaDetailPage() {
       setValidationError("Local de Estoque é obrigatório."); return false;
     }
     if (modoLocalEstoque === "POR_ITEM") {
-      const allItems = [...editItems, ...newItems];
+      // Componentes (filhos) não entram no estoque — sem local obrigatório.
+      const allItems = [
+        ...editItems.filter((i) => !i.paiId),
+        ...newItems.filter((i) => !i.paiId && !i.paiKey),
+      ];
       const semLocal = allItems.some((i) => !i.localEstoqueId);
       if (semLocal) { setValidationError("Todos os itens precisam ter um Local de Estoque definido."); return false; }
     }
-    // TES e centro de custo são obrigatórios por item.
-    const todosItens = [...editItems, ...newItems];
+    // TES e centro de custo são obrigatórios por item — COMPONENTES (filhos)
+    // ficam de fora: não movimentam estoque nem custo (decompõem o preço do pai).
+    const ehComponenteEdit = (i: EditItem) => !!i.paiId;
+    const ehComponenteNew = (i: NewItem) => !!i.paiId || !!i.paiKey;
+    const todosItens = [
+      ...editItems.filter((i) => !ehComponenteEdit(i)),
+      ...newItems.filter((i) => !ehComponenteNew(i)),
+    ];
     if (todosItens.some((i) => !i.tesId)) { setValidationError("Selecione o TES em cada item."); return false; }
     if (todosItens.some((i) => !i.centroCustoId)) { setValidationError("Informe o centro de custo em cada item."); return false; }
     // Capex: linha que capitaliza exige o bem (imobilizado).
@@ -614,6 +660,11 @@ export default function DocumentoEntradaDetailPage() {
           condicaoPagamentoId: condicaoPagamentoId || null,
           formaPagamentoId: formaPagamentoId || null,
           naturezaFinanceiraId: naturezaFinanceiraId || null,
+          valorPagoAntecipado: valorPagoAntecipado ? parseFloat(valorPagoAntecipado) : null,
+          dataPagoAntecipado: valorPagoAntecipado ? (dataPagoAntecipado || null) : null,
+          formaPagoAntecipadoId: valorPagoAntecipado ? (formaPagoAntecipadoId || null) : null,
+          contaPagoAntecipadoId: valorPagoAntecipado ? (contaPagoAntecipadoId || null) : null,
+          parcelasCustom: parcelasCustom && parcelasCustom.length > 0 ? parcelasCustom : null,
           itens: [
             ...editItems.map((i) => ({
               id: i.id,
@@ -636,9 +687,14 @@ export default function DocumentoEntradaDetailPage() {
               componenteSubstituidoId: i.capitaliza ? (i.componenteSubstituidoId || null) : null,
               desconto: i.desconto ? parseFloat(i.desconto) : null,
             })),
-            // new items (no id — will be created by API)
+            // new items (no id — will be created by API). Componente de item novo
+            // usa paiIndex (posição do pai NO PAYLOAD: editItems primeiro).
             ...newItems.map((ni) => ({
               itemId: ni.itemId,
+              paiId: ni.paiId || undefined,
+              paiIndex: ni.paiKey
+                ? editItems.length + newItems.findIndex((x) => x._key === ni.paiKey)
+                : undefined,
               quantidadePedida: parseFloat(ni.quantidadeRecebida) || 0,
               quantidadeRecebida: parseFloat(ni.quantidadeRecebida) || 0,
               vlrUnitario: ni.vlrUnitario ? parseFloat(ni.vlrUnitario) : null,
@@ -795,7 +851,7 @@ export default function DocumentoEntradaDetailPage() {
   // Detect missing local de estoque (only relevant while editable)
   const missingLocalGlobal = itemsEditable && modoLocalEstoque === "GLOBAL" && !localEstoqueGlobalId;
   const missingLocalPorItem = itemsEditable && modoLocalEstoque === "POR_ITEM" &&
-    [...editItems, ...newItems].some((i) => !i.localEstoqueId);
+    [...editItems.filter((i) => !i.paiId), ...newItems.filter((i) => !i.paiId && !i.paiKey)].some((i) => !i.localEstoqueId);
   const showLocalAlert = (missingLocalGlobal || missingLocalPorItem) && !localAlertDismissed;
 
   const hasDivergencias = editItems.some((ei) => {
@@ -808,18 +864,21 @@ export default function DocumentoEntradaDetailPage() {
   const fornInfo: FornecedorInfo | null = conferencia.fornecedor ?? conferencia.pedido?.fornecedor ?? null;
   const fornNome = fornInfo ? (fornInfo.nomeFantasia || fornInfo.razaoSocial) : "—";
 
-  // Totals
+  // Totals — COMPONENTES (filhos) fora: decompõem o preço do pai.
+  const editSemFilhos = editItems.filter((i) => !i.paiId);
+  const confSemFilhos = conferencia.itens.filter((i) => !i.paiId);
   const vlrMercadoria = itemsEditable
-    ? editItems.reduce((s, i) => s + (parseFloat(i.vlrTotal) || 0), 0)
-    : conferencia.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
+    ? editSemFilhos.reduce((s, i) => s + (parseFloat(i.vlrTotal) || 0), 0)
+      + newItems.filter((n) => !n.paiId && !n.paiKey).reduce((s, n) => s + (parseFloat(n.vlrTotal) || 0), 0)
+    : confSemFilhos.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
   const descontoTotalItens = itemsEditable
-    ? editItems.reduce((s, ei) => {
+    ? editSemFilhos.reduce((s, ei) => {
         const unit = parseFloat(ei.vlrUnitario) || 0;
         const qtd  = parseFloat(ei.quantidadeRecebida) || 0;
         const pct  = parseFloat(ei.desconto) || 0;
         return s + (unit * qtd * pct) / 100;
       }, 0)
-    : conferencia.itens.reduce((s, i) => {
+    : confSemFilhos.reduce((s, i) => {
         const unit = decimalToNumber(i.vlrUnitario);
         const qtd  = decimalToNumber(i.quantidadeRecebida);
         const pct  = decimalToNumber(i.desconto);
@@ -835,7 +894,7 @@ export default function DocumentoEntradaDetailPage() {
   // contas a pagar. Só valem quando o DE não tem frete/desconto próprios.
   const r2 = (n: number) => Math.round(n * 100) / 100;
   const pedidoDE = conferencia.pedido;
-  const subtotalPedido = conferencia.itens.reduce(
+  const subtotalPedido = confSemFilhos.reduce(
     (s, i) => s + decimalToNumber(i.quantidadePedida) * decimalToNumber(i.vlrUnitario), 0);
   const fracPedido = subtotalPedido > 0 ? Math.min(vlrMercadoria / subtotalPedido, 1) : 0;
   const herdaDoPedido = freteNum <= 0 && descontoNum <= 0 && !!pedidoDE;
@@ -865,17 +924,19 @@ export default function DocumentoEntradaDetailPage() {
   // loading/erro, então um hook aqui quebraria as regras de hooks do React.
   const duplicatasPreview = (() => {
     const itensPreview = itemsEditable
-      ? editItems.map((ei) => ({
+      ? [...editItems, ...newItems].map((ei) => ({
           vlrTotal: parseFloat(ei.vlrTotal) || 0,
           quantidadeRecebida: parseFloat(ei.quantidadeRecebida) || 0,
           vlrUnitario: parseFloat(ei.vlrUnitario) || 0,
           desconto: parseFloat(ei.desconto) || 0,
+          filho: "paiKey" in ei ? !!(ei.paiId || (ei as NewItem).paiKey) : !!ei.paiId,
         }))
       : conferencia.itens.map((i) => ({
           vlrTotal: decimalToNumber(i.vlrTotal) || 0,
           quantidadeRecebida: decimalToNumber(i.quantidadeRecebida),
           vlrUnitario: decimalToNumber(i.vlrUnitario),
           desconto: decimalToNumber(i.desconto),
+          filho: !!i.paiId,
         }));
     const ped = conferencia.pedido;
     return previewDuplicatasDE({
@@ -900,6 +961,9 @@ export default function DocumentoEntradaDetailPage() {
       condicaoIdDE: condicaoPagamentoId || null,
       condicoes,
       dtEmissao: dtEmissao || null,
+      valorPagoAntecipado: parseFloat(valorPagoAntecipado) || 0,
+      dataPagoAntecipado: dataPagoAntecipado || null,
+      parcelasCustom,
     });
   })();
 
@@ -1436,7 +1500,7 @@ export default function DocumentoEntradaDetailPage() {
                 {itemsEditable && (
                   <button
                     type="button"
-                    onClick={() => setShowAddRow((v) => !v)}
+                    onClick={() => { setComponenteDe(null); setShowAddRow((v) => !v); }}
                     className="flex items-center gap-1.5 text-xs font-medium text-info hover:text-info transition-colors"
                   >
                     <span className="text-base leading-none">+</span> Adicionar item
@@ -1453,6 +1517,12 @@ export default function DocumentoEntradaDetailPage() {
               : [];
             return (
               <div className="px-4 py-3 border-b border-border bg-info/10">
+                {componenteDe && (
+                  <p className="mb-1.5 text-xs text-muted-foreground">
+                    Adicionando <b>componente</b> de <b>{componenteDe.descricao}</b> — decompõe o preço do pai, não movimenta estoque.
+                    <button type="button" className="ml-2 text-info hover:underline" onClick={() => setComponenteDe(null)}>cancelar</button>
+                  </p>
+                )}
                 <div className="relative max-w-sm">
                   <input
                     autoFocus
@@ -1516,8 +1586,16 @@ export default function DocumentoEntradaDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {conferencia.itens.map((item, idx) => {
-                    const ei = editItems[idx];
+                  {(() => {
+                    // Exibição: cada PAI seguido dos seus COMPONENTES (filhos);
+                    // órfãos (pai removido) ao final. Par edit por id (não índice).
+                    const pais = conferencia.itens.filter((i) => !i.paiId);
+                    const ordenados = pais.flatMap((p) => [p, ...conferencia.itens.filter((f) => f.paiId === p.id)]);
+                    const vistos = new Set(ordenados.map((i) => i.id));
+                    return [...ordenados, ...conferencia.itens.filter((i) => !vistos.has(i.id))];
+                  })().map((item, idx) => {
+                    const ei = editItems.find((e) => e.id === item.id);
+                    const ehFilho = !!item.paiId;
                     const qtdPedida = decimalToNumber(item.quantidadePedida);
                     const qtdRecebida = parseFloat(ei?.quantidadeRecebida ?? "0") || 0;
                     const itemStatus = getItemStatus(qtdPedida, qtdRecebida);
@@ -1526,16 +1604,29 @@ export default function DocumentoEntradaDetailPage() {
                     return (
                       <tr
                         key={item.id}
-                        className={`hover:bg-muted ${item.divergencia && !itemsEditable ? "bg-warning/10" : ""}`}
+                        className={cn(
+                          "hover:bg-muted",
+                          item.divergencia && !itemsEditable && !ehFilho && "bg-warning/10",
+                          ehFilho && "bg-muted/40",
+                        )}
                       >
-                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{idx + 1}</td>
-                        <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
-                        <td className="px-2 py-1.5 text-xs text-foreground max-w-[200px]">{item.item.descricao}</td>
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{ehFilho ? "" : idx + 1}</td>
+                        <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground">{ehFilho && <span className="mr-1 text-muted-foreground/60">↳</span>}{item.item.codigo}</td>
+                        <td className="px-2 py-1.5 text-xs text-foreground max-w-[200px]">
+                          <span className={cn(ehFilho && "pl-2 text-muted-foreground")}>{item.item.descricao}</span>
+                          {ehFilho && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground" title="Componente: decompõe o preço do item pai — não movimenta estoque nem financeiro">
+                              componente
+                            </span>
+                          )}
+                        </td>
 
                         {/* TES — preset de comportamento (preenche as flags); não decide destino */}
                         {modoTes === "POR_ITEM" && (
                           <td className="px-2 py-1.5">
-                            {canEdit && ei ? (
+                            {ehFilho ? (
+                              <span className="text-xs text-muted-foreground/40">—</span>
+                            ) : canEdit && ei ? (
                               <ComboboxWithCreate
                                 value={ei.tesId}
                                 onChange={(v) => applyTesEdit(item.id, v)}
@@ -1553,7 +1644,9 @@ export default function DocumentoEntradaDetailPage() {
                         {/* Local Estoque — only shown in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
                           <td className="px-2 py-1.5">
-                            {canEdit && ei ? (
+                            {ehFilho ? (
+                              <span className="text-xs text-muted-foreground/40">—</span>
+                            ) : canEdit && ei ? (
                               <ComboboxWithCreate
                                 value={ei.localEstoqueId}
                                 onChange={(v) => updateEditItem(item.id, "localEstoqueId", v)}
@@ -1571,7 +1664,9 @@ export default function DocumentoEntradaDetailPage() {
                         {/* Centro de custo — herdado do pedido, editável; não classifica destino */}
                         {modoCentro === "POR_ITEM" && (
                           <td className="px-2 py-1.5">
-                            {canEdit && ei ? (
+                            {ehFilho ? (
+                              <span className="text-xs text-muted-foreground/40">—</span>
+                            ) : canEdit && ei ? (
                               <ComboboxWithCreate
                                 value={ei.centroCustoId}
                                 onChange={(v) => updateEditItem(item.id, "centroCustoId", v)}
@@ -1588,7 +1683,9 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* Capex — capitaliza (carga/orçamento na entrada); exige o bem */}
                         <td className="px-2 py-1.5 text-center">
-                          {canEdit && ei ? (
+                          {ehFilho ? (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          ) : canEdit && ei ? (
                             <div className="flex flex-col items-center gap-1">
                               {(() => {
                                 const t = tesList.find((x) => x.id === ei.tesId);
@@ -1785,26 +1882,51 @@ export default function DocumentoEntradaDetailPage() {
 
                         {/* Status */}
                         <td className="px-2 py-1.5 text-center">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}
-                          >
-                            {itemsEditable ? itemStatus.label : (item.divergencia ? "Divergência" : "OK")}
-                          </span>
+                          {ehFilho ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">Comp.</span>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}
+                            >
+                              {itemsEditable ? itemStatus.label : (item.divergencia ? "Divergência" : "OK")}
+                            </span>
+                          )}
                         </td>
-                        {itemsEditable && <td className="w-8" />}
+                        {itemsEditable && (
+                          <td className="w-8 text-center">
+                            {!ehFilho && (
+                              <button
+                                type="button"
+                                onClick={() => { setComponenteDe({ paiId: item.id, descricao: item.item.descricao }); setShowAddRow(true); }}
+                                className="text-info hover:text-info/80 text-xs font-medium"
+                                title="Adicionar componente (decompõe o preço deste item — não movimenta estoque)"
+                              >⊕</button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
 
                   {/* ── Novas linhas adicionadas ─────────────────────────── */}
                   {newItems.map((ni) => (
-                    <tr key={ni._key} className="bg-info/10 hover:bg-info/10">
-                      <td className="px-2 py-1.5 text-xs text-blue-400">+</td>
+                    <tr key={ni._key} className={cn("bg-info/10 hover:bg-info/10", (ni.paiId || ni.paiKey) && "bg-muted/40")}>
+                      <td className="px-2 py-1.5 text-xs text-blue-400">{ni.paiId || ni.paiKey ? "↳" : "+"}</td>
                       <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground">{ni.codigo}</td>
-                      <td className="px-2 py-1.5 text-xs text-foreground max-w-[200px]">{ni.descricao}</td>
+                      <td className="px-2 py-1.5 text-xs text-foreground max-w-[200px]">
+                        {ni.descricao}
+                        {(ni.paiId || ni.paiKey) && (
+                          <span className="ml-1.5 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground" title="Componente: decompõe o preço do item pai — não movimenta estoque nem financeiro">
+                            componente
+                          </span>
+                        )}
+                      </td>
                       {/* TES */}
                       {modoTes === "POR_ITEM" && (
                         <td className="px-2 py-1.5">
+                          {ni.paiId || ni.paiKey ? (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          ) : (
                           <ComboboxWithCreate
                             value={ni.tesId}
                             onChange={(v) => applyTesNew(ni._key, v)}
@@ -1813,10 +1935,14 @@ export default function DocumentoEntradaDetailPage() {
                             triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ni.tesId && "border-red-400 bg-danger/10 text-danger")}
                             options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
                           />
+                          )}
                         </td>
                       )}
                       {modoLocalEstoque === "POR_ITEM" && (
                         <td className="px-2 py-1.5">
+                          {ni.paiId || ni.paiKey ? (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          ) : (
                           <ComboboxWithCreate
                             value={ni.localEstoqueId}
                             onChange={(v) => updateNewItem(ni._key, "localEstoqueId", v)}
@@ -1825,11 +1951,15 @@ export default function DocumentoEntradaDetailPage() {
                             triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !ni.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                             options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                           />
+                          )}
                         </td>
                       )}
                       {/* Centro de custo */}
                       {modoCentro === "POR_ITEM" && (
                         <td className="px-2 py-1.5">
+                          {ni.paiId || ni.paiKey ? (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          ) : (
                           <ComboboxWithCreate
                             value={ni.centroCustoId}
                             onChange={(v) => updateNewItem(ni._key, "centroCustoId", v)}
@@ -1838,10 +1968,14 @@ export default function DocumentoEntradaDetailPage() {
                             triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                             options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                           />
+                          )}
                         </td>
                       )}
                       {/* Capex */}
                       <td className="px-2 py-1.5 text-center">
+                        {ni.paiId || ni.paiKey ? (
+                          <span className="text-xs text-muted-foreground/40">—</span>
+                        ) : (
                         <div className="flex flex-col items-center gap-1">
                           {(() => {
                             const t = tesList.find((x) => x.id === ni.tesId);
@@ -1870,6 +2004,7 @@ export default function DocumentoEntradaDetailPage() {
                             </>
                           )}
                         </div>
+                        )}
                       </td>
                       <td className="px-2 py-1.5 text-xs text-muted-foreground">{ni.unidadeMedida}</td>
                       <td className="px-2 py-1.5 text-right text-xs text-muted-foreground">—</td>
@@ -1976,6 +2111,9 @@ export default function DocumentoEntradaDetailPage() {
                 condicaoNome={condicaoNomeAtual}
                 fornecedorNome={fornNome}
                 concluida={isConcluded || isDivergencia}
+                parcelasCustom={nfEditable ? parcelasCustom : null}
+                onParcelasCustomChange={nfEditable ? setParcelasCustom : undefined}
+                onGradeReaisSalva={load}
                 headerControls={
                   <>
                     <div className="space-y-1">
@@ -2033,6 +2171,57 @@ export default function DocumentoEntradaDetailPage() {
                         </span>
                       </p>
                     </div>
+
+                    {/* ── Pagamento JÁ REALIZADO (entrada/sinal da fatura) ── */}
+                    {!isConcluded && !isDivergencia && (
+                      <div className="space-y-2 rounded-lg border border-border p-3">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagamento já realizado</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Valor pago</Label>
+                            {nfEditable ? (
+                              <Input type="number" step="0.01" min="0" value={valorPagoAntecipado}
+                                onChange={(e) => setValorPagoAntecipado(e.target.value)}
+                                placeholder="0,00" className="h-9 text-right" />
+                            ) : (
+                              <Input value={parseFloat(valorPagoAntecipado) > 0 ? formatBRL(parseFloat(valorPagoAntecipado)) : "—"} readOnly className="bg-muted h-9 text-right" />
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Data do pagamento</Label>
+                            <DatePicker value={dataPagoAntecipado} onChange={setDataPagoAntecipado} disabled={!nfEditable} triggerClassName="h-9" />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Forma</Label>
+                            <ComboboxWithCreate
+                              value={formaPagoAntecipadoId}
+                              onChange={setFormaPagoAntecipadoId}
+                              noneLabel="—"
+                              disabled={!nfEditable}
+                              triggerClassName="h-9 rounded-md"
+                              options={formasPagamento.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA").map((f) => ({ value: f.id, label: f.nome }))}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[11px] text-muted-foreground">Conta de saída</Label>
+                            <ComboboxWithCreate
+                              value={contaPagoAntecipadoId}
+                              onChange={setContaPagoAntecipadoId}
+                              noneLabel="—"
+                              disabled={!nfEditable}
+                              triggerClassName={cn("h-9 rounded-md", parseFloat(valorPagoAntecipado) > 0 && !contaPagoAntecipadoId && "border-red-400 bg-danger/10")}
+                              options={contasBancarias.map((c) => ({ value: c.id, label: c.nome }))}
+                            />
+                          </div>
+                        </div>
+                        <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
+                          <Info className="w-3 h-3 mt-0.5 shrink-0" />
+                          <span>Na conclusão vira um título <b>quitado</b> (baixado nessa data, saindo da conta) e as parcelas da condição incidem só sobre o <b>restante</b>.</span>
+                        </p>
+                      </div>
+                    )}
                   </>
                 }
               />

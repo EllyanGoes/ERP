@@ -20,7 +20,7 @@ import DatePicker from "@/components/shared/DatePicker";
 import ModoToggle from "@/components/suprimentos/ModoToggle";
 import DuplicatasTab from "@/components/suprimentos/DuplicatasTab";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
-import { previewDuplicatasDE, type CondicaoFull } from "@/lib/duplicatas-preview";
+import { previewDuplicatasDE, type CondicaoFull, type ParcelaCustomRow } from "@/lib/duplicatas-preview";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -98,6 +98,7 @@ type MatchResult = {
 
 type ItemRow = {
   _key: string;
+  paiKey: string; // componente: _key da linha PAI (decompõe o preço; fora do estoque/total)
   itemId: string;
   codigo: string;
   descricao: string;
@@ -131,6 +132,7 @@ function makeKey() {
 function emptyRow(): ItemRow {
   return {
     _key: makeKey(),
+    paiKey: "",
     itemId: "",
     codigo: "",
     descricao: "",
@@ -327,6 +329,14 @@ export default function NovoDocumentoEntradaPage() {
   const [formasPagamento, setFormasPagamento] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
+  // Pagamento JÁ REALIZADO (entrada/sinal) — vira título quitado na conclusão.
+  const [valorPagoAntecipado, setValorPagoAntecipado] = useState("");
+  const [dataPagoAntecipado, setDataPagoAntecipado] = useState("");
+  const [formaPagoAntecipadoId, setFormaPagoAntecipadoId] = useState("");
+  const [contaPagoAntecipadoId, setContaPagoAntecipadoId] = useState("");
+  const [contasBancarias, setContasBancarias] = useState<{ id: string; nome: string }[]>([]);
+  // Grade manual de duplicatas (null = automática pela condição).
+  const [parcelasCustom, setParcelasCustom] = useState<ParcelaCustomRow[] | null>(null);
 
   // Form state
   const [submitting, setSubmitting] = useState(false);
@@ -367,6 +377,10 @@ export default function NovoDocumentoEntradaPage() {
       .catch(() => {});
     fetch("/api/suprimentos/formas-pagamento").then((r) => r.json())
       .then((j) => setFormasPagamento(Array.isArray(j) ? j : (j.data ?? [])))
+      .catch(() => {});
+    // Contas p/ o pagamento já realizado (sem transitórias de compensação).
+    fetch("/api/financeiro/contas").then((r) => r.json())
+      .then((j) => setContasBancarias((Array.isArray(j) ? j : (j.data ?? [])).filter((c: { compensacao?: boolean; ativo?: boolean }) => !c.compensacao && c.ativo !== false)))
       .catch(() => {});
   }, []);
 
@@ -654,6 +668,7 @@ export default function NovoDocumentoEntradaPage() {
     setItens(
       p.itens.map((pi) => ({
         _key: makeKey(),
+        paiKey: "",
         itemId: pi.item.id,
         codigo: pi.item.codigo,
         descricao: pi.item.descricao,
@@ -729,11 +744,26 @@ export default function NovoDocumentoEntradaPage() {
   }
 
   function removeRow(key: string) {
-    setItens((prev) => prev.filter((r) => r._key !== key));
+    // Remover um PAI leva os componentes junto.
+    setItens((prev) => prev.filter((r) => r._key !== key && r.paiKey !== key));
   }
 
-  // Computed totals
-  const vlrMercadoria = itens.reduce((s, r) => s + (parseFloat(r.vlrTotal) || 0), 0);
+  // "+ Componente": linha filha logo abaixo do pai (e dos irmãos). Decompõe o
+  // preço do pai — não movimenta estoque nem entra no total.
+  function addComponente(paiKey: string) {
+    const row = emptyRow();
+    row.paiKey = paiKey;
+    setItens((prev) => {
+      const idx = prev.findIndex((r) => r._key === paiKey);
+      if (idx < 0) return [...prev, row];
+      let j = idx + 1;
+      while (j < prev.length && prev[j].paiKey === paiKey) j++;
+      return [...prev.slice(0, j), row, ...prev.slice(j)];
+    });
+  }
+
+  // Computed totals — componentes (filhos) fora: decompõem o preço do pai.
+  const vlrMercadoria = itens.filter((r) => !r.paiKey).reduce((s, r) => s + (parseFloat(r.vlrTotal) || 0), 0);
   const freteNum    = parseFloat(frete)    || 0;
   const seguroNum   = parseFloat(seguro)   || 0;
   const despesasNum = parseFloat(despesas) || 0;
@@ -747,6 +777,7 @@ export default function NovoDocumentoEntradaPage() {
       quantidadeRecebida: parseFloat(r.quantidadeRecebida) || 0,
       vlrUnitario: parseFloat(r.vlrUnitario) || 0,
       desconto: parseFloat(r.desconto) || 0,
+      filho: !!r.paiKey,
     })),
     vrTotalNF: 0,
     freteDE: freteNum,
@@ -773,6 +804,9 @@ export default function NovoDocumentoEntradaPage() {
     condicaoIdDE: condicaoPagamentoId || null,
     condicoes,
     dtEmissao: dtEmissao || null,
+    valorPagoAntecipado: parseFloat(valorPagoAntecipado) || 0,
+    dataPagoAntecipado: dataPagoAntecipado || null,
+    parcelasCustom,
   });
   const condicaoNomeAtual = condicoes.find((c) => c.id === condicaoPagamentoId)?.nome
     ?? duplicatasPreview.condicao?.nome ?? null;
@@ -790,8 +824,13 @@ export default function NovoDocumentoEntradaPage() {
       return;
     }
 
-    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidadePedida) > 0);
-    if (validItens.length === 0) {
+    // Componentes (filhos) só valem com o PAI válido; validações de local/TES/
+    // centro não se aplicam a eles (não movimentam estoque nem custo).
+    const preValidos = itens.filter((r) => r.itemId && parseFloat(r.quantidadePedida) > 0);
+    const paisValidos = new Set(preValidos.filter((r) => !r.paiKey).map((r) => r._key));
+    const validItens = preValidos.filter((r) => !r.paiKey || paisValidos.has(r.paiKey));
+    const validPais = validItens.filter((r) => !r.paiKey);
+    if (validPais.length === 0) {
       setError("Adicione pelo menos 1 item com produto e quantidade.");
       return;
     }
@@ -801,15 +840,15 @@ export default function NovoDocumentoEntradaPage() {
       return;
     }
     if (modoLocalEstoque === "POR_ITEM") {
-      const itensSemLocal = validItens.filter((r) => !r.localEstoqueId);
+      const itensSemLocal = validPais.filter((r) => !r.localEstoqueId);
       if (itensSemLocal.length > 0) {
         setError("Informe o Local de Estoque para todos os itens.");
         return;
       }
     }
-    // TES e centro de custo são obrigatórios por item.
-    if (validItens.some((r) => !r.tesId)) { setError("Selecione o TES em cada item."); return; }
-    if (validItens.some((r) => !r.centroCustoId)) { setError("Informe o centro de custo em cada item."); return; }
+    // TES e centro de custo são obrigatórios por item (componentes fora).
+    if (validPais.some((r) => !r.tesId)) { setError("Selecione o TES em cada item."); return; }
+    if (validPais.some((r) => !r.centroCustoId)) { setError("Informe o centro de custo em cada item."); return; }
 
     // Anti-duplicidade: se há PC compatível e o usuário não vinculou nem confirmou avulso
     if (!vinculadoPedido && !avulsoConfirmed && pcMatches.length > 0) {
@@ -840,8 +879,15 @@ export default function NovoDocumentoEntradaPage() {
         condicaoPagamentoId: condicaoPagamentoId || null,
         formaPagamentoId: formaPagamentoId || null,
         naturezaFinanceiraId: naturezaFinanceiraId || null,
+        valorPagoAntecipado: parseFloat(valorPagoAntecipado) > 0 ? parseFloat(valorPagoAntecipado) : null,
+        dataPagoAntecipado: parseFloat(valorPagoAntecipado) > 0 ? (dataPagoAntecipado || null) : null,
+        formaPagoAntecipadoId: parseFloat(valorPagoAntecipado) > 0 ? (formaPagoAntecipadoId || null) : null,
+        contaPagoAntecipadoId: parseFloat(valorPagoAntecipado) > 0 ? (contaPagoAntecipadoId || null) : null,
+        parcelasCustom: parcelasCustom && parcelasCustom.length > 0 ? parcelasCustom : null,
         itens: validItens.map((r, idx) => ({
           itemId: r.itemId,
+          // Componente: aponta o índice do PAI no próprio array (o POST resolve).
+          paiIndex: r.paiKey ? validItens.findIndex((x) => x._key === r.paiKey) : undefined,
           quantidadePedida: parseFloat(r.quantidadePedida),
           quantidadeRecebida: parseFloat(r.quantidadeRecebida) || 0,
           unidadeId: r.unidadeId || null,
@@ -1323,13 +1369,19 @@ export default function NovoDocumentoEntradaPage() {
                     const fatorSel     = unidadeSel?.fator ?? 1;
                     const vlrUnitNum   = parseFloat(row.vlrUnitario) || 0;
 
+                    const ehFilho = !!row.paiKey;
                     return (
-                      <tr key={row._key} className="hover:bg-muted">
-                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{idx + 1}</td>
+                      <tr key={row._key} className={cn("hover:bg-muted", ehFilho && "bg-muted/40")}>
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{ehFilho ? "↳" : idx + 1}</td>
 
                         {/* Produto — código */}
                         <td className="px-2 py-1.5 font-mono text-xs text-muted-foreground">
                           {row.codigo || "—"}
+                          {ehFilho && (
+                            <span className="ml-1 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground" title="Componente: decompõe o preço do item pai — não movimenta estoque nem financeiro">
+                              comp.
+                            </span>
+                          )}
                         </td>
 
                         {/* Descrição — search cell */}
@@ -1351,6 +1403,9 @@ export default function NovoDocumentoEntradaPage() {
                         {/* Local Estoque — only in Por Item mode */}
                         {modoLocalEstoque === "POR_ITEM" && (
                           <td className="px-2 py-1.5">
+                            {ehFilho ? (
+                              <span className="text-xs text-muted-foreground/40">—</span>
+                            ) : (
                             <ComboboxWithCreate
                               value={row.localEstoqueId}
                               onChange={(v) => updateItem(row._key, "localEstoqueId", v)}
@@ -1359,12 +1414,16 @@ export default function NovoDocumentoEntradaPage() {
                               triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !row.localEstoqueId && "border-red-400 bg-danger/10 text-danger")}
                               options={locaisEstoque.map((l) => ({ value: l.id, label: l.nome }))}
                             />
+                            )}
                           </td>
                         )}
 
                         {/* TES — preset de comportamento; preenche as flags da linha */}
                         {modoTes === "POR_ITEM" && (
                           <td className="px-2 py-1.5">
+                            {ehFilho ? (
+                              <span className="text-xs text-muted-foreground/40">—</span>
+                            ) : (
                             <ComboboxWithCreate
                               value={row.tesId}
                               onChange={(v) => applyTes(row._key, v)}
@@ -1373,12 +1432,16 @@ export default function NovoDocumentoEntradaPage() {
                               triggerClassName={cn("h-7 rounded text-xs min-w-[11rem]", !row.tesId && "border-red-400 bg-danger/10 text-danger")}
                               options={tesList.map((t) => ({ value: t.id, label: `${t.codigo} ${t.nome}` }))}
                             />
+                            )}
                           </td>
                         )}
 
                         {/* Centro de custo — obrigatório; não classifica destino */}
                         {modoCentro === "POR_ITEM" && (
                           <td className="px-2 py-1.5">
+                            {ehFilho ? (
+                              <span className="text-xs text-muted-foreground/40">—</span>
+                            ) : (
                             <ComboboxWithCreate
                               value={row.centroCustoId}
                               onChange={(v) => updateItem(row._key, "centroCustoId", v)}
@@ -1387,6 +1450,7 @@ export default function NovoDocumentoEntradaPage() {
                               triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                               options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
                             />
+                            )}
                           </td>
                         )}
 
@@ -1511,22 +1575,36 @@ export default function NovoDocumentoEntradaPage() {
 
                         {/* Status */}
                         <td className="px-2 py-1.5 text-center">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}>
-                            {itemStatus.label}
-                          </span>
+                          {ehFilho ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">Comp.</span>
+                          ) : (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${itemStatus.cls}`}>
+                              {itemStatus.label}
+                            </span>
+                          )}
                         </td>
 
-                        {/* Delete */}
+                        {/* Ações: + componente (pais) / remover */}
                         <td className="px-2 py-1.5">
-                          {itens.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeRow(row._key)}
-                              className="text-muted-foreground hover:text-red-500 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {!ehFilho && row.itemId && (
+                              <button
+                                type="button"
+                                onClick={() => addComponente(row._key)}
+                                className="text-info hover:text-info/80 transition-colors text-sm font-medium"
+                                title="Adicionar componente (decompõe o preço deste item — não movimenta estoque)"
+                              >⊕</button>
+                            )}
+                            {itens.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeRow(row._key)}
+                                className="text-muted-foreground hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1572,6 +1650,8 @@ export default function NovoDocumentoEntradaPage() {
                 preview={duplicatasPreview}
                 condicaoNome={condicaoNomeAtual}
                 fornecedorNome={selectedFornecedor?.nomeFantasia || selectedFornecedor?.razaoSocial || null}
+                parcelasCustom={parcelasCustom}
+                onParcelasCustomChange={setParcelasCustom}
                 headerControls={
                   <>
                     <div className="space-y-1">
@@ -1615,6 +1695,49 @@ export default function NovoDocumentoEntradaPage() {
                         <span>
                           Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>.
                         </span>
+                      </p>
+                    </div>
+
+                    {/* ── Pagamento JÁ REALIZADO (entrada/sinal da fatura) ── */}
+                    <div className="space-y-2 rounded-lg border border-border p-3">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagamento já realizado</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Valor pago</Label>
+                          <Input type="number" step="0.01" min="0" value={valorPagoAntecipado}
+                            onChange={(e) => setValorPagoAntecipado(e.target.value)}
+                            placeholder="0,00" className="h-9 text-right" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Data do pagamento</Label>
+                          <DatePicker value={dataPagoAntecipado} onChange={setDataPagoAntecipado} triggerClassName="h-9" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Forma</Label>
+                          <ComboboxWithCreate
+                            value={formaPagoAntecipadoId}
+                            onChange={setFormaPagoAntecipadoId}
+                            noneLabel="—"
+                            triggerClassName="h-9 rounded-md"
+                            options={formasPagamento.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA").map((f) => ({ value: f.id, label: f.nome }))}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px] text-muted-foreground">Conta de saída</Label>
+                          <ComboboxWithCreate
+                            value={contaPagoAntecipadoId}
+                            onChange={setContaPagoAntecipadoId}
+                            noneLabel="—"
+                            triggerClassName={cn("h-9 rounded-md", parseFloat(valorPagoAntecipado) > 0 && !contaPagoAntecipadoId && "border-red-400 bg-danger/10")}
+                            options={contasBancarias.map((c) => ({ value: c.id, label: c.nome }))}
+                          />
+                        </div>
+                      </div>
+                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
+                        <FileText className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>Na conclusão vira um título <b>quitado</b> (baixado nessa data, saindo da conta) e as parcelas da condição incidem só sobre o <b>restante</b>.</span>
                       </p>
                     </div>
                   </>

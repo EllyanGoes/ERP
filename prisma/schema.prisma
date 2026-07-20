@@ -513,11 +513,24 @@ model ConferenciaCompra {
   despesas             Decimal?                @db.Decimal(15, 2)
   desconto             Decimal?                @db.Decimal(15, 2)
   vrTotal              Decimal?                @db.Decimal(15, 2)
+  // Pagamento JÁ REALIZADO antes da conclusão (entrada/sinal da fatura). Na
+  // conclusão vira um título QUITADO (baixado na data, pela forma/conta abaixo)
+  // e as parcelas da condição incidem só sobre o restante.
+  valorPagoAntecipado  Decimal?                @db.Decimal(15, 2)
+  dataPagoAntecipado   DateTime?
+  formaPagoAntecipadoId String?
+  contaPagoAntecipadoId String?
+  // Grade de duplicatas EDITADA manualmente (substitui calcularParcelas na
+  // conclusão): [{ valor: number, dataVencimento: "YYYY-MM-DD" | null }].
+  // null = grade automática pela condição.
+  parcelasCustom       Json?
   createdAt            DateTime                @default(now())
   updatedAt            DateTime                @updatedAt
   pedido               PedidoCompra?           @relation(fields: [pedidoId], references: [id])
   condicaoPagamentoRef CondicaoPagamento?      @relation("CondPgtoConferencia", fields: [condicaoPagamentoId], references: [id])
   formaPagamento       FormaPagamento?         @relation("FormaPgtoConferencia", fields: [formaPagamentoId], references: [id])
+  formaPagoAntecipado  FormaPagamento?         @relation("FormaPgtoAntecipadoConf", fields: [formaPagoAntecipadoId], references: [id])
+  contaPagoAntecipado  ContaBancaria?          @relation("ContaPgtoAntecipadoConf", fields: [contaPagoAntecipadoId], references: [id])
   naturezaFinanceira   NaturezaFinanceira?     @relation(fields: [naturezaFinanceiraId], references: [id])
   fornecedor           Fornecedor?             @relation(fields: [fornecedorId], references: [id])
   localEstoque         LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
@@ -574,6 +587,12 @@ model ConferenciaCompraItem {
   tesId                   String?
   tes                     TipoOperacao?         @relation(fields: [tesId], references: [id])
   compoeCusto             Boolean?
+  // Item COMPONENTE (filho): decompõe o preço da linha pai (ex.: "roda montada"
+  // absorve eixo/rolamentos/anéis). Filho NÃO movimenta estoque, NÃO entra no
+  // líquido/CP e NÃO mexe em CMPM — é registro da composição. 1 nível só.
+  paiId                   String?
+  pai                     ConferenciaCompraItem?  @relation("ConfItemComposicao", fields: [paiId], references: [id], onDelete: Cascade)
+  filhos                  ConferenciaCompraItem[] @relation("ConfItemComposicao")
   conferencia             ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
   item                    Item                  @relation(fields: [itemId], references: [id])
   localEstoque            LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
@@ -583,6 +602,7 @@ model ConferenciaCompraItem {
   @@index([empresaId])
   @@index([centroCustoId])
   @@index([imobilizadoId])
+  @@index([paiId])
 }
 
 model Configuracao {
@@ -926,6 +946,7 @@ model ContaBancaria {
   importacoesOFX   ImportacaoOFX[]
   contasContabeis  ContaContabil[]
   compensacoes     Compensacao[]
+  conferenciasPagoAntecipado ConferenciaCompra[] @relation("ContaPgtoAntecipadoConf")
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -1619,6 +1640,7 @@ model FormaPagamento {
   atualizadoPor   String? // autoria: última edição manual (proxy de sessão)
 
   conferencias         ConferenciaCompra[] @relation("FormaPgtoConferencia")
+  conferenciasPagoAntecipado ConferenciaCompra[] @relation("FormaPgtoAntecipadoConf")
   contasPagarPrevistas ContaPagar[]        @relation("FormaPrevistaCP")
 }
 

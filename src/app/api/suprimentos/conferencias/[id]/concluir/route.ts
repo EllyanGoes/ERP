@@ -6,15 +6,46 @@ import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { gerarContasPagarDoDocumento } from "@/lib/contas-pagar";
-import { calcularParcelas } from "@/lib/parcelas";
+import { calcularParcelas, type Parcela } from "@/lib/parcelas";
+import { baixarTitulo } from "@/lib/baixa-titulo";
 import { generateSimpleDocNumber } from "@/lib/utils";
-import { contabilizarPedidoCompra, contabilizarEntradaEstoque } from "@/lib/contabilidade";
+import { contabilizarPedidoCompra, contabilizarEntradaEstoque, recontabilizarTituloPagar } from "@/lib/contabilidade";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 import { encargosConferencia } from "@/lib/pedido-compra-de";
 import { detalheItens } from "@/lib/detalhe-itens";
 
 const num = (d: unknown) => parseFloat(String(d ?? 0));
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+// Grade de parcelas divergente do valor a parcelar → 422 (a UI pede ajuste).
+class GradeDivergenteError extends Error {
+  constructor(public soma: number, public esperado: number) {
+    super(`A grade de duplicatas soma R$ ${soma.toFixed(2)}, mas o valor a parcelar é R$ ${esperado.toFixed(2)}. Ajuste a grade na aba Duplicatas.`);
+  }
+}
+
+// Grade EDITADA manualmente (ConferenciaCompra.parcelasCustom): substitui
+// calcularParcelas na conclusão. null = sem grade custom (usa a condição).
+function parcelasDaGrade(parcelasCustom: unknown, restante: number): Parcela[] | null {
+  if (!Array.isArray(parcelasCustom) || parcelasCustom.length === 0) return null;
+  const rows = parcelasCustom as { valor?: unknown; dataVencimento?: unknown }[];
+  const valores = rows.map((p) => r2(num(p.valor)));
+  const soma = r2(valores.reduce((s, v) => s + v, 0));
+  if (Math.abs(soma - r2(restante)) > 0.01) throw new GradeDivergenteError(soma, r2(restante));
+  const n = rows.length;
+  const grupoId = n > 1 ? crypto.randomUUID() : null;
+  return rows.map((p, i) => ({
+    valor: valores[i],
+    dataVencimento: p.dataVencimento ? new Date(`${String(p.dataVencimento).slice(0, 10)}T00:00:00.000Z`) : null,
+    parcelaNumero: n > 1 ? i + 1 : null,
+    parcelaTotal: n > 1 ? n : null,
+    grupoParcelamentoId: grupoId,
+  }));
+}
+
+// Info para a BAIXA pós-commit do título da entrada já paga (sinal da fatura).
+type EntradaPagaInfo = { cpId: string; valor: number; dataPagamento: Date; formaNome: string | null; contaBancariaId: string | null };
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("compras");
@@ -42,9 +73,55 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         itens: {
           include: { item: true },
         },
+        formaPagoAntecipado: { select: { nome: true } },
       },
     });
     if (!conferencia) throw new Error("Conferência não encontrada");
+
+    // ── Título da ENTRADA JÁ PAGA (sinal da fatura) ───────────────────────────
+    // Nasce ABERTA dentro da transação e é BAIXADO pós-commit (padrão do
+    // sistema: financeiro na transação; baixa/contábil depois). O valor pago
+    // abate do que vai para as parcelas da condição.
+    let entradaPagaInfo: EntradaPagaInfo | null = null;
+    const criarCpEntradaPaga = async (
+      tx2: Prisma.TransactionClient,
+      opts: { valorEntrada: number; baseDesc: string; dataCompetencia: Date; pedidoCompraId?: string | null },
+    ): Promise<number> => {
+      const pago = r2(Math.min(num(conferencia.valorPagoAntecipado), opts.valorEntrada));
+      if (!(pago > 0)) return 0;
+      const seqCp = await tx2.sequencia.upsert({
+        where: { empresaId_prefixo: { empresaId: conferencia.empresaId, prefixo: "CP" } },
+        create: { empresaId: conferencia.empresaId, prefixo: "CP", ultimo: 1 },
+        update: { ultimo: { increment: 1 } },
+      });
+      const venc = conferencia.dataPagoAntecipado ?? opts.dataCompetencia;
+      const cp = await tx2.contaPagar.create({
+        data: {
+          empresaId: conferencia.empresaId,
+          numero: generateSimpleDocNumber("CP", seqCp.ultimo),
+          conferenciaId: conferencia.id,
+          ...(opts.pedidoCompraId ? { pedidoCompraId: opts.pedidoCompraId } : {}),
+          fornecedorId: conferencia.pedido?.fornecedorId ?? conferencia.fornecedorId,
+          naturezaFinanceiraId: conferencia.naturezaFinanceiraId ?? null,
+          formaPagamentoPrevistaId: conferencia.formaPagoAntecipadoId ?? conferencia.formaPagamentoId ?? null,
+          descricao: `${opts.baseDesc} (entrada paga)`,
+          valorOriginal: pago,
+          dataVencimento: venc,
+          dataCompetencia: opts.dataCompetencia,
+          status: "ABERTA",
+          semProvisao: true,
+          notaFiscal: conferencia.numeroNF ?? null,
+        },
+      });
+      entradaPagaInfo = {
+        cpId: cp.id,
+        valor: pago,
+        dataPagamento: venc,
+        formaNome: conferencia.formaPagoAntecipado?.nome ?? null,
+        contaBancariaId: conferencia.contaPagoAntecipadoId ?? null,
+      };
+      return pago;
+    };
 
     // ── Trava de categoria do local (DENTRO da transação) ─────────────────────
     // O recebimento dá ENTRADA no local de destino de cada item — produto só
@@ -52,7 +129,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // aceita tudo (legado). Erro → rollback de tudo (inclusive o claim).
     {
       const pares = conferencia.itens
-        .filter((it) => num(it.quantidadeRecebida) > 0)
+        .filter((it) => num(it.quantidadeRecebida) > 0 && !it.paiId)
         .map((it) => ({ itemId: it.itemId, localEstoqueId: it.localEstoqueId ?? conferencia.localEstoqueId ?? null }));
       await assertItensPermitidosNosLocais(tx, pares);
     }
@@ -69,6 +146,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const dataDoc = conferencia.dtEmissao ?? new Date(`${hojeSPdoc}T00:00:00.000Z`);
 
     for (const item of conferencia.itens) {
+      // Componente (filho): decompõe o preço do pai — NÃO movimenta estoque,
+      // não entra em custo (CMPM) nem gera divergência própria.
+      if (item.paiId) continue;
+
       const qtdRecebida = parseFloat(String(item.quantidadeRecebida ?? 0));
       const qtdPedida = parseFloat(String(item.quantidadePedida));
 
@@ -344,13 +425,20 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           ? await tx.condicaoPagamento.findUnique({ where: { id: conferencia.condicaoPagamentoId } })
           : null;
         // Descrição com a lista de itens (mesmo formato das CPs de pedido, via
-        // detalheItens): "Compra DE-X — 24× LUVA × R$ 1,39; ...".
+        // detalheItens): "Compra DE-X — 24× LUVA × R$ 1,39; ...". Filhos
+        // (componentes) fora — decompõem o preço do pai.
         const itensConf = await tx.conferenciaCompraItem.findMany({
-          where: { conferenciaId: conferencia.id },
+          where: { conferenciaId: conferencia.id, paiId: null },
           select: { quantidadeRecebida: true, vlrUnitario: true, item: { select: { descricao: true } } },
         });
         const det = detalheItens(itensConf.map((it) => ({ quantidade: it.quantidadeRecebida, precoUnitario: it.vlrUnitario, item: it.item })));
-        const parcelas = calcularParcelas(condicao, valorEntrada, conferencia.dtEmissao ?? hojeUTC);
+        const baseDescPaga = `Compra ${conferencia.numero}${det ? ` — ${det}` : " (entrada avulsa)"}`;
+        // Entrada já paga abate do valor a parcelar; grade manual (se houver)
+        // substitui a condição sobre o RESTANTE.
+        const pagoEfetivo = await criarCpEntradaPaga(tx, { valorEntrada, baseDesc: baseDescPaga, dataCompetencia: conferencia.dtEmissao ?? hojeUTC });
+        const restante = r2(valorEntrada - pagoEfetivo);
+        const parcelas = parcelasDaGrade(conferencia.parcelasCustom, restante)
+          ?? calcularParcelas(condicao, restante, conferencia.dtEmissao ?? hojeUTC);
         for (const p of parcelas) {
           const seqCp = await tx.sequencia.upsert({
             where: { empresaId_prefixo: { empresaId: conferencia.empresaId, prefixo: "CP" } },
@@ -444,17 +532,30 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             if (!condicao && pc.condicoesPagamento) {
               condicao = await tx.condicaoPagamento.findFirst({ where: { nome: pc.condicoesPagamento } });
             }
-            await gerarContasPagarDoDocumento(tx, {
-              empresaId: conferencia.empresaId,
-              fornecedorId: pc.fornecedorId ?? conferencia.fornecedorId,
+            // Entrada já paga abate do valor a parcelar; grade manual (se
+            // houver) substitui a condição sobre o RESTANTE.
+            const pagoEfetivo = await criarCpEntradaPaga(tx, {
+              valorEntrada: valorTotal,
+              baseDesc: `Compra ${pc.numero}`,
+              dataCompetencia: conferencia.dtEmissao ?? hojeUTC,
               pedidoCompraId: pc.id,
-              conferenciaId: conferencia.id,
-              numeroPedido: pc.numero,
-              valorTotal,
-              dataBase: conferencia.dtEmissao ?? hojeUTC,
-              naturezaFinanceiraId: conferencia.naturezaFinanceiraId,
-              formaPagamentoPrevistaId: conferencia.formaPagamentoId,
-            }, condicao);
+            });
+            const restante = r2(valorTotal - pagoEfetivo);
+            const custom = parcelasDaGrade(conferencia.parcelasCustom, restante);
+            if (restante > 0) {
+              await gerarContasPagarDoDocumento(tx, {
+                empresaId: conferencia.empresaId,
+                fornecedorId: pc.fornecedorId ?? conferencia.fornecedorId,
+                pedidoCompraId: pc.id,
+                conferenciaId: conferencia.id,
+                numeroPedido: pc.numero,
+                valorTotal: restante,
+                dataBase: conferencia.dtEmissao ?? hojeUTC,
+                naturezaFinanceiraId: conferencia.naturezaFinanceiraId,
+                formaPagamentoPrevistaId: conferencia.formaPagamentoId,
+                ...(custom ? { parcelasProntas: custom } : {}),
+              }, condicao);
+            }
             await recomputarStatusFinanceiroCompra(tx, pc.id);
           }
         }
@@ -469,6 +570,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const autoVinculos: string[] = [];
     if (fornecedorId) {
       for (const item of conferencia.itens) {
+        if (item.paiId) continue; // componente: preço embutido no pai, não é "compra" do item
         const qtdRecebida = parseFloat(String(item.quantidadeRecebida ?? 0));
         if (qtdRecebida <= 0) continue;
         const compra = compraPorItem.get(item.itemId);
@@ -490,7 +592,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       }
     }
 
-    return { conferencia: updatedConferencia, movimentacoesCriadas, autoVinculos, scAtualizadas };
+    // (cast: o TS estreita p/ null por só enxergar a atribuição dentro do closure)
+    return { conferencia: updatedConferencia, movimentacoesCriadas, autoVinculos, scAtualizadas, entradaPaga: entradaPagaInfo as EntradaPagaInfo | null };
   };
 
   let result: Awaited<ReturnType<typeof executar>>;
@@ -499,6 +602,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } catch (e) {
     // Trava de categoria mapeia para 422; reconclusão dupla para 409.
     if (e instanceof CategoriaLocalInvalidaError) return respostaCategoriaInvalida(e);
+    if (e instanceof GradeDivergenteError) {
+      return NextResponse.json({ error: e.message }, { status: 422 });
+    }
     if (e instanceof Error && e.message === "Conferência já concluída") {
       return NextResponse.json({ error: e.message }, { status: 409 });
     }
@@ -507,6 +613,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Notify Telegram for each received item (best-effort, outside transaction)
   for (const item of result.conferencia.itens) {
+    if (item.paiId) continue; // componente: não movimentou estoque
     const qtdRecebida = parseFloat(String(item.quantidadeRecebida ?? 0));
     if (qtdRecebida <= 0) continue;
 
@@ -537,6 +644,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   await contabilizarEntradaEstoque(params.id).catch(() => {});
   const confPedido = await prisma.conferenciaCompra.findUnique({ where: { id: params.id }, select: { pedido: { select: { id: true } } } });
   if (confPedido?.pedido?.id) await contabilizarPedidoCompra(confPedido.pedido.id).catch(() => {});
+
+  // ── Baixa do título da ENTRADA JÁ PAGA (pós-commit) ─────────────────────────
+  // A entrada acima creditou o fornecedor; a baixa agora debita-o e tira da
+  // conta informada (D Fornecedor / C Banco + lançamento de caixa/banco).
+  if (result.entradaPaga) {
+    const ep = result.entradaPaga;
+    try {
+      await prisma.$transaction(async (tx) => {
+        const r = await baixarTitulo(tx, {
+          tipo: "PAGAR",
+          tituloId: ep.cpId,
+          linhas: [{ forma: ep.formaNome, contaBancariaId: ep.contaBancariaId, valor: ep.valor }],
+          dataPagamento: ep.dataPagamento,
+        });
+        if (r.erro) throw new Error(r.erro.msg);
+      });
+      await recontabilizarTituloPagar(ep.cpId).catch(() => {});
+    } catch (e) {
+      // Título fica ABERTO para baixa manual — melhor que perder a conclusão.
+      console.error("[concluir] baixa da entrada paga falhou:", e);
+    }
+  }
 
   return NextResponse.json({
     data: result.conferencia,

@@ -19,7 +19,13 @@ export type PreviewItem = {
   quantidadeRecebida: number;
   vlrUnitario: number;
   desconto: number; // % de desconto da linha
+  // Linha COMPONENTE (filho de outra linha): decompõe o preço do pai — fora do
+  // líquido e das duplicatas.
+  filho?: boolean;
 };
+
+// Linha da grade de duplicatas EDITADA manualmente (parcelasCustom do DE).
+export type ParcelaCustomRow = { valor: number; dataVencimento: string | null };
 
 export type PreviewPedido = {
   frete: number;
@@ -43,6 +49,12 @@ export type PreviewDuplicatasInput = {
   condicaoIdDE: string | null;
   condicoes: CondicaoFull[];
   dtEmissao: string | null; // "YYYY-MM-DD"
+  // Entrada/sinal JÁ PAGO da fatura: vira título quitado na conclusão e abate
+  // do valor a parcelar.
+  valorPagoAntecipado?: number;
+  dataPagoAntecipado?: string | null; // "YYYY-MM-DD"
+  // Grade editada manualmente — substitui calcularParcelas sobre o restante.
+  parcelasCustom?: ParcelaCustomRow[] | null;
 };
 
 export type BloqueioDuplicatas = "INTRAGRUPO" | "PA" | "SEM_FORNECEDOR" | null;
@@ -53,6 +65,11 @@ export type PreviewDuplicatas = {
   condicao: CondicaoFull | null;
   parcelas: Parcela[];
   bloqueio: BloqueioDuplicatas;
+  // Entrada já paga (projeção do título quitado) e o restante parcelado.
+  entradaPaga: { valor: number; data: string | null } | null;
+  restante: number;
+  // true = parcelas vêm da grade manual (parcelasCustom), não da condição.
+  custom: boolean;
 };
 
 // Réplica de encargosConferencia (lib/pedido-compra-de.ts): base = Σ vlrTotal
@@ -62,6 +79,7 @@ export type PreviewDuplicatas = {
 function calcularLiquido(inp: PreviewDuplicatasInput): number {
   const base = r2(
     inp.itens.reduce((s, it) => {
+      if (it.filho) return s; // componente: preço embutido no pai
       if (it.vlrTotal != null) return s + num(it.vlrTotal);
       const pct = num(it.desconto);
       return s + num(it.quantidadeRecebida) * num(it.vlrUnitario) * (1 - (pct > 0 ? pct / 100 : 0));
@@ -103,16 +121,17 @@ function resolverDataBase(dtEmissao: string | null): Date {
 export function previewDuplicatasDE(inp: PreviewDuplicatasInput): PreviewDuplicatas {
   const liquido = calcularLiquido(inp);
   const condicao = resolverCondicao(inp);
+  const vazio = { entradaPaga: null, restante: 0, custom: false };
 
   // Bloqueios (mesma ordem de decisão do servidor).
   if (inp.pedido?.intragrupo) {
-    return { valor: 0, liquido, condicao, parcelas: [], bloqueio: "INTRAGRUPO" };
+    return { valor: 0, liquido, condicao, parcelas: [], bloqueio: "INTRAGRUPO", ...vazio };
   }
   if (condicao?.pagamentoAntecipado) {
-    return { valor: 0, liquido, condicao, parcelas: [], bloqueio: "PA" };
+    return { valor: 0, liquido, condicao, parcelas: [], bloqueio: "PA", ...vazio };
   }
   if (!inp.pedido && !inp.temFornecedor) {
-    return { valor: 0, liquido, condicao, parcelas: [], bloqueio: "SEM_FORNECEDOR" };
+    return { valor: 0, liquido, condicao, parcelas: [], bloqueio: "SEM_FORNECEDOR", ...vazio };
   }
 
   // Valor a pagar: com pedido usa o vrTotal digitado; avulsa usa sempre o líquido.
@@ -124,6 +143,21 @@ export function previewDuplicatasDE(inp: PreviewDuplicatasInput): PreviewDuplica
         : num(inp.pedido.valorTotal)
     : liquido;
 
-  const parcelas = calcularParcelas(condicao, valor, resolverDataBase(inp.dtEmissao));
-  return { valor, liquido, condicao, parcelas, bloqueio: null };
+  // Entrada já paga abate do que vai para as parcelas (mesma conta do servidor).
+  const pago = r2(Math.min(num(inp.valorPagoAntecipado), valor));
+  const restante = r2(valor - (pago > 0 ? pago : 0));
+  const entradaPaga = pago > 0 ? { valor: pago, data: inp.dataPagoAntecipado ?? null } : null;
+
+  // Grade manual substitui a condição sobre o RESTANTE.
+  const custom = Array.isArray(inp.parcelasCustom) && inp.parcelasCustom.length > 0;
+  const parcelas: Parcela[] = custom
+    ? inp.parcelasCustom!.map((p, i, arr) => ({
+        valor: r2(num(p.valor)),
+        dataVencimento: p.dataVencimento ? new Date(`${p.dataVencimento.slice(0, 10)}T00:00:00.000Z`) : null,
+        parcelaNumero: arr.length > 1 ? i + 1 : null,
+        parcelaTotal: arr.length > 1 ? arr.length : null,
+        grupoParcelamentoId: null,
+      }))
+    : calcularParcelas(condicao, restante, resolverDataBase(inp.dtEmissao));
+  return { valor, liquido, condicao, parcelas, bloqueio: null, entradaPaga, restante, custom };
 }

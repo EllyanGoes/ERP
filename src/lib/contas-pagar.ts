@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { detalheItens } from "@/lib/detalhe-itens";
-import { calcularParcelas, type CondicaoParcelas } from "@/lib/parcelas";
+import { calcularParcelas, type CondicaoParcelas, type Parcela } from "@/lib/parcelas";
 
 /**
  * Gera as contas a PAGAR de um pedido de compra a partir do Documento de Entrada,
@@ -21,6 +21,9 @@ export async function gerarContasPagarDoDocumento(
     formaPagamentoPrevistaId?: string | null;
     // PA: título nascido no PEDIDO (adiantamento a fornecedor), não na entrada.
     antecipado?: boolean;
+    // Grade de parcelas EDITADA manualmente no DE (parcelasCustom): quando
+    // presente, substitui calcularParcelas — o chamador já validou a soma.
+    parcelasProntas?: Parcela[];
   },
   condicao: CondicaoParcelas,
 ): Promise<number> {
@@ -34,7 +37,7 @@ export async function gerarContasPagarDoDocumento(
   const antecipado = doc.antecipado === true;
   const baseDesc = `Compra ${doc.numeroPedido}${antecipado ? " (PA)" : ""}${det ? ` — ${det}` : ""}`;
 
-  const parcelas = calcularParcelas(condicao, doc.valorTotal, doc.dataBase);
+  const parcelas = doc.parcelasProntas ?? calcularParcelas(condicao, doc.valorTotal, doc.dataBase);
   for (const p of parcelas) {
     const numero = generateSimpleDocNumber("CP", await proximaSequenciaDaEmpresa(doc.empresaId, "CP"));
     await tx.contaPagar.create({
