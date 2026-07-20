@@ -136,22 +136,23 @@ function dentroDoPeriodo(c: { dataVencimento: Date | string }, p: DateRange): bo
 // Contagem por categoria (cores dos blocos de totais) usada nas bolinhas ao lado
 // do nome do fornecedor no filtro.
 type ContagemForn = { vencido: number; aVencer: number; semVenc: number; paga: number };
-function BolinhaContagem({ cor, n, titulo }: { cor: string; n: number; titulo: string }) {
+// Badge redondo com o número DENTRO, colorido por categoria (fundo tingido +
+// número na cor). Sem bolinha separada.
+function BadgeContagem({ bg, text, n, titulo }: { bg: string; text: string; n: number; titulo: string }) {
   return (
-    <span className="inline-flex items-center gap-0.5" title={`${n} ${titulo}`}>
-      <span className={cn("w-1.5 h-1.5 rounded-full", cor)} />
-      <span className="text-[10px] tabular-nums text-muted-foreground">{n}</span>
+    <span className={cn("inline-flex items-center justify-center rounded-full min-w-[1.4rem] h-5 px-1.5 text-[11px] font-semibold tabular-nums", bg, text)} title={`${n} ${titulo}`}>
+      {n}
     </span>
   );
 }
 function bolinhasForn(st?: ContagemForn) {
   if (!st) return null;
   return (
-    <span className="inline-flex items-center gap-1.5 shrink-0">
-      {st.vencido > 0 && <BolinhaContagem cor="bg-danger" n={st.vencido} titulo="vencidos" />}
-      {st.aVencer > 0 && <BolinhaContagem cor="bg-sky-500" n={st.aVencer} titulo="a vencer" />}
-      {st.semVenc > 0 && <BolinhaContagem cor="bg-violet-500" n={st.semVenc} titulo="sem vencimento" />}
-      {st.paga > 0 && <BolinhaContagem cor="bg-muted-foreground/70" n={st.paga} titulo="pagas" />}
+    <span className="inline-flex items-center gap-1 shrink-0">
+      {st.vencido > 0 && <BadgeContagem bg="bg-danger/15" text="text-danger" n={st.vencido} titulo="vencidos" />}
+      {st.aVencer > 0 && <BadgeContagem bg="bg-sky-500/15" text="text-sky-700 dark:text-sky-300" n={st.aVencer} titulo="a vencer" />}
+      {st.semVenc > 0 && <BadgeContagem bg="bg-violet-500/15" text="text-violet-700 dark:text-violet-300" n={st.semVenc} titulo="sem vencimento" />}
+      {st.paga > 0 && <BadgeContagem bg="bg-muted" text="text-muted-foreground" n={st.paga} titulo="pagas" />}
     </span>
   );
 }
@@ -678,14 +679,14 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período (vencimento)" />
         {/* Fornecedor (da lista carregada). */}
         {fornecedoresDisponiveis.length > 0 && (
-          <div className="w-64">
+          <div className="w-80">
             <ComboboxWithCreate
               value={fornecedorFiltro}
               onChange={setFornecedorFiltro}
               noneLabel="Todos os fornecedores"
               placeholder="Fornecedor"
               triggerClassName="h-9 rounded-lg"
-              menuMinWidth={340}
+              menuMinWidth={460}
               options={fornecedoresDisponiveis.map((f) => ({
                 value: f.id, label: f.nome,
                 render: () => (
