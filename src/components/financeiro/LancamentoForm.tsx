@@ -66,7 +66,7 @@ export default function LancamentoForm({
   const [contas, setContas] = useState<ContaOpt[]>(contaFixa ? [contaFixa] : []);
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
   const [centroCustoId, setCentroCustoId] = useState("");
-  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string; fabril?: boolean }[]>([]);
   // Valores detalhados (estilo Nibo): centro de custo, retenções, desconto, juros/multa.
   const [detalhado, setDetalhado] = useState(false);
   const [abaDetalhe, setAbaDetalhe] = useState<"centro" | "retencao" | "desconto" | "juros">("centro");
@@ -124,6 +124,18 @@ export default function LancamentoForm({
   useEffect(() => {
     if (exigeCentro) setDetalhado(true);
   }, [exigeCentro]);
+
+  // Convenção de utilidades (aviso, NÃO bloqueio): energia/água/telefone (4.01,
+  // 4.02) em centro FABRIL vai no AUX-03 Utilidades — o pool de CIF distribui.
+  // Centro não-fabril (ADM) não avisa: energia do escritório é despesa direta.
+  const centroSel = centros.find((c) => c.id === centroCustoId);
+  const avisoUtilidades = !isReceber
+    && !!centroSel?.fabril
+    && centroSel.codigo !== "AUX-03"
+    && linhas.some((l) => {
+      const n = naturezas.find((x) => x.id === l.naturezaFinanceiraId) as (NaturezaOpt & { codigo?: string | null }) | undefined;
+      return n?.codigo === "4.01" || n?.codigo === "4.02";
+    });
 
   // Carrega clientes, fornecedores e colaboradores p/ o seletor de beneficiário.
   useEffect(() => {
@@ -398,6 +410,12 @@ export default function LancamentoForm({
                     ? "Obrigatório para despesa/CIF — classificação gerencial do débito."
                     : "Classificação gerencial do título (opcional)."}
                 </p>
+                {avisoUtilidades && (
+                  <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-300/50 rounded-lg px-2.5 py-2">
+                    <span className="mt-0.5">⚠</span>
+                    <span>Convenção: utilidades fabris são lançadas no <b>AUX-03 Utilidades</b> (o pool distribui). Confirmar centro?</span>
+                  </p>
+                )}
               </div>
             )}
 

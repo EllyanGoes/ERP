@@ -9,6 +9,8 @@ const schema = z.object({
   nome: z.string().min(1),
   grupoCentroCustoId: z.string().nullable().optional(),
   ativo: z.boolean().optional(),
+  // Legado: aceito só para centro SEM grupo — com grupo, o fabril é HERDADO
+  // (GrupoCentroCusto.fabril é a fonte da verdade).
   fabril: z.boolean().optional(),
 });
 
@@ -36,7 +38,7 @@ export async function GET(req: NextRequest) {
       ],
     },
     orderBy: { codigo: "asc" },
-    include: { grupoCentroCusto: { select: { id: true, nome: true } } },
+    include: { grupoCentroCusto: { select: { id: true, nome: true, fabril: true, descricaoCusteio: true } } },
   });
 
   return NextResponse.json(centros);
@@ -51,15 +53,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: body.error.issues[0]?.message ?? "Dados inválidos" }, { status: 400 });
   }
   try {
+    // Fabril HERDADO do grupo (fonte da verdade); sem grupo, usa o enviado.
+    const grupoId = body.data.grupoCentroCustoId ?? null;
+    const grupo = grupoId
+      ? await prisma.grupoCentroCusto.findUnique({ where: { id: grupoId }, select: { fabril: true } })
+      : null;
     const centro = await prisma.centroCusto.create({
       data: {
         codigo:             body.data.codigo.trim(),
         nome:               body.data.nome.trim(),
-        grupoCentroCustoId: body.data.grupoCentroCustoId ?? null,
+        grupoCentroCustoId: grupoId,
         ativo:              body.data.ativo ?? true,
-        fabril:             body.data.fabril ?? false,
+        fabril:             grupo ? grupo.fabril : (body.data.fabril ?? false),
       },
-      include: { grupoCentroCusto: { select: { id: true, nome: true } } },
+      include: { grupoCentroCusto: { select: { id: true, nome: true, fabril: true } } },
     });
     return NextResponse.json(centro, { status: 201 });
   } catch {

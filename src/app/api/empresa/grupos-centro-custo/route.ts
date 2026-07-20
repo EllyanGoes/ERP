@@ -7,6 +7,9 @@ import { z } from "zod";
 const schema = z.object({
   nome: z.string().min(1),
   ativo: z.boolean().optional(),
+  // Fonte da verdade do CIF×Despesa dos centros do grupo.
+  fabril: z.boolean().optional(),
+  descricaoCusteio: z.string().nullable().optional(),
 });
 
 export async function GET() {

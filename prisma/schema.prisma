@@ -99,6 +99,8 @@ model CentroCusto {
   ativo                  Boolean                  @default(true)
   // Centro de custo FABRIL (forno, extrusora, secador, vagonetas, esteiras) vs.
   // não-fabril (frota, escritório, vendas). Decide CIF×Despesa do consumo indireto.
+  // SINCRONIZADO do grupo (GrupoCentroCusto.fabril é a fonte da verdade desde
+  // jul/2026); mantido como coluna p/ não quebrar as consultas do motor.
   fabril                 Boolean                  @default(false)
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
@@ -146,11 +148,16 @@ model TipoOperacao {
   naturezaFiscal        String?
   // Centro sugerido (default sobrescrivível na linha) — NÃO é classificação vinculante.
   centroCustoSugeridoId String?
+  // Natureza financeira SUGERIDA (default, não trava): o TES já diz "o que foi
+  // comprado" (ex.: TES-E05 MRO → 2.04 Material de manutenção) — pré-classifica
+  // o título gerado pelo DE. O usuário sempre pode trocar no título.
+  naturezaSugeridaId    String?
   ativo                 Boolean                  @default(true)
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @updatedAt
   almoxarifadoDefault   LocalEstoque?            @relation("TesAlmoxarifado", fields: [almoxarifadoDefaultId], references: [id])
   centroCustoSugerido   CentroCusto?             @relation("TesCentroSugerido", fields: [centroCustoSugeridoId], references: [id])
+  naturezaSugerida      NaturezaFinanceira?      @relation("TesNaturezaSugerida", fields: [naturezaSugeridaId], references: [id])
   empresa               Empresa                  @relation(fields: [empresaId], references: [id])
   conferenciaItens      ConferenciaCompraItem[]
   requisicaoItens       RequisicaoMaterialItem[]
@@ -1083,6 +1090,7 @@ model NaturezaFinanceira {
   contasPagarRateio    ContaPagarNatureza[] // rateio gerencial por natureza na baixa de contas a pagar
   contasReceberRateio  ContaReceberNatureza[] // rateio gerencial por natureza no título a receber
   itensPadrao          Item[]                   @relation("ItemNaturezaPadrao") // natureza-padrão do item
+  tesSugeridos         TipoOperacao[]           @relation("TesNaturezaSugerida") // TES que sugerem esta natureza
   partidasContabeis    PartidaContabil[] // dimensão natureza nas partidas (ex.: CIF)
   // Conta de RESULTADO (receita p/ ENTRADA, despesa p/ SAIDA): vínculo via
   // ContaContabil.naturezaFinanceiraId (uma conta por natureza).
@@ -1716,6 +1724,12 @@ model GrupoCentroCusto {
   id        String        @id @default(cuid())
   nome      String        @unique
   ativo     Boolean       @default(true)
+  // FONTE DA VERDADE do CIF×Despesa: o centro HERDA este flag do grupo
+  // (CentroCusto.fabril vira coluna sincronizada — consultas do motor intactas).
+  fabril    Boolean       @default(false)
+  // Nota de custeio exibida no cabeçalho do grupo (ex.: auxiliares sem rateio
+  // secundário — distribuição pelo driver único do pool).
+  descricaoCusteio String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   centros   CentroCusto[]

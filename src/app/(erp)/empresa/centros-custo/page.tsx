@@ -40,6 +40,9 @@ type Grupo = {
   id: string;
   nome: string;
   ativo: boolean;
+  // FONTE DA VERDADE do CIF×Despesa: o centro herda o fabril do grupo.
+  fabril?: boolean;
+  descricaoCusteio?: string | null;
   _count: { centros: number };
 };
 
@@ -48,12 +51,32 @@ type Centro = {
   codigo: string;
   nome: string;
   grupoCentroCustoId: string | null;
-  grupoCentroCusto: { id: string; nome: string } | null;
+  grupoCentroCusto: { id: string; nome: string; fabril?: boolean } | null;
   ativo: boolean;
-  fabril: boolean;
+  fabril: boolean; // sincronizado do grupo
   criadoPor?: string | null;
   atualizadoPor?: string | null;
 };
+
+// Badge read-only do destino do consumo indireto, derivado do GRUPO escolhido.
+function BadgeFabril({ grupo }: { grupo: Grupo | null | undefined }) {
+  if (!grupo) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-muted text-muted-foreground">
+        Sem grupo — tratado como <b>Não fabril → Despesa</b>
+      </span>
+    );
+  }
+  return grupo.fabril ? (
+    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-violet-500/15 text-violet-600 dark:text-violet-400">
+      <Factory className="w-3.5 h-3.5" /> Fabril → CIF
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium bg-sky-500/15 text-sky-600 dark:text-sky-400">
+      <Briefcase className="w-3.5 h-3.5" /> Não fabril → Despesa
+    </span>
+  );
+}
 
 // ── SelectGrupo ───────────────────────────────────────────────────────────────
 
@@ -133,7 +156,8 @@ export default function CentrosCustoPage() {
   // Filters
   const [search,       setSearch]       = useState("");
   const [filtroGrupo,  setFiltroGrupo]  = useState("");
-  const [filtroAtivo,  setFiltroAtivo]  = useState<"" | "true" | "false">("");
+  // Inativos OCULTOS por padrão — o filtro de status é o toggle "mostrar inativos".
+  const [filtroAtivo,  setFiltroAtivo]  = useState<"" | "true" | "false">("true");
 
   // Árvore: grupos recolhidos (persistido no localStorage).
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -235,7 +259,7 @@ export default function CentrosCustoPage() {
         codigo:             createForm.codigo.trim(),
         nome:               createForm.nome.trim(),
         grupoCentroCustoId: createForm.grupoCentroCustoId || null,
-        fabril:             createForm.fabril,
+        // fabril NÃO é enviado: o servidor herda do grupo (fonte da verdade).
       }),
     });
     if (!res.ok) {
@@ -273,7 +297,7 @@ export default function CentrosCustoPage() {
         nome:               editForm.nome.trim(),
         grupoCentroCustoId: editForm.grupoCentroCustoId || null,
         ativo:              editForm.ativo,
-        fabril:             editForm.fabril,
+        // fabril NÃO é enviado: o servidor herda do grupo (fonte da verdade).
       }),
     });
     if (!res.ok) {
@@ -471,16 +495,38 @@ export default function CentrosCustoPage() {
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               {arvore.map((secao) => {
                 const recolhido = collapsed.has(secao.id);
+                const grupoSecao = grupos.find((g) => g.id === secao.id) ?? null;
                 return (
                   <div key={secao.id}>
-                    {/* Faixa do grupo (seção) */}
+                    {/* Faixa do grupo (seção) — flag fabril + nota de custeio */}
                     <button
                       type="button"
                       onClick={() => toggleGrupo(secao.id)}
                       className="w-full flex items-center justify-between gap-3 px-5 py-3 bg-muted/80 hover:bg-muted border-b border-border text-left"
+                      title={grupoSecao?.descricaoCusteio ?? undefined}
                     >
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
-                        {secao.nome}
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
+                            {secao.nome}
+                          </span>
+                          {grupoSecao && (
+                            <span className={cn(
+                              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0",
+                              grupoSecao.fabril
+                                ? "bg-violet-500/15 text-violet-600 dark:text-violet-400"
+                                : "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+                            )}>
+                              {grupoSecao.fabril ? <Factory className="w-3 h-3" /> : <Briefcase className="w-3 h-3" />}
+                              {grupoSecao.fabril ? "Fabril → CIF" : "Não fabril → Despesa"}
+                            </span>
+                          )}
+                        </span>
+                        {!recolhido && grupoSecao?.descricaoCusteio && (
+                          <span className="block text-[11px] text-muted-foreground/80 normal-case font-normal mt-0.5 truncate">
+                            {grupoSecao.descricaoCusteio}
+                          </span>
+                        )}
                       </span>
                       <span className="flex items-center gap-2 shrink-0">
                         <span className="text-[11px] font-medium text-muted-foreground tabular-nums" title={`${secao.centros.length} centro(s) de custo`}>
@@ -592,17 +638,9 @@ export default function CentrosCustoPage() {
                 </div>
               </div>
               <div className="pt-1">
-                <div className="flex items-center gap-2">
-                  <input
-                    id="fabril-create"
-                    type="checkbox"
-                    checked={createForm.fabril}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, fabril: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <Label htmlFor="fabril-create" className="cursor-pointer">Centro fabril</Label>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Forno/extrusora/secador… — consumo indireto (item fabril) neste centro vira CIF; senão, Despesa.</p>
+                {/* Fabril é HERDADO do grupo (fonte da verdade) — badge read-only. */}
+                <BadgeFabril grupo={grupos.find((g) => g.id === createForm.grupoCentroCustoId) ?? null} />
+                <p className="text-xs text-muted-foreground mt-1">Forno/extrusora/secador… — consumo indireto (item fabril) neste centro vira CIF; senão, Despesa. O destino é definido pelo <b>grupo</b>.</p>
               </div>
             </div>
 
@@ -681,17 +719,12 @@ export default function CentrosCustoPage() {
                 <Label htmlFor="ativo-edit" className="cursor-pointer">Ativo</Label>
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="fabril-edit"
-                    type="checkbox"
-                    checked={editForm.fabril}
-                    onChange={(e) => setEditForm((p) => ({ ...p, fabril: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <Label htmlFor="fabril-edit" className="cursor-pointer">Centro fabril</Label>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Forno/extrusora/secador… — consumo indireto (item fabril) neste centro vira CIF; senão, Despesa.</p>
+                {/* Fabril é HERDADO do grupo (fonte da verdade) — badge read-only. */}
+                <BadgeFabril grupo={grupos.find((g) => g.id === editForm.grupoCentroCustoId) ?? null} />
+                <p className="text-xs text-muted-foreground mt-1">Forno/extrusora/secador… — consumo indireto (item fabril) neste centro vira CIF; senão, Despesa. O destino é definido pelo <b>grupo</b>.</p>
+                {editItem.codigo === "AUX-09" && (
+                  <p className="text-xs text-muted-foreground mt-1 italic">Código histórico — centro do estágio de extração.</p>
+                )}
               </div>
             </div>
 
@@ -738,7 +771,9 @@ export default function CentrosCustoPage() {
                 </p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Centro <b>sem movimento</b> é excluído de vez. Com movimento (títulos, requisições, documentos), ele é <b>inativado</b> — some dos lançamentos novos e o histórico fica intacto.
+            </p>
             {deleteError && (
               <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">
                 {deleteError}
