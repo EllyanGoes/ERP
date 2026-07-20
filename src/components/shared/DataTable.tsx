@@ -203,7 +203,13 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id} className={cn("hover:bg-transparent border-b border-border", headerClassName)}>
                 {hg.headers.map((header) => (
-                  <TableHead key={header.id} className="text-xs font-medium text-muted-foreground uppercase tracking-wide py-3">
+                  <TableHead
+                    key={header.id}
+                    className={cn(
+                      "text-xs font-medium text-muted-foreground uppercase tracking-wide py-3",
+                      (header.column.columnDef.meta as { className?: string } | undefined)?.className,
+                    )}
+                  >
                     {header.isPlaceholder ? null : (
                       <button
                         className="flex items-center gap-1 hover:text-foreground transition-colors"
@@ -241,7 +247,13 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
                   } : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="py-3 text-sm text-foreground/80">
+                    <TableCell
+                      key={cell.id}
+                      className={cn(
+                        "py-3 text-sm text-foreground/80",
+                        (cell.column.columnDef.meta as { className?: string } | undefined)?.className,
+                      )}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}

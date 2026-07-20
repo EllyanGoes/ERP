@@ -375,10 +375,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       </span>
     ) },
     { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => (
-      <div className="max-w-[13rem] truncate" title={row.original.fornecedor?.razaoSocial ?? undefined}>{renderFornecedor(row.original, "block truncate")}</div>
+      <div className="max-w-[16rem] truncate" title={row.original.fornecedor?.razaoSocial ?? undefined}>{renderFornecedor(row.original, "block truncate")}</div>
     ) },
-    { accessorKey: "descricao", header: "Descrição", cell: ({ row }) => (
-      <div className="max-w-[22rem] truncate text-muted-foreground" title={row.original.descricao}>{row.original.descricao}</div>
+    // A coluna Descrição ABSORVE a folga de largura da tabela (w-full + max-w-0
+    // trunca no espaço disponível) — sem ela, o vão sobrava depois das ações.
+    { accessorKey: "descricao", header: "Descrição", meta: { className: "w-full max-w-0" }, cell: ({ row }) => (
+      <div className="truncate text-muted-foreground" title={row.original.descricao}>{row.original.descricao}</div>
     ) },
     // Só o CÓDIGO do documento de origem (o nome do processo fica no tooltip);
     // sem código (manual, folha, recorrência…), mostra o rótulo mesmo.
@@ -448,7 +450,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       id: "actions",
       header: "",
       // Coluna estreita e fixa à direita — o menu de 3 pontos nunca é empurrado
-      // para fora da tela.
+      // para fora da tela (w-px encolhe a célula ao conteúdo).
+      meta: { className: "w-px whitespace-nowrap" },
       cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
     },
   ], [contasBanco, isAdmin]);

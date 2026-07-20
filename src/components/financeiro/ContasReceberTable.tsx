@@ -328,10 +328,12 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
     { id: "cliente", header: "Cliente", cell: ({ row }) => (
-      <div className="max-w-[13rem] truncate" title={row.original.cliente?.razaoSocial ?? undefined}>{renderCliente(row.original, "block truncate")}</div>
+      <div className="max-w-[16rem] truncate" title={row.original.cliente?.razaoSocial ?? undefined}>{renderCliente(row.original, "block truncate")}</div>
     ) },
-    { accessorKey: "descricao", header: "Descrição", cell: ({ row }) => (
-      <div className="max-w-[22rem] truncate text-sm" title={row.original.descricao}>{row.original.descricao}</div>
+    // A coluna Descrição ABSORVE a folga de largura da tabela (w-full + max-w-0
+    // trunca no espaço disponível) — sem ela, o vão sobrava depois das ações.
+    { accessorKey: "descricao", header: "Descrição", meta: { className: "w-full max-w-0" }, cell: ({ row }) => (
+      <div className="truncate text-sm" title={row.original.descricao}>{row.original.descricao}</div>
     ) },
     // Só o CÓDIGO do documento de origem (o nome do processo fica no tooltip);
     // sem código (manual, encontro, recorrência…), mostra o rótulo mesmo.
@@ -400,6 +402,8 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     {
       id: "actions",
       header: "",
+      // w-px encolhe a célula ao conteúdo — a folga da tabela fica na Descrição.
+      meta: { className: "w-px whitespace-nowrap" },
       cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
     },
   ], [contasBanco, isAdmin]);
