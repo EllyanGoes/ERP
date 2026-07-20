@@ -156,11 +156,11 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     for (const c of contas) if (c.cliente) m.set(c.cliente.id, c.cliente.razaoSocial);
     return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [contas]);
-  const contasFiltradas = useMemo(() => {
+  // Base dos totais: todos os filtros MENOS o de status (cada bloco é uma
+  // categoria de status) — assim os blocos refletem cliente/conta/período/busca.
+  const contasBase = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return contas.filter((c) => {
-      // Status: OR sobre os marcados (nenhum marcado → nada, igual às listagens).
-      if (!statusSel.some((s) => casaStatus(c, s as StatusFiltro))) return false;
       if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
       if (clienteFiltro !== "" && c.cliente?.id !== clienteFiltro) return false;
       if (!dentroDoPeriodo(c, periodo)) return false;
@@ -169,7 +169,30 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       return [c.numero, c.cliente?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, statusSel, contaFiltro, clienteFiltro, busca, periodo]);
+  }, [contas, contaFiltro, clienteFiltro, busca, periodo]);
+  const contasFiltradas = useMemo(
+    () => contasBase.filter((c) => statusSel.some((s) => casaStatus(c, s as StatusFiltro))),
+    [contasBase, statusSel],
+  );
+  // Totais dos blocos, recortando a base por categoria de status.
+  const totais = useMemo(() => {
+    const now = new Date();
+    let emAberto = 0, vencido = 0, aVencer = 0, semVenc = 0, recebidoMes = 0;
+    for (const c of contasBase) {
+      if (c.status === "ABERTA" || c.status === "PARCIAL") {
+        const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+        emAberto += saldo;
+        if (!c.dataVencimento) semVenc += saldo;
+        else if (isVencida(c.dataVencimento, c.dataPagamento)) vencido += saldo;
+        else aVencer += saldo;
+      }
+      if (c.dataPagamento) {
+        const d = new Date(c.dataPagamento);
+        if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) recebidoMes += decimalToNumber(c.valorPago);
+      }
+    }
+    return { emAberto, vencido, aVencer, semVenc, recebidoMes };
+  }, [contasBase]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
@@ -343,9 +366,10 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     { id: "cliente", header: "Cliente", cell: ({ row }) => (
       <div className="max-w-[16rem] truncate" title={row.original.cliente?.razaoSocial ?? undefined}>{renderCliente(row.original, "block truncate")}</div>
     ) },
-    // A coluna Descrição ABSORVE a folga de largura da tabela (w-full + max-w-0
-    // trunca no espaço disponível) — sem ela, o vão sobrava depois das ações.
-    { accessorKey: "descricao", header: "Descrição", meta: { className: "w-full max-w-0" }, cell: ({ row }) => (
+    // A coluna Descrição ABSORVE a folga de largura da tabela: w-full no TH
+    // (puxa o espaço livre) e max-w-0 só no TD (o texto trunca no disponível).
+    // max-w-0 no TH colapsaria a coluna inteira a zero.
+    { accessorKey: "descricao", header: "Descrição", meta: { thClass: "w-full", tdClass: "max-w-0" }, cell: ({ row }) => (
       <div className="truncate text-sm" title={row.original.descricao}>{row.original.descricao}</div>
     ) },
     // Só o CÓDIGO do documento de origem (o nome do processo fica no tooltip);
@@ -380,6 +404,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     {
       id: "emissao",
       header: "Emissão",
+      meta: { className: "whitespace-nowrap" },
       cell: ({ row }) => {
         const d = row.original.dataEmissao ?? null;
         return d ? <span className="text-muted-foreground">{formatDate(d)}</span> : <span className="text-muted-foreground/60">—</span>;
@@ -388,14 +413,15 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     {
       accessorKey: "dataVencimento",
       header: "Vencimento",
+      meta: { className: "whitespace-nowrap" },
       cell: ({ row }) => {
         if (!row.original.dataVencimento) return <span className="text-muted-foreground italic">A combinar</span>;
         const vencida = isVencida(row.original.dataVencimento, row.original.dataPagamento);
         return <span className={vencida ? "text-danger font-medium" : "text-muted-foreground"}>{formatDate(row.original.dataVencimento)}</span>;
       },
     },
-    { accessorKey: "valorOriginal", header: "Valor", cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
-    { accessorKey: "valorPago", header: "Pago", cell: ({ row }) => <span className="text-success">{formatBRL(decimalToNumber(row.original.valorPago))}</span> },
+    { accessorKey: "valorOriginal", header: "Valor", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
+    { accessorKey: "valorPago", header: "Pago", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="text-success">{formatBRL(decimalToNumber(row.original.valorPago))}</span> },
     { accessorKey: "status", header: "Status", cell: ({ row }) => (
       <StatusBadge status={
         !row.original.dataVencimento && (row.original.status === "ABERTA" || row.original.status === "PARCIAL")
@@ -577,39 +603,32 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
           aplica o preset de status (toggle: reclicar marca todos os status). */}
       {resumo && (() => {
         const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_RECEBER_KEYS : set));
-        // Saldos derivados da lista (espelham as lentes A vencer / Sem vencimento).
-        const emAbertoParcial = (c: ContaRow) => c.status === "ABERTA" || c.status === "PARCIAL";
-        const saldoDe = (c: ContaRow) => decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
-        const aVencer = contas.reduce((s, c) =>
-          emAbertoParcial(c) && !!c.dataVencimento && !isVencida(c.dataVencimento, c.dataPagamento) ? s + saldoDe(c) : s, 0);
-        const semVencimento = contas.reduce((s, c) =>
-          emAbertoParcial(c) && !c.dataVencimento ? s + saldoDe(c) : s, 0);
         return (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-info/10 px-3 py-1.5 transition-shadow hover:bg-info/20 cursor-pointer", mesmoSet(statusSel, SET_ABERTO) && "ring-2 ring-info")}>
             <span className="text-xs font-medium text-info">Em aberto</span>
-            <span className="text-sm font-bold text-info tabular-nums">{formatBRL(resumo.emAberto)}</span>
+            <span className="text-sm font-bold text-info tabular-nums">{formatBRL(totais.emAberto)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_VENCIDO)} title="Filtrar por Vencidas"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
             <span className="text-xs font-medium text-danger">Vencido</span>
-            <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(resumo.vencido)}</span>
+            <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(totais.vencido)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_A_VENCER)} title="Filtrar por A vencer"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5 transition-shadow hover:bg-sky-500/20 cursor-pointer", mesmoSet(statusSel, SET_A_VENCER) && "ring-2 ring-sky-500")}>
             <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer</span>
-            <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(aVencer)}</span>
+            <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(totais.aVencer)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_SEM_VENC)} title="Filtrar por Sem vencimento"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-1.5 transition-shadow hover:bg-violet-500/20 cursor-pointer", mesmoSet(statusSel, SET_SEM_VENC) && "ring-2 ring-violet-500")}>
             <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Sem vencimento</span>
-            <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(semVencimento)}</span>
+            <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(totais.semVenc)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_PAGO)} title="Filtrar por Recebidas"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 transition-shadow hover:bg-success/20 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-success")}>
             <span className="text-xs font-medium text-success">Recebido no mês</span>
-            <span className="text-sm font-bold text-success tabular-nums">{formatBRL(resumo.recebidoMes)}</span>
+            <span className="text-sm font-bold text-success tabular-nums">{formatBRL(totais.recebidoMes)}</span>
           </button>
         </div>
         );

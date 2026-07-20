@@ -207,7 +207,8 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
                     key={header.id}
                     className={cn(
                       "text-xs font-medium text-muted-foreground uppercase tracking-wide py-3",
-                      (header.column.columnDef.meta as { className?: string } | undefined)?.className,
+                      (header.column.columnDef.meta as { className?: string; thClass?: string } | undefined)?.className,
+                      (header.column.columnDef.meta as { className?: string; thClass?: string } | undefined)?.thClass,
                     )}
                   >
                     {header.isPlaceholder ? null : (
@@ -251,7 +252,8 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
                       key={cell.id}
                       className={cn(
                         "py-3 text-sm text-foreground/80",
-                        (cell.column.columnDef.meta as { className?: string } | undefined)?.className,
+                        (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.className,
+                        (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.tdClass,
                       )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
