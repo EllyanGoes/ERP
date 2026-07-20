@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { ChevronDown, Search, Plus, ArrowUp, ArrowDown, Check, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,18 +8,21 @@ import { cn } from "@/lib/utils";
 export type NaturezaOpt = {
   id: string;
   nome: string;
-  tipo: "ENTRADA" | "SAIDA";
+  tipo: "ENTRADA" | "SAIDA" | "AMBOS";
   grupo: string;
   subgrupo: { nome: string } | null;
+  // Plano hierárquico (jul/2026): código "2.04" exibido como prefixo.
+  codigo?: string | null;
 };
 
-const GRUPO_ORDER = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"];
+const GRUPO_ORDER = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO", "MOVIMENTACAO_INTERNA"];
 const GRUPO_LABEL: Record<string, string> = {
   RECEITA_OPERACIONAL: "Receitas operacionais",
   CUSTO_OPERACIONAL: "Custos operacionais",
   DESPESA_OPERACIONAL: "Despesas operacionais",
   INVESTIMENTO: "Atividades de investimento",
   FINANCIAMENTO: "Atividades de financiamento",
+  MOVIMENTACAO_INTERNA: "Movimentações internas",
 };
 // Grupo sugerido ao criar inline, conforme o tipo do movimento.
 const GRUPO_PADRAO: Record<"ENTRADA" | "SAIDA", string> = {
@@ -27,7 +30,15 @@ const GRUPO_PADRAO: Record<"ENTRADA" | "SAIDA", string> = {
   SAIDA: "DESPESA_OPERACIONAL",
 };
 
-function Seta({ tipo, className }: { tipo: "ENTRADA" | "SAIDA"; className?: string }) {
+function Seta({ tipo, className }: { tipo: "ENTRADA" | "SAIDA" | "AMBOS"; className?: string }) {
+  if (tipo === "AMBOS") {
+    return (
+      <span className={cn("flex shrink-0", className)}>
+        <ArrowUp className="w-3.5 h-3.5 -mr-1 text-emerald-500" />
+        <ArrowDown className="w-3.5 h-3.5 text-rose-500" />
+      </span>
+    );
+  }
   return tipo === "ENTRADA"
     ? <ArrowUp className={cn("w-3.5 h-3.5 text-emerald-500 shrink-0", className)} />
     : <ArrowDown className={cn("w-3.5 h-3.5 text-rose-500 shrink-0", className)} />;
@@ -66,8 +77,21 @@ export default function NaturezaCombobox({
   const [erroNova, setErroNova] = useState<string | null>(null);
 
   const selected = naturezas.find((n) => n.id === value);
+  // Valor apontando natureza fora da lista = INATIVA de título antigo (as
+  // listas dos selects vêm com ?ativo=1): exibe read-only com badge.
+  const [foraDaLista, setForaDaLista] = useState<{ nome: string } | null>(null);
+  useEffect(() => {
+    if (!value || selected || naturezas.length === 0) { setForaDaLista(null); return; }
+    let ok = true;
+    fetch(`/api/financeiro/naturezas`).then((r) => r.json()).then((j) => {
+      if (!ok) return;
+      const n = (j.data ?? []).find((x: { id: string }) => x.id === value);
+      setForaDaLista(n ? { nome: n.nome } : null);
+    }).catch(() => {});
+    return () => { ok = false; };
+  }, [value, selected, naturezas.length]);
   const filtradas = naturezas.filter((n) =>
-    `${n.nome} ${n.subgrupo?.nome ?? ""}`.toLowerCase().includes(busca.trim().toLowerCase()),
+    `${n.codigo ?? ""} ${n.nome} ${n.subgrupo?.nome ?? ""}`.toLowerCase().includes(busca.trim().toLowerCase()),
   );
   const gruposPresentes = GRUPO_ORDER.filter((g) => filtradas.some((n) => n.grupo === g));
 
@@ -122,11 +146,17 @@ export default function NaturezaCombobox({
           />
         }
       >
-        <span className={cn("flex items-center gap-1.5 truncate", !selected && "text-muted-foreground")}>
+        <span className={cn("flex items-center gap-1.5 truncate", !selected && !foraDaLista && "text-muted-foreground")}>
           {selected ? (
             <>
               <Seta tipo={selected.tipo} />
+              {selected.codigo && <span className="font-mono text-[11px] font-semibold text-muted-foreground shrink-0">{selected.codigo}</span>}
               <span className="truncate">{selected.nome}</span>
+            </>
+          ) : foraDaLista ? (
+            <>
+              <span className="truncate">{foraDaLista.nome}</span>
+              <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground shrink-0">inativa</span>
             </>
           ) : placeholder}
         </span>
@@ -214,6 +244,7 @@ export default function NaturezaCombobox({
                       >
                         <span className="mt-0.5 shrink-0"><Seta tipo={n.tipo} /></span>
                         <span className="flex-1 leading-snug">
+                          {n.codigo ? <span className="font-mono text-[11px] font-semibold text-muted-foreground mr-1">{n.codigo}</span> : null}
                           {n.subgrupo ? <span className="text-muted-foreground">{n.subgrupo.nome} · </span> : null}
                           {n.nome}
                         </span>

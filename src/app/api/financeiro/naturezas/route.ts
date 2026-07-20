@@ -6,12 +6,14 @@ import { requireSession } from "@/lib/auth";
 import { garantirContaContabilNatureza, vincularNaturezaConta } from "@/lib/conta-contabil";
 import { z } from "zod";
 
-const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"] as const;
+const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO", "MOVIMENTACAO_INTERNA"] as const;
 
 const schema = z.object({
+  codigo: z.string().optional().nullable().transform((v) => v?.trim() || null),
   nome: z.string().min(1),
-  tipo: z.enum(["ENTRADA", "SAIDA"]),
+  tipo: z.enum(["ENTRADA", "SAIDA", "AMBOS"]),
   grupo: z.enum(GRUPOS),
+  afetaResultado: z.boolean().optional(),
   subgrupoId: z.string().optional().nullable().transform((v) => v || null),
   contaContabilId: z.string().optional().nullable().transform((v) => v || null),
   contaContrapartidaId: z.string().optional().nullable().transform((v) => v || null),
@@ -39,7 +41,8 @@ export async function GET(req: NextRequest) {
 
   const data = await prisma.naturezaFinanceira.findMany({
     where: {
-      ...(tipo === "ENTRADA" || tipo === "SAIDA" ? { tipo } : {}),
+      // Natureza AMBOS (transferências, contas de terceiros) serve aos dois lados.
+      ...(tipo === "ENTRADA" || tipo === "SAIDA" ? { tipo: { in: [tipo, "AMBOS"] } } : {}),
       ...(somenteAtivas ? { ativo: true } : {}),
       ...(somenteRequisitaveis ? { aplicavelRequisicao: true } : {}),
     },
@@ -47,6 +50,7 @@ export async function GET(req: NextRequest) {
       subgrupo: { select: { id: true, nome: true } },
       contasContabeis: { select: { id: true, codigo: true, nome: true } },
       contaContrapartida: { select: { id: true, codigo: true, nome: true } },
+      sucessora: { select: { id: true, codigo: true, nome: true } },
     },
     // Ordem manual (drag and drop) primeiro; nome desempata (novas sem arrasto).
     orderBy: [{ grupo: "asc" }, { ordem: "asc" }, { nome: "asc" }],

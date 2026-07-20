@@ -1036,11 +1036,22 @@ model NaturezaSubgrupo {
 model NaturezaFinanceira {
   id                   String                   @id @default(cuid())
   empresaId            String                   @default("emp_tramontin")
+  // Código do plano hierárquico (ex.: "2.04") — único por empresa. Naturezas
+  // legadas (pré-reestruturação jul/2026) ficam sem código.
+  codigo               String?
   nome                 String
   tipo                 NaturezaTipo
   grupo                NaturezaGrupo
   subgrupoId           String?
   ativo                Boolean                  @default(true)
+  // false nos grupos 7 (Investimento), 8 (Financiamento) e 9 (Movimentações
+  // internas): não entram na DRE gerencial; 7/8 alimentam o DFC, 9 é neutro.
+  afetaResultado       Boolean                  @default(true)
+  // Reestruturação: natureza DESATIVADA aponta a sucessora do plano novo
+  // (histórico continua legível; lançamento novo só com natureza ativa).
+  sucessoraId          String?
+  sucessora            NaturezaFinanceira?      @relation("NaturezaSucessora", fields: [sucessoraId], references: [id])
+  antecessoras         NaturezaFinanceira[]     @relation("NaturezaSucessora")
   // Natureza de Custo Indireto de Fabricação: o débito de origem vai para
   // "CIF a Apropriar" (1.1.4.0001), não para a conta de resultado da natureza.
   cif                  Boolean                  @default(false)
@@ -1086,9 +1097,11 @@ model NaturezaFinanceira {
   atualizadoPor        String? // autoria: última edição manual (proxy de sessão)
 
   @@unique([empresaId, sistemaChave])
+  @@unique([empresaId, codigo])
   @@index([empresaId])
   @@index([tipo])
   @@index([subgrupoId])
+  @@index([sucessoraId])
 }
 
 // Plano de contas CONTÁBIL (módulo Contabilidade). Diferente das Naturezas
@@ -3367,6 +3380,7 @@ enum TipoContaBancaria {
 enum NaturezaTipo {
   ENTRADA
   SAIDA
+  AMBOS
 }
 
 enum NaturezaGrupo {
@@ -3375,6 +3389,9 @@ enum NaturezaGrupo {
   DESPESA_OPERACIONAL
   INVESTIMENTO
   FINANCIAMENTO
+  // Grupo 9 do plano de naturezas: transferências entre contas — neutro na
+  // DRE gerencial e no DFC.
+  MOVIMENTACAO_INTERNA
 }
 
 enum TipoRecorrencia {

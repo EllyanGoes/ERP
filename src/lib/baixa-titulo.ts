@@ -203,6 +203,10 @@ export async function baixarTitulo(
     if (Math.abs(somaNat - totalOriginal) > 0.05) {
       return { erro: { msg: `A soma das naturezas (R$ ${somaNat.toFixed(2)}) deve bater com o valor do título (R$ ${totalOriginal.toFixed(2)}).`, status: 422 }, conta: null };
     }
+    // Rateio novo só com naturezas ATIVAS (a inativa aponta a sucessora).
+    const { validarNaturezasAtivas } = await import("@/lib/natureza-sistema");
+    const erroNat = await validarNaturezasAtivas(tx, naturezasRateio.map((n) => n.naturezaFinanceiraId));
+    if (erroNat) return { erro: { msg: erroNat, status: 422 }, conta: null };
   }
 
   // Permuta NÃO é forma de baixa unilateral: as duas pernas (CP e CR do mesmo

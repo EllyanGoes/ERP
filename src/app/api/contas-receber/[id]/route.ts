@@ -37,6 +37,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const conta = await prisma.contaReceber.findUnique({ where: { id: params.id } });
   if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
 
+  // Natureza NOVA precisa estar ativa (trocar; manter a antiga do histórico é ok).
+  if (d.naturezaFinanceiraId && d.naturezaFinanceiraId !== conta.naturezaFinanceiraId) {
+    const { validarNaturezasAtivas } = await import("@/lib/natureza-sistema");
+    const erroNat = await validarNaturezasAtivas(prisma, [d.naturezaFinanceiraId]);
+    if (erroNat) return NextResponse.json({ error: erroNat }, { status: 422 });
+  }
+
   // Invariante "título segue cliente do pedido": num título nascido de pedido a
   // troca do cliente estoura o razonete por cliente — bloqueia.
   if (conta.pedidoVendaId && (d.clienteId || null) !== conta.clienteId) {

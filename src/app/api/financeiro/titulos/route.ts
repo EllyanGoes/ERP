@@ -12,6 +12,7 @@ import { generateDocNumber, generateSimpleDocNumber } from "@/lib/utils";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 import { contabilizarTituloReceber, contabilizarTituloPagar } from "@/lib/contabilidade";
 import { garantirContaImpostosRetidos } from "@/lib/conta-contabil";
+import { validarNaturezasAtivas } from "@/lib/natureza-sistema";
 import { espelharContaReceber } from "@/lib/intragrupo";
 import { z } from "zod";
 
@@ -102,6 +103,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `A forma "${ruim.forma}" não pode ser ${verbo} pelo Caixa em Dinheiro — selecione a conta bancária.` }, { status: 422 });
     }
   }
+
+  // Lançamento NOVO só com natureza ATIVA (plano reestruturado — a inativa
+  // aponta a sucessora na mensagem).
+  const erroNat = await validarNaturezasAtivas(prisma, f.linhas.map((l) => l.naturezaFinanceiraId));
+  if (erroNat) return NextResponse.json({ error: erroNat }, { status: 422 });
 
   // UM título só; as naturezas viram RATEIO (dimensão gerencial), não títulos
   // separados. valorOriginal = soma das linhas; a 1ª natureza é a "principal"

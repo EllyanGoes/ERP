@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 
-const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"] as const;
+const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO", "MOVIMENTACAO_INTERNA"] as const;
 type Grupo = (typeof GRUPOS)[number];
 const GRUPO_LABEL: Record<Grupo, string> = {
   RECEITA_OPERACIONAL: "Receitas operacionais",
@@ -28,16 +28,22 @@ const GRUPO_LABEL: Record<Grupo, string> = {
   DESPESA_OPERACIONAL: "Despesas operacionais",
   INVESTIMENTO: "Atividades de investimento",
   FINANCIAMENTO: "Atividades de financiamento",
+  MOVIMENTACAO_INTERNA: "Movimentações internas",
 };
 
 const COLLAPSE_KEY = "financeiro:naturezas:collapsed";
 
-type Tipo = "ENTRADA" | "SAIDA";
+type Tipo = "ENTRADA" | "SAIDA" | "AMBOS";
 type Subgrupo = { id: string; nome: string; grupo: Grupo; ordem?: number };
 type ContaResultado = { id: string; codigo: string; nome: string };
 type ContaPatrimonial = { id: string; codigo: string; nome: string; grupo: "ATIVO" | "PASSIVO"; porBeneficiario?: boolean };
 type Natureza = {
   id: string; nome: string; tipo: Tipo; grupo: Grupo;
+  // Plano hierárquico (jul/2026): código "2.04"; false nos grupos 7-9 (não
+  // entram na DRE gerencial); inativa aponta a sucessora do plano novo.
+  codigo?: string | null;
+  afetaResultado?: boolean;
+  sucessora?: { id: string; codigo: string | null; nome: string } | null;
   subgrupoId: string | null; subgrupo: { id: string; nome: string } | null; ativo: boolean;
   cif: boolean;
   // Natureza padrão TRAVADA do sistema (cadeado): não edita campos-chave nem exclui.
@@ -68,7 +74,9 @@ export default function NaturezasPage() {
   const [search, setSearch] = useState("");
   const [filtroGrupo, setFiltroGrupo] = useState<"" | Grupo>("");
   const [filtroTipo, setFiltroTipo] = useState<"" | Tipo>("");
-  const [filtroAtivo, setFiltroAtivo] = useState<"" | "true" | "false">("");
+  // Inativas OCULTAS por padrão (plano reestruturado desativa as antigas) —
+  // o filtro de status funciona como o toggle "mostrar inativas".
+  const [filtroAtivo, setFiltroAtivo] = useState<"" | "true" | "false">("true");
 
   // Árvore: grupos/subgrupos recolhidos (persistido no localStorage).
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -233,7 +241,7 @@ export default function NaturezasPage() {
   const inativas = totalNat - ativas;
 
   // ── Exportação (texto p/ copiar e PDF) ──────────────────────────────────────
-  const tipoLabel = (t: Tipo) => (t === "ENTRADA" ? "Entrada" : "Saída");
+  const tipoLabel = (t: Tipo) => (t === "ENTRADA" ? "Entrada" : t === "AMBOS" ? "Ambos" : "Saída");
   const contaTxt = (c: ContaResultado | null) => (c ? `${c.codigo} ${c.nome}` : "—");
   // Percorre a árvore na ordem da tela e chama os callbacks (fonte única).
   function percorrerEstrutura(cb: {
@@ -617,9 +625,14 @@ function NaturezaLinha({ n, nivel, onEdit, onDelete, arrastando, alvoDrop, podeR
       <div className="flex items-center gap-2 min-w-0" style={{ paddingLeft: `${nivel * 18}px` }}>
         <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0 cursor-grab" />
         <CornerDownRight className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-        {entrada
-          ? <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />
-          : <ArrowDownLeft className="w-4 h-4 text-rose-500 shrink-0" />}
+        {n.tipo === "AMBOS"
+          ? <span className="flex shrink-0"><ArrowUpRight className="w-4 h-4 -mr-1.5 text-emerald-500" /><ArrowDownLeft className="w-4 h-4 text-rose-500" /></span>
+          : entrada
+            ? <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />
+            : <ArrowDownLeft className="w-4 h-4 text-rose-500 shrink-0" />}
+        {n.codigo && (
+          <span className="font-mono text-[11px] font-semibold text-muted-foreground shrink-0">{n.codigo}</span>
+        )}
         <span className="truncate text-foreground">{n.nome}</span>
         {n.sistema && (
           <Lock
@@ -629,6 +642,16 @@ function NaturezaLinha({ n, nivel, onEdit, onDelete, arrastando, alvoDrop, podeR
         )}
         {n.cif && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground shrink-0">CIF</span>
+        )}
+        {n.afetaResultado === false && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-500/15 text-violet-600 dark:text-violet-400 shrink-0" title="Grupos de investimento/financiamento/movimentação interna não entram na DRE gerencial">
+            não afeta resultado
+          </span>
+        )}
+        {!n.ativo && n.sucessora && (
+          <span className="text-[11px] text-muted-foreground shrink-0" title="Sucessora no plano novo">
+            → {n.sucessora.codigo ? `${n.sucessora.codigo} ` : ""}{n.sucessora.nome}
+          </span>
         )}
         {n.contaContabil && (
           <span className="font-mono text-[11px] text-muted-foreground shrink-0">{n.contaContabil.codigo}</span>
@@ -677,6 +700,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [codigo, setCodigo] = useState(editing?.codigo ?? "");
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [tipo, setTipo] = useState<Tipo>(editing?.tipo ?? "SAIDA");
   const [grupo, setGrupo] = useState<Grupo>(editing?.grupo ?? "DESPESA_OPERACIONAL");
@@ -695,7 +719,8 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
     if (!nome.trim()) { setError("Informe o nome."); return; }
     // CIF não usa conta de resultado nem contrapartida: o débito vai para
     // "CIF a Apropriar" (1.1.4.0001) e o crédito é fornecedor/estoque.
-    if (!cif) {
+    // AMBOS (transferências/contas de terceiros) também dispensa: não afeta resultado.
+    if (!cif && tipo !== "AMBOS") {
       if (!contaContabilId) { setError("Selecione a conta de resultado."); return; }
       if (!contaContrapartidaId) { setError(tipo === "ENTRADA" ? "Selecione a conta a receber (contrapartida)." : "Selecione a conta a pagar (contrapartida)."); return; }
     }
@@ -704,7 +729,7 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
     const res = await fetch(url, {
       method: editing ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nome.trim(), tipo, grupo, cif, destinoSugerido: destinoSugerido || null, aplicavelRequisicao, subgrupoId: subgrupoId || null, contaContabilId: cif ? null : (contaContabilId || null), contaContrapartidaId: cif ? null : (contaContrapartidaId || null) }),
+      body: JSON.stringify({ codigo: codigo.trim() || null, nome: nome.trim(), tipo, grupo, cif, destinoSugerido: destinoSugerido || null, aplicavelRequisicao, subgrupoId: subgrupoId || null, contaContabilId: cif ? null : (contaContabilId || null), contaContrapartidaId: cif ? null : (contaContrapartidaId || null) }),
     });
     if (!res.ok) { setError((await res.json()).error ?? "Erro ao salvar"); setSaving(false); return; }
     onSaved();
@@ -718,11 +743,18 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
           <div className="flex items-center gap-6">
             <TipoRadio label="Entrada" icon={<ArrowUpRight className="w-3.5 h-3.5" />} active={tipo === "ENTRADA"} onClick={() => setTipo("ENTRADA")} cor="emerald" />
             <TipoRadio label="Saída" icon={<ArrowDownLeft className="w-3.5 h-3.5" />} active={tipo === "SAIDA"} onClick={() => setTipo("SAIDA")} cor="rose" />
+            <TipoRadio label="Ambos" icon={<ArrowUpRight className="w-3.5 h-3.5" />} active={tipo === "AMBOS"} onClick={() => setTipo("AMBOS")} cor="emerald" />
           </div>
-          <div className="space-y-1.5">
-            <Label>Nome da natureza *</Label>
-            <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Venda de mercadorias, Aluguel..." autoFocus
-              onKeyDown={(e) => { if (e.key === "Enter") salvar(); }} />
+          <div className="grid grid-cols-[6rem_1fr] gap-2">
+            <div className="space-y-1.5">
+              <Label>Código</Label>
+              <Input value={codigo} onChange={(e) => setCodigo(e.target.value)} placeholder="2.04" className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nome da natureza *</Label>
+              <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Material de manutenção, Aluguel..." autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") salvar(); }} />
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label>Grupo *</Label>

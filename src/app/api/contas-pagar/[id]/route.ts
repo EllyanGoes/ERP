@@ -32,6 +32,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const conta = await prisma.contaPagar.findUnique({ where: { id: params.id } });
   if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
 
+  // Natureza NOVA precisa estar ativa (trocar; manter a antiga do histórico é ok).
+  if (d.naturezaFinanceiraId && d.naturezaFinanceiraId !== conta.naturezaFinanceiraId) {
+    const { validarNaturezasAtivas } = await import("@/lib/natureza-sistema");
+    const erroNat = await validarNaturezasAtivas(prisma, [d.naturezaFinanceiraId]);
+    if (erroNat) return NextResponse.json({ error: erroNat }, { status: 422 });
+  }
+
   // Mudou o valorOriginal → o status precisa continuar coerente com o valorPago
   // (não deixar um título PAGA com pago < original, nem ABERTA com pago > 0).
   const pago = parseFloat(conta.valorPago.toString());

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { recorrenciaSchema } from "@/lib/validations/financeiro";
+import { validarNaturezasAtivas } from "@/lib/natureza-sistema";
 
 export async function GET() {
   const auth = await requireModulo("financeiro");
@@ -27,6 +28,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = recorrenciaSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
+
+  // Recorrência nova só com natureza ATIVA (a inativa aponta a sucessora).
+  const erroNat = await validarNaturezasAtivas(prisma, [parsed.data.naturezaFinanceiraId]);
+  if (erroNat) return NextResponse.json({ error: erroNat }, { status: 422 });
 
   const recorrencia = await prisma.recorrencia.create({
     data: {

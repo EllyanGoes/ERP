@@ -50,10 +50,12 @@ export async function GET(req: NextRequest) {
   for (const c of cr) acumula(c.naturezaFinanceiraId, c.dataVencimento, c.valorOriginal);
   for (const c of cp) acumula(c.naturezaFinanceiraId, c.dataVencimento, c.valorOriginal);
 
-  // valor com sinal: ENTRADA soma, SAIDA subtrai
-  const sinal = (tipo: "ENTRADA" | "SAIDA") => (tipo === "ENTRADA" ? 1 : -1);
+  // valor com sinal: ENTRADA soma, SAIDA subtrai. AMBOS (transferências/contas
+  // de terceiros) agrega pelo lado do título, mas neste mapa por natureza a
+  // magnitude entra positiva — trata como entrada (neutra no líquido do par).
+  const sinal = (tipo: "ENTRADA" | "SAIDA" | "AMBOS") => (tipo === "SAIDA" ? -1 : 1);
 
-  type NatNode = { id: string; nome: string; tipo: "ENTRADA" | "SAIDA"; meses: number[]; total: number; temMovimento: boolean };
+  type NatNode = { id: string; nome: string; tipo: "ENTRADA" | "SAIDA" | "AMBOS"; meses: number[]; total: number; temMovimento: boolean };
   type SubNode = { id: string | null; nome: string | null; naturezas: NatNode[] };
   type GrupoNode = { grupo: Grupo; meses: number[]; total: number; subgrupos: SubNode[] };
 

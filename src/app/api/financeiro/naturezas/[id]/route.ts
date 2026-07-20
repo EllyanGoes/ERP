@@ -5,12 +5,14 @@ import { requireModulo } from "@/lib/permissions";
 import { vincularNaturezaConta } from "@/lib/conta-contabil";
 import { z } from "zod";
 
-const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO"] as const;
+const GRUPOS = ["RECEITA_OPERACIONAL", "CUSTO_OPERACIONAL", "DESPESA_OPERACIONAL", "INVESTIMENTO", "FINANCIAMENTO", "MOVIMENTACAO_INTERNA"] as const;
 
 const schema = z.object({
+  codigo: z.string().optional().nullable(),
   nome: z.string().min(1).optional(),
-  tipo: z.enum(["ENTRADA", "SAIDA"]).optional(),
+  tipo: z.enum(["ENTRADA", "SAIDA", "AMBOS"]).optional(),
   grupo: z.enum(GRUPOS).optional(),
+  afetaResultado: z.boolean().optional(),
   subgrupoId: z.string().optional().nullable(),
   contaContabilId: z.string().optional().nullable(),
   contaContrapartidaId: z.string().optional().nullable(),
@@ -40,11 +42,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
   }
 
-  const { subgrupoId, contaContabilId, contaContrapartidaId, ...rest } = parsed.data;
+  const { subgrupoId, contaContabilId, contaContrapartidaId, codigo, ...rest } = parsed.data;
   const data = await prisma.naturezaFinanceira.update({
     where: { id: params.id },
     data: {
       ...rest,
+      ...(codigo !== undefined ? { codigo: codigo?.trim() || null } : {}),
       ...(subgrupoId !== undefined ? { subgrupoId: subgrupoId || null } : {}),
       ...(contaContrapartidaId !== undefined ? { contaContrapartidaId: contaContrapartidaId || null } : {}),
     },

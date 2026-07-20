@@ -26,3 +26,26 @@ export async function naturezaSistema(
     select: { id: true },
   });
 }
+
+/**
+ * Lançamento NOVO só aceita natureza ATIVA (plano reestruturado jul/2026):
+ * natureza desativada aponta a sucessora — a mensagem orienta qual usar.
+ * Retorna null se tudo ok; senão a mensagem de erro (o chamador vira 422).
+ * Não usar em leitura/edição de histórico — título antigo continua legível.
+ */
+export async function validarNaturezasAtivas(
+  db: Db | null,
+  ids: (string | null | undefined)[],
+): Promise<string | null> {
+  const unicos = Array.from(new Set(ids.filter((x): x is string => !!x)));
+  if (unicos.length === 0) return null;
+  const client = db ?? prismaSemEscopo;
+  const rows = await client.naturezaFinanceira.findMany({
+    where: { id: { in: unicos } },
+    select: { id: true, nome: true, ativo: true, sucessora: { select: { codigo: true, nome: true } } },
+  });
+  const inativa = rows.find((r) => !r.ativo);
+  if (!inativa) return null;
+  const suc = inativa.sucessora ? ` — use a sucessora ${inativa.sucessora.codigo ? `${inativa.sucessora.codigo} ` : ""}${inativa.sucessora.nome}` : "";
+  return `A natureza "${inativa.nome}" está inativa${suc}.`;
+}
