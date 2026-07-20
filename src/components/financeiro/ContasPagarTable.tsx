@@ -168,6 +168,7 @@ const STATUS_PAGAR_KEYS = STATUS_PAGAR.map((s) => s.key) as string[];
 // Conjuntos de status por bloco de total (clique nos totais aplica um preset).
 const SET_ABERTO = ["ABERTA", "PARCIAL"];
 const SET_VENCIDO = ["VENCIDA"];
+const SET_A_VENCER = ["A_VENCER"];
 const SET_SEM_VENC = ["SEM_VENCIMENTO"];
 const SET_PAGO = ["PAGA"];
 function mesmoSet(a: string[], b: string[]): boolean {
@@ -572,6 +573,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           if ((c.status !== "ABERTA" && c.status !== "PARCIAL") || c.dataVencimento) return s;
           return s + decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
         }, 0);
+        // Saldo em aberto dos títulos A VENCER (com data futura) — espelha a lente.
+        const aVencer = contas.reduce((s, c) => {
+          if (c.status !== "ABERTA" && c.status !== "PARCIAL") return s;
+          if (!c.dataVencimento || isVencida(c.dataVencimento, c.dataPagamento)) return s;
+          return s + decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+        }, 0);
         return (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto"
@@ -583,6 +590,11 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
             <span className="text-xs font-medium text-danger">Vencido</span>
             <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(resumo.vencido)}</span>
+          </button>
+          <button type="button" onClick={() => toggle(SET_A_VENCER)} title="Filtrar por A vencer"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5 transition-shadow hover:bg-sky-500/20 cursor-pointer", mesmoSet(statusSel, SET_A_VENCER) && "ring-2 ring-sky-500")}>
+            <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer</span>
+            <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(aVencer)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_SEM_VENC)} title="Filtrar por Sem vencimento"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-1.5 transition-shadow hover:bg-violet-500/20 cursor-pointer", mesmoSet(statusSel, SET_SEM_VENC) && "ring-2 ring-violet-500")}>
