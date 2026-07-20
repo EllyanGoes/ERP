@@ -131,29 +131,33 @@ function dentroDoPeriodo(c: { dataVencimento: Date | string }, p: DateRange): bo
   return true;
 }
 
-type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "SEM_VENCIMENTO" | "PAGA";
+type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "A_VENCER" | "SEM_VENCIMENTO" | "PAGA";
 
-// Casa a conta com o filtro de status. "VENCIDA" e "SEM_VENCIMENTO" são
-// derivados (não são status do banco): vencida = em aberto/parcial com
-// vencimento passado; sem vencimento = em aberto/parcial sem data (permuta/faturado).
+// Casa a conta com o filtro de status. "VENCIDA", "A_VENCER" e "SEM_VENCIMENTO"
+// são derivados (não são status do banco): vencida = em aberto/parcial com
+// vencimento passado; a vencer = em aberto/parcial com vencimento FUTURO; sem
+// vencimento = em aberto/parcial sem data (permuta/faturado).
 function casaStatus(c: ContaRow, f: StatusFiltro): boolean {
+  const emAberto = c.status === "ABERTA" || c.status === "PARCIAL";
   switch (f) {
     case "ABERTA":  return c.status === "ABERTA";
     case "PARCIAL": return c.status === "PARCIAL";
-    case "VENCIDA": return (c.status === "ABERTA" || c.status === "PARCIAL") && isVencida(c.dataVencimento, c.dataPagamento);
-    case "SEM_VENCIMENTO": return (c.status === "ABERTA" || c.status === "PARCIAL") && !c.dataVencimento;
+    case "VENCIDA": return emAberto && isVencida(c.dataVencimento, c.dataPagamento);
+    case "A_VENCER": return emAberto && !!c.dataVencimento && !isVencida(c.dataVencimento, c.dataPagamento);
+    case "SEM_VENCIMENTO": return emAberto && !c.dataVencimento;
     case "PAGA":    return c.status === "PAGA";
     default:        return true;
   }
 }
 
 // Status reais selecionáveis no filtro de múltipla escolha (sem "TODOS": todos
-// marcados = todas). "VENCIDA" e "SEM_VENCIMENTO" são derivados e SOBREPÕEM
-// ABERTA/PARCIAL — são lentes extras (marcar só uma mostra o subconjunto).
+// marcados = todas). "VENCIDA", "A_VENCER" e "SEM_VENCIMENTO" são derivados e
+// SOBREPÕEM ABERTA/PARCIAL — são lentes extras (marcar só uma mostra o subconjunto).
 const STATUS_PAGAR: { key: Exclude<StatusFiltro, "TODOS">; label: string }[] = [
   { key: "ABERTA", label: "Em aberto" },
   { key: "PARCIAL", label: "Parciais" },
   { key: "VENCIDA", label: "Vencidas" },
+  { key: "A_VENCER", label: "A vencer" },
   { key: "SEM_VENCIMENTO", label: "Sem vencimento" },
   { key: "PAGA", label: "Pagas" },
 ];
