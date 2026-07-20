@@ -133,6 +133,29 @@ function dentroDoPeriodo(c: { dataVencimento: Date | string }, p: DateRange): bo
   return true;
 }
 
+// Contagem por categoria (cores dos blocos de totais) usada nas bolinhas ao lado
+// do nome do fornecedor no filtro.
+type ContagemForn = { vencido: number; aVencer: number; semVenc: number; paga: number };
+function BolinhaContagem({ cor, n, titulo }: { cor: string; n: number; titulo: string }) {
+  return (
+    <span className="inline-flex items-center gap-0.5" title={`${n} ${titulo}`}>
+      <span className={cn("w-1.5 h-1.5 rounded-full", cor)} />
+      <span className="text-[10px] tabular-nums text-muted-foreground">{n}</span>
+    </span>
+  );
+}
+function bolinhasForn(st?: ContagemForn) {
+  if (!st) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 shrink-0">
+      {st.vencido > 0 && <BolinhaContagem cor="bg-danger" n={st.vencido} titulo="vencidos" />}
+      {st.aVencer > 0 && <BolinhaContagem cor="bg-sky-500" n={st.aVencer} titulo="a vencer" />}
+      {st.semVenc > 0 && <BolinhaContagem cor="bg-violet-500" n={st.semVenc} titulo="sem vencimento" />}
+      {st.paga > 0 && <BolinhaContagem cor="bg-muted-foreground/70" n={st.paga} titulo="pagas" />}
+    </span>
+  );
+}
+
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "A_VENCER" | "SEM_VENCIMENTO" | "PAGA";
 
 // Casa a conta com o filtro de status. "VENCIDA", "A_VENCER" e "SEM_VENCIMENTO"
@@ -202,6 +225,24 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     const m = new Map<string, string>();
     for (const c of contas) if (c.fornecedor) m.set(c.fornecedor.id, c.fornecedor.razaoSocial);
     return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [contas]);
+  // Contagem de títulos por categoria (vencido/a vencer/sem venc./paga) por
+  // fornecedor — vira as bolinhas coloridas ao lado do nome no filtro.
+  const fornecedorStats = useMemo(() => {
+    const m = new Map<string, ContagemForn>();
+    for (const c of contas) {
+      const fid = c.fornecedor?.id;
+      if (!fid) continue;
+      const s = m.get(fid) ?? { vencido: 0, aVencer: 0, semVenc: 0, paga: 0 };
+      if (c.status === "PAGA") s.paga++;
+      else if (c.status === "ABERTA" || c.status === "PARCIAL") {
+        if (!c.dataVencimento) s.semVenc++;
+        else if (isVencida(c.dataVencimento, c.dataPagamento)) s.vencido++;
+        else s.aVencer++;
+      }
+      m.set(fid, s);
+    }
+    return m;
   }, [contas]);
   // Base dos totais: aplica TODOS os filtros MENOS o de status (cada bloco de
   // total é uma categoria de status). Assim os blocos refletem fornecedor/conta/
@@ -621,7 +662,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               placeholder="Fornecedor"
               triggerClassName="h-9 rounded-lg"
               menuMinWidth={340}
-              options={fornecedoresDisponiveis.map((f) => ({ value: f.id, label: f.nome }))}
+              options={fornecedoresDisponiveis.map((f) => ({
+                value: f.id, label: f.nome,
+                render: () => (
+                  <span className="inline-flex items-center gap-2 w-full min-w-0">
+                    <span className="flex-1 truncate">{f.nome}</span>
+                    {bolinhasForn(fornecedorStats.get(f.id))}
+                  </span>
+                ),
+              }))}
             />
           </div>
         )}
