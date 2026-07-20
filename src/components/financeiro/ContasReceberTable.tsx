@@ -680,9 +680,9 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         return (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-info/10 px-3 py-1.5 transition-shadow hover:bg-info/20 cursor-pointer", mesmoSet(statusSel, SET_ABERTO) && "ring-2 ring-info")}>
-            <span className="text-xs font-medium text-info">Em aberto</span>
-            <span className="text-sm font-bold text-info tabular-nums">{formatBRL(totais.emAberto)}</span>
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_ABERTO) && "ring-2 ring-warning")}>
+            <span className="text-xs font-medium text-warning">Em aberto</span>
+            <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(totais.emAberto)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_VENCIDO)} title="Filtrar por Vencidas"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
