@@ -728,8 +728,8 @@ function NaturezaDialog({ editing, subgrupos, contasResultado, contasPatrimoniai
     if (!nome.trim()) { setError("Informe o nome."); return; }
     // CIF não usa conta de resultado nem contrapartida: o débito vai para
     // "CIF a Apropriar" (1.1.4.0001) e o crédito é fornecedor/estoque.
-    // AMBOS (transferências/contas de terceiros) também dispensa: não afeta resultado.
-    if (!cif && tipo !== "AMBOS") {
+    // AMBOS e naturezas que NÃO afetam resultado (grupos 7-9) também dispensam.
+    if (!cif && tipo !== "AMBOS" && editing?.afetaResultado !== false) {
       if (!contaContabilId) { setError("Selecione a conta de resultado."); return; }
       if (!contaContrapartidaId) { setError(tipo === "ENTRADA" ? "Selecione a conta a receber (contrapartida)." : "Selecione a conta a pagar (contrapartida)."); return; }
     }

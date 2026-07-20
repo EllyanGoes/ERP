@@ -1,5 +1,5 @@
 import { prismaSemEscopo } from "@/lib/prisma";
-import { vincularNaturezaConta } from "@/lib/conta-contabil";
+import { vincularNaturezaConta, garantirContaContabilNatureza } from "@/lib/conta-contabil";
 import type { NaturezaGrupo, NaturezaTipo } from "@prisma/client";
 
 // ── Reestruturação do plano de naturezas financeiras — TRAMONTIN (jul/2026) ──
@@ -49,47 +49,54 @@ type DefNatureza = {
   requisitavel?: boolean;
 };
 
+// Contrapartidas: Fornecedores (2.1.1) e Salários (2.1.6) são as SINTÉTICAS
+// "por beneficiário" — a analítica de cada fornecedor/colaborador é resolvida
+// no lançamento (decisão do dono 20/07). Conta de RESULTADO é vínculo 1:1
+// (ContaContabil.naturezaFinanceiraId): duas naturezas não podem apontar a
+// mesma conta — onde o PRD repetia (3.1.0002, 3.3.0003, 3.3.0004), só uma
+// herda a conta existente e as demais ganham analítica própria (auto-criada).
 const PLANO: DefNatureza[] = [
   // Grupo 1 — Receitas
-  { codigo: "1.01", nome: "Venda de produção", tipo: "ENTRADA", contaResultado: "3.1.0002", contrapartida: "1.1.5" },
+  { codigo: "1.01", nome: "Venda de produção", tipo: "ENTRADA", contrapartida: "1.1.5" },
   { codigo: "1.02", nome: "Venda de revenda", tipo: "ENTRADA", contaResultado: "3.1.0002", contrapartida: "1.1.5" },
   { codigo: "1.03", nome: "Venda de serviços", tipo: "ENTRADA", contaResultado: "3.1.0003", contrapartida: "1.1.5" },
-  { codigo: "1.04", nome: "Receitas financeiras", tipo: "ENTRADA" },
-  { codigo: "1.05", nome: "Outras receitas", tipo: "ENTRADA" },
+  { codigo: "1.04", nome: "Receitas financeiras", tipo: "ENTRADA", contrapartida: "1.1.5" },
+  { codigo: "1.05", nome: "Outras receitas", tipo: "ENTRADA", contrapartida: "1.1.5" },
   // Grupo 2 — Materiais e insumos (destino via precedência/centro)
-  { codigo: "2.01", nome: "Matéria-prima", tipo: "SAIDA", requisitavel: true },
-  { codigo: "2.02", nome: "Insumos de queima", tipo: "SAIDA", requisitavel: true },
-  { codigo: "2.03", nome: "Combustíveis e lubrificantes", tipo: "SAIDA", requisitavel: true },
-  { codigo: "2.04", nome: "Material de manutenção", tipo: "SAIDA", requisitavel: true },
-  { codigo: "2.05", nome: "Material de consumo", tipo: "SAIDA", requisitavel: true },
-  { codigo: "2.06", nome: "Material de segurança", tipo: "SAIDA", requisitavel: true },
-  { codigo: "2.07", nome: "Embalagens", tipo: "SAIDA", requisitavel: true },
-  { codigo: "2.08", nome: "Mercadorias para revenda", tipo: "SAIDA", contaResultado: "3.2.0001" },
-  { codigo: "2.09", nome: "Frete sobre compras", tipo: "SAIDA", contaResultado: "3.2.0002" },
-  // Grupo 3 — Pessoal (compatível com a futura alimentação pela folha; sem integração agora)
-  { codigo: "3.01", nome: "Salários e ordenados", tipo: "SAIDA", contrapartida: "2.1.6.0001" },
-  { codigo: "3.02", nome: "Encargos sociais", tipo: "SAIDA" },
-  { codigo: "3.03", nome: "Benefícios", tipo: "SAIDA" },
-  { codigo: "3.04", nome: "Rescisões e verbas eventuais", tipo: "SAIDA" },
-  // Grupo 4 — Serviços e utilidades
-  { codigo: "4.01", nome: "Energia elétrica", tipo: "SAIDA", contaResultado: "3.3.0003", contrapartida: "2.1.8" },
+  { codigo: "2.01", nome: "Matéria-prima", tipo: "SAIDA", contrapartida: "2.1.1", requisitavel: true },
+  { codigo: "2.02", nome: "Insumos de queima", tipo: "SAIDA", contrapartida: "2.1.1", requisitavel: true },
+  { codigo: "2.03", nome: "Combustíveis e lubrificantes", tipo: "SAIDA", contrapartida: "2.1.1", requisitavel: true },
+  { codigo: "2.04", nome: "Material de manutenção", tipo: "SAIDA", contrapartida: "2.1.1", requisitavel: true },
+  { codigo: "2.05", nome: "Material de consumo", tipo: "SAIDA", contrapartida: "2.1.1", requisitavel: true },
+  { codigo: "2.06", nome: "Material de segurança", tipo: "SAIDA", contrapartida: "2.1.1", requisitavel: true },
+  { codigo: "2.07", nome: "Embalagens", tipo: "SAIDA", contrapartida: "2.1.1", requisitavel: true },
+  { codigo: "2.08", nome: "Mercadorias para revenda", tipo: "SAIDA", contaResultado: "3.2.0001", contrapartida: "2.1.1" },
+  { codigo: "2.09", nome: "Frete sobre compras", tipo: "SAIDA", contaResultado: "3.2.0002", contrapartida: "2.1.1" },
+  // Grupo 3 — Pessoal: contrapartida = SINTÉTICA Salários a Pagar (2.1.6) —
+  // a analítica de CADA colaborador é resolvida pelo beneficiário no lançamento.
+  { codigo: "3.01", nome: "Salários e ordenados", tipo: "SAIDA", contrapartida: "2.1.6" },
+  { codigo: "3.02", nome: "Encargos sociais", tipo: "SAIDA", contrapartida: "2.1.6" },
+  { codigo: "3.03", nome: "Benefícios", tipo: "SAIDA", contrapartida: "2.1.6" },
+  { codigo: "3.04", nome: "Rescisões e verbas eventuais", tipo: "SAIDA", contrapartida: "2.1.6" },
+  // Grupo 4 — Serviços e utilidades (4.04/4.05 são compras a fornecedor)
+  { codigo: "4.01", nome: "Energia elétrica", tipo: "SAIDA", contrapartida: "2.1.8" },
   { codigo: "4.02", nome: "Água, telefone e internet", tipo: "SAIDA", contaResultado: "3.3.0003", contrapartida: "2.1.8" },
   { codigo: "4.03", nome: "Aluguel", tipo: "SAIDA", contaResultado: "3.3.0001", contrapartida: "2.1.8" },
-  { codigo: "4.04", nome: "Serviços de terceiros", tipo: "SAIDA" },
-  { codigo: "4.05", nome: "Frete sobre vendas", tipo: "SAIDA" },
+  { codigo: "4.04", nome: "Serviços de terceiros", tipo: "SAIDA", contrapartida: "2.1.1" },
+  { codigo: "4.05", nome: "Frete sobre vendas", tipo: "SAIDA", contrapartida: "2.1.1" },
   // Grupo 5 — Tributos
-  { codigo: "5.01", nome: "Impostos sobre vendas", tipo: "SAIDA", contaResultado: "3.3.0004", contrapartida: "2.1.5.0001" },
+  { codigo: "5.01", nome: "Impostos sobre vendas", tipo: "SAIDA", contrapartida: "2.1.5.0001" },
   { codigo: "5.02", nome: "Impostos e taxas diversos", tipo: "SAIDA", contaResultado: "3.3.0004", contrapartida: "2.1.5.0001" },
   // Grupo 6 — Financeiras (as chaves de sistema migram para cá)
-  { codigo: "6.01", nome: "Juros pagos", tipo: "SAIDA" },
-  { codigo: "6.02", nome: "Tarifas bancárias", tipo: "SAIDA" },
-  { codigo: "6.03", nome: "Taxa de cartão", tipo: "SAIDA" },
-  { codigo: "6.04", nome: "Deságio de antecipação", tipo: "SAIDA" },
-  { codigo: "6.05", nome: "Multas pagas", tipo: "SAIDA" },
-  { codigo: "6.06", nome: "IOF", tipo: "SAIDA" },
+  { codigo: "6.01", nome: "Juros pagos", tipo: "SAIDA", contrapartida: "2.1.8" },
+  { codigo: "6.02", nome: "Tarifas bancárias", tipo: "SAIDA", contrapartida: "2.1.8" },
+  { codigo: "6.03", nome: "Taxa de cartão", tipo: "SAIDA", contrapartida: "2.1.8" },
+  { codigo: "6.04", nome: "Deságio de antecipação", tipo: "SAIDA", contrapartida: "2.1.8" },
+  { codigo: "6.05", nome: "Multas pagas", tipo: "SAIDA", contrapartida: "2.1.8" },
+  { codigo: "6.06", nome: "IOF", tipo: "SAIDA", contrapartida: "2.1.8" },
   // Grupo 7 — Investimento (não afeta resultado)
-  { codigo: "7.01", nome: "Compra de imobilizado", tipo: "SAIDA", contaResultado: "3.3.0002" },
-  { codigo: "7.02", nome: "Venda de imobilizado", tipo: "ENTRADA" },
+  { codigo: "7.01", nome: "Compra de imobilizado", tipo: "SAIDA", contaResultado: "3.3.0002", contrapartida: "2.1.1" },
+  { codigo: "7.02", nome: "Venda de imobilizado", tipo: "ENTRADA", contrapartida: "1.1.5" },
   // Grupo 8 — Financiamento (não afeta resultado)
   { codigo: "8.01", nome: "Captação de empréstimos", tipo: "ENTRADA", contaResultado: "3.1.0001" },
   { codigo: "8.02", nome: "Amortização de empréstimos", tipo: "SAIDA", contaResultado: "3.3.0005", contrapartida: "2.1.3.0001" },
@@ -210,12 +217,16 @@ export async function executarPlanoNaturezasTramontin(dry: boolean): Promise<Res
           if (cp) await db.naturezaFinanceira.update({ where: { id: nat.id }, data: { contaContrapartidaId: cp.id } });
           else out.avisos.push(`Contrapartida ${def.contrapartida} não encontrada (${def.codigo})`);
         }
-        if (def.contaResultado) {
-          const temResultado = await db.contaContabil.count({ where: { empresaId: EMP, naturezaFinanceiraId: nat.id } });
-          if (temResultado === 0) {
+        const temResultado = await db.contaContabil.count({ where: { empresaId: EMP, naturezaFinanceiraId: nat.id } });
+        if (temResultado === 0) {
+          if (def.contaResultado) {
             const conta = await db.contaContabil.findFirst({ where: { empresaId: EMP, codigo: def.contaResultado }, select: { id: true } });
             if (conta) await vincularNaturezaConta(EMP, nat.id, conta.id);
             else out.avisos.push(`Conta ${def.contaResultado} não encontrada (${def.codigo})`);
+          } else if (n <= 6) {
+            // Grupos 1-6 afetam resultado: analítica própria auto-criada
+            // (montarProximo pula a faixa reservada .9xxx). Grupos 7-9 ficam sem.
+            await garantirContaContabilNatureza(nat.id).catch(() => null);
           }
         }
       }
@@ -237,6 +248,7 @@ export async function executarPlanoNaturezasTramontin(dry: boolean): Promise<Res
             afetaResultado: n < 7,
             aplicavelRequisicao: def.requisitavel === true,
             cif: false,
+            contaContrapartidaId: contrapartida?.id ?? null,
             ordem: Math.round(parseFloat(def.codigo.replace(".", "")) || 0),
           },
         });
@@ -244,6 +256,9 @@ export async function executarPlanoNaturezasTramontin(dry: boolean): Promise<Res
           const conta = await db.contaContabil.findFirst({ where: { empresaId: EMP, codigo: def.contaResultado }, select: { id: true } });
           if (conta) await vincularNaturezaConta(EMP, nat.id, conta.id);
           else out.avisos.push(`Conta ${def.contaResultado} não encontrada (${def.codigo})`);
+        } else if (n <= 6) {
+          // Sem conta indicada e afeta resultado → analítica própria auto-criada.
+          await garantirContaContabilNatureza(nat.id).catch(() => null);
         }
       }
     }
