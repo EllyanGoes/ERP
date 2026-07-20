@@ -245,21 +245,22 @@ export default function NaturezasPage() {
   // ── Exportação (texto p/ copiar e PDF) ──────────────────────────────────────
   const tipoLabel = (t: Tipo) => (t === "ENTRADA" ? "Entrada" : t === "AMBOS" ? "Ambos" : "Saída");
   const contaTxt = (c: ContaResultado | null) => (c ? `${c.codigo} ${c.nome}` : "—");
-  // Percorre a árvore na ordem da tela e chama os callbacks (fonte única).
+  // Percorre a estrutura NA ORDEM E COM OS FILTROS DA TELA (busca/grupo/tipo/
+  // status): a exportação sai exatamente o que o usuário está vendo. Fonte
+  // única: a mesma `arvore` filtrada da listagem.
   function percorrerEstrutura(cb: {
     grupo: (label: string) => void;
     subgrupo: (nome: string) => void;
     natureza: (n: Natureza) => void;
   }) {
-    for (const g of gruposComConteudo) {
-      cb.grupo(GRUPO_LABEL[g]);
-      const doGrupo = rows.filter((r) => r.grupo === g);
+    for (const sec of arvore) {
+      cb.grupo(GRUPO_LABEL[sec.grupo]);
       // naturezas sem subgrupo primeiro
-      for (const n of doGrupo.filter((r) => !r.subgrupoId)) cb.natureza(n);
+      for (const n of sec.semSubgrupo) cb.natureza(n);
       // depois cada subgrupo com suas naturezas
-      for (const sub of subgrupos.filter((s) => s.grupo === g)) {
-        cb.subgrupo(sub.nome);
-        for (const n of doGrupo.filter((r) => r.subgrupoId === sub.id)) cb.natureza(n);
+      for (const x of sec.subs) {
+        cb.subgrupo(x.sub.nome);
+        for (const n of x.naturezas) cb.natureza(n);
       }
     }
   }

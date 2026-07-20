@@ -334,24 +334,10 @@ export default function CentrosCustoPage() {
 
   // ── Exportação (texto p/ copiar e PDF) — mesmo padrão de Naturezas ─────────
   const [copiado, setCopiado] = useState(false);
-  // A lista da tela vem FILTRADA do servidor — a exportação busca a lista
-  // completa e agrupa igual à árvore (grupos ordenados + "Sem grupo" no fim).
+  // Exporta EXATAMENTE o que está na tela: a `arvore` já reflete os filtros
+  // (busca/grupo/status vêm aplicados do servidor).
   async function estruturaCompleta(): Promise<{ nome: string; centros: Centro[] }[]> {
-    const res = await fetch("/api/empresa/centros-custo");
-    const todos: Centro[] = (await res.json().catch(() => [])) as Centro[];
-    if (!Array.isArray(todos)) return [];
-    const porGrupo = new Map<string, Centro[]>();
-    for (const c of todos) {
-      const key = c.grupoCentroCustoId ?? SEM_GRUPO;
-      porGrupo.set(key, [...(porGrupo.get(key) ?? []), c]);
-    }
-    const ordenar = (cs: Centro[]) => [...cs].sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
-    const secoes = grupos
-      .filter((g) => porGrupo.has(g.id))
-      .sort((a, b) => a.nome.localeCompare(b.nome))
-      .map((g) => ({ nome: g.nome, centros: ordenar(porGrupo.get(g.id)!) }));
-    if (porGrupo.has(SEM_GRUPO)) secoes.push({ nome: "Sem grupo", centros: ordenar(porGrupo.get(SEM_GRUPO)!) });
-    return secoes;
+    return arvore.map((s) => ({ nome: s.nome, centros: s.centros }));
   }
 
   async function copiarEstrutura() {
