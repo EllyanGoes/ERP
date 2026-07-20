@@ -20,7 +20,7 @@ import PagamentosInput, {
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
@@ -367,20 +367,34 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     router.refresh();
   }
 
-  // Nome do fornecedor clicável → conta razão dele (analítica 2.1.1.x). Reusado
-  // na tabela, na visão agrupada e no detalhe.
+  // Fornecedor: nome em texto simples + dois atalhos ao lado — cadastro do
+  // fornecedor e conta razão dele (analítica 2.1.1.x). Reusado na tabela, na
+  // visão agrupada e no detalhe.
   function renderFornecedor(c: ContaRow, className?: string) {
-    if (!c.fornecedor) return <span className={className}>—</span>;
-    if (!c.fornecedorContaId) return <span className={className}>{c.fornecedor.razaoSocial}</span>;
+    const forn = c.fornecedor;
+    if (!forn) return <span className={className}>—</span>;
     return (
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); router.push(`/contabilidade/razao/${c.fornecedorContaId}`); }}
-        className={cn("text-left hover:text-info hover:underline", className)}
-        title="Abrir a conta razão do fornecedor"
-      >
-        {c.fornecedor.razaoSocial}
-      </button>
+      <span className="inline-flex items-center gap-1.5 max-w-full min-w-0">
+        <span className={cn("truncate", className)} title={forn.razaoSocial}>{forn.razaoSocial}</span>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); router.push(`/suprimentos/fornecedores/${forn.id}`); }}
+          className="shrink-0 text-muted-foreground hover:text-info transition-colors"
+          title="Abrir o cadastro do fornecedor"
+        >
+          <Building2 className="h-3.5 w-3.5" />
+        </button>
+        {c.fornecedorContaId && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); router.push(`/contabilidade/razao/${c.fornecedorContaId}`); }}
+            className="shrink-0 text-muted-foreground hover:text-info transition-colors"
+            title="Abrir a conta razão do fornecedor"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </span>
     );
   }
 
@@ -477,7 +491,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       </span>
     ) },
     { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => (
-      <div className="max-w-[16rem] truncate" title={row.original.fornecedor?.razaoSocial ?? undefined}>{renderFornecedor(row.original, "block truncate")}</div>
+      <div className="max-w-[16rem]">{renderFornecedor(row.original)}</div>
     ) },
     // A coluna Descrição ABSORVE a folga de largura da tabela: w-full no TH
     // (puxa o espaço livre) e max-w-0 só no TD (o texto trunca no disponível).

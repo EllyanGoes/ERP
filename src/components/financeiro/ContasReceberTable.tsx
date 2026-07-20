@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida, cn } from "@/lib/utils";
-import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers } from "lucide-react";
+import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers, UserRound, BookOpen } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
@@ -309,20 +309,34 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       .catch(() => {});
   }
 
-  // Nome do cliente clicável → conta razão dele (analítica 1.1.2.x). Reusado na
-  // tabela, na visão agrupada e no detalhe.
+  // Cliente: nome em texto simples + dois atalhos ao lado — cadastro do cliente
+  // e conta razão dele (analítica 1.1.2.x). Reusado na tabela, na visão
+  // agrupada e no detalhe.
   function renderCliente(c: ContaRow, className?: string) {
-    if (!c.cliente) return <span className={className}>—</span>;
-    if (!c.clienteContaId) return <span className={className}>{c.cliente.razaoSocial}</span>;
+    const cli = c.cliente;
+    if (!cli) return <span className={className}>—</span>;
     return (
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); router.push(`/contabilidade/razao/${c.clienteContaId}`); }}
-        className={cn("text-left hover:text-info hover:underline", className)}
-        title="Abrir a conta razão do cliente"
-      >
-        {c.cliente.razaoSocial}
-      </button>
+      <span className="inline-flex items-center gap-1.5 max-w-full min-w-0">
+        <span className={cn("truncate", className)} title={cli.razaoSocial}>{cli.razaoSocial}</span>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); router.push(`/clientes/${cli.id}`); }}
+          className="shrink-0 text-muted-foreground hover:text-info transition-colors"
+          title="Abrir o cadastro do cliente"
+        >
+          <UserRound className="h-3.5 w-3.5" />
+        </button>
+        {c.clienteContaId && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); router.push(`/contabilidade/razao/${c.clienteContaId}`); }}
+            className="shrink-0 text-muted-foreground hover:text-info transition-colors"
+            title="Abrir a conta razão do cliente"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </span>
     );
   }
 
@@ -364,7 +378,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
     { id: "cliente", header: "Cliente", cell: ({ row }) => (
-      <div className="max-w-[16rem] truncate" title={row.original.cliente?.razaoSocial ?? undefined}>{renderCliente(row.original, "block truncate")}</div>
+      <div className="max-w-[16rem]">{renderCliente(row.original)}</div>
     ) },
     // A coluna Descrição ABSORVE a folga de largura da tabela: w-full no TH
     // (puxa o espaço livre) e max-w-0 só no TD (o texto trunca no disponível).
