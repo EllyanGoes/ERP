@@ -14,14 +14,17 @@ import { Autoria } from "@/components/shared/Autoria";
 
 type Local = { id: string; nome: string };
 type Centro = { id: string; codigo: string; nome: string };
+type Natureza = { id: string; codigo: string | null; nome: string; grupo: string };
 type Tes = {
   id: string; codigo: string; nome: string; sentido: string;
   estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean;
   permiteCapitalizar: boolean; geraFinanceiro: boolean; geraFiscal: boolean;
   cfop: string | null; naturezaFiscal: string | null; centroCustoSugeridoId: string | null;
+  naturezaSugeridaId: string | null;
   ativo: boolean;
   criadoPor?: string | null; atualizadoPor?: string | null;
   almoxarifadoDefault?: Local | null; centroCustoSugerido?: Centro | null;
+  naturezaSugerida?: { id: string; codigo: string | null; nome: string } | null;
 };
 
 type FormState = {
@@ -29,19 +32,32 @@ type FormState = {
   estocavel: boolean; almoxarifadoDefaultId: string; compoeCusto: boolean;
   permiteCapitalizar: boolean; geraFinanceiro: boolean; geraFiscal: boolean;
   cfop: string; naturezaFiscal: string; centroCustoSugeridoId: string;
+  naturezaSugeridaId: string;
 };
 
 const empty = (): FormState => ({
   codigo: "", nome: "", sentido: "ENTRADA",
   estocavel: true, almoxarifadoDefaultId: "", compoeCusto: false,
   permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true,
-  cfop: "", naturezaFiscal: "", centroCustoSugeridoId: "",
+  cfop: "", naturezaFiscal: "", centroCustoSugeridoId: "", naturezaSugeridaId: "",
 });
+
+// Rótulos dos grupos de natureza (optgroups do select de natureza sugerida).
+const GRUPO_NAT_LABEL: Record<string, string> = {
+  RECEITA_OPERACIONAL: "Receitas operacionais",
+  CUSTO_OPERACIONAL: "Custos operacionais",
+  DESPESA_OPERACIONAL: "Despesas operacionais",
+  INVESTIMENTO: "Atividades de investimento",
+  FINANCIAMENTO: "Atividades de financiamento",
+  MOVIMENTACAO_INTERNA: "Movimentações internas",
+};
+const GRUPO_NAT_ORDER = Object.keys(GRUPO_NAT_LABEL);
 
 export default function TiposOperacaoPage() {
   const [rows, setRows] = useState<Tes[]>([]);
   const [locais, setLocais] = useState<Local[]>([]);
   const [centros, setCentros] = useState<Centro[]>([]);
+  const [naturezas, setNaturezas] = useState<Natureza[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [form, setForm] = useState<FormState>(empty());
@@ -63,6 +79,8 @@ export default function TiposOperacaoPage() {
       .then((j) => setLocais(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
       .then((j) => setCentros(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/financeiro/naturezas?ativo=1").then((r) => r.json())
+      .then((j) => setNaturezas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, []);
 
   const startNew = () => { setForm(empty()); setEditingId("new"); setError(null); };
@@ -74,6 +92,7 @@ export default function TiposOperacaoPage() {
       geraFinanceiro: r.geraFinanceiro, geraFiscal: r.geraFiscal,
       cfop: r.cfop ?? "", naturezaFiscal: r.naturezaFiscal ?? "",
       centroCustoSugeridoId: r.centroCustoSugeridoId ?? "",
+      naturezaSugeridaId: r.naturezaSugeridaId ?? "",
     });
     setEditingId(r.id); setError(null);
   };
@@ -163,6 +182,7 @@ export default function TiposOperacaoPage() {
                         {r.permiteCapitalizar && <Tag amber>Permite capitalizar</Tag>}
                         {r.geraFinanceiro && <Tag>Financeiro</Tag>}
                         {r.geraFiscal && <Tag>Fiscal{r.cfop ? ` ${r.cfop}` : ""}</Tag>}
+                        {r.naturezaSugerida && <Tag>Nat. {r.naturezaSugerida.codigo ? `${r.naturezaSugerida.codigo} ` : ""}{r.naturezaSugerida.nome}</Tag>}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -191,7 +211,7 @@ export default function TiposOperacaoPage() {
       {editingId !== null && (
         <div className="fixed inset-0 z-[9000] flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-10" onClick={cancel}>
           <div className="w-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
-            <TesForm form={form} setForm={setForm} saving={saving} error={error} onSave={save} onCancel={cancel} locais={locais} centros={centros} isNew={editingId === "new"} editando={editingId !== "new" ? rows.find((r) => r.id === editingId) : undefined} />
+            <TesForm form={form} setForm={setForm} saving={saving} error={error} onSave={save} onCancel={cancel} locais={locais} centros={centros} naturezas={naturezas} isNew={editingId === "new"} editando={editingId !== "new" ? rows.find((r) => r.id === editingId) : undefined} />
           </div>
         </div>
       )}
@@ -204,11 +224,20 @@ function Tag({ children, amber }: { children: React.ReactNode; amber?: boolean }
     amber ? "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400" : "bg-muted text-muted-foreground")}>{children}</span>;
 }
 
-function TesForm({ form, setForm, saving, error, onSave, onCancel, locais, centros, isNew, editando }: {
+function TesForm({ form, setForm, saving, error, onSave, onCancel, locais, centros, naturezas, isNew, editando }: {
   form: FormState; setForm: React.Dispatch<React.SetStateAction<FormState>>;
   saving: boolean; error: string | null; onSave: () => void; onCancel: () => void;
-  locais: Local[]; centros: Centro[]; isNew?: boolean; editando?: Tes;
+  locais: Local[]; centros: Centro[]; naturezas: Natureza[]; isNew?: boolean; editando?: Tes;
 }) {
+  // Naturezas ativas agrupadas por grupo (código do plano como prefixo/ordem).
+  const gruposNat = GRUPO_NAT_ORDER
+    .map((g) => ({
+      grupo: g,
+      itens: naturezas
+        .filter((n) => n.grupo === g)
+        .sort((a, b) => (a.codigo ?? "￿").localeCompare(b.codigo ?? "￿") || a.nome.localeCompare(b.nome)),
+    }))
+    .filter((g) => g.itens.length > 0);
   const setStr = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setBool = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.checked }));
   const check = (k: keyof FormState, label: string, hint?: string) => (
@@ -253,6 +282,16 @@ function TesForm({ form, setForm, saving, error, onSave, onCancel, locais, centr
             <option value="">—</option>
             {centros.map((c) => <option key={c.id} value={c.id}>{c.codigo} - {c.nome}</option>)}
           </select></div>
+        <div className="md:col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Natureza financeira sugerida</label>
+          <select value={form.naturezaSugeridaId} onChange={setStr("naturezaSugeridaId")} className="h-9 w-full rounded-md border border-border bg-card px-2 text-sm">
+            <option value="">— (sem sugestão)</option>
+            {gruposNat.map((g) => (
+              <optgroup key={g.grupo} label={GRUPO_NAT_LABEL[g.grupo] ?? g.grupo}>
+                {g.itens.map((n) => <option key={n.id} value={n.id}>{n.codigo ? `${n.codigo} ` : ""}{n.nome}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground mt-1">Pré-classifica o título gerado pelo DE (default, não trava — o financeiro pode trocar).</p></div>
         <div className={cn(!form.geraFiscal && "opacity-50")}><label className="text-xs font-medium text-muted-foreground mb-1 block">CFOP</label>
           <Input value={form.cfop} onChange={setStr("cfop")} disabled={!form.geraFiscal} placeholder="Ex.: 1102" /></div>
         <div className={cn(!form.geraFiscal && "opacity-50")}><label className="text-xs font-medium text-muted-foreground mb-1 block">Natureza fiscal</label>

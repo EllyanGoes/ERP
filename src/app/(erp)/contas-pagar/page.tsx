@@ -16,12 +16,13 @@ export default async function ContasPagarPage() {
       centroCusto: { select: { codigo: true, nome: true } },
       // DE de origem (pedido OU avulsa): número clicável + TES/centro dos itens
       // do documento — a fonte real da classificação (o pedido raramente tem).
+      // naturezaSugerida do TES alimenta o alerta "Sem centro de custo" (grupo 2).
       conferencia: { select: { id: true, numero: true, dtEmissao: true,
-        itens: { select: { tes: { select: { codigo: true, nome: true } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
+        itens: { select: { tes: { select: { codigo: true, nome: true, naturezaSugerida: { select: { id: true, codigo: true } } } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
       pedidoCompra: { select: { id: true, numero: true,
         conferencia: { select: { id: true, numero: true, dtEmissao: true,
-          itens: { select: { tes: { select: { codigo: true, nome: true } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
-        itens: { select: { tes: { select: { codigo: true, nome: true } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
+          itens: { select: { tes: { select: { codigo: true, nome: true, naturezaSugerida: { select: { id: true, codigo: true } } } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
+        itens: { select: { tes: { select: { codigo: true, nome: true, naturezaSugerida: { select: { id: true, codigo: true } } } }, centroCusto: { select: { codigo: true, nome: true } } } } } },
     },
     orderBy: { dataVencimento: "asc" },
   });

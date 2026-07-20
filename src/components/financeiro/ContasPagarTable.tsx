@@ -20,7 +20,7 @@ import PagamentosInput, {
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, TriangleAlert } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
@@ -30,6 +30,13 @@ import { cn } from "@/lib/utils";
 
 // Linha do rateio gerencial por natureza no modal de baixa.
 type RateioLinha = { key: string; naturezaFinanceiraId: string; detalhamento: string; valor: string };
+
+// Item de origem (DE/pedido) com TES — a naturezaSugerida do TES alimenta o
+// alerta "Sem centro de custo" (sugestão em grupo 2 = material, potencial CIF).
+type ItemOrigem = {
+  tes?: { codigo: string; nome: string; naturezaSugerida?: { id: string; codigo: string | null } | null } | null;
+  centroCusto?: { codigo: string; nome: string } | null;
+};
 
 type ContaRow = {
   id: string; numero: string; descricao: string; categoria: string | null; status: string; antecipado?: boolean;
@@ -46,13 +53,13 @@ type ContaRow = {
   naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown }[];
   pedidoCompra?: {
     id: string; numero: string; conferencia?: { id: string; numero: string; dtEmissao?: Date | string | null } | null;
-    itens?: { tes?: { codigo: string; nome: string } | null; centroCusto?: { codigo: string; nome: string } | null }[];
+    itens?: ItemOrigem[];
   } | null;
   // Documento de Entrada de origem (pedido OU avulsa) — link clicável e fonte
   // preferida do TES/centro (normalizado no server: direto ?? DE do pedido).
   conferencia?: {
     id: string; numero: string; dtEmissao?: Date | string | null;
-    itens?: { tes?: { codigo: string; nome: string } | null; centroCusto?: { codigo: string; nome: string } | null }[];
+    itens?: ItemOrigem[];
   } | null;
   // Conta analítica de passivo do fornecedor (2.1.1.x) — link p/ o razão dele.
   fornecedorContaId?: string | null;
@@ -104,15 +111,51 @@ function origemPagar(c: ContaRow): { label: string; ref: string | null; confId?:
   return { label: "Manual", ref: null };
 }
 
-// Naturezas TRAVADAS do sistema elegíveis para a taxa/tarifa RETIDA na baixa
-// (vêm do GET de naturezas com sistema=true). A ordem das chaves define o
-// default do lado: no pagar, tarifa bancária primeiro.
-type TaxaNaturezaOpt = { id: string; nome: string; sistema?: boolean; sistemaChave?: string | null };
+// Naturezas elegíveis para a taxa/tarifa RETIDA na baixa: o grupo 6 do plano
+// hierárquico (6.01 Juros … 6.06 IOF), em ordem de código. Default: 6.02 Tarifas
+// bancárias (comportamento atual preservado). Empresa sem plano com código (ex.:
+// CMB) cai nas travadas do sistema (tarifa bancária, taxa de cartão), como antes.
+type TaxaNaturezaOpt = { id: string; nome: string; codigo?: string | null; sistema?: boolean; sistemaChave?: string | null };
 const CHAVES_TAXA_PAGAR = ["tarifa-bancaria", "taxa-cartao"] as const;
 function filtrarTaxaNaturezas(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt[] {
+  const grupo6 = arr
+    .filter((n) => n.codigo?.startsWith("6."))
+    .sort((a, b) => (a.codigo ?? "").localeCompare(b.codigo ?? ""));
+  if (grupo6.length > 0) return grupo6;
   return CHAVES_TAXA_PAGAR
     .map((ch) => arr.find((n) => n.sistema === true && n.sistemaChave === ch))
     .filter((n): n is TaxaNaturezaOpt => !!n);
+}
+// Default da taxa no pagar: 6.02 (tarifa bancária) — por chave travada; senão a 1ª.
+function taxaNaturezaDefault(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt | undefined {
+  return arr.find((n) => n.sistemaChave === "tarifa-bancaria") ?? arr[0];
+}
+
+// ── Classificação incompleta (badges amber + filtro "Classificação pendente") ──
+// Sem natureza: split vazio e sem natureza única no título.
+function semNatureza(c: ContaRow): boolean {
+  return !(c.naturezas && c.naturezas.length > 0) && !c.naturezaFinanceiraId;
+}
+// TES da origem sugere natureza de MATERIAL (grupo 2 — potencial CIF): título
+// sem centro nesse caso é classificação incompleta (o centro decide CIF×Despesa).
+function tesSugereMaterial(c: ContaRow): boolean {
+  const itens = [...(c.conferencia?.itens ?? []), ...(c.pedidoCompra?.itens ?? [])];
+  return itens.some((i) => i.tes?.naturezaSugerida?.codigo?.startsWith("2."));
+}
+function semCentro(c: ContaRow): boolean {
+  return !c.centroCustoId && tesSugereMaterial(c);
+}
+function classificacaoPendente(c: ContaRow): boolean {
+  return semNatureza(c) || semCentro(c);
+}
+
+// Badge amber informativo (não bloqueia) — padrão da reconciliação da folha.
+function BadgeClassif({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400 whitespace-nowrap">
+      {children}
+    </span>
+  );
 }
 
 // Data (Date|string) → "YYYY-MM-DD" para comparar com o range do filtro.
@@ -215,6 +258,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const [busca, setBusca] = useState("");
   // Período por data de vencimento (persistido por usuário — padrão do sistema).
   const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-pagar:periodo", { from: "", to: "" });
+  // Filtro rápido: só títulos com classificação pendente (sem natureza e/ou sem centro).
+  const [soPendentes, setSoPendentes] = usePersistedState<boolean>("financeiro:contas-pagar:classif-pendente", false);
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
@@ -254,12 +299,13 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
       if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
       if (!dentroDoPeriodo(c, periodo)) return false;
+      if (soPendentes && !classificacaoPendente(c)) return false;
       if (!q) return true;
       const o = origemPagar(c);
       return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, contaFiltro, fornecedorFiltro, busca, periodo]);
+  }, [contas, contaFiltro, fornecedorFiltro, busca, periodo, soPendentes]);
   // Tabela: base + o filtro de status (OR sobre os marcados).
   const contasFiltradas = useMemo(
     () => contasBase.filter((c) => statusSel.some((s) => casaStatus(c, s as StatusFiltro))),
@@ -309,6 +355,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // Rateio gerencial por natureza (classificação do título na baixa).
   const [naturezasOpts, setNaturezasOpts] = useState<NaturezaOpt[]>([]);
   const [rateio, setRateio] = useState<RateioLinha[]>([]);
+  // Centro de custo do título — editável na baixa (a alteração atualiza o título).
+  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [centroPagId, setCentroPagId] = useState("");
   // Encargos da baixa: juros/multa SAEM do caixa além do título; a taxa/tarifa
   // é RETIDA (paga MENOS) — o título é quitado por linhas + taxa e a taxa vira
   // despesa com natureza travada do sistema.
@@ -331,9 +380,11 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json()).then((j) => {
       const arr = Array.isArray(j) ? j : (j.data ?? []);
       setNaturezasOpts(arr);
-      // Travadas do sistema para a taxa/tarifa retida (tarifa bancária, taxa de cartão).
+      // Grupo 6 (Financeiras) para a taxa/tarifa retida; fallback nas travadas.
       setTaxaNaturezas(filtrarTaxaNaturezas(arr));
     }).catch(() => {});
+    fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
+      .then((j) => setCentros(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, []);
 
   const saldo = selected ? decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago) : 0;
@@ -348,13 +399,16 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     const prev = row.formaPagamentoPrevista;
     const formaPrev = prev && prev.tipo !== "PERMUTA" ? prev.nome : "";
     setLinhas([novaLinhaPagamento(formaPrev, contaPadraoParaForma(formaPrev, formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
-    // Rateio por natureza: pré-carrega o existente ou 1 linha com o valor do título.
+    // Rateio por natureza: pré-carrega o existente ou 1 linha com o valor do
+    // título (natureza única do título — legado sem split — entra na linha).
     const valOrig = decimalToNumber(row.valorOriginal);
     setRateio(
       row.naturezas && row.naturezas.length
         ? row.naturezas.map((n) => ({ key: crypto.randomUUID(), naturezaFinanceiraId: n.naturezaFinanceiraId, detalhamento: n.detalhamento ?? "", valor: decimalToNumber(n.valor).toFixed(2).replace(".", ",") }))
-        : [{ key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: valOrig > 0 ? valOrig.toFixed(2).replace(".", ",") : "" }],
+        : [{ key: crypto.randomUUID(), naturezaFinanceiraId: row.naturezaFinanceiraId ?? "", detalhamento: "", valor: valOrig > 0 ? valOrig.toFixed(2).replace(".", ",") : "" }],
     );
+    // Centro de custo do título (herdado do DE quando propagado) — editável.
+    setCentroPagId(row.centroCustoId ?? "");
     // Encargos sempre zerados ao reabrir o modal.
     setJuros(""); setMulta(""); setTaxa(""); setTaxaNaturezaId("");
   }
@@ -491,6 +545,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         {row.original.antecipado && (
           <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado — adiantamento a fornecedor gerado no pedido">PA</span>
         )}
+        {/* Classificação incompleta (informativo — não bloqueia a baixa). */}
+        {classificacaoPendente(row.original) && (
+          <span
+            className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 p-0.5 text-amber-700 dark:text-amber-400"
+            title={[semNatureza(row.original) ? "Sem natureza" : null, semCentro(row.original) ? "Sem centro de custo" : null].filter(Boolean).join(" · ")}
+          >
+            <TriangleAlert className="w-3 h-3" />
+          </span>
+        )}
       </span>
     ) },
     { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => (
@@ -624,10 +687,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       body: JSON.stringify({
         pagamentos, dataPagamento: dataPag, valorMulta: vMulta, valorJuros: vJuros,
         valorTaxa: vTaxa,
-        taxaNaturezaId: vTaxa > 0 ? (taxaNaturezaId || taxaNaturezas[0]?.id || null) : null,
+        taxaNaturezaId: vTaxa > 0 ? (taxaNaturezaId || taxaNaturezaDefault(taxaNaturezas)?.id || null) : null,
         naturezas: rateioValido.length
           ? rateioValido.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseValorBR(l.valor) }))
           : undefined,
+        // Classificação editada na baixa vai para o TÍTULO (null = limpar).
+        centroCustoId: centroPagId || null,
       }),
     });
     setSaving(false);
@@ -681,6 +746,20 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         />
         {/* Período por data de vencimento. */}
         <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período (vencimento)" />
+        {/* Filtro rápido: classificação pendente (sem natureza e/ou sem centro). */}
+        <button
+          type="button"
+          onClick={() => setSoPendentes((v) => !v)}
+          title="Só títulos sem natureza e/ou sem centro de custo"
+          className={cn(
+            "inline-flex items-center gap-1.5 h-9 rounded-lg border px-3 text-xs font-medium transition-colors",
+            soPendentes
+              ? "border-amber-400/60 bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400"
+              : "border-border bg-card text-muted-foreground hover:bg-muted",
+          )}
+        >
+          <TriangleAlert className="w-3.5 h-3.5" /> Classificação pendente
+        </button>
         {/* Fornecedor (da lista carregada). */}
         {fornecedoresDisponiveis.length > 0 && (
           <div className="w-80">
@@ -889,13 +968,13 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                 <div>
                   <Label className="text-xs">Natureza da taxa</Label>
                   <select
-                    value={taxaNaturezaId || taxaNaturezas[0]?.id || ""}
+                    value={taxaNaturezaId || taxaNaturezaDefault(taxaNaturezas)?.id || ""}
                     onChange={(e) => setTaxaNaturezaId(e.target.value)}
                     disabled={taxaNaturezas.length === 0}
                     className="mt-1 w-full h-9 rounded-lg border border-border px-2 text-sm bg-card disabled:opacity-50"
                   >
                     {taxaNaturezas.length === 0 && <option value="">—</option>}
-                    {taxaNaturezas.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}
+                    {taxaNaturezas.map((n) => <option key={n.id} value={n.id}>{n.codigo ? `${n.codigo} ` : ""}{n.nome}</option>)}
                   </select>
                 </div>
               </div>
@@ -913,13 +992,32 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                 );
               })()}
             </div>
-            {/* Rateio gerencial por natureza — classifica o título (igual ao Novo Lançamento). */}
+            {/* Classificação do título — centro de custo + rateio por natureza
+                (igual ao Novo Lançamento). Edições aqui ATUALIZAM o título. */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Naturezas financeiras</Label>
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Naturezas financeiras</Label>
+                  {/* Badges informativos (não bloqueiam a baixa) — refletem o que está na tela. */}
+                  {selected && !centroPagId && tesSugereMaterial(selected) && <BadgeClassif>Sem centro de custo</BadgeClassif>}
+                  {!rateio.some((l) => l.naturezaFinanceiraId) && <BadgeClassif>Sem natureza</BadgeClassif>}
+                </span>
                 <button type="button" onClick={() => setRateio((p) => [...p, { key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: "" }])} className="inline-flex items-center gap-1 text-xs text-info hover:text-info font-medium">
                   <Plus className="w-3.5 h-3.5" /> Adicionar natureza
                 </button>
+              </div>
+              {/* Centro de custo do título — editável (linha própria acima do split). */}
+              <div className="grid grid-cols-[9rem_1fr] gap-2 items-center">
+                <Label className="text-xs">Centro de custo</Label>
+                <ComboboxWithCreate
+                  value={centroPagId}
+                  onChange={setCentroPagId}
+                  options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+                  placeholder="Selecionar centro de custo…"
+                  noneLabel="Sem centro de custo"
+                  triggerClassName="h-9"
+                  menuMinWidth={340}
+                />
               </div>
               {rateio.map((l) => (
                 <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">

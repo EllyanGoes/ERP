@@ -32,6 +32,13 @@ export const contaPagarSchema = z.object({
   naturezaFinanceiraId: z.string().optional().nullable(),
   centroCustoId: z.string().optional().nullable(),
   contaBancariaId: z.string().optional().nullable(),
+  // Split de naturezas (classificação na criação/edição — mesmo registro que a
+  // baixa edita). A soma deve bater com o valorOriginal; validada na rota.
+  naturezas: z.array(z.object({
+    naturezaFinanceiraId: z.string().min(1),
+    detalhamento: z.string().optional().nullable(),
+    valor: z.coerce.number().min(0.01),
+  })).optional(),
 }).refine((d) => d.beneficiarioTipo !== "FORNECEDOR" || !!d.fornecedorId, { message: "Selecione o fornecedor", path: ["fornecedorId"] })
   .refine((d) => d.beneficiarioTipo !== "COLABORADOR" || !!d.beneficiarioId, { message: "Selecione o colaborador", path: ["beneficiarioId"] })
 
@@ -65,6 +72,9 @@ export const pagamentoSchema = z.object({
     detalhamento: z.string().optional().nullable(),
     valor: z.coerce.number().min(0.01),
   })).optional(),
+  // Centro de custo (só PAGAR): a baixa também classifica — a alteração atualiza
+  // o TÍTULO. Ausente = não mexer; null = limpar.
+  centroCustoId: z.string().optional().nullable(),
 }).refine(
   (d) => (d.pagamentos && d.pagamentos.length > 0) || (d.valorPago != null && d.valorPago > 0),
   { message: "Informe o valor recebido/pago", path: ["valorPago"] },

@@ -20,26 +20,27 @@ export type TesPadrao = {
   geraFiscal: boolean;
   cfop: string | null;
   centroSugeridoCodigo: string | null; // resolvido p/ centroCustoSugeridoId (na empresa)
+  naturezaSugeridaCodigo: string | null; // código do plano ("2.04") → naturezaSugeridaId (na empresa)
 };
 
 export const TES_PADRAO: TesPadrao[] = [
   // ── ENTRADA (compra → estoque; gera financeiro + fiscal) ──────────────────────
-  { codigo: "TES-E01", nome: "Compra de Matéria-Prima", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de Argila", compoeCusto: true, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1101", centroSugeridoCodigo: null },
-  { codigo: "TES-E02", nome: "Compra de Insumos (queima)", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de Insumos p/ queima", compoeCusto: true, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1101", centroSugeridoCodigo: null },
-  { codigo: "TES-E03", nome: "Compra de Combustível", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de combustivel", compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1101", centroSugeridoCodigo: null },
-  { codigo: "TES-E04", nome: "Compra de Embalagem", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de Embalagem (almoxarifado)", compoeCusto: true, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1101", centroSugeridoCodigo: null },
-  { codigo: "TES-E05", nome: "Compra de Manutenção / MRO", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Almoxarifado", compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1556", centroSugeridoCodigo: null },
-  { codigo: "TES-E06", nome: "Compra de Mercadoria p/ Revenda", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de Mercadorias", compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1102", centroSugeridoCodigo: null },
-  { codigo: "TES-E07", nome: "Compra de Imobilizado", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Almoxarifado", compoeCusto: false, permiteCapitalizar: true, geraFinanceiro: true, geraFiscal: true, cfop: "1551", centroSugeridoCodigo: null },
-  { codigo: "TES-E08", nome: "Uso e Consumo (Despesa direta)", sentido: "ENTRADA", estocavel: false, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1556", centroSugeridoCodigo: null },
-  { codigo: "TES-E09", nome: "Contratação de Serviço", sentido: "ENTRADA", estocavel: false, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1933", centroSugeridoCodigo: null },
+  { codigo: "TES-E01", nome: "Compra de Matéria-Prima", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de Argila", compoeCusto: true, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1101", centroSugeridoCodigo: null, naturezaSugeridaCodigo: "2.01" },
+  { codigo: "TES-E02", nome: "Compra de Insumos (queima)", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de Insumos p/ queima", compoeCusto: true, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1101", centroSugeridoCodigo: null, naturezaSugeridaCodigo: "2.02" },
+  { codigo: "TES-E03", nome: "Compra de Combustível", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de combustivel", compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1101", centroSugeridoCodigo: null, naturezaSugeridaCodigo: "2.03" },
+  { codigo: "TES-E04", nome: "Compra de Embalagem", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de Embalagem (almoxarifado)", compoeCusto: true, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1101", centroSugeridoCodigo: null, naturezaSugeridaCodigo: "2.07" },
+  { codigo: "TES-E05", nome: "Compra de Manutenção / MRO", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Almoxarifado", compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1556", centroSugeridoCodigo: null, naturezaSugeridaCodigo: "2.04" },
+  { codigo: "TES-E06", nome: "Compra de Mercadoria p/ Revenda", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Estoque de Mercadorias", compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1102", centroSugeridoCodigo: null, naturezaSugeridaCodigo: "2.08" },
+  { codigo: "TES-E07", nome: "Compra de Imobilizado", sentido: "ENTRADA", estocavel: true, almoxarifadoNome: "Almoxarifado", compoeCusto: false, permiteCapitalizar: true, geraFinanceiro: true, geraFiscal: true, cfop: "1551", centroSugeridoCodigo: null, naturezaSugeridaCodigo: "7.01" },
+  { codigo: "TES-E08", nome: "Uso e Consumo (Despesa direta)", sentido: "ENTRADA", estocavel: false, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1556", centroSugeridoCodigo: null, naturezaSugeridaCodigo: "2.05" },
+  { codigo: "TES-E09", nome: "Contratação de Serviço", sentido: "ENTRADA", estocavel: false, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: true, geraFiscal: true, cfop: "1933", centroSugeridoCodigo: null, naturezaSugeridaCodigo: null },
 
   // ── SAÍDA / RM (consumo; interno, sem financeiro/fiscal) ──────────────────────
-  { codigo: "TES-S01", nome: "Consumo — Material Direto (Produção)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: true, permiteCapitalizar: false, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: null },
-  { codigo: "TES-S02", nome: "Consumo — Manutenção Fabril (CIF)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: "AUX-05" },
-  { codigo: "TES-S03", nome: "Consumo — Administrativo (Despesa)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: "ADM-01" },
-  { codigo: "TES-S04", nome: "Consumo — Imobilizado / Obra (Capex)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: true, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: null },
-  { codigo: "TES-S05", nome: "Troca de Componente (Capex + baixa CPC 27)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: true, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: null },
+  { codigo: "TES-S01", nome: "Consumo — Material Direto (Produção)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: true, permiteCapitalizar: false, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: null, naturezaSugeridaCodigo: null },
+  { codigo: "TES-S02", nome: "Consumo — Manutenção Fabril (CIF)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: "AUX-05", naturezaSugeridaCodigo: null },
+  { codigo: "TES-S03", nome: "Consumo — Administrativo (Despesa)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: false, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: "ADM-01", naturezaSugeridaCodigo: null },
+  { codigo: "TES-S04", nome: "Consumo — Imobilizado / Obra (Capex)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: true, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: null, naturezaSugeridaCodigo: null },
+  { codigo: "TES-S05", nome: "Troca de Componente (Capex + baixa CPC 27)", sentido: "SAIDA", estocavel: true, almoxarifadoNome: null, compoeCusto: false, permiteCapitalizar: true, geraFinanceiro: false, geraFiscal: false, cfop: null, centroSugeridoCodigo: null, naturezaSugeridaCodigo: null },
 ];
 
 /**
@@ -48,13 +49,15 @@ export const TES_PADRAO: TesPadrao[] = [
  * Só cria o que ainda não existe (por empresaId+codigo) — NUNCA sobrescreve edições.
  */
 export async function garantirTiposOperacaoPadrao(empresaId: string): Promise<{ criados: number; jaExistiam: number }> {
-  const [locais, centros, existentes] = await Promise.all([
+  const [locais, centros, naturezas, existentes] = await Promise.all([
     prismaSemEscopo.localEstoque.findMany({ where: { empresaId }, select: { id: true, nome: true } }),
     prismaSemEscopo.centroCusto.findMany({ where: { empresaId }, select: { id: true, codigo: true } }),
+    prismaSemEscopo.naturezaFinanceira.findMany({ where: { empresaId, ativo: true, codigo: { not: null } }, select: { id: true, codigo: true } }),
     prismaSemEscopo.tipoOperacao.findMany({ where: { empresaId }, select: { codigo: true } }),
   ]);
   const localPorNome = new Map(locais.map((l) => [l.nome, l.id]));
   const centroPorCodigo = new Map(centros.map((c) => [c.codigo, c.id]));
+  const naturezaPorCodigo = new Map(naturezas.map((n) => [n.codigo as string, n.id]));
   const jaTem = new Set(existentes.map((e) => e.codigo));
 
   let criados = 0;
@@ -75,6 +78,7 @@ export async function garantirTiposOperacaoPadrao(empresaId: string): Promise<{ 
         geraFiscal: t.geraFiscal,
         cfop: t.cfop,
         centroCustoSugeridoId: t.centroSugeridoCodigo ? (centroPorCodigo.get(t.centroSugeridoCodigo) ?? null) : null,
+        naturezaSugeridaId: t.naturezaSugeridaCodigo ? (naturezaPorCodigo.get(t.naturezaSugeridaCodigo) ?? null) : null,
       },
     }).then(() => { criados++; }).catch(() => { /* corrida na unique (empresa,codigo) → ignora */ });
   }

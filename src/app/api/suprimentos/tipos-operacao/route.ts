@@ -20,6 +20,8 @@ const schema = z.object({
   cfop: z.string().optional().nullable(),
   naturezaFiscal: z.string().optional().nullable(),
   centroCustoSugeridoId: z.string().optional().nullable(),
+  // Natureza financeira sugerida (default do título gerado pelo DE, não trava).
+  naturezaSugeridaId: z.string().optional().nullable(),
   ativo: z.boolean().default(true),
 });
 
@@ -29,6 +31,7 @@ export async function GET() {
     include: {
       almoxarifadoDefault: { select: { id: true, nome: true } },
       centroCustoSugerido: { select: { id: true, codigo: true, nome: true } },
+      naturezaSugerida: { select: { id: true, codigo: true, nome: true } },
     },
   });
   return NextResponse.json(data);
@@ -46,6 +49,7 @@ export async function POST(req: NextRequest) {
       ...d,
       almoxarifadoDefaultId: d.almoxarifadoDefaultId || null,
       centroCustoSugeridoId: d.centroCustoSugeridoId || null,
+      naturezaSugeridaId: d.naturezaSugeridaId || null,
       cfop: d.cfop || null,
       naturezaFiscal: d.naturezaFiscal || null,
     },

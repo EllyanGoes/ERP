@@ -17,6 +17,7 @@ const schema = z.object({
   cfop: z.string().optional().nullable(),
   naturezaFiscal: z.string().optional().nullable(),
   centroCustoSugeridoId: z.string().optional().nullable(),
+  naturezaSugeridaId: z.string().optional().nullable(),
   ativo: z.boolean().optional(),
 });
 
@@ -33,6 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       ...d,
       ...(d.almoxarifadoDefaultId !== undefined ? { almoxarifadoDefaultId: d.almoxarifadoDefaultId || null } : {}),
       ...(d.centroCustoSugeridoId !== undefined ? { centroCustoSugeridoId: d.centroCustoSugeridoId || null } : {}),
+      ...(d.naturezaSugeridaId !== undefined ? { naturezaSugeridaId: d.naturezaSugeridaId || null } : {}),
       ...(d.cfop !== undefined ? { cfop: d.cfop || null } : {}),
       ...(d.naturezaFiscal !== undefined ? { naturezaFiscal: d.naturezaFiscal || null } : {}),
     },

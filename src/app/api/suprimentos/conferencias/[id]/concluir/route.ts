@@ -5,7 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
-import { gerarContasPagarDoDocumento } from "@/lib/contas-pagar";
+import { gerarContasPagarDoDocumento, classificacaoSugeridaDaEntrada, criarRateioInicialCp } from "@/lib/contas-pagar";
 import { calcularParcelas, type Parcela } from "@/lib/parcelas";
 import { baixarTitulo } from "@/lib/baixa-titulo";
 import { generateSimpleDocNumber } from "@/lib/utils";
@@ -78,6 +78,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     });
     if (!conferencia) throw new Error("Conferência não encontrada");
 
+    // Classificação sugerida dos títulos: natureza pelo TES das linhas (única
+    // distinta) e centro das linhas (único distinto). A natureza do CABEÇALHO do
+    // DE, quando informada, tem precedência sobre a sugestão do TES.
+    const sugestao = await classificacaoSugeridaDaEntrada(tx, conferencia.id);
+    const naturezaTitulo = conferencia.naturezaFinanceiraId ?? sugestao.naturezaTesId;
+
     // ── Título da ENTRADA JÁ PAGA (sinal da fatura) ───────────────────────────
     // Nasce ABERTA dentro da transação e é BAIXADO pós-commit (padrão do
     // sistema: financeiro na transação; baixa/contábil depois). O valor pago
@@ -102,7 +108,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           conferenciaId: conferencia.id,
           ...(opts.pedidoCompraId ? { pedidoCompraId: opts.pedidoCompraId } : {}),
           fornecedorId: conferencia.pedido?.fornecedorId ?? conferencia.fornecedorId,
-          naturezaFinanceiraId: conferencia.naturezaFinanceiraId ?? null,
+          naturezaFinanceiraId: naturezaTitulo ?? null,
+          centroCustoId: sugestao.centroCustoId ?? null,
           formaPagamentoPrevistaId: conferencia.formaPagoAntecipadoId ?? conferencia.formaPagamentoId ?? null,
           descricao: `${opts.baseDesc} (entrada paga)`,
           valorOriginal: pago,
@@ -113,6 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           notaFiscal: conferencia.numeroNF ?? null,
         },
       });
+      await criarRateioInicialCp(tx2, cp.id, naturezaTitulo, pago);
       entradaPagaInfo = {
         cpId: cp.id,
         valor: pago,
@@ -446,13 +454,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             update: { ultimo: { increment: 1 } },
           });
           const baseDesc = `Compra ${conferencia.numero}${det ? ` — ${det}` : " (entrada avulsa)"}`;
-          await tx.contaPagar.create({
+          const cpAvulsa = await tx.contaPagar.create({
             data: {
               empresaId: conferencia.empresaId,
               numero: generateSimpleDocNumber("CP", seqCp.ultimo),
               conferenciaId: conferencia.id,
               fornecedorId: conferencia.fornecedorId,
-              naturezaFinanceiraId: conferencia.naturezaFinanceiraId ?? null,
+              naturezaFinanceiraId: naturezaTitulo ?? null,
+              centroCustoId: sugestao.centroCustoId ?? null,
               formaPagamentoPrevistaId: conferencia.formaPagamentoId ?? null,
               descricao: p.parcelaTotal ? `${baseDesc} (${p.parcelaNumero}/${p.parcelaTotal})` : baseDesc,
               valorOriginal: p.valor,
@@ -466,6 +475,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 : {}),
             },
           });
+          await criarRateioInicialCp(tx, cpAvulsa.id, naturezaTitulo, p.valor);
         }
       }
     }
@@ -551,7 +561,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 numeroPedido: pc.numero,
                 valorTotal: restante,
                 dataBase: conferencia.dtEmissao ?? hojeUTC,
-                naturezaFinanceiraId: conferencia.naturezaFinanceiraId,
+                naturezaFinanceiraId: naturezaTitulo,
+                centroCustoId: sugestao.centroCustoId,
                 formaPagamentoPrevistaId: conferencia.formaPagamentoId,
                 ...(custom ? { parcelasProntas: custom } : {}),
               }, condicao);

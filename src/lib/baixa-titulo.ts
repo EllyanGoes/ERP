@@ -70,6 +70,12 @@ export async function baixarTitulo(
     taxaNaturezaId?: string | null;
     /** Rateio gerencial por natureza (só PAGAR) — substitui o rateio anterior. */
     naturezas?: NaturezaRateio[];
+    /**
+     * Centro de custo (só PAGAR): a baixa também classifica — a alteração vai
+     * para o TÍTULO (ContaPagar.centroCustoId), não só para o registro do
+     * pagamento. undefined = não mexer; null = limpar.
+     */
+    centroCustoId?: string | null;
   },
 ): Promise<ResultadoBaixa> {
   const { tipo, tituloId, linhas } = opts;
@@ -157,9 +163,10 @@ export async function baixarTitulo(
   const totalPago = r2(jaPago + valorPagoTotal);
   const newStatus = totalPago >= totalOriginal ? "PAGA" : "PARCIAL";
 
-  // Taxa retida: valida a natureza travada (sistema=true, mesma empresa; default
-  // por lado) e rejeita em título intragrupo — o motor pula caixa intragrupo e a
-  // taxa sumiria silenciosamente do razão.
+  // Taxa retida: valida a natureza (travada do sistema OU do grupo 6 — Financeiras
+  // — do plano hierárquico, ativa e da mesma empresa; default por lado) e rejeita
+  // em título intragrupo — o motor pula caixa intragrupo e a taxa sumiria
+  // silenciosamente do razão.
   let taxaNaturezaId: string | null = null;
   if (valorTaxa > 0.005) {
     if (conta.intragrupo) {
@@ -167,11 +174,14 @@ export async function baixarTitulo(
     }
     if (opts.taxaNaturezaId) {
       const nat = await tx.naturezaFinanceira.findFirst({
-        where: { id: opts.taxaNaturezaId, empresaId: conta.empresaId, sistema: true },
+        where: {
+          id: opts.taxaNaturezaId, empresaId: conta.empresaId,
+          OR: [{ sistema: true }, { ativo: true, codigo: { startsWith: "6." } }],
+        },
         select: { id: true },
       });
       if (!nat) {
-        return { erro: { msg: "Natureza da taxa inválida — use uma natureza travada do sistema.", status: 422 }, conta: null };
+        return { erro: { msg: "Natureza da taxa inválida — use uma natureza do grupo 6 (Financeiras) ou travada do sistema.", status: 422 }, conta: null };
       }
       taxaNaturezaId = nat.id;
     } else {
@@ -207,6 +217,19 @@ export async function baixarTitulo(
     const { validarNaturezasAtivas } = await import("@/lib/natureza-sistema");
     const erroNat = await validarNaturezasAtivas(tx, naturezasRateio.map((n) => n.naturezaFinanceiraId));
     if (erroNat) return { erro: { msg: erroNat, status: 422 }, conta: null };
+  }
+
+  // Centro de custo (só PAGAR): a baixa também corrige a classificação do título.
+  // Valida (ativo, mesma empresa) ANTES de qualquer escrita.
+  const centroCustoId = !isReceber ? opts.centroCustoId : undefined;
+  if (centroCustoId) {
+    const centro = await tx.centroCusto.findFirst({
+      where: { id: centroCustoId, empresaId: conta.empresaId, ativo: true },
+      select: { id: true },
+    });
+    if (!centro) {
+      return { erro: { msg: "Centro de custo inválido ou inativo para a empresa do título.", status: 422 }, conta: null };
+    }
   }
 
   // Permuta NÃO é forma de baixa unilateral: as duas pernas (CP e CR do mesmo
@@ -255,6 +278,8 @@ export async function baixarTitulo(
     dataPagamento: newStatus === "PAGA" ? dataPag : null,
     formaPagamento: formaResumo ?? conta.formaPagamento,
     status: newStatus as "PAGA" | "PARCIAL",
+    // Classificação corrigida na baixa vai para o TÍTULO (undefined = não mexer).
+    ...(centroCustoId !== undefined ? { centroCustoId } : {}),
   };
   const aplicado = isReceber
     ? await tx.contaReceber.updateMany({ where: guardWhere, data: guardData })

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function EditarContaPagarPage({ params }: { params: { id: string } }) {
   const [conta, fornecedores, colaboradores, naturezas] = await Promise.all([
-    prisma.contaPagar.findUnique({ where: { id: params.id } }),
+    prisma.contaPagar.findUnique({ where: { id: params.id }, include: { naturezas: { select: { naturezaFinanceiraId: true, detalhamento: true, valor: true }, orderBy: { createdAt: "asc" } } } }),
     prisma.fornecedor.findMany({ where: { ativo: true }, orderBy: { razaoSocial: "asc" }, select: { id: true, razaoSocial: true } }),
     prisma.colaborador.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     prisma.naturezaFinanceira.findMany({ where: { ativo: true, tipo: "SAIDA" }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
@@ -30,6 +30,12 @@ export default async function EditarContaPagarPage({ params }: { params: { id: s
     naturezaFinanceiraId: conta.naturezaFinanceiraId ?? "",
     centroCustoId: conta.centroCustoId ?? "",
     contaBancariaId: conta.contaBancariaId ?? "",
+    // Split de naturezas existente (rateio gerencial) — pré-carrega a seção Classificação.
+    naturezas: conta.naturezas.map((n) => ({
+      naturezaFinanceiraId: n.naturezaFinanceiraId,
+      detalhamento: n.detalhamento ?? "",
+      valor: decimalToNumber(n.valor),
+    })),
   };
 
   return (

@@ -33,10 +33,28 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!conta) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
 
   // Natureza NOVA precisa estar ativa (trocar; manter a antiga do histórico é ok).
-  if (d.naturezaFinanceiraId && d.naturezaFinanceiraId !== conta.naturezaFinanceiraId) {
+  // Vale para a coluna única e para as linhas NOVAS do split (linha que já
+  // existia no rateio pode permanecer mesmo inativa — histórico legível).
+  const rateioAtual = await prisma.contaPagarNatureza.findMany({
+    where: { contaPagarId: params.id }, select: { naturezaFinanceiraId: true },
+  });
+  const jaNoRateio = new Set(rateioAtual.map((r) => r.naturezaFinanceiraId));
+  const idsParaValidar = [
+    ...(d.naturezaFinanceiraId && d.naturezaFinanceiraId !== conta.naturezaFinanceiraId ? [d.naturezaFinanceiraId] : []),
+    ...(d.naturezas ?? []).map((n) => n.naturezaFinanceiraId).filter((id) => !jaNoRateio.has(id)),
+  ];
+  if (idsParaValidar.length > 0) {
     const { validarNaturezasAtivas } = await import("@/lib/natureza-sistema");
-    const erroNat = await validarNaturezasAtivas(prisma, [d.naturezaFinanceiraId]);
+    const erroNat = await validarNaturezasAtivas(prisma, idsParaValidar);
     if (erroNat) return NextResponse.json({ error: erroNat }, { status: 422 });
+  }
+
+  // Split de naturezas: quando enviado, a soma deve bater com o valor do título.
+  if (d.naturezas && d.naturezas.length > 0) {
+    const soma = Math.round(d.naturezas.reduce((s, n) => s + n.valor, 0) * 100) / 100;
+    if (Math.abs(soma - d.valorOriginal) > 0.05) {
+      return NextResponse.json({ error: `A soma das naturezas (R$ ${soma.toFixed(2)}) deve bater com o valor do título (R$ ${d.valorOriginal.toFixed(2)}).` }, { status: 422 });
+    }
   }
 
   // Mudou o valorOriginal → o status precisa continuar coerente com o valorPago
@@ -48,23 +66,46 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     : pago > 0.005 ? "PARCIAL"
     : "ABERTA";
 
-  const atualizado = await prisma.contaPagar.update({
-    where: { id: params.id },
-    data: {
-      fornecedorId: d.fornecedorId || null,
-      beneficiarioTipo: d.beneficiarioTipo ?? null,
-      beneficiarioId: d.beneficiarioId ?? null,
-      descricao: d.descricao,
-      valorOriginal: d.valorOriginal,
-      dataVencimento: new Date(d.dataVencimento),
-      formaPagamento: d.formaPagamento || null,
-      notaFiscal: d.notaFiscal || null,
-      observacoes: d.observacoes || null,
-      naturezaFinanceiraId: d.naturezaFinanceiraId || null,
-      centroCustoId: d.centroCustoId || null,
-      contaBancariaId: d.contaBancariaId || null,
-      status,
-    },
+  const atualizado = await prisma.$transaction(async (tx) => {
+    const upd = await tx.contaPagar.update({
+      where: { id: params.id },
+      data: {
+        fornecedorId: d.fornecedorId || null,
+        beneficiarioTipo: d.beneficiarioTipo ?? null,
+        beneficiarioId: d.beneficiarioId ?? null,
+        descricao: d.descricao,
+        valorOriginal: d.valorOriginal,
+        dataVencimento: new Date(d.dataVencimento),
+        formaPagamento: d.formaPagamento || null,
+        notaFiscal: d.notaFiscal || null,
+        observacoes: d.observacoes || null,
+        naturezaFinanceiraId: d.naturezaFinanceiraId || null,
+        centroCustoId: d.centroCustoId || null,
+        contaBancariaId: d.contaBancariaId || null,
+        status,
+      },
+    });
+    if (d.naturezas && d.naturezas.length > 0) {
+      // Split enviado: substitui o rateio (mesmo registro que a baixa edita).
+      await tx.contaPagarNatureza.deleteMany({ where: { contaPagarId: params.id } });
+      await tx.contaPagarNatureza.createMany({
+        data: d.naturezas.map((n) => ({
+          contaPagarId: params.id, naturezaFinanceiraId: n.naturezaFinanceiraId,
+          detalhamento: n.detalhamento?.trim() || null, valor: n.valor,
+        })),
+      });
+    } else if (rateioAtual.length <= 1) {
+      // Sem split no corpo (ex.: pop-up de edição rápida): mantém a linha única
+      // do rateio coerente com a natureza/valor do título; multi-linha não é
+      // tocado (o pop-up não sabe do rateio detalhado).
+      await tx.contaPagarNatureza.deleteMany({ where: { contaPagarId: params.id } });
+      if (d.naturezaFinanceiraId) {
+        await tx.contaPagarNatureza.create({
+          data: { contaPagarId: params.id, naturezaFinanceiraId: d.naturezaFinanceiraId, valor: d.valorOriginal },
+        });
+      }
+    }
+    return upd;
   });
 
   // Re-contabiliza com os dados novos (ex.: agora com fornecedor → passa pela
@@ -99,6 +140,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       valorTaxa: parsed.data.valorTaxa,
       taxaNaturezaId: parsed.data.taxaNaturezaId ?? null,
       naturezas: parsed.data.naturezas,
+      centroCustoId: parsed.data.centroCustoId,
     }),
   );
 

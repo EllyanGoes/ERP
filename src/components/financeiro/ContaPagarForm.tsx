@@ -8,20 +8,26 @@ import { contaPagarSchema, type ContaPagarFormData } from "@/lib/validations/fin
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
+import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
+import { Plus, Trash2 } from "lucide-react";
+import { formatBRL } from "@/lib/utils";
+import { parseValorBR } from "@/components/pedidos-venda/PagamentosInput";
 
 type FornecedorOption = { id: string; razaoSocial: string };
 type ColaboradorOption = { id: string; nome: string };
 type NaturezaOption = { id: string; nome: string; grupo?: string | null; cif?: boolean | null };
 type CentroOption = { id: string; codigo: string; nome: string };
-type ContaPagarEdit = { id: string } & Partial<ContaPagarFormData>;
+type NaturezaLinhaEdit = { naturezaFinanceiraId: string; detalhamento?: string | null; valor: number };
+type ContaPagarEdit = { id: string; naturezas?: NaturezaLinhaEdit[] } & Partial<ContaPagarFormData>;
 type BenTipo = "FORNECEDOR" | "COLABORADOR" | "SEM_VINCULO";
+// Linha do split de naturezas (mesma estrutura do modal de baixa).
+type SplitLinha = { key: string; naturezaFinanceiraId: string; detalhamento: string; valor: string };
 
 export default function ContaPagarForm({ fornecedores, colaboradores, naturezas, editing }: {
   fornecedores: FornecedorOption[];
@@ -44,18 +50,36 @@ export default function ContaPagarForm({ fornecedores, colaboradores, naturezas,
     : (editing?.fornecedorId || editing?.beneficiarioTipo === "FORNECEDOR") ? "FORNECEDOR" : "SEM_VINCULO";
   const [benTipo, setBenTipo] = useState<BenTipo>(tipoInicial);
   const [benId, setBenId] = useState<string>(editing?.fornecedorId || editing?.beneficiarioId || "");
-  const [natureza, setNatureza] = useState<string>(editing?.naturezaFinanceiraId ?? "");
   const [centroCustoId, setCentroCustoId] = useState<string>(editing?.centroCustoId ?? "");
   const [centros, setCentros] = useState<CentroOption[]>([]);
+  // Split de naturezas (mesmo componente da baixa): natureza + detalhamento +
+  // valor por linha. Valor vazio numa linha única = valor do título.
+  const [split, setSplit] = useState<SplitLinha[]>(() => {
+    const existentes = editing?.naturezas?.length
+      ? editing.naturezas.map((n) => ({
+          key: crypto.randomUUID(), naturezaFinanceiraId: n.naturezaFinanceiraId,
+          detalhamento: n.detalhamento ?? "", valor: n.valor.toFixed(2).replace(".", ","),
+        }))
+      : editing?.naturezaFinanceiraId
+        ? [{ key: crypto.randomUUID(), naturezaFinanceiraId: editing.naturezaFinanceiraId, detalhamento: "", valor: "" }]
+        : null;
+    return existentes ?? [{ key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: "" }];
+  });
+  // Lista completa p/ o combobox (código/grupo/subgrupo) — client-side, como na baixa.
+  const [naturezasOpts, setNaturezasOpts] = useState<NaturezaOpt[]>([]);
 
-  // Centro é exigido conforme o destino da natureza (despesa/CIF); oculto p/ natureza
-  // patrimonial (imposto/empréstimo). É gerencial no título; o razão segue pela natureza.
-  const natSel = naturezas.find((n) => n.id === natureza) ?? null;
+  // Centro é exigido conforme o destino da 1ª natureza do split (despesa/CIF);
+  // oculto p/ natureza patrimonial (imposto/empréstimo). É gerencial no título;
+  // o razão segue pela natureza.
+  const natureza = split[0]?.naturezaFinanceiraId ?? "";
+  const natSel = naturezasOpts.find((n) => n.id === natureza) ?? naturezas.find((n) => n.id === natureza) ?? null;
   const exigeCentro = centroExigidoPelaNatureza(natSel);
 
   useEffect(() => {
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
       .then((j) => setCentros(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json())
+      .then((j) => setNaturezasOpts(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, []);
 
   const [serverError, setServerError] = useState<string | null>(null);
@@ -65,7 +89,12 @@ export default function ContaPagarForm({ fornecedores, colaboradores, naturezas,
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "conta",
     gender: "f",
-    onNew: () => { form.reset({ dataVencimento: new Date().toISOString().split("T")[0] }); setParcelas("1"); setIntervaloDias("30"); },
+    onNew: () => {
+      form.reset({ dataVencimento: new Date().toISOString().split("T")[0] });
+      setParcelas("1"); setIntervaloDias("30");
+      setSplit([{ key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: "" }]);
+      setCentroCustoId("");
+    },
   });
 
   async function onSubmit(data: ContaPagarFormData) {
@@ -74,9 +103,24 @@ export default function ContaPagarForm({ fornecedores, colaboradores, naturezas,
     if (benTipo === "FORNECEDOR" && !benId) { setServerError("Selecione o fornecedor."); return; }
     if (benTipo === "COLABORADOR" && !benId) { setServerError("Selecione o colaborador."); return; }
     if (exigeCentro && !centroCustoId) { setServerError("Centro de custo é obrigatório para esta natureza (despesa/CIF)."); return; }
+    // Split de naturezas: linha única sem valor herda o valor do título; com
+    // mais de uma linha a soma deve bater com o valor.
+    const linhasValidas = split.filter((l) => l.naturezaFinanceiraId);
+    const naturezasPayload = linhasValidas.map((l, i) => ({
+      naturezaFinanceiraId: l.naturezaFinanceiraId,
+      detalhamento: l.detalhamento.trim() || null,
+      valor: linhasValidas.length === 1 && !l.valor.trim() && i === 0 ? data.valorOriginal : parseValorBR(l.valor),
+    }));
+    if (naturezasPayload.some((l) => !(l.valor > 0))) { setServerError("Informe o valor de cada natureza do split."); return; }
+    const somaSplit = Math.round(naturezasPayload.reduce((s, l) => s + l.valor, 0) * 100) / 100;
+    if (Math.abs(somaSplit - data.valorOriginal) > 0.05) {
+      setServerError(`A soma das naturezas (${formatBRL(somaSplit)}) deve bater com o valor do título (${formatBRL(data.valorOriginal)}).`);
+      return;
+    }
     const payload = {
       ...data,
       naturezaFinanceiraId: natureza,
+      naturezas: naturezasPayload,
       // Centro só quando o destino é de custo (despesa/CIF); patrimonial não carrega.
       centroCustoId: exigeCentro ? (centroCustoId || null) : null,
       fornecedorId: benTipo === "FORNECEDOR" ? benId : null,
@@ -119,16 +163,39 @@ export default function ContaPagarForm({ fornecedores, colaboradores, naturezas,
         <Card>
           <CardHeader><CardTitle className="text-base">Dados da Conta</CardTitle></CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
+            {/* ── Classificação: centro de custo + split de naturezas (mesmo
+                componente da baixa). O título nasce classificado. ─────────── */}
             <FormItem className="col-span-2">
-              <FormLabel>Natureza financeira *</FormLabel>
-              <ComboboxWithCreate
-                options={naturezas.map((n) => ({ value: n.id, label: n.nome }))}
-                value={natureza}
-                onChange={setNatureza}
-                allowNone={false}
-                placeholder="Selecionar natureza..."
-              />
-              <p className="text-[11px] text-muted-foreground">As contas contábeis (despesa e a pagar) são derivadas automaticamente da natureza.</p>
+              <div className="flex items-center justify-between">
+                <FormLabel>Naturezas financeiras *</FormLabel>
+                <button
+                  type="button"
+                  onClick={() => setSplit((p) => [...p, { key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: "" }])}
+                  className="inline-flex items-center gap-1 text-xs text-info font-medium"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar natureza
+                </button>
+              </div>
+              <div className="space-y-2">
+                {split.map((l) => (
+                  <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">
+                    <NaturezaCombobox
+                      value={l.naturezaFinanceiraId}
+                      onChange={(id) => setSplit((p) => p.map((x) => (x.key === l.key ? { ...x, naturezaFinanceiraId: id } : x)))}
+                      naturezas={naturezasOpts}
+                      defaultTipo="SAIDA"
+                      allowCreate
+                      onCreated={(n) => setNaturezasOpts((prev) => [...prev, n])}
+                    />
+                    <Input value={l.detalhamento} onChange={(e) => setSplit((p) => p.map((x) => (x.key === l.key ? { ...x, detalhamento: e.target.value } : x)))} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
+                    <Input value={l.valor} onChange={(e) => setSplit((p) => p.map((x) => (x.key === l.key ? { ...x, valor: e.target.value } : x)))} placeholder={split.length === 1 ? "= valor" : "0,00"} className="h-9 text-right font-mono min-w-0" />
+                    <button type="button" onClick={() => setSplit((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={split.length <= 1} className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">A soma das naturezas deve bater com o valor do título (linha única sem valor herda o total). As contas contábeis são derivadas da natureza.</p>
             </FormItem>
 
             {/* Centro de custo — só quando o destino é de custo (despesa/CIF). Natureza

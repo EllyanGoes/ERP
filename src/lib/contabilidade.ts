@@ -527,7 +527,7 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, antecipado: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, valorTaxa: true, taxaNaturezaId: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, antecipado: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, valorTaxa: true, taxaNaturezaId: true, valorJuros: true, valorMulta: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
 
@@ -587,6 +587,31 @@ export async function contabilizarTituloPagar(cpId: string) {
       total += v;
     }
     return { partidas, total: Math.round(total * 100) / 100 };
+  };
+
+  // Dimensão gerencial dos ENCARGOS da baixa: juros → natureza travada 6.01
+  // (juros-pagos) e multa → 6.05 (multa-paga). Mesma conta e mesmo valor do
+  // débito de sempre (Juros e Multas Passivos) — só a natureza viaja como
+  // dimensão; quando as colunas do título não fecham com o jm calculado
+  // (legado/misto), a partida sai única e sem dimensão, como antes.
+  const pernasJurosMulta = async (contaJmId: string, jm: number): Promise<PartidaIn[]> => {
+    const vJ = r2(decimalToNumber(cp.valorJuros ?? 0));
+    const vM = r2(decimalToNumber(cp.valorMulta ?? 0));
+    if ((vJ > 0.005 || vM > 0.005) && Math.abs(r2(vJ + vM) - jm) <= 0.01) {
+      const { naturezaSistema } = await import("@/lib/natureza-sistema");
+      const [natJ, natM] = await Promise.all([
+        vJ > 0.005 ? naturezaSistema(null, cp.empresaId, "juros-pagos") : Promise.resolve(null),
+        vM > 0.005 ? naturezaSistema(null, cp.empresaId, "multa-paga") : Promise.resolve(null),
+      ]);
+      if (vJ > 0.005 && vM > 0.005) {
+        return [
+          { contaId: contaJmId, tipo: "DEBITO", valor: vJ, naturezaId: natJ?.id },
+          { contaId: contaJmId, tipo: "DEBITO", valor: r2(jm - vJ), naturezaId: natM?.id },
+        ];
+      }
+      return [{ contaId: contaJmId, tipo: "DEBITO", valor: jm, naturezaId: (vJ > 0.005 ? natJ : natM)?.id }];
+    }
+    return [{ contaId: contaJmId, tipo: "DEBITO", valor: jm }];
   };
 
   const pago = decimalToNumber(cp.valorPago);
@@ -653,7 +678,7 @@ export async function contabilizarTituloPagar(cpId: string) {
           const somaCred = r2(partidas.filter((x) => x.tipo === "CREDITO").reduce((s2, x) => s2 + x.valor, 0));
           const jm = r2(somaCred - pago);
           const contaJm = jm > 0.005 ? await garantirContaJurosMultasPassivos(cp.empresaId) : null;
-          if (contaJm && jm > 0.005) partidas.unshift({ contaId: contaJm.id, tipo: "DEBITO", valor: jm });
+          if (contaJm && jm > 0.005) partidas.unshift(...(await pernasJurosMulta(contaJm.id, jm)));
           partidas.unshift({ contaId: contaPassivo.id, tipo: "DEBITO", valor: contaJm ? r2(somaCred - jm) : somaCred });
           await registrarLancamento({
             empresaId: cp.empresaId, data: cp.dataPagamento ?? cp.createdAt,
@@ -790,7 +815,7 @@ export async function contabilizarTituloPagar(cpId: string) {
         const jm = r2(somaCred - pago);
         const contaJm = jm > 0.005 ? await garantirContaJurosMultasPassivos(cp.empresaId) : null;
         const principal = contaJm ? r2(somaCred - jm) : somaCred;
-        if (contaJm && jm > 0.005) partidas.unshift({ contaId: contaJm.id, tipo: "DEBITO", valor: jm });
+        if (contaJm && jm > 0.005) partidas.unshift(...(await pernasJurosMulta(contaJm.id, jm)));
         // Com rateio: o débito do Fornecedor é dividido por natureza (dimensão), somando
         // o total. Sem rateio: um débito único. O saldo do Fornecedor é o mesmo.
         const fornSplit = dividirPorNatureza(principal);
