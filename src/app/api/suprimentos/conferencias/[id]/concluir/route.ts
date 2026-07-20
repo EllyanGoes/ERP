@@ -12,6 +12,7 @@ import { contabilizarPedidoCompra, contabilizarEntradaEstoque } from "@/lib/cont
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCategoriaInvalida } from "@/lib/estoque-categoria";
 import { encargosConferencia } from "@/lib/pedido-compra-de";
+import { detalheItens } from "@/lib/detalhe-itens";
 
 const num = (d: unknown) => parseFloat(String(d ?? 0));
 
@@ -339,6 +340,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const condicao = conferencia.condicaoPagamentoId
           ? await tx.condicaoPagamento.findUnique({ where: { id: conferencia.condicaoPagamentoId } })
           : null;
+        // Descrição com a lista de itens (mesmo formato das CPs de pedido, via
+        // detalheItens): "Compra DE-X — 24× LUVA × R$ 1,39; ...".
+        const itensConf = await tx.conferenciaCompraItem.findMany({
+          where: { conferenciaId: conferencia.id },
+          select: { quantidadeRecebida: true, vlrUnitario: true, item: { select: { descricao: true } } },
+        });
+        const det = detalheItens(itensConf.map((it) => ({ quantidade: it.quantidadeRecebida, precoUnitario: it.vlrUnitario, item: it.item })));
         const parcelas = calcularParcelas(condicao, valorEntrada, conferencia.dtEmissao ?? hojeUTC);
         for (const p of parcelas) {
           const seqCp = await tx.sequencia.upsert({
@@ -346,7 +354,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             create: { empresaId: conferencia.empresaId, prefixo: "CP", ultimo: 1 },
             update: { ultimo: { increment: 1 } },
           });
-          const baseDesc = `Compra ${conferencia.numero} (entrada avulsa)`;
+          const baseDesc = `Compra ${conferencia.numero}${det ? ` — ${det}` : " (entrada avulsa)"}`;
           await tx.contaPagar.create({
             data: {
               empresaId: conferencia.empresaId,
