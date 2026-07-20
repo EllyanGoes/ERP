@@ -20,9 +20,16 @@ import {
   ChevronRight,
   Briefcase,
   Factory,
+  Download,
+  Copy,
+  FileText,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Autoria } from "@/components/shared/Autoria";
+import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 
 const COLLAPSE_KEY = "empresa:centros-custo:collapsed";
 const SEM_GRUPO = "__sem_grupo__";
@@ -301,6 +308,67 @@ export default function CentrosCustoPage() {
   const ativos   = centros.filter((c) => c.ativo).length;
   const inativos = centros.filter((c) => !c.ativo).length;
 
+  // ── Exportação (texto p/ copiar e PDF) — mesmo padrão de Naturezas ─────────
+  const [copiado, setCopiado] = useState(false);
+  // A lista da tela vem FILTRADA do servidor — a exportação busca a lista
+  // completa e agrupa igual à árvore (grupos ordenados + "Sem grupo" no fim).
+  async function estruturaCompleta(): Promise<{ nome: string; centros: Centro[] }[]> {
+    const res = await fetch("/api/empresa/centros-custo");
+    const todos: Centro[] = (await res.json().catch(() => [])) as Centro[];
+    if (!Array.isArray(todos)) return [];
+    const porGrupo = new Map<string, Centro[]>();
+    for (const c of todos) {
+      const key = c.grupoCentroCustoId ?? SEM_GRUPO;
+      porGrupo.set(key, [...(porGrupo.get(key) ?? []), c]);
+    }
+    const ordenar = (cs: Centro[]) => [...cs].sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
+    const secoes = grupos
+      .filter((g) => porGrupo.has(g.id))
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .map((g) => ({ nome: g.nome, centros: ordenar(porGrupo.get(g.id)!) }));
+    if (porGrupo.has(SEM_GRUPO)) secoes.push({ nome: "Sem grupo", centros: ordenar(porGrupo.get(SEM_GRUPO)!) });
+    return secoes;
+  }
+
+  async function copiarEstrutura() {
+    const linhas: string[] = ["CENTROS DE CUSTO", ""];
+    for (const sec of await estruturaCompleta()) {
+      linhas.push(sec.nome);
+      for (const c of sec.centros) {
+        const extras: string[] = [];
+        if (c.fabril) extras.push("Fabril (CIF)");
+        if (!c.ativo) extras.push("inativo");
+        linhas.push(`  • ${c.codigo} — ${c.nome}${extras.length ? ` (${extras.join(" · ")})` : ""}`);
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(linhas.join("\n"));
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch { /* clipboard indisponível */ }
+  }
+
+  async function baixarPdf() {
+    const head = ["Código", "Centro de custo", "Fabril (CIF)", "Status"];
+    const linhasPdf: LinhaPdf[] = [];
+    for (const sec of await estruturaCompleta()) {
+      linhasPdf.push({ celulas: [sec.nome, "", "", ""], estilo: "secao" });
+      for (const c of sec.centros) {
+        linhasPdf.push({
+          celulas: [c.codigo, c.nome, c.fabril ? "Sim" : "", c.ativo ? "Ativo" : "Inativo"],
+          estilo: "normal",
+        });
+      }
+    }
+    await gerarPdfContabil({
+      titulo: "Centros de Custo",
+      head,
+      linhas: linhasPdf,
+      alinharDireitaDe: head.length, // nenhuma coluna numérica
+      arquivo: `centros-de-custo-${new Date().toISOString().slice(0, 10)}.pdf`,
+    });
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -313,10 +381,27 @@ export default function CentrosCustoPage() {
           { label: "Centros de Custo" },
         ]}
         action={
-          <Button onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-2" />
-            Adicionar
-          </Button>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button size="sm" variant="outline" disabled={loading || centros.length === 0} />}>
+                {copiado ? <Check className="w-4 h-4 mr-1.5 text-success" /> : <Download className="w-4 h-4 mr-1.5" />}
+                {copiado ? "Estrutura copiada" : "Baixar / Copiar"}
+                <ChevronDown className="w-3.5 h-3.5 ml-1" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={copiarEstrutura}>
+                  <Copy className="w-4 h-4 mr-2" /> Copiar estrutura
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={baixarPdf}>
+                  <FileText className="w-4 h-4 mr-2" /> Baixar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={openCreate}>
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar
+            </Button>
+          </div>
         }
       />
 
