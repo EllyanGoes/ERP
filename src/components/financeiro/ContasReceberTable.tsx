@@ -144,19 +144,27 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     for (const c of contas) for (const cc of c.contasContrapartida ?? []) m.set(cc.id, cc.nome);
     return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [contas]);
+  const [clienteFiltro, setClienteFiltro] = usePersistedState<string>("financeiro:contas-receber:cliente", "");
+  // Clientes distintos presentes na lista (para o filtro).
+  const clientesDisponiveis = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of contas) if (c.cliente) m.set(c.cliente.id, c.cliente.razaoSocial);
+    return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [contas]);
   const contasFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return contas.filter((c) => {
       // Status: OR sobre os marcados (nenhum marcado → nada, igual às listagens).
       if (!statusSel.some((s) => casaStatus(c, s as StatusFiltro))) return false;
       if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
+      if (clienteFiltro !== "" && c.cliente?.id !== clienteFiltro) return false;
       if (!dentroDoPeriodo(c, periodo)) return false;
       if (!q) return true;
       const o = origemReceber(c);
       return [c.numero, c.cliente?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, statusSel, contaFiltro, busca, periodo]);
+  }, [contas, statusSel, contaFiltro, clienteFiltro, busca, periodo]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
@@ -531,6 +539,20 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         />
         {/* Período por data de vencimento. */}
         <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período (vencimento)" />
+        {/* Cliente (da lista carregada). */}
+        {clientesDisponiveis.length > 0 && (
+          <div className="w-64">
+            <ComboboxWithCreate
+              value={clienteFiltro}
+              onChange={setClienteFiltro}
+              noneLabel="Todos os clientes"
+              placeholder="Cliente"
+              triggerClassName="h-9 rounded-lg"
+              menuMinWidth={340}
+              options={clientesDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
+            />
+          </div>
+        )}
         {contasDisponiveis.length > 0 && (
           <div className="w-64">
             <ComboboxWithCreate

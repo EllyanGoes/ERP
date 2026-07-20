@@ -186,6 +186,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // de seleção única). Padrão: em aberto (ABERTA + PARCIAL).
   const [statusSel, setStatusSel] = usePersistedState<string[]>("financeiro:contas-pagar:status-multi", SET_ABERTO);
   const [contaFiltro, setContaFiltro] = usePersistedState<string>("financeiro:contas-pagar:conta", "");
+  const [fornecedorFiltro, setFornecedorFiltro] = usePersistedState<string>("financeiro:contas-pagar:fornecedor", "");
   // Busca na barra de filtros (vale para a tabela E para a visão agrupada).
   const [busca, setBusca] = useState("");
   // Período por data de vencimento (persistido por usuário — padrão do sistema).
@@ -196,19 +197,26 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     for (const c of contas) for (const cc of c.contasContrapartida ?? []) m.set(cc.id, cc.nome);
     return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [contas]);
+  // Fornecedores distintos presentes na lista (para o filtro).
+  const fornecedoresDisponiveis = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of contas) if (c.fornecedor) m.set(c.fornecedor.id, c.fornecedor.razaoSocial);
+    return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [contas]);
   const contasFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return contas.filter((c) => {
       // Status: OR sobre os marcados (nenhum marcado → nada, igual às listagens).
       if (!statusSel.some((s) => casaStatus(c, s as StatusFiltro))) return false;
       if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
+      if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
       if (!dentroDoPeriodo(c, periodo)) return false;
       if (!q) return true;
       const o = origemPagar(c);
       return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, statusSel, contaFiltro, busca, periodo]);
+  }, [contas, statusSel, contaFiltro, fornecedorFiltro, busca, periodo]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [editar, setEditar] = useState<ContaRow | null>(null);
@@ -548,6 +556,20 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         />
         {/* Período por data de vencimento. */}
         <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período (vencimento)" />
+        {/* Fornecedor (da lista carregada). */}
+        {fornecedoresDisponiveis.length > 0 && (
+          <div className="w-64">
+            <ComboboxWithCreate
+              value={fornecedorFiltro}
+              onChange={setFornecedorFiltro}
+              noneLabel="Todos os fornecedores"
+              placeholder="Fornecedor"
+              triggerClassName="h-9 rounded-lg"
+              menuMinWidth={340}
+              options={fornecedoresDisponiveis.map((f) => ({ value: f.id, label: f.nome }))}
+            />
+          </div>
+        )}
         {contasDisponiveis.length > 0 && (
           <div className="w-64">
             <ComboboxWithCreate
