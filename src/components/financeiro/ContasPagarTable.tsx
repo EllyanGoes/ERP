@@ -747,9 +747,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                         "grid gap-3 items-center px-5 py-2.5 hover:bg-muted/40 cursor-pointer text-sm",
                         // Agrupado por fornecedor: a coluna de fornecedor some (já é o
                         // cabeçalho do grupo). Por vencimento, mostra o fornecedor.
+                        // Colunas: [nº] [forn?] [descrição] [origem] [emissão] [vencimento] [valor] [status] [ações]
                         agrupamento === "fornecedor"
-                          ? "grid-cols-[7rem_1.4fr_8rem_6.5rem_5rem_auto]"
-                          : "grid-cols-[7rem_1.2fr_1.4fr_8rem_6.5rem_5rem_auto]",
+                          ? "grid-cols-[7rem_1.4fr_8rem_5.5rem_5.5rem_6.5rem_5rem_auto]"
+                          : "grid-cols-[7rem_1.2fr_1.4fr_8rem_5.5rem_5.5rem_6.5rem_5rem_auto]",
                       )}
                     >
                       <span className="inline-flex items-center gap-1 min-w-0">
@@ -761,6 +762,14 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                       {(() => { const o = origemPagar(c); return (
                         <span className="truncate text-xs text-muted-foreground font-mono" title={o.ref ? `${o.label} · ${o.ref}` : o.label}>{o.ref || o.label}</span>
                       ); })()}
+                      {/* Emissão (título ou, na falta, emissão do DE) */}
+                      {(() => { const d = c.dataEmissao ?? c.conferencia?.dtEmissao ?? null; return (
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{d ? formatDate(d) : "—"}</span>
+                      ); })()}
+                      {/* Vencimento */}
+                      <span className={cn("text-xs whitespace-nowrap", c.dataVencimento && isVencida(c.dataVencimento, c.dataPagamento) ? "text-danger font-medium" : "text-muted-foreground")}>
+                        {c.dataVencimento ? formatDate(c.dataVencimento) : "—"}
+                      </span>
                       <span className="font-medium tabular-nums text-right">{formatBRL(decimalToNumber(c.valorOriginal))}</span>
                       <StatusBadge status={c.status} />
                       {renderAcoes(c)}
