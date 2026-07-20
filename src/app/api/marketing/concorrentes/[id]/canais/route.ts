@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { geocodificarEndereco } from "@/lib/geocode";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const data = await prisma.concorrenteCanal.findMany({
     where: { concorrenteId: params.id },
     orderBy: { createdAt: "asc" },

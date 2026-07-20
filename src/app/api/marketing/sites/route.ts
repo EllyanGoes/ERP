@@ -9,6 +9,9 @@ import { siteRastreadoSchema } from "@/lib/tracking/sites-schema";
 // chave pública do snippet, então "excluir" é sempre soft-delete.
 
 export async function GET() {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const data = await prisma.siteRastreado.findMany({
     orderBy: [{ ativo: "desc" }, { createdAt: "desc" }],
   });

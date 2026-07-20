@@ -7,6 +7,9 @@ import { recalcPedidoValorTotal } from "@/lib/pedido-totais";
 import { getSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const clienteId = searchParams.get("clienteId") || undefined;
 

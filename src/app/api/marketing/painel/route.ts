@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/marketing/painel?dias=30 — dados consolidados do dashboard do
@@ -14,6 +15,9 @@ function diaSP(instante: Date): string {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const dias = Math.min(365, Math.max(1, parseInt(searchParams.get("dias") || "30") || 30));
 

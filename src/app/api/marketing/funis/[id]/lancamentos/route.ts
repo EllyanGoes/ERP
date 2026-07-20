@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { lancamentoManualSchema } from "@/lib/validations/marketing-funil";
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const noId = searchParams.get("noId") || undefined;
 

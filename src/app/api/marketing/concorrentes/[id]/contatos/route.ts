@@ -4,6 +4,9 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const data = await prisma.concorrenteContato.findMany({
     where: { concorrenteId: params.id },
     orderBy: { createdAt: "asc" },

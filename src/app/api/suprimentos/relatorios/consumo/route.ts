@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 function decNum(val: unknown): number {
@@ -8,6 +9,9 @@ function decNum(val: unknown): number {
 }
 
 export async function GET() {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const now     = new Date();
   const since90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 

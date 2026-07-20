@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 
@@ -25,6 +26,9 @@ function parseDate(value: string | null, fallback: Date): Date {
 // mas a SAÍDA de transferência da origem é descartada para não duplicar a saída
 // quando o relatório enxerga mais de uma empresa (escopo de grupo).
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
 
   const hoje = new Date();

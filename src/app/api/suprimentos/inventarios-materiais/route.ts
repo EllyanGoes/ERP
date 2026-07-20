@@ -6,6 +6,9 @@ import { generateSimpleDocNumber } from "@/lib/utils";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const localEstoqueId = searchParams.get("localEstoqueId");
   const status         = searchParams.get("status");

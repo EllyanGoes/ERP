@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { leadSchema } from "@/lib/validations/marketing-lead";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
   const status = searchParams.get("status") || undefined; // ABERTO | GANHO | PERDIDO

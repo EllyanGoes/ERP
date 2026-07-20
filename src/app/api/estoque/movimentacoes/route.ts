@@ -104,6 +104,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const itemId = searchParams.get("itemId") || undefined;
   const tipo   = searchParams.get("tipo")   || undefined;

@@ -20,6 +20,9 @@ async function validarDestinoTransferencia(localDestinoId: string | null | undef
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const localEstoqueId = searchParams.get("localEstoqueId");
   const status         = searchParams.get("status");

@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { campanhaSchema } from "@/lib/validations/marketing-campanha";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const campanha = await prisma.campanha.findUnique({
     where: { id: params.id },
     include: { _count: { select: { leads: true } } },

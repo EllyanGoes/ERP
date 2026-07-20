@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { requireModulo } from "@/lib/permissions";
+import { requireModulo, requireModuloAny } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
@@ -326,6 +326,9 @@ export async function POST(req: NextRequest) {
 // purchase conferencing and manual batches all appear.
 // Groups by loteId when present; standalone movements become single-item entries.
 export async function GET(req: NextRequest) {
+  const auth = await requireModuloAny(["almoxarifado", "empresa"]);
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const tipo      = searchParams.get("tipo")      || undefined;
   const dateFrom  = searchParams.get("dateFrom")  || undefined;

@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 // Relatório de preço médio de mercado por produto. Agrega os preços coletados
 // dos concorrentes (ConcorrentePreco): por Item do catálogo quando vinculado,
 // senão pelo nome do produto avulso. Compara com o nosso preço de venda.
 export async function GET() {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const precos = await prisma.concorrentePreco.findMany({
     select: {
       itemId: true,

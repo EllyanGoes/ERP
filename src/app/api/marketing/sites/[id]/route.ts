@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { siteRastreadoSchema } from "@/lib/tracking/sites-schema";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const site = await prisma.siteRastreado.findUnique({ where: { id: params.id } });
   if (!site) return NextResponse.json({ error: "Site não encontrado" }, { status: 404 });
   return NextResponse.json({ data: site });

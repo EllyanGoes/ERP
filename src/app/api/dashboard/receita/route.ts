@@ -1,8 +1,12 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModuloAny } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModuloAny(["dashboard", "comercial"]);
+  if (!auth.ok) return auth.response;
+
   const mes = req.nextUrl.searchParams.get("mes"); // "YYYY-MM"
   if (!mes) return NextResponse.json({ error: "mes obrigatório" }, { status: 400 });
 

@@ -6,6 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { funilUpdateSchema, type FunilNoData } from "@/lib/validations/marketing-funil";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const funil = await prisma.funil.findUnique({
     where: { id: params.id },
     include: { nos: { where: { ativo: true } } },

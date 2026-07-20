@@ -11,6 +11,9 @@ import { custosComFallback } from "@/lib/custo-empresa";
 import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const record = await prisma.requisicaoMaterial.findUnique({
     where: { id: params.id },
     include: {

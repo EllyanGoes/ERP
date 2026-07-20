@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 // Pontos georreferenciados para o mapa de geomarketing: o local principal de cada
 // concorrente (endereço do próprio) MAIS cada local físico adicional. Um pino por
 // ponto; `id` é o do concorrente (p/ o link), `localId` é a chave única do ponto.
 export async function GET(_: NextRequest) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const concorrentes = await prisma.concorrente.findMany({
     where: { ativo: true },
     select: {

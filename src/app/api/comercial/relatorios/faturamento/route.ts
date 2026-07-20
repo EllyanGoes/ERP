@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
 
@@ -17,6 +18,9 @@ function parseDate(value: string | null, fallback: Date): Date {
 //    efetivamente entregue na data da entrega (suporta entregas parciais).
 // O front agrega por dia e faz drill-down por cliente / produto.
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("comercial");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
 
   const hoje = new Date();

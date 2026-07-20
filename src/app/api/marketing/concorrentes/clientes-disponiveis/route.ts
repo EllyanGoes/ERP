@@ -1,11 +1,15 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 // Clientes disponíveis para virar concorrente: exclui os que JÁ estão vinculados
 // a um concorrente. O parâmetro `exceto` mantém disponível o cliente já ligado
 // ao próprio concorrente em edição.
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const exceto = searchParams.get("exceto") || undefined;
 

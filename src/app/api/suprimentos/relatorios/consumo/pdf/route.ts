@@ -1,10 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { buildRelatorioConsumo } from "@/lib/relatorio-consumo";
 
 export const maxDuration = 60;
 
 export async function GET() {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const { pdfBuffer } = await buildRelatorioConsumo();
 
   const dateStr = new Date().toLocaleDateString("pt-BR", {

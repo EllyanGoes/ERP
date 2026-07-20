@@ -14,6 +14,9 @@ const ETAPAS_PADRAO = [
 ];
 
 export async function GET() {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const totalGeral = await prisma.etapaLead.count();
   if (totalGeral === 0) {
     await prisma.etapaLead.createMany({ data: ETAPAS_PADRAO });

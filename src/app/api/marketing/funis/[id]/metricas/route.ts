@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { matchUrlPattern } from "@/lib/tracking/agrega";
 
@@ -16,6 +17,9 @@ type MetricasNo = {
 //   tracking/erp/ads → MetricaNoDiaria (agregado diário do cron)
 //   leads    → contagem viva de Lead por etapa (sem período na v1)
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const de = searchParams.get("de");
   const ate = searchParams.get("ate");

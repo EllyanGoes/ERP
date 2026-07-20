@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireModuloAny } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 function decNum(val: unknown): number {
@@ -14,6 +15,9 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireModuloAny(["empresa", "compras"]);
+  if (!auth.ok) return auth.response;
+
   const item = await prisma.item.findUnique({
     where: { id: params.id },
     select: {

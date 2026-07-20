@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { leadUpdateSchema } from "@/lib/validations/marketing-lead";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const lead = await prisma.lead.findUnique({
     where: { id: params.id },
     include: {

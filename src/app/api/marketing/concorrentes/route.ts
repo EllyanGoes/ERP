@@ -6,6 +6,9 @@ import { concorrenteSchema } from "@/lib/validations/concorrente";
 import { geocodificarEndereco } from "@/lib/geocode";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("marketing");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q") || "";
   const categoria = searchParams.get("categoria") || undefined; // fornecedor | revendedor | construtora | consumidor-final | parceiro | sem-canais

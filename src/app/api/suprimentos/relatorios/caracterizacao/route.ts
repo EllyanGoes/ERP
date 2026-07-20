@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
@@ -26,6 +27,9 @@ import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
  *   mesesComConsumo = 0  →  nunca consumido              → IMD = 0   (Obsoleto)
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(req.url);
   const dataInicio = searchParams.get("dataInicio");
   const dataFim    = searchParams.get("dataFim");

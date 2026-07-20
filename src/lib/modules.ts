@@ -29,6 +29,8 @@ export const MODULOS: ModuloDef[] = [
     recursos: [
       // Empresa
       { key: "filiais",             label: "Filiais",             acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "colaboradores",       label: "Colaboradores",       acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "setores",             label: "Setores",             acoes: ["ver", "inserir", "editar", "excluir"] },
       // Comercial
       { key: "clientes",            label: "Clientes",            acoes: ["ver", "inserir", "editar", "excluir"] },
       // Almoxarifado
@@ -39,6 +41,7 @@ export const MODULOS: ModuloDef[] = [
       // Compras
       { key: "fornecedores",        label: "Fornecedores",        acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "condicoes-pagamento", label: "Cond. de Pagamento",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "tipos-operacao",      label: "Tipos de Op. (TES)",  acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "formas-pagamento",    label: "Formas de Pagamento", acoes: ["ver", "inserir", "editar", "excluir"] },
       // Financeiro
       { key: "centros-custo",       label: "Centros de Custo",    acoes: ["ver", "inserir", "editar", "excluir"] },
@@ -55,6 +58,8 @@ export const MODULOS: ModuloDef[] = [
       { key: "funis",        label: "Funis de Marketing",         acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "campanhas",    label: "Campanhas",                  acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "leads",        label: "Leads",                      acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "sites",        label: "Sites Rastreados",           acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "precos-mercado", label: "Preço de Mercado (IC)",    acoes: ["ver"] },
     ],
   },
   {
@@ -62,7 +67,17 @@ export const MODULOS: ModuloDef[] = [
     label: "Faturamento",
     group: "Faturamento",
     recursos: [
-      { key: "pedidos-venda", label: "Pedidos de Venda", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "pedidos-venda",   label: "Pedidos de Venda",    acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "pdv",             label: "Caixa (PDV)",         acoes: ["ver", "inserir"] },
+      { key: "minutas",         label: "Minutas",             acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "saldo-clientes",  label: "Saldos de Clientes",  acoes: ["ver"] },
+      { key: "agenda-entregas", label: "Agenda de Entregas",  acoes: ["ver", "editar"] },
+      { key: "comodato",        label: "Comodato",            acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "tabelas-preco",   label: "Tabelas de Preço",    acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "produtos-venda",  label: "Produtos para Venda", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "vendedores",      label: "Vendedores",          acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "motoristas",      label: "Motoristas",          acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "relatorios",      label: "Relatórios de Faturamento", acoes: ["ver"] },
     ],
   },
   {
@@ -70,8 +85,12 @@ export const MODULOS: ModuloDef[] = [
     label: "Almoxarifado",
     group: "Suprimentos",
     recursos: [
-      { key: "estoque",       label: "Posição de Estoque", acoes: ["ver"] },
-      { key: "movimentacoes", label: "Movimentações",      acoes: ["ver", "inserir"] },
+      { key: "estoque",             label: "Posição de Estoque",    acoes: ["ver"] },
+      { key: "movimentacoes",       label: "Movimentações",         acoes: ["ver", "inserir"] },
+      { key: "requisicoes",         label: "Req/Dev de Materiais",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "inventarios",         label: "Inventário",            acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "estoque-terceiros",   label: "Estoque de Terceiros",  acoes: ["ver"] },
+      { key: "relatorios",          label: "Relatórios de Estoque", acoes: ["ver"] },
     ],
   },
   {
@@ -82,7 +101,9 @@ export const MODULOS: ModuloDef[] = [
       { key: "solicitacoes",  label: "Solicitação de Compras", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "cotacoes",      label: "Cotação de Compras",     acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "pedidos-compra", label: "Pedido de Compras",     acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "conferencias",  label: "Conferência de Compra",  acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "conferencias",  label: "Documento de Entrada",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "aprovacoes",    label: "Aprovações",             acoes: ["ver", "editar"] },
+      { key: "relatorios",    label: "Relatórios (SPEND/SLA/OTD)", acoes: ["ver"] },
     ],
   },
   {
@@ -98,6 +119,9 @@ export const MODULOS: ModuloDef[] = [
       { key: "recorrencias",     label: "Recorrências",     acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "conciliacao-ofx",  label: "Conciliação (OFX)", acoes: ["ver", "inserir", "editar"] },
       { key: "fluxo-caixa",      label: "Fluxo de Caixa",   acoes: ["ver"] },
+      { key: "cartoes",          label: "Cartões (Maquinetas)", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "naturezas",        label: "Naturezas Financeiras", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "encontro-contas",  label: "Encontro de Contas", acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {
@@ -112,6 +136,10 @@ export const MODULOS: ModuloDef[] = [
       { key: "balancete",    label: "Balancete",                acoes: ["ver"] },
       { key: "dre",          label: "DRE",                      acoes: ["ver"] },
       { key: "balanco",      label: "Balanço Patrimonial",      acoes: ["ver"] },
+      { key: "imobilizado",  label: "Imobilizado",              acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "cpv",          label: "CPV",                      acoes: ["ver"] },
+      { key: "fechamento",   label: "Encerramento do Exercício", acoes: ["ver", "editar"] },
+      { key: "diagnostico",  label: "Diagnóstico",              acoes: ["ver"] },
     ],
   },
   {
@@ -138,7 +166,11 @@ export const MODULOS: ModuloDef[] = [
     label: "PCM",
     group: "Manutenção",
     recursos: [
-      { key: "dashboard", label: "Dashboard PCM", acoes: ["ver"] },
+      { key: "dashboard",   label: "Dashboard PCM",       acoes: ["ver"] },
+      { key: "ativos",      label: "Ativos",              acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "ordens",      label: "Ordens de Serviço",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "planos",      label: "Planos de Manutenção", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "ativo-saude", label: "Ativo Saúde (MTBF/MTTR)", acoes: ["ver", "editar"] },
     ],
   },
   {
@@ -176,6 +208,8 @@ export const MODULOS: ModuloDef[] = [
     group: "Sistema",
     recursos: [
       { key: "usuarios", label: "Usuários", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "perfis",   label: "Perfis de Acesso", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "lixeira",  label: "Lixeira de Documentos", acoes: ["ver", "editar"] },
     ],
   },
 ];

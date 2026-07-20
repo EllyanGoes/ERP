@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { requireModulo } from "@/lib/permissions";
+import { requireModulo, requireModuloAny } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
 import { getSession } from "@/lib/auth";
@@ -8,6 +8,9 @@ import { recontabilizarConferencia, apagarLancamentosContabeis } from "@/lib/con
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModuloAny(["compras", "financeiro"]);
+  if (!auth.ok) return auth.response;
+
   const record = await prisma.conferenciaCompra.findUnique({
     where: { id: params.id },
     include: {

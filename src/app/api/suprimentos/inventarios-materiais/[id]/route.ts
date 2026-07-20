@@ -7,6 +7,9 @@ import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { contabilizarInventario, apagarLancamentosContabeis } from "@/lib/contabilidade";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("almoxarifado");
+  if (!auth.ok) return auth.response;
+
   const record = await prisma.inventarioMaterial.findUnique({
     where: { id: params.id },
     include: {

@@ -1,10 +1,14 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import { requireModuloAny } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 type Ctx = { params: { id: string } };
 
 export async function GET(_req: NextRequest, { params }: Ctx) {
+  const auth = await requireModuloAny(["empresa", "compras"]);
+  if (!auth.ok) return auth.response;
+
   const itemId = params.id;
 
   const [necessidadeItens, pedidoItens, conferenciaItens] = await Promise.all([
