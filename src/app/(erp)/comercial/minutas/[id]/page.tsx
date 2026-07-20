@@ -10,6 +10,7 @@ import { CheckCircle2, XCircle, ArrowRight, AlertCircle, Pencil, Printer } from 
 import { useTabTitle } from "@/lib/tabs-context";
 import { statusMinutaLabel, confirmacaoMinutaLabel, TIPO_MINUTA_LABEL, type TipoMinuta } from "@/lib/minuta-labels";
 import { cn, formatDate } from "@/lib/utils";
+import { enviarPermitindoSaldoNegativo } from "@/lib/saldo-negativo-retry";
 import { buildMinutaEscPos } from "@/lib/escpos-minuta";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { printMinutaViaDialog } from "@/lib/print-minuta-dialog";
@@ -109,11 +110,17 @@ export default function MinutaDetailPage() {
   async function changeStatus(newStatus: StatusMinuta, extra?: Record<string, string>) {
     setTransitioning(true); setError("");
     try {
-      const res = await fetch(`/api/comercial/minutas/${params.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus, ...extra }),
-      });
+      // Entrega (ENTREGUE) baixa estoque: se deixar saldo negativo, o helper
+      // avisa e reenvia com permitirSaldoNegativo. Nas demais transições o flag
+      // é ignorado pela API.
+      const res = await enviarPermitindoSaldoNegativo((permitirSaldoNegativo) =>
+        fetch(`/api/comercial/minutas/${params.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus, ...extra, permitirSaldoNegativo }),
+        }),
+      );
+      if (!res) return; // usuário recusou o aviso de saldo negativo
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Erro ao atualizar status"); return; }
       setMinuta(json.data);

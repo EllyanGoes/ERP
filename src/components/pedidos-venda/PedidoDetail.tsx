@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatBRL, formatDate, decimalToNumber, cn, parseDecimal } from "@/lib/utils";
+import { enviarPermitindoSaldoNegativo } from "@/lib/saldo-negativo-retry";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { Plus, Truck, Pencil, Package, Trash2, AlertTriangle, RefreshCw, ChevronDown } from "lucide-react";
@@ -264,15 +265,19 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     setLoading(true);
     setBalcaoErro("");
     try {
-      const res = await fetch(`/api/pedidos-venda/${pedido.id}/balcao`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          localEstoqueId: balcaoLocalId,
-          pagamentos: pagamentosPayload(balcaoPagamentos, balcaoFormas),
-          dataRecebimento: balcaoData,
+      const res = await enviarPermitindoSaldoNegativo((permitirSaldoNegativo) =>
+        fetch(`/api/pedidos-venda/${pedido.id}/balcao`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            localEstoqueId: balcaoLocalId,
+            pagamentos: pagamentosPayload(balcaoPagamentos, balcaoFormas),
+            dataRecebimento: balcaoData,
+            permitirSaldoNegativo,
+          }),
         }),
-      });
+      );
+      if (!res) return; // usuário recusou o aviso de saldo negativo
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setBalcaoErro(json.error ?? "Não foi possível concluir a venda."); return; }
       setBalcaoOpen(false);
@@ -355,11 +360,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     setLoading(true);
     setSaidaErro("");
     try {
-      const res = await fetch(`/api/pedidos-venda/${pedido.id}/entregar-balcao`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ localEstoqueId: saidaLocalId, dataSaida: saidaData }),
-      });
+      const res = await enviarPermitindoSaldoNegativo((permitirSaldoNegativo) =>
+        fetch(`/api/pedidos-venda/${pedido.id}/entregar-balcao`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ localEstoqueId: saidaLocalId, dataSaida: saidaData, permitirSaldoNegativo }),
+        }),
+      );
+      if (!res) return; // usuário recusou o aviso de saldo negativo
       const json = await res.json().catch(() => ({}));
       if (!res.ok) { setSaidaErro(json.error ?? "Não foi possível registrar a saída do material."); return; }
       setSaidaOpen(false);
@@ -604,11 +612,14 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
     setLoading(true);
     setConcluirErro("");
     try {
-      const res = await fetch(`/api/pedidos-venda/${pedido.id}/concluir-com-saida`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ localEstoqueId: concluirLocalId, dataConclusao: concluirData }),
-      });
+      const res = await enviarPermitindoSaldoNegativo((permitirSaldoNegativo) =>
+        fetch(`/api/pedidos-venda/${pedido.id}/concluir-com-saida`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ localEstoqueId: concluirLocalId, dataConclusao: concluirData, permitirSaldoNegativo }),
+        }),
+      );
+      if (!res) return; // usuário recusou o aviso de saldo negativo
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setConcluirErro(j.error ?? "Não foi possível concluir o pedido."); return; }
       setConcluirOpen(false);

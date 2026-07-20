@@ -19,6 +19,8 @@ import { z } from "zod";
 const schema = z.object({
   localEstoqueId: z.string().min(1, "Informe o local de estoque da retirada"),
   dataConclusao: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  // Confirma a saída mesmo deixando o estoque negativo (o front avisa e reenvia).
+  permitirSaldoNegativo: z.boolean().optional(),
 });
 
 const num = (d: unknown) => parseFloat(String(d));
@@ -145,6 +147,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         documento: minuta.numero,
         observacoes: `Saída saldo pendente — minuta ${minuta.numero}`,
         loteId: lote.id,
+        permitirSaldoNegativo: parsed.data.permitirSaldoNegativo === true,
       });
 
       await recomputarStatusPedido(tx, pedido.id);

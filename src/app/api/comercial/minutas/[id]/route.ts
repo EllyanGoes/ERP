@@ -271,6 +271,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           documento: minuta.numero,
           observacoes: `Saída por minuta ${minuta.numero}`,
           loteId: lote.id,
+          permitirSaldoNegativo: body.permitirSaldoNegativo === true,
         });
 
         // Update the minuta's localEstoqueId if it was provided in body
@@ -453,14 +454,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             }
             // Hard block de saldo negativo ANTES do delta negativo: o efeito
             // antigo da minuta já foi revertido acima, então o saldo lido aqui é
-            // a base real — a saída nova não pode deixá-lo negativo.
+            // a base real — a saída nova não pode deixá-lo negativo (a menos que
+            // o usuário autorize explicitamente via permitirSaldoNegativo).
             const saldoAtual = parseFloat(String(estoque.quantidadeAtual));
-            assertSaldoNaoNegativo([{
-              itemId: d.itemId,
-              descricao: descrPorItem.get(d.itemId) ?? null,
-              saldoAtual,
-              saldoDepois: saldoAtual - d.qty,
-            }]);
+            if (body.permitirSaldoNegativo !== true) {
+              assertSaldoNaoNegativo([{
+                itemId: d.itemId,
+                descricao: descrPorItem.get(d.itemId) ?? null,
+                saldoAtual,
+                saldoDepois: saldoAtual - d.qty,
+              }]);
+            }
             await tx.estoqueItem.update({ where: { id: estoque.id }, data: { quantidadeAtual: { decrement: d.qty } } });
             marca(d.itemId, loc);
 

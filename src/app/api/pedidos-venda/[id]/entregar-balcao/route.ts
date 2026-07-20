@@ -22,6 +22,8 @@ const schema = z.object({
   localEstoqueId: z.string().min(1, "Informe o local de estoque da retirada"),
   // Data da saída/retirada (YYYY-MM-DD); vazio = hoje em Brasília.
   dataSaida: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  // Confirma a entrega mesmo deixando o estoque negativo (o front avisa e reenvia).
+  permitirSaldoNegativo: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -137,6 +139,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           documento: minuta.numero,
           observacoes: `Saída balcão — minuta ${minuta.numero}`,
           loteId: lote.id,
+          permitirSaldoNegativo: parsed.data.permitirSaldoNegativo === true,
         });
       }
 

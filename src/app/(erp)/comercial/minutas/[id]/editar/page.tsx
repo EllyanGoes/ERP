@@ -12,6 +12,7 @@ import { AlertCircle, Plus, X } from "lucide-react";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { TIPO_MINUTA_LABEL, statusMinutaLabel, type StatusMinuta } from "@/lib/minuta-labels";
 import { cn, parseDecimal } from "@/lib/utils";
+import { enviarPermitindoSaldoNegativo } from "@/lib/saldo-negativo-retry";
 
 type ItemUnidade = {
   id: string;
@@ -270,21 +271,27 @@ export default function EditarMinutaPage() {
         };
       });
 
-      const res = await fetch(`/api/comercial/minutas/${params.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status,
-          numeroFisico:   numeroFisico.trim() || null,
-          tipo,
-          localEstoqueId: localEstoqueId || null,
-          motoristaId:    motoristaId || null,
-          dataEntrega:    dataEntrega || null,
-          placa:          placa || null,
-          observacoes:    observacoes || null,
-          itens,
+      // Editar/entregar minuta baixa estoque: se deixar saldo negativo, o helper
+      // avisa e reenvia com permitirSaldoNegativo.
+      const res = await enviarPermitindoSaldoNegativo((permitirSaldoNegativo) =>
+        fetch(`/api/comercial/minutas/${params.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status,
+            numeroFisico:   numeroFisico.trim() || null,
+            tipo,
+            localEstoqueId: localEstoqueId || null,
+            motoristaId:    motoristaId || null,
+            dataEntrega:    dataEntrega || null,
+            placa:          placa || null,
+            observacoes:    observacoes || null,
+            itens,
+            permitirSaldoNegativo,
+          }),
         }),
-      });
+      );
+      if (!res) return; // usuário recusou o aviso de saldo negativo
 
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Erro ao salvar minuta"); return; }

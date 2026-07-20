@@ -22,6 +22,10 @@ export type ItemBaixaVenda = {
  * e cria os movimentos SAIDA com decremento atômico. Roda DENTRO da transação do
  * caller: o SaldoNegativoError aborta tudo e o handler responde 422 via
  * `respostaSaldoNegativo`.
+ *
+ * `permitirSaldoNegativo: true` pula o hard block (a venda é confirmada mesmo
+ * deixando o estoque negativo — o front avisa o usuário e reenvia com o flag,
+ * mesmo padrão do PCP). O saldo fica negativo até uma entrada/ajuste.
  */
 export async function baixarEstoqueVenda(
   tx: Prisma.TransactionClient,
@@ -32,6 +36,7 @@ export async function baixarEstoqueVenda(
     documento?: string | null;
     observacoes?: string | null;
     loteId?: string | null;
+    permitirSaldoNegativo?: boolean;
   },
 ): Promise<void> {
   const { empresaId, itens, fallbackLocalId } = opts;
@@ -75,7 +80,8 @@ export async function baixarEstoqueVenda(
     cur.saldoDepois -= it.quantidade;
     projetado.set(k, cur);
   }
-  assertSaldoNaoNegativo(Array.from(projetado.values()));
+  // Hard block, a menos que o caller autorize explicitamente o saldo negativo.
+  if (!opts.permitirSaldoNegativo) assertSaldoNaoNegativo(Array.from(projetado.values()));
 
   // Decremento atômico + movimento por linha (saldo da linha deriva do pós-update).
   for (const it of itens) {

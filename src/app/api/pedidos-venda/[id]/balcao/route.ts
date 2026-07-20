@@ -49,6 +49,8 @@ const schema = z.object({
   precoTransferencia: z.coerce.number().optional().nullable(),
   // Abatimento por crédito (vale) do cliente — o caixa cobre (total - crédito).
   creditoUsado: z.coerce.number().optional().nullable(),
+  // Confirma a venda mesmo deixando o estoque negativo (o front avisa e reenvia).
+  permitirSaldoNegativo: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -370,6 +372,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           documento: minuta!.numero,
           observacoes: `Venda balcão — minuta ${minuta!.numero}`,
           loteId: lote.id,
+          permitirSaldoNegativo: parsed.data.permitirSaldoNegativo === true,
         });
       }
 

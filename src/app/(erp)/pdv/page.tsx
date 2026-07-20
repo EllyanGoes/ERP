@@ -14,6 +14,7 @@ import DatePicker from "@/components/shared/DatePicker";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn, formatBRL, decimalToNumber, parseDecimal } from "@/lib/utils";
+import { enviarPermitindoSaldoNegativo } from "@/lib/saldo-negativo-retry";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { buildPedidoEscPos, printPedidoTermicaDialog, type PedidoPrintData } from "@/lib/print-pedido";
 import PagamentosInput, {
@@ -229,22 +230,26 @@ export default function PdvPage() {
     setConcluindo(true);
     setErro("");
     try {
-      const res = await fetch(`/api/pedidos-venda/${pedido.id}/balcao`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          localEstoqueId: localId,
-          pagamentos: pagamentosPayload(pagamentos, formas),
-          dataRecebimento: data || null,
-          // Venda à ordem marcada aqui no caixa (se o pedido ainda não era).
-          ...(origemSel && !jaAOrdem ? {
-            estoqueOrigemEmpresaId: origemSel,
-            precoTransferencia: precoTransf ? parseDecimal(precoTransf) : undefined,
-          } : {}),
-          // Crédito (vale) do cliente abatido nesta venda.
-          ...(creditoUsadoNum > 0 ? { creditoUsado: creditoUsadoNum } : {}),
+      const res = await enviarPermitindoSaldoNegativo((permitirSaldoNegativo) =>
+        fetch(`/api/pedidos-venda/${pedido.id}/balcao`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            localEstoqueId: localId,
+            pagamentos: pagamentosPayload(pagamentos, formas),
+            dataRecebimento: data || null,
+            permitirSaldoNegativo,
+            // Venda à ordem marcada aqui no caixa (se o pedido ainda não era).
+            ...(origemSel && !jaAOrdem ? {
+              estoqueOrigemEmpresaId: origemSel,
+              precoTransferencia: precoTransf ? parseDecimal(precoTransf) : undefined,
+            } : {}),
+            // Crédito (vale) do cliente abatido nesta venda.
+            ...(creditoUsadoNum > 0 ? { creditoUsado: creditoUsadoNum } : {}),
+          }),
         }),
-      });
+      );
+      if (!res) return; // usuário recusou o aviso de saldo negativo
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setErro(j.error ?? "Não foi possível concluir a venda."); return; }
 
