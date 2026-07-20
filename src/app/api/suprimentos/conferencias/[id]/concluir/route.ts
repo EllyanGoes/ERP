@@ -335,7 +335,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     // semProvisao: a provisão contábil É a própria entrada (D Estoque + D Fretes
     // / C Descontos / C Fornecedor) — o título não deve reprovisionar.
     if (!conferencia.pedidoId && conferencia.fornecedorId) {
-      const valorEntrada = (await encargosConferencia(tx, conferencia.id)).liquido;
+      // Um CP manual já VINCULADO a este DE é o financeiro do documento —
+      // não gerar um segundo título (fluxo CP-primeiro, DE-depois).
+      const jaVinculado = await tx.contaPagar.count({ where: { conferenciaId: conferencia.id } });
+      const valorEntrada = jaVinculado > 0 ? 0 : (await encargosConferencia(tx, conferencia.id)).liquido;
       if (valorEntrada > 0) {
         const condicao = conferencia.condicaoPagamentoId
           ? await tx.condicaoPagamento.findUnique({ where: { id: conferencia.condicaoPagamentoId } })
@@ -421,7 +424,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // (vrTotal) → total do pedido → Σ recebidos. Intragrupo já espelha à parte.
       const pc = conferencia.pedido;
       if (pc && !pc.intragrupo) {
-        const jaTem = await tx.contaPagar.count({ where: { pedidoCompraId: pc.id } });
+        // Conta títulos do pedido E títulos já vinculados diretamente ao DE
+        // (CP manual vinculado antes da conclusão) — qualquer um evita duplicar.
+        const jaTem = await tx.contaPagar.count({
+          where: { OR: [{ pedidoCompraId: pc.id }, { conferenciaId: conferencia.id }] },
+        });
         if (jaTem === 0) {
           // O contas a pagar deve bater com o que a ENTRADA credita ao Fornecedor
           // = LÍQUIDO do documento (itens recebidos − desconto + frete/seguro/

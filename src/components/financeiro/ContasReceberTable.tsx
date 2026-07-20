@@ -86,29 +86,32 @@ function dentroDoPeriodo(c: { dataVencimento: Date | string }, p: DateRange): bo
   return true;
 }
 
-type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "SEM_VENCIMENTO" | "PAGA";
+type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "A_VENCER" | "SEM_VENCIMENTO" | "PAGA";
 
-// Casa a conta com o filtro de status. "VENCIDA" e "SEM_VENCIMENTO" são
-// derivados (não são status do banco): vencida = em aberto/parcial com
-// vencimento passado; sem vencimento = em aberto/parcial sem data (faturado).
+// Casa a conta com o filtro de status. "VENCIDA", "A_VENCER" e "SEM_VENCIMENTO"
+// são derivados (não são status do banco): vencida = em aberto/parcial com
+// vencimento passado; a vencer = com data futura; sem vencimento = sem data.
 function casaStatus(c: ContaRow, f: StatusFiltro): boolean {
+  const emAberto = c.status === "ABERTA" || c.status === "PARCIAL";
   switch (f) {
     case "ABERTA":  return c.status === "ABERTA";
     case "PARCIAL": return c.status === "PARCIAL";
-    case "VENCIDA": return (c.status === "ABERTA" || c.status === "PARCIAL") && isVencida(c.dataVencimento, c.dataPagamento);
-    case "SEM_VENCIMENTO": return (c.status === "ABERTA" || c.status === "PARCIAL") && !c.dataVencimento;
+    case "VENCIDA": return emAberto && isVencida(c.dataVencimento, c.dataPagamento);
+    case "A_VENCER": return emAberto && !!c.dataVencimento && !isVencida(c.dataVencimento, c.dataPagamento);
+    case "SEM_VENCIMENTO": return emAberto && !c.dataVencimento;
     case "PAGA":    return c.status === "PAGA";
     default:        return true;
   }
 }
 
 // Status reais selecionáveis no filtro de múltipla escolha (sem "TODOS": todos
-// marcados = todas). "VENCIDA" e "SEM_VENCIMENTO" são derivados e SOBREPÕEM
-// ABERTA/PARCIAL.
+// marcados = todas). "VENCIDA", "A_VENCER" e "SEM_VENCIMENTO" são derivados e
+// SOBREPÕEM ABERTA/PARCIAL.
 const STATUS_RECEBER: { key: Exclude<StatusFiltro, "TODOS">; label: string }[] = [
   { key: "ABERTA", label: "Em aberto" },
   { key: "PARCIAL", label: "Parciais" },
   { key: "VENCIDA", label: "Vencidas" },
+  { key: "A_VENCER", label: "A vencer" },
   { key: "SEM_VENCIMENTO", label: "Sem vencimento" },
   { key: "PAGA", label: "Recebidas" },
 ];
@@ -117,6 +120,8 @@ const STATUS_RECEBER_KEYS = STATUS_RECEBER.map((s) => s.key) as string[];
 // Conjuntos de status por bloco de total (clique nos totais aplica um preset).
 const SET_ABERTO = ["ABERTA", "PARCIAL"];
 const SET_VENCIDO = ["VENCIDA"];
+const SET_A_VENCER = ["A_VENCER"];
+const SET_SEM_VENC = ["SEM_VENCIMENTO"];
 const SET_PAGO = ["PAGA"];
 function mesmoSet(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((x) => b.includes(x));
@@ -572,6 +577,13 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
           aplica o preset de status (toggle: reclicar marca todos os status). */}
       {resumo && (() => {
         const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_RECEBER_KEYS : set));
+        // Saldos derivados da lista (espelham as lentes A vencer / Sem vencimento).
+        const emAbertoParcial = (c: ContaRow) => c.status === "ABERTA" || c.status === "PARCIAL";
+        const saldoDe = (c: ContaRow) => decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+        const aVencer = contas.reduce((s, c) =>
+          emAbertoParcial(c) && !!c.dataVencimento && !isVencida(c.dataVencimento, c.dataPagamento) ? s + saldoDe(c) : s, 0);
+        const semVencimento = contas.reduce((s, c) =>
+          emAbertoParcial(c) && !c.dataVencimento ? s + saldoDe(c) : s, 0);
         return (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto"
@@ -583,6 +595,16 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
             <span className="text-xs font-medium text-danger">Vencido</span>
             <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(resumo.vencido)}</span>
+          </button>
+          <button type="button" onClick={() => toggle(SET_A_VENCER)} title="Filtrar por A vencer"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5 transition-shadow hover:bg-sky-500/20 cursor-pointer", mesmoSet(statusSel, SET_A_VENCER) && "ring-2 ring-sky-500")}>
+            <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer</span>
+            <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(aVencer)}</span>
+          </button>
+          <button type="button" onClick={() => toggle(SET_SEM_VENC)} title="Filtrar por Sem vencimento"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-1.5 transition-shadow hover:bg-violet-500/20 cursor-pointer", mesmoSet(statusSel, SET_SEM_VENC) && "ring-2 ring-violet-500")}>
+            <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Sem vencimento</span>
+            <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(semVencimento)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_PAGO)} title="Filtrar por Recebidas"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 transition-shadow hover:bg-success/20 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-success")}>

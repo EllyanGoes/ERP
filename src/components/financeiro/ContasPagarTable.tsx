@@ -20,7 +20,7 @@ import PagamentosInput, {
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
@@ -219,6 +219,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   }, [contas, statusSel, contaFiltro, fornecedorFiltro, busca, periodo]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
+  // Vínculo de título manual com Documento de Entrada (modal de candidatos).
+  const [vincular, setVincular] = useState<ContaRow | null>(null);
   const [editar, setEditar] = useState<ContaRow | null>(null);
 
   // Abre o detalhe do título vindo por ?abrir=<id> (ex.: botão "Pagar" do pedido de
@@ -318,6 +320,21 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
 
   // Ações da linha num menu de 3 pontinhos ao fim da linha (Pagar/Editar).
   // Reusadas na tabela e na visão agrupada.
+  // Título manual (sem pedido/folha/encontro) pode ganhar/perder vínculo com DE.
+  const podeVincularDe = (c: ContaRow) =>
+    c.status !== "CANCELADA" && !c.pedidoCompra && !c.folhaId && !c.compensacaoOrigemId;
+
+  async function desvincularDe(c: ContaRow) {
+    if (!confirm(`Desvincular ${c.numero} do Documento de Entrada ${c.conferencia?.numero}? O título volta a provisionar como lançamento manual.`)) return;
+    const res = await fetch(`/api/contas-pagar/${c.id}/vincular-de`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conferenciaId: null }),
+    });
+    if (!res.ok) { alert((await res.json()).error ?? "Erro ao desvincular"); return; }
+    router.refresh();
+  }
+
   function renderAcoes(c: ContaRow) {
     const podePagar = c.status !== "PAGA" && c.status !== "CANCELADA";
     if (!podePagar && !isAdmin) return null;
@@ -331,6 +348,16 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             {podePagar && (
               <DropdownMenuItem onClick={() => abrir(c)}>
                 <Wallet className="w-4 h-4 text-emerald-600" /> Pagar
+              </DropdownMenuItem>
+            )}
+            {podeVincularDe(c) && !c.conferencia && (
+              <DropdownMenuItem onClick={() => setVincular(c)}>
+                <Link2 className="w-4 h-4 text-info" /> Vincular a Doc. de Entrada
+              </DropdownMenuItem>
+            )}
+            {isAdmin && podeVincularDe(c) && c.conferencia && (
+              <DropdownMenuItem onClick={() => desvincularDe(c)}>
+                <Link2 className="w-4 h-4 text-danger" /> Desvincular do DE
               </DropdownMenuItem>
             )}
             {isAdmin && (
@@ -741,6 +768,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         const acoes: TituloAcao[] = [
           ...(podePagar ? [{ label: "Pagar", tone: "primary" as const, icon: <Wallet className="w-4 h-4" />, onClick: () => abrir(detalhe) }] : []),
           ...(podeEstornar ? [{ label: "Reabrir", tone: "danger" as const, icon: <RotateCcw className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); estornar(r); } }] : []),
+          ...(podeVincularDe(detalhe) && !detalhe.conferencia
+            ? [{ label: "Vincular a DE", icon: <Link2 className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setVincular(r); } }]
+            : []),
           ...(isAdmin ? [{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setEditar(r); } }] : []),
         ];
         return (
@@ -883,6 +913,114 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         onOpenChange={(o) => !o && setEditar(null)}
         onSaved={() => router.refresh()}
       />
+
+      {/* Vincular título manual a um Documento de Entrada. */}
+      {vincular && (
+        <VincularDeDialog
+          titulo={vincular}
+          onClose={() => setVincular(null)}
+          onVinculado={() => { setVincular(null); router.refresh(); }}
+        />
+      )}
     </>
+  );
+}
+
+// ── Modal: vincular título manual a um Documento de Entrada ──────────────────
+// Lista DEs concluídos SEM título (rota candidatas-cp), pré-filtrados pelo
+// fornecedor do título; valor divergente é aviso, não bloqueio — a validação
+// dura (empresa, fornecedor, duplicidade) fica no servidor.
+type DeCandidata = {
+  id: string; numero: string; numeroNF: string | null; dtEmissao: string | null;
+  status: string; fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
+  pedido: string | null; valor: number;
+};
+
+function VincularDeDialog({ titulo, onClose, onVinculado }: {
+  titulo: ContaRow; onClose: () => void; onVinculado: () => void;
+}) {
+  const [busca, setBusca] = useState("");
+  const [rows, setRows] = useState<DeCandidata[] | null>(null);
+  const [salvando, setSalvando] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const saldoTitulo = decimalToNumber(titulo.valorOriginal);
+
+  useEffect(() => {
+    let vivo = true;
+    const params = new URLSearchParams();
+    if (titulo.fornecedor?.id) params.set("fornecedorId", titulo.fornecedor.id);
+    if (busca.trim()) params.set("search", busca.trim());
+    const t = setTimeout(() => {
+      fetch(`/api/suprimentos/conferencias/candidatas-cp?${params.toString()}`)
+        .then((r) => r.json())
+        .then((j) => { if (vivo) setRows(j.data ?? []); })
+        .catch(() => { if (vivo) setRows([]); });
+    }, 250);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [busca, titulo.fornecedor?.id]);
+
+  async function vincular(de: DeCandidata) {
+    setSalvando(de.id); setErro(null);
+    const res = await fetch(`/api/contas-pagar/${titulo.id}/vincular-de`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conferenciaId: de.id }),
+    });
+    if (!res.ok) { setErro((await res.json()).error ?? "Erro ao vincular"); setSalvando(null); return; }
+    onVinculado();
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Link2 className="w-4 h-4 text-info" /> Vincular {titulo.numero} a um Documento de Entrada
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Documentos concluídos sem título vinculado{titulo.fornecedor ? <> do fornecedor <b>{titulo.fornecedor.razaoSocial}</b></> : null}.
+          Ao vincular, a provisão contábil do título passa a ser a entrada do documento (sem crédito em dobro ao fornecedor).
+        </p>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Buscar por número do DE, NF ou fornecedor…" value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-9" />
+        </div>
+        {erro && <p className="text-sm text-danger">{erro}</p>}
+        <div className="max-h-80 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+          {rows === null ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>
+          ) : rows.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhum documento de entrada sem título encontrado.</p>
+          ) : rows.map((de) => {
+            const difere = Math.abs(de.valor - saldoTitulo) > 0.005;
+            return (
+              <button
+                key={de.id}
+                type="button"
+                disabled={salvando !== null}
+                onClick={() => vincular(de)}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted transition-colors disabled:opacity-60"
+              >
+                <span className="font-mono text-xs text-info shrink-0 w-20">{de.numero}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm truncate">{de.fornecedor?.nomeFantasia || de.fornecedor?.razaoSocial || "—"}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {de.dtEmissao ? formatDate(de.dtEmissao) : "—"}{de.numeroNF ? ` · NF ${de.numeroNF}` : ""}{de.pedido ? ` · ${de.pedido}` : ""}
+                  </span>
+                </span>
+                <span className="text-right shrink-0">
+                  <span className="block text-sm font-medium tabular-nums">{formatBRL(de.valor)}</span>
+                  {difere && (
+                    <span className="block text-[10px] font-medium text-amber-600 dark:text-amber-400">difere do título ({formatBRL(saldoTitulo)})</span>
+                  )}
+                </span>
+                {salvando === de.id && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
