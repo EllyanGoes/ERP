@@ -209,6 +209,10 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
                       "text-xs font-medium text-muted-foreground uppercase tracking-wide py-3",
                       (header.column.columnDef.meta as { className?: string; thClass?: string } | undefined)?.className,
                       (header.column.columnDef.meta as { className?: string; thClass?: string } | undefined)?.thClass,
+                      // Coluna congelada à direita (ex.: ações ⋮) — precisa de fundo
+                      // opaco igual ao do cabeçalho p/ o conteúdo não vazar por baixo.
+                      (header.column.columnDef.meta as { stickyRight?: boolean } | undefined)?.stickyRight &&
+                        "sticky right-0 z-10 bg-muted shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]",
                     )}
                   >
                     {header.isPlaceholder ? null : (
@@ -254,6 +258,8 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
                         "py-3 text-sm text-foreground/80",
                         (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.className,
                         (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.tdClass,
+                        (cell.column.columnDef.meta as { stickyRight?: boolean } | undefined)?.stickyRight &&
+                          "sticky right-0 z-10 bg-card shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]",
                       )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -442,7 +442,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       id: "actions",
       header: "",
       // w-px encolhe a célula ao conteúdo — a folga da tabela fica na Descrição.
-      meta: { className: "w-px whitespace-nowrap" },
+      meta: { className: "w-px whitespace-nowrap", stickyRight: true },
       cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
     },
   ], [contasBanco, isAdmin]);

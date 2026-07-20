@@ -515,7 +515,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       header: "",
       // Coluna estreita e fixa à direita — o menu de 3 pontos nunca é empurrado
       // para fora da tela (w-px encolhe a célula ao conteúdo).
-      meta: { className: "w-px whitespace-nowrap" },
+      meta: { className: "w-px whitespace-nowrap", stickyRight: true },
       cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
     },
   ], [contasBanco, isAdmin]);
