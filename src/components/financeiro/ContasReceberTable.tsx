@@ -86,6 +86,28 @@ function dentroDoPeriodo(c: { dataVencimento: Date | string }, p: DateRange): bo
   return true;
 }
 
+// Badge redondo com a contagem por categoria (cores dos blocos) ao lado do
+// cliente no filtro — número DENTRO, colorido; sem bolinha separada.
+type ContagemCli = { vencido: number; aVencer: number; semVenc: number; paga: number };
+function BadgeContagem({ bg, text, n, titulo }: { bg: string; text: string; n: number; titulo: string }) {
+  return (
+    <span className={cn("inline-flex items-center justify-center rounded-full min-w-[1.4rem] h-5 px-1.5 text-[11px] font-semibold tabular-nums", bg, text)} title={`${n} ${titulo}`}>
+      {n}
+    </span>
+  );
+}
+function bolinhasCliente(st?: ContagemCli) {
+  if (!st) return null;
+  return (
+    <span className="inline-flex items-center gap-1 shrink-0">
+      {st.vencido > 0 && <BadgeContagem bg="bg-danger/15" text="text-danger" n={st.vencido} titulo="vencidos" />}
+      {st.aVencer > 0 && <BadgeContagem bg="bg-sky-500/15" text="text-sky-700 dark:text-sky-300" n={st.aVencer} titulo="a vencer" />}
+      {st.semVenc > 0 && <BadgeContagem bg="bg-violet-500/15" text="text-violet-700 dark:text-violet-300" n={st.semVenc} titulo="sem vencimento" />}
+      {st.paga > 0 && <BadgeContagem bg="bg-muted" text="text-muted-foreground" n={st.paga} titulo="recebidas" />}
+    </span>
+  );
+}
+
 type StatusFiltro = "TODOS" | "ABERTA" | "PARCIAL" | "VENCIDA" | "A_VENCER" | "SEM_VENCIMENTO" | "PAGA";
 
 // Casa a conta com o filtro de status. "VENCIDA", "A_VENCER" e "SEM_VENCIMENTO"
@@ -155,6 +177,23 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     const m = new Map<string, string>();
     for (const c of contas) if (c.cliente) m.set(c.cliente.id, c.cliente.razaoSocial);
     return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [contas]);
+  // Contagem de títulos por categoria por cliente — vira os badges no filtro.
+  const clienteStats = useMemo(() => {
+    const m = new Map<string, ContagemCli>();
+    for (const c of contas) {
+      const cid = c.cliente?.id;
+      if (!cid) continue;
+      const s = m.get(cid) ?? { vencido: 0, aVencer: 0, semVenc: 0, paga: 0 };
+      if (c.status === "PAGA") s.paga++;
+      else if (c.status === "ABERTA" || c.status === "PARCIAL") {
+        if (!c.dataVencimento) s.semVenc++;
+        else if (isVencida(c.dataVencimento, c.dataPagamento)) s.vencido++;
+        else s.aVencer++;
+      }
+      m.set(cid, s);
+    }
+    return m;
   }, [contas]);
   // Base dos totais: todos os filtros MENOS o de status (cada bloco é uma
   // categoria de status) — assim os blocos refletem cliente/conta/período/busca.
@@ -596,15 +635,23 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período (vencimento)" />
         {/* Cliente (da lista carregada). */}
         {clientesDisponiveis.length > 0 && (
-          <div className="w-64">
+          <div className="w-80">
             <ComboboxWithCreate
               value={clienteFiltro}
               onChange={setClienteFiltro}
               noneLabel="Todos os clientes"
               placeholder="Cliente"
               triggerClassName="h-9 rounded-lg"
-              menuMinWidth={340}
-              options={clientesDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
+              menuMinWidth={460}
+              options={clientesDisponiveis.map((c) => ({
+                value: c.id, label: c.nome,
+                render: () => (
+                  <span className="inline-flex items-center gap-2 w-full min-w-0">
+                    <span className="flex-1 truncate">{c.nome}</span>
+                    {bolinhasCliente(clienteStats.get(c.id))}
+                  </span>
+                ),
+              }))}
             />
           </div>
         )}
