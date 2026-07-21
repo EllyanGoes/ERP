@@ -6,44 +6,96 @@ import { calcularParcelas, type CondicaoParcelas, type Parcela } from "@/lib/par
 
 /**
  * Classificação SUGERIDA de um Documento de Entrada para o(s) título(s) que ele
- * gera: natureza pela sugestão do TES das linhas e centro de custo das linhas.
- * Sugestão só quando NÃO ambígua: um único valor distinto entre os itens (pai);
- * compra que mistura TES/centros diferentes fica sem sugestão (o alerta de
- * classificação pendente aparece no financeiro). Default, não trava.
+ * gera. A natureza agora é POR LINHA (item.naturezaFinanceiraId, default vindo
+ * da sugestão do TES): `porNatureza` agrega o vlrTotal das linhas-pai pela
+ * natureza efetiva da linha (item > TES; null = sem natureza, resolvida pelo
+ * cabeçalho do DE na conclusão). `naturezaTesId`/`centroCustoId` continuam a
+ * sugestão NÃO-ambígua (único distinto) p/ o nível do título. Default, não trava.
  */
 export async function classificacaoSugeridaDaEntrada(
   tx: Prisma.TransactionClient,
   conferenciaId: string,
-): Promise<{ naturezaTesId: string | null; centroCustoId: string | null }> {
+): Promise<{
+  naturezaTesId: string | null;
+  centroCustoId: string | null;
+  porNatureza: { naturezaFinanceiraId: string | null; valor: number }[];
+}> {
   const itens = await tx.conferenciaCompraItem.findMany({
     where: { conferenciaId, paiId: null },
-    select: { centroCustoId: true, tes: { select: { naturezaSugeridaId: true } } },
+    select: {
+      centroCustoId: true,
+      naturezaFinanceiraId: true,
+      vlrTotal: true,
+      tes: { select: { naturezaSugeridaId: true } },
+    },
   });
   const unico = (vals: (string | null)[]): string | null => {
     const set = Array.from(new Set(vals.filter((v): v is string => !!v)));
     return set.length === 1 ? set[0] : null;
   };
+  const porNat = new Map<string | null, number>();
+  for (const i of itens) {
+    const nat = i.naturezaFinanceiraId ?? i.tes?.naturezaSugeridaId ?? null;
+    const v = i.vlrTotal != null ? parseFloat(String(i.vlrTotal)) : 0;
+    if (!(v > 0)) continue;
+    porNat.set(nat, (porNat.get(nat) ?? 0) + v);
+  }
   return {
     naturezaTesId: unico(itens.map((i) => i.tes?.naturezaSugeridaId ?? null)),
     centroCustoId: unico(itens.map((i) => i.centroCustoId)),
+    porNatureza: Array.from(porNat.entries()).map(([naturezaFinanceiraId, valor]) => ({ naturezaFinanceiraId, valor })),
   };
+}
+
+/** Fatia do rateio por natureza (frações somam 1; ordenadas da maior p/ menor). */
+export type DistNatureza = { naturezaFinanceiraId: string; frac: number };
+
+/**
+ * Distribuição percentual por natureza a partir do agregado das linhas do DE.
+ * Linhas SEM natureza caem no `fallback` (cabeçalho do DE > TES-único); buckets
+ * da mesma natureza são somados. [] quando nada resolve.
+ */
+export function distribuicaoNaturezas(
+  porNatureza: { naturezaFinanceiraId: string | null; valor: number }[],
+  fallback: string | null,
+): DistNatureza[] {
+  const soma = new Map<string, number>();
+  let total = 0;
+  for (const b of porNatureza) {
+    const nat = b.naturezaFinanceiraId ?? fallback;
+    if (!nat || !(b.valor > 0)) continue;
+    soma.set(nat, (soma.get(nat) ?? 0) + b.valor);
+    total += b.valor;
+  }
+  if (total <= 0) return [];
+  return Array.from(soma.entries())
+    .map(([naturezaFinanceiraId, v]) => ({ naturezaFinanceiraId, frac: v / total }))
+    .sort((a, b) => b.frac - a.frac);
 }
 
 /**
  * Pré-preenche o rateio gerencial (split de naturezas) de um título recém-criado
- * com UMA linha: natureza sugerida/herdada, valor = valor do título. É o mesmo
- * registro que a baixa edita (ContaPagarNatureza) — o título já nasce classificado.
+ * pela DISTRIBUIÇÃO das linhas do DE (multi-natureza; a última fatia absorve o
+ * arredondamento). É o mesmo registro que a baixa edita (ContaPagarNatureza) —
+ * o título já nasce classificado.
  */
 export async function criarRateioInicialCp(
   tx: Prisma.TransactionClient,
   contaPagarId: string,
-  naturezaFinanceiraId: string | null | undefined,
+  dist: DistNatureza[],
   valor: number,
 ): Promise<void> {
-  if (!naturezaFinanceiraId || !(valor > 0)) return;
-  await tx.contaPagarNatureza.create({
-    data: { contaPagarId, naturezaFinanceiraId, valor },
-  });
+  if (!(valor > 0) || dist.length === 0) return;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  let acumulado = 0;
+  for (let i = 0; i < dist.length; i++) {
+    const v = i === dist.length - 1 ? r2(valor - acumulado) : r2(valor * dist[i].frac);
+    acumulado = r2(acumulado + v);
+    if (!(v > 0)) continue;
+    await tx.contaPagarNatureza.create({
+      data: { contaPagarId, naturezaFinanceiraId: dist[i].naturezaFinanceiraId, valor: v },
+    });
+  }
 }
 
 /**
@@ -64,6 +116,9 @@ export async function gerarContasPagarDoDocumento(
     centroCustoId?: string | null;
     // Forma de pagamento PREVISTA (meio de quitação, ex.: permuta) — herdada do DE.
     formaPagamentoPrevistaId?: string | null;
+    // Distribuição multi-natureza das linhas do DE p/ o rateio inicial de cada
+    // parcela; ausente → 1 linha com naturezaFinanceiraId (compat).
+    distNaturezas?: DistNatureza[];
     // PA: título nascido no PEDIDO (adiantamento a fornecedor), não na entrada.
     antecipado?: boolean;
     // Grade de parcelas EDITADA manualmente no DE (parcelasCustom): quando
@@ -104,7 +159,11 @@ export async function gerarContasPagarDoDocumento(
       },
     });
     // O título nasce com o split de naturezas preenchido (1 linha = a parcela).
-    await criarRateioInicialCp(tx, cp.id, doc.naturezaFinanceiraId, Number(p.valor));
+    await criarRateioInicialCp(
+      tx, cp.id,
+      doc.distNaturezas ?? (doc.naturezaFinanceiraId ? [{ naturezaFinanceiraId: doc.naturezaFinanceiraId, frac: 1 }] : []),
+      Number(p.valor),
+    );
   }
   return parcelas.length;
 }

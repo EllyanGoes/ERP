@@ -288,6 +288,7 @@ export async function POST(req: NextRequest) {
             imobilizadoId: it.capitaliza ? (it.imobilizadoId || null) : null,
             componenteSubstituidoId: it.capitaliza ? (it.componenteSubstituidoId || null) : null,
             tesId: it.tesId || null,
+            naturezaFinanceiraId: (it as { naturezaFinanceiraId?: string | null }).naturezaFinanceiraId || null,
             compoeCusto: it.compoeCusto ?? null,
             tipoEntrada: it.tipoEntrada || null,
             codFiscal: it.codFiscal || null,

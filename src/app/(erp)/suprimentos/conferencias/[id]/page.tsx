@@ -63,6 +63,7 @@ type ConferenciaItem = {
   componenteSubstituidoId: string | null;
   tesId: string | null;
   compoeCusto: boolean | null;
+  naturezaFinanceiraId?: string | null;
   desconto: unknown;
   unidadeId: string | null;
   item: {
@@ -152,6 +153,7 @@ type EditItem = {
   tpOper: string;
   localEstoqueId: string;
   centroCustoId: string;      // herdado do pedido (default editável); não classifica custo
+  naturezaFinanceiraId: string; // natureza da linha (default: sugestão do TES)
   tesId: string;              // TES (preset de comportamento) da linha
   compoeCusto: boolean | null; // preenchido pelo TES (null = herda item)
   capitaliza: boolean;        // capex nesta linha (carga/orçamento na entrada); exige bem
@@ -181,6 +183,7 @@ type NewItem = {
   desconto: string;
   localEstoqueId: string;
   centroCustoId: string;
+  naturezaFinanceiraId: string;
   tesId: string;
   compoeCusto: boolean | null;
   capitaliza: boolean;
@@ -264,9 +267,12 @@ export default function DocumentoEntradaDetailPage() {
   const [tesGlobalId, setTesGlobalId] = useState("");
   const [modoCentro, setModoCentro] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
   const [centroGlobalId, setCentroGlobalId] = useState("");
+  // Natureza: GLOBAL usa o campo da aba Duplicatas (aplicado a todas as linhas);
+  // POR_ITEM abre a coluna na tabela (default preenchido pela sugestão do TES).
+  const [modoNatureza, setModoNatureza] = useState<"GLOBAL" | "POR_ITEM">("GLOBAL");
 
   // Aba ativa do rodapé (padrão Protheus: Duplicatas em destaque)
-  const [aba, setAba] = useState<"duplicatas" | "totais" | "outros">("duplicatas");
+  const [aba, setAba] = useState<"duplicatas" | "pagamento" | "totais" | "outros">("duplicatas");
 
   // Fornecedor search (editable)
   const [fornecedorId, setFornecedorId] = useState("");
@@ -280,7 +286,7 @@ export default function DocumentoEntradaDetailPage() {
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<{ id: string; codigo: string; nome: string; grupoCentroCusto?: { nome: string } | null }[]>([]);
   const [imobilizados, setImobilizados] = useState<{ id: string; descricao: string }[]>([]);
-  const [tesList, setTesList] = useState<{ id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean }[]>([]);
+  const [tesList, setTesList] = useState<{ id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; naturezaSugeridaId?: string | null; ativo: boolean }[]>([]);
 
   // Add item inline
   const [produtos, setProdutos] = useState<ProdutoOption[]>([]);
@@ -339,6 +345,10 @@ export default function DocumentoEntradaDetailPage() {
       const ccUnico = ccIds.length > 0 && ccIds.every((c) => c === ccIds[0]) ? ccIds[0] : "";
       setModoCentro(ccUnico ? "GLOBAL" : "POR_ITEM");
       setCentroGlobalId(ccUnico || "");
+      // Natureza: linhas uniformes (ou vazias) abrem em Global; mistas, Por Item.
+      const natIds = conf.itens.filter((i) => !i.paiId).map((i) => i.naturezaFinanceiraId ?? "");
+      const natMista = new Set(natIds).size > 1;
+      setModoNatureza(natMista ? "POR_ITEM" : "GLOBAL");
       setEditItems(
         conf.itens.map((i) => {
           // Unidades de compra: base (sigla do item) + alternativas (fator).
@@ -362,6 +372,7 @@ export default function DocumentoEntradaDetailPage() {
             tpOper: i.tpOper ?? "",
             localEstoqueId: resolvedModo === "GLOBAL" ? globalLocalId : (i.localEstoqueId ?? ""),
             centroCustoId: i.centroCustoId ?? "",
+            naturezaFinanceiraId: (i as { naturezaFinanceiraId?: string | null }).naturezaFinanceiraId ?? "",
             tesId: i.tesId ?? "",
             compoeCusto: i.compoeCusto ?? null,
             capitaliza: i.capitaliza ?? false,
@@ -418,6 +429,7 @@ export default function DocumentoEntradaDetailPage() {
         next.compoeCusto = tes.compoeCusto;
         if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
         if (tes.centroCustoSugeridoId) next.centroCustoId = tes.centroCustoSugeridoId;
+        if (tes.naturezaSugeridaId && modoNatureza === "POR_ITEM") next.naturezaFinanceiraId = tes.naturezaSugeridaId;
         if (!tes.permiteCapitalizar) { next.capitaliza = false; next.imobilizadoId = ""; next.componenteSubstituidoId = ""; }
       } else { next.compoeCusto = null; }
       return next;
@@ -432,11 +444,38 @@ export default function DocumentoEntradaDetailPage() {
         next.compoeCusto = tes.compoeCusto;
         if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
         if (tes.centroCustoSugeridoId) next.centroCustoId = tes.centroCustoSugeridoId;
+        if (tes.naturezaSugeridaId && modoNatureza === "POR_ITEM") next.naturezaFinanceiraId = tes.naturezaSugeridaId;
         if (!tes.permiteCapitalizar) { next.capitaliza = false; next.imobilizadoId = ""; next.componenteSubstituidoId = ""; }
       } else { next.compoeCusto = null; }
       return next;
     }));
   }
+
+  // Natureza global — o campo da aba Duplicatas aplica a TODAS as linhas.
+  function applyNaturezaGlobal(natId: string) {
+    setNaturezaFinanceiraId(natId);
+    setEditItems((prev) => prev.map((i) => (i.paiId ? i : { ...i, naturezaFinanceiraId: natId })));
+    setNewItems((prev) => prev.map((n) => (n.paiId || n.paiKey ? n : { ...n, naturezaFinanceiraId: natId })));
+  }
+  function handleModoNaturezaChange(novo: "GLOBAL" | "POR_ITEM") {
+    setModoNatureza(novo);
+    if (novo === "GLOBAL" && naturezaFinanceiraId) applyNaturezaGlobal(naturezaFinanceiraId);
+    if (novo === "POR_ITEM") {
+      const sugDoTes = (tesId: string) => tesList.find((t) => t.id === tesId)?.naturezaSugeridaId ?? "";
+      setEditItems((prev) => prev.map((i) => (i.naturezaFinanceiraId || i.paiId ? i : { ...i, naturezaFinanceiraId: sugDoTes(i.tesId) })));
+      setNewItems((prev) => prev.map((n) => (n.naturezaFinanceiraId || n.paiId || n.paiKey ? n : { ...n, naturezaFinanceiraId: sugDoTes(n.tesId) })));
+    }
+  }
+
+  // Opções de natureza p/ a coluna por item (código + agrupadas por grupo).
+  const GRUPO_NAT_LABEL: Record<string, string> = {
+    RECEITA_OPERACIONAL: "Receitas operacionais", CUSTO_OPERACIONAL: "Custos operacionais",
+    DESPESA_OPERACIONAL: "Despesas operacionais", INVESTIMENTO: "Atividades de investimento",
+    FINANCIAMENTO: "Atividades de financiamento", MOVIMENTACAO_INTERNA: "Movimentações internas",
+  };
+  const naturezaOptions = [...naturezas]
+    .sort((a, b) => (a.codigo ?? "9999").localeCompare(b.codigo ?? "9999") || a.nome.localeCompare(b.nome))
+    .map((n) => ({ value: n.id, label: `${n.codigo ? `${n.codigo} ` : ""}${n.nome}`, group: GRUPO_NAT_LABEL[n.grupo] ?? n.grupo }));
 
   // Sync usuarioResponsavelId from responsavel name once users are loaded
   useEffect(() => {
@@ -517,6 +556,7 @@ export default function DocumentoEntradaDetailPage() {
         desconto: "",
         localEstoqueId: localEstoqueGlobalId,
         centroCustoId: modoCentro === "GLOBAL" ? centroGlobalId : "",
+        naturezaFinanceiraId: modoNatureza === "GLOBAL" ? naturezaFinanceiraId : "",
         tesId: modoTes === "GLOBAL" ? tesGlobalId : "",
         compoeCusto: tesG ? tesG.compoeCusto : null,
         capitaliza: false,
@@ -682,6 +722,7 @@ export default function DocumentoEntradaDetailPage() {
               localEstoqueId: i.localEstoqueId || null,
               centroCustoId: i.centroCustoId || null,
               tesId: i.tesId || null,
+              naturezaFinanceiraId: i.paiId ? null : (i.naturezaFinanceiraId || null),
               compoeCusto: i.compoeCusto,
               capitaliza: i.capitaliza ? true : null,
               imobilizadoId: i.capitaliza ? (i.imobilizadoId || null) : null,
@@ -706,6 +747,7 @@ export default function DocumentoEntradaDetailPage() {
               localEstoqueId: ni.localEstoqueId || null,
               centroCustoId: ni.centroCustoId || null,
               tesId: ni.tesId || null,
+              naturezaFinanceiraId: ni.paiId || ni.paiKey ? null : (ni.naturezaFinanceiraId || null),
               compoeCusto: ni.compoeCusto,
               capitaliza: ni.capitaliza ? true : null,
               imobilizadoId: ni.capitaliza ? (ni.imobilizadoId || null) : null,
@@ -1471,6 +1513,28 @@ export default function DocumentoEntradaDetailPage() {
                   )}
                 </div>
 
+                {/* Natureza financeira — modo Global/Por Item (default do TES) */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Natureza:</span>
+                  <ModoToggle value={modoNatureza} onChange={handleModoNaturezaChange} editable={itemsEditable} />
+                  {modoNatureza === "GLOBAL" && (
+                    itemsEditable ? (
+                      <div className="w-64">
+                        <ComboboxWithCreate
+                          value={naturezaFinanceiraId}
+                          onChange={applyNaturezaGlobal}
+                          noneLabel="— Natureza —"
+                          menuMinWidth={420}
+                          triggerClassName="h-8 rounded-md text-xs"
+                          options={naturezaOptions}
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-foreground max-w-[10rem] truncate">{naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"}</span>
+                    )
+                  )}
+                </div>
+
                 {/* Local de Estoque — modo Global/Por Item */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Local:</span>
@@ -1572,6 +1636,9 @@ export default function DocumentoEntradaDetailPage() {
                     )}
                     {modoCentro === "POR_ITEM" && (
                       <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
+                    )}
+                    {modoNatureza === "POR_ITEM" && (
+                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="Natureza financeira da linha (classificação gerencial do título — rateio automático). Default: sugestão do TES.">Natureza</th>
                     )}
                     <th className="text-center px-2 py-2 font-medium text-muted-foreground text-xs" title="Capitaliza (imobilizado): marca a linha como capex e exige o bem. Herança/orçamento na entrada.">Capex</th>
                     <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">U.M.</th>
@@ -1678,6 +1745,26 @@ export default function DocumentoEntradaDetailPage() {
                               />
                             ) : (
                               <span className="text-xs text-muted-foreground">{item.centroCusto ? `${item.centroCusto.codigo} - ${item.centroCusto.nome}` : "—"}</span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* Natureza da linha — classificação gerencial (rateio do CP) */}
+                        {modoNatureza === "POR_ITEM" && (
+                          <td className="px-2 py-1.5">
+                            {ehFilho ? (
+                              <span className="text-xs text-muted-foreground/40">—</span>
+                            ) : canEdit && ei ? (
+                              <ComboboxWithCreate
+                                value={ei.naturezaFinanceiraId}
+                                onChange={(v) => updateEditItem(item.id, "naturezaFinanceiraId", v)}
+                                noneLabel="—"
+                                menuMinWidth={420}
+                                triggerClassName="h-7 rounded text-xs min-w-[12rem]"
+                                options={naturezaOptions}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">{naturezas.find((n) => n.id === (ei?.naturezaFinanceiraId ?? ""))?.nome ?? "—"}</span>
                             )}
                           </td>
                         )}
@@ -1972,6 +2059,23 @@ export default function DocumentoEntradaDetailPage() {
                           )}
                         </td>
                       )}
+                      {/* Natureza da linha */}
+                      {modoNatureza === "POR_ITEM" && (
+                        <td className="px-2 py-1.5">
+                          {ni.paiId || ni.paiKey ? (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          ) : (
+                          <ComboboxWithCreate
+                            value={ni.naturezaFinanceiraId}
+                            onChange={(v) => updateNewItem(ni._key, "naturezaFinanceiraId", v)}
+                            noneLabel="—"
+                            menuMinWidth={420}
+                            triggerClassName="h-7 rounded text-xs min-w-[12rem]"
+                            options={naturezaOptions}
+                          />
+                          )}
+                        </td>
+                      )}
                       {/* Capex */}
                       <td className="px-2 py-1.5 text-center">
                         {ni.paiId || ni.paiKey ? (
@@ -2081,6 +2185,7 @@ export default function DocumentoEntradaDetailPage() {
           <div className="flex items-center gap-1 border-b border-border bg-muted px-2 flex-wrap">
             {([
               { id: "duplicatas", label: "Duplicatas" },
+              { id: "pagamento", label: "Pagamento" },
               { id: "totais", label: "Totais" },
               { id: "outros", label: "Outros" },
             ] as const).map((t) => (
@@ -2158,10 +2263,12 @@ export default function DocumentoEntradaDetailPage() {
                           Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>, não da natureza.
                         </InfoHint>
                       </span>
-                      {nfEditable ? (
+                      {modoNatureza === "POR_ITEM" ? (
+                        <Input value="Definida por item (coluna Natureza nos itens)" readOnly className="bg-muted h-9 text-xs" />
+                      ) : nfEditable ? (
                         <NaturezaCombobox
                           value={naturezaFinanceiraId}
-                          onChange={setNaturezaFinanceiraId}
+                          onChange={applyNaturezaGlobal}
                           naturezas={naturezas}
                           placeholder="— Selecionar natureza —"
                         />
@@ -2169,60 +2276,68 @@ export default function DocumentoEntradaDetailPage() {
                         <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-muted" />
                       )}
                     </div>
-
-                    {/* ── Pagamento JÁ REALIZADO (entrada/sinal da fatura) ── */}
-                    {!isConcluded && !isDivergencia && (
-                      <div className="space-y-2 rounded-lg border border-border p-3">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagamento já realizado</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Valor pago</Label>
-                            {nfEditable ? (
-                              <Input type="number" step="0.01" min="0" value={valorPagoAntecipado}
-                                onChange={(e) => setValorPagoAntecipado(e.target.value)}
-                                placeholder="0,00" className="h-9 text-right" />
-                            ) : (
-                              <Input value={parseFloat(valorPagoAntecipado) > 0 ? formatBRL(parseFloat(valorPagoAntecipado)) : "—"} readOnly className="bg-muted h-9 text-right" />
-                            )}
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Data do pagamento</Label>
-                            <DatePicker value={dataPagoAntecipado} onChange={setDataPagoAntecipado} disabled={!nfEditable} triggerClassName="h-9" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Forma</Label>
-                            <ComboboxWithCreate
-                              value={formaPagoAntecipadoId}
-                              onChange={setFormaPagoAntecipadoId}
-                              noneLabel="—"
-                              disabled={!nfEditable}
-                              triggerClassName="h-9 rounded-md"
-                              options={formasPagamento.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA").map((f) => ({ value: f.id, label: f.nome }))}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Conta de saída</Label>
-                            <ComboboxWithCreate
-                              value={contaPagoAntecipadoId}
-                              onChange={setContaPagoAntecipadoId}
-                              noneLabel="—"
-                              disabled={!nfEditable}
-                              triggerClassName={cn("h-9 rounded-md", parseFloat(valorPagoAntecipado) > 0 && !contaPagoAntecipadoId && "border-red-400 bg-danger/10")}
-                              options={contasBancarias.map((c) => ({ value: c.id, label: c.nome }))}
-                            />
-                          </div>
-                        </div>
-                        <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
-                          <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                          <span>Na conclusão vira um título <b>quitado</b> (baixado nessa data, saindo da conta) e as parcelas da condição incidem só sobre o <b>restante</b>.</span>
-                        </p>
-                      </div>
-                    )}
                   </>
                 }
               />
+            )}
+
+            {/* ── Aba Pagamento (já realizado — entrada/sinal da fatura) ──── */}
+            {aba === "pagamento" && (
+              <div className="max-w-2xl space-y-3">
+                <span className="flex items-center gap-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagamento já realizado</Label>
+                  <InfoHint>Na conclusão vira um título <b>quitado</b> (baixado nessa data, saindo da conta) e as parcelas da condição incidem só sobre o <b>restante</b> — a aba Duplicatas reflete na hora.</InfoHint>
+                </span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Valor pago</Label>
+                    {nfEditable ? (
+                      <Input type="number" step="0.01" min="0" value={valorPagoAntecipado}
+                        onChange={(e) => setValorPagoAntecipado(e.target.value)}
+                        placeholder="0,00" className="h-9 text-right" />
+                    ) : (
+                      <Input value={parseFloat(valorPagoAntecipado) > 0 ? formatBRL(parseFloat(valorPagoAntecipado)) : "—"} readOnly className="bg-muted h-9 text-right" />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Data do pagamento</Label>
+                    <DatePicker value={dataPagoAntecipado} onChange={setDataPagoAntecipado} disabled={!nfEditable} triggerClassName="h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Forma</Label>
+                    <ComboboxWithCreate
+                      value={formaPagoAntecipadoId}
+                      onChange={setFormaPagoAntecipadoId}
+                      noneLabel="—"
+                      disabled={!nfEditable}
+                      triggerClassName="h-9 rounded-md"
+                      options={formasPagamento.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA").map((f) => ({ value: f.id, label: f.nome }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Conta de saída</Label>
+                    <ComboboxWithCreate
+                      value={contaPagoAntecipadoId}
+                      onChange={setContaPagoAntecipadoId}
+                      noneLabel="—"
+                      disabled={!nfEditable}
+                      triggerClassName={cn("h-9 rounded-md", parseFloat(valorPagoAntecipado) > 0 && !contaPagoAntecipadoId && "border-red-400 bg-danger/10")}
+                      options={contasBancarias.map((c) => ({ value: c.id, label: c.nome }))}
+                    />
+                  </div>
+                </div>
+                {/* Resumo — mesma conta da prévia das Duplicatas; concluída, os
+                    títulos reais (inclusive o quitado da entrada) estão na aba Duplicatas. */}
+                {!isConcluded && !isDivergencia ? (
+                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs grid grid-cols-3 gap-2">
+                    <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">A pagar</span><span className="text-foreground font-medium">{formatBRL(duplicatasPreview.valor)}</span></div>
+                    <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Já pago</span><span className="text-success font-medium">{formatBRL(duplicatasPreview.entradaPaga?.valor ?? 0)}</span></div>
+                    <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Restante a parcelar</span><span className="text-foreground font-medium">{formatBRL(duplicatasPreview.restante)}</span></div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">Documento concluído — os títulos gerados (inclusive o quitado da entrada) estão na aba <b>Duplicatas</b>.</p>
+                )}
+              </div>
             )}
 
             {/* ── Aba Totais ──────────────────────────────────────────────── */}

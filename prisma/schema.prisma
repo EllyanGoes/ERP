@@ -594,6 +594,11 @@ model ConferenciaCompraItem {
   tesId                   String?
   tes                     TipoOperacao?         @relation(fields: [tesId], references: [id])
   compoeCusto             Boolean?
+  // Natureza financeira DA LINHA (como o centro): default preenchido pela
+  // sugestão do TES, editável. Alimenta o rateio multi-natureza do CP na
+  // conclusão (linhas sem natureza caem no cabeçalho do DE). Filho não usa.
+  naturezaFinanceiraId    String?
+  naturezaFinanceira      NaturezaFinanceira?   @relation("ConfItemNatureza", fields: [naturezaFinanceiraId], references: [id])
   // Item COMPONENTE (filho): decompõe o preço da linha pai (ex.: "roda montada"
   // absorve eixo/rolamentos/anéis). Filho NÃO movimenta estoque, NÃO entra no
   // líquido/CP e NÃO mexe em CMPM — é registro da composição. 1 nível só.
@@ -610,6 +615,7 @@ model ConferenciaCompraItem {
   @@index([centroCustoId])
   @@index([imobilizadoId])
   @@index([paiId])
+  @@index([naturezaFinanceiraId])
 }
 
 model Configuracao {
@@ -1087,6 +1093,7 @@ model NaturezaFinanceira {
   recorrencias         Recorrencia[]
   requisicoes          RequisicaoMaterial[] // natureza da saída de estoque (ex.: CIF)
   requisicaoItens      RequisicaoMaterialItem[] // natureza por item da requisição
+  conferenciaItens     ConferenciaCompraItem[]  @relation("ConfItemNatureza") // natureza por item do DE
   contasPagarRateio    ContaPagarNatureza[] // rateio gerencial por natureza na baixa de contas a pagar
   contasReceberRateio  ContaReceberNatureza[] // rateio gerencial por natureza no título a receber
   itensPadrao          Item[]                   @relation("ItemNaturezaPadrao") // natureza-padrão do item

@@ -109,6 +109,7 @@ type ItemRow = {
   centroCustoId: string;
   tesId: string;
   compoeCusto: boolean | null;
+  naturezaFinanceiraId: string; // natureza da linha (default: sugestão do TES)
   quantidadePedida: string;
   quantidadeRecebida: string;
   vlrUnitario: string;
@@ -143,6 +144,7 @@ function emptyRow(): ItemRow {
     centroCustoId: "",
     tesId: "",
     compoeCusto: null,
+    naturezaFinanceiraId: "",
     quantidadePedida: "",
     quantidadeRecebida: "",
     vlrUnitario: "",
@@ -302,17 +304,20 @@ export default function NovoDocumentoEntradaPage() {
   const [modoTes, setModoTes] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
   const [tesGlobalId, setTesGlobalId] = useState("");
   const [modoCentro, setModoCentro] = useState<"GLOBAL" | "POR_ITEM">("POR_ITEM");
+  // Natureza: GLOBAL usa o campo da aba Duplicatas (aplicado a todas as linhas);
+  // POR_ITEM abre a coluna na tabela (default preenchido pela sugestão do TES).
+  const [modoNatureza, setModoNatureza] = useState<"GLOBAL" | "POR_ITEM">("GLOBAL");
   const [centroGlobalId, setCentroGlobalId] = useState("");
 
   // Aba ativa do rodapé (padrão Protheus: Duplicatas em destaque)
-  const [aba, setAba] = useState<"duplicatas" | "totais" | "outros">("duplicatas");
+  const [aba, setAba] = useState<"duplicatas" | "pagamento" | "totais" | "outros">("duplicatas");
 
   // Items
   const [itens, setItens]                       = useState<ItemRow[]>([emptyRow()]);
   const [produtos, setProdutos]                 = useState<Produto[]>([]);
   const [locaisEstoque, setLocaisEstoque]       = useState<LocalEstoque[]>([]);
   const [centrosCusto, setCentrosCusto]         = useState<{ id: string; codigo: string; nome: string; grupoCentroCusto?: { nome: string } | null }[]>([]);
-  const [tesList, setTesList]                   = useState<{ id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean }[]>([]);
+  const [tesList, setTesList]                   = useState<{ id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; naturezaSugeridaId?: string | null; ativo: boolean }[]>([]);
   const [prodSearchMap, setProdSearchMap]       = useState<Record<string, string>>({});
   // Unidades de compra por item (busca sob demanda quando o item entra na grade).
   const [unidadesMap, setUnidadesMap]           = useState<Record<string, UnidadeItemOpt[]>>({});
@@ -446,6 +451,7 @@ export default function NovoDocumentoEntradaPage() {
         next.compoeCusto = tes.compoeCusto;
         if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
         if (tes.centroCustoSugeridoId) next.centroCustoId = tes.centroCustoSugeridoId;
+        if (tes.naturezaSugeridaId && modoNatureza === "POR_ITEM") next.naturezaFinanceiraId = tes.naturezaSugeridaId;
       } else { next.compoeCusto = null; }
       return next;
     }));
@@ -461,6 +467,7 @@ export default function NovoDocumentoEntradaPage() {
         next.compoeCusto = tes.compoeCusto;
         if (tes.estocavel && tes.almoxarifadoDefaultId && modoLocalEstoque === "POR_ITEM") next.localEstoqueId = tes.almoxarifadoDefaultId;
         if (tes.centroCustoSugeridoId && modoCentro === "POR_ITEM") next.centroCustoId = tes.centroCustoSugeridoId;
+        if (tes.naturezaSugeridaId && modoNatureza === "POR_ITEM") next.naturezaFinanceiraId = tes.naturezaSugeridaId;
       } else { next.compoeCusto = null; }
       return next;
     }));
@@ -479,6 +486,34 @@ export default function NovoDocumentoEntradaPage() {
     setModoCentro(novo);
     if (novo === "GLOBAL" && centroGlobalId) applyCentroGlobal(centroGlobalId);
   }
+
+  // Natureza global — o campo da aba Duplicatas aplica a TODAS as linhas.
+  function applyNaturezaGlobal(natId: string) {
+    setNaturezaFinanceiraId(natId);
+    setItens((prev) => prev.map((r) => ({ ...r, naturezaFinanceiraId: natId })));
+  }
+  function handleModoNaturezaChange(novo: "GLOBAL" | "POR_ITEM") {
+    setModoNatureza(novo);
+    if (novo === "GLOBAL" && naturezaFinanceiraId) applyNaturezaGlobal(naturezaFinanceiraId);
+    // POR_ITEM: preenche linhas vazias com a sugestão do TES de cada uma.
+    if (novo === "POR_ITEM") {
+      setItens((prev) => prev.map((r) => {
+        if (r.naturezaFinanceiraId) return r;
+        const sug = tesList.find((t) => t.id === r.tesId)?.naturezaSugeridaId;
+        return sug ? { ...r, naturezaFinanceiraId: sug } : r;
+      }));
+    }
+  }
+
+  // Opções de natureza p/ a coluna por item (código + agrupadas por grupo).
+  const GRUPO_NAT_LABEL: Record<string, string> = {
+    RECEITA_OPERACIONAL: "Receitas operacionais", CUSTO_OPERACIONAL: "Custos operacionais",
+    DESPESA_OPERACIONAL: "Despesas operacionais", INVESTIMENTO: "Atividades de investimento",
+    FINANCIAMENTO: "Atividades de financiamento", MOVIMENTACAO_INTERNA: "Movimentações internas",
+  };
+  const naturezaOptions = [...naturezas]
+    .sort((a, b) => (a.codigo ?? "9999").localeCompare(b.codigo ?? "9999") || a.nome.localeCompare(b.nome))
+    .map((n) => ({ value: n.id, label: `${n.codigo ? `${n.codigo} ` : ""}${n.nome}`, group: GRUPO_NAT_LABEL[n.grupo] ?? n.grupo }));
 
   // Busca PCs para vincular. Sem termo → lista os PCs "em aberto" (sem DE);
   // com termo → filtra por número/fornecedor. Sempre semDE=1 (só dá para
@@ -680,6 +715,7 @@ export default function NovoDocumentoEntradaPage() {
         centroCustoId: (pi as { centroCustoId?: string | null }).centroCustoId ?? "",
         tesId: (pi as { tesId?: string | null }).tesId ?? "",
         compoeCusto: (pi as { compoeCusto?: boolean | null }).compoeCusto ?? null,
+        naturezaFinanceiraId: "",
         quantidadePedida: decimalToNumber(pi.quantidade).toString(),
         quantidadeRecebida: "0",
         vlrUnitario: "",
@@ -741,6 +777,7 @@ export default function NovoDocumentoEntradaPage() {
       row.compoeCusto = tesList.find((t) => t.id === tesGlobalId)?.compoeCusto ?? null;
     }
     if (modoCentro === "GLOBAL" && centroGlobalId) row.centroCustoId = centroGlobalId;
+    if (modoNatureza === "GLOBAL" && naturezaFinanceiraId) row.naturezaFinanceiraId = naturezaFinanceiraId;
     setItens((prev) => [...prev, row]);
   }
 
@@ -901,6 +938,7 @@ export default function NovoDocumentoEntradaPage() {
           centroCustoId: r.centroCustoId || null,
           tesId: r.tesId || null,
           compoeCusto: r.compoeCusto,
+          naturezaFinanceiraId: r.paiKey ? null : (r.naturezaFinanceiraId || null),
           tipoEntrada: r.tipoEntrada || null,
           codFiscal: r.codFiscal || null,
           itemNF: idx + 1,
@@ -1302,6 +1340,24 @@ export default function NovoDocumentoEntradaPage() {
                 )}
               </div>
 
+              {/* Natureza financeira — modo Global/Por Item (default do TES) */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Natureza:</span>
+                <ModoToggle value={modoNatureza} onChange={handleModoNaturezaChange} editable />
+                {modoNatureza === "GLOBAL" && (
+                  <div className="w-64">
+                    <ComboboxWithCreate
+                      value={naturezaFinanceiraId}
+                      onChange={applyNaturezaGlobal}
+                      noneLabel="— Natureza —"
+                      menuMinWidth={420}
+                      triggerClassName="h-8 rounded-md text-xs"
+                      options={naturezaOptions}
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Local de Estoque — modo Global/Por Item */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Local:</span>
@@ -1344,6 +1400,9 @@ export default function NovoDocumentoEntradaPage() {
                     )}
                     {modoCentro === "POR_ITEM" && (
                       <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[140px]" title="Centro de custo (herança/orçamento). Não classifica destino de custo.">Centro de custo <span className="text-red-500">*</span></th>
+                    )}
+                    {modoNatureza === "POR_ITEM" && (
+                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs min-w-[150px]" title="Natureza financeira da linha (classificação gerencial do título — rateio automático). Default: sugestão do TES.">Natureza</th>
                     )}
                     <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs w-14">U.M.</th>
                     <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs w-24">Qtd. Pedida</th>
@@ -1450,6 +1509,24 @@ export default function NovoDocumentoEntradaPage() {
                               menuMinWidth={420}
                               triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
                               options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}`, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
+                            />
+                            )}
+                          </td>
+                        )}
+
+                        {/* Natureza da linha — classificação gerencial (rateio do CP) */}
+                        {modoNatureza === "POR_ITEM" && (
+                          <td className="px-2 py-1.5">
+                            {ehFilho ? (
+                              <span className="text-xs text-muted-foreground/40">—</span>
+                            ) : (
+                            <ComboboxWithCreate
+                              value={row.naturezaFinanceiraId}
+                              onChange={(v) => updateItem(row._key, "naturezaFinanceiraId", v)}
+                              noneLabel="—"
+                              menuMinWidth={420}
+                              triggerClassName="h-7 rounded text-xs min-w-[12rem]"
+                              options={naturezaOptions}
                             />
                             )}
                           </td>
@@ -1621,6 +1698,7 @@ export default function NovoDocumentoEntradaPage() {
           <div className="flex items-center gap-1 border-b border-border bg-muted px-2 flex-wrap">
             {([
               { id: "duplicatas", label: "Duplicatas" },
+              { id: "pagamento", label: "Pagamento" },
               { id: "totais", label: "Totais" },
               { id: "outros", label: "Outros" },
             ] as const).map((t) => (
@@ -1688,59 +1766,68 @@ export default function NovoDocumentoEntradaPage() {
                           Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>.
                         </InfoHint>
                       </span>
-                      <NaturezaCombobox
-                        value={naturezaFinanceiraId}
-                        onChange={setNaturezaFinanceiraId}
-                        naturezas={naturezas}
-                        placeholder="— Selecionar natureza —"
-                      />
-                    </div>
-
-                    {/* ── Pagamento JÁ REALIZADO (entrada/sinal da fatura) ── */}
-                    <div className="space-y-2 rounded-lg border border-border p-3">
-                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagamento já realizado</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Valor pago</Label>
-                          <Input type="number" step="0.01" min="0" value={valorPagoAntecipado}
-                            onChange={(e) => setValorPagoAntecipado(e.target.value)}
-                            placeholder="0,00" className="h-9 text-right" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Data do pagamento</Label>
-                          <DatePicker value={dataPagoAntecipado} onChange={setDataPagoAntecipado} triggerClassName="h-9" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Forma</Label>
-                          <ComboboxWithCreate
-                            value={formaPagoAntecipadoId}
-                            onChange={setFormaPagoAntecipadoId}
-                            noneLabel="—"
-                            triggerClassName="h-9 rounded-md"
-                            options={formasPagamento.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA").map((f) => ({ value: f.id, label: f.nome }))}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[11px] text-muted-foreground">Conta de saída</Label>
-                          <ComboboxWithCreate
-                            value={contaPagoAntecipadoId}
-                            onChange={setContaPagoAntecipadoId}
-                            noneLabel="—"
-                            triggerClassName={cn("h-9 rounded-md", parseFloat(valorPagoAntecipado) > 0 && !contaPagoAntecipadoId && "border-red-400 bg-danger/10")}
-                            options={contasBancarias.map((c) => ({ value: c.id, label: c.nome }))}
-                          />
-                        </div>
-                      </div>
-                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
-                        <FileText className="w-3 h-3 mt-0.5 shrink-0" />
-                        <span>Na conclusão vira um título <b>quitado</b> (baixado nessa data, saindo da conta) e as parcelas da condição incidem só sobre o <b>restante</b>.</span>
-                      </p>
+                      {modoNatureza === "POR_ITEM" ? (
+                        <Input value="Definida por item (coluna Natureza nos itens)" readOnly className="bg-muted h-9 text-xs" />
+                      ) : (
+                        <NaturezaCombobox
+                          value={naturezaFinanceiraId}
+                          onChange={applyNaturezaGlobal}
+                          naturezas={naturezas}
+                          placeholder="— Selecionar natureza —"
+                        />
+                      )}
                     </div>
                   </>
                 }
               />
+            )}
+
+            {/* ── Aba Pagamento (já realizado — entrada/sinal da fatura) ──── */}
+            {aba === "pagamento" && (
+              <div className="max-w-2xl space-y-3">
+                <span className="flex items-center gap-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagamento já realizado</Label>
+                  <InfoHint>Na conclusão vira um título <b>quitado</b> (baixado nessa data, saindo da conta) e as parcelas da condição incidem só sobre o <b>restante</b> — a aba Duplicatas reflete na hora.</InfoHint>
+                </span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Valor pago</Label>
+                    <Input type="number" step="0.01" min="0" value={valorPagoAntecipado}
+                      onChange={(e) => setValorPagoAntecipado(e.target.value)}
+                      placeholder="0,00" className="h-9 text-right" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Data do pagamento</Label>
+                    <DatePicker value={dataPagoAntecipado} onChange={setDataPagoAntecipado} triggerClassName="h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Forma</Label>
+                    <ComboboxWithCreate
+                      value={formaPagoAntecipadoId}
+                      onChange={setFormaPagoAntecipadoId}
+                      noneLabel="—"
+                      triggerClassName="h-9 rounded-md"
+                      options={formasPagamento.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA").map((f) => ({ value: f.id, label: f.nome }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Conta de saída</Label>
+                    <ComboboxWithCreate
+                      value={contaPagoAntecipadoId}
+                      onChange={setContaPagoAntecipadoId}
+                      noneLabel="—"
+                      triggerClassName={cn("h-9 rounded-md", parseFloat(valorPagoAntecipado) > 0 && !contaPagoAntecipadoId && "border-red-400 bg-danger/10")}
+                      options={contasBancarias.map((c) => ({ value: c.id, label: c.nome }))}
+                    />
+                  </div>
+                </div>
+                {/* Resumo — mesma conta da prévia das Duplicatas */}
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs grid grid-cols-3 gap-2">
+                  <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">A pagar</span><span className="text-foreground font-medium">{formatBRL(duplicatasPreview.valor)}</span></div>
+                  <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Já pago</span><span className="text-success font-medium">{formatBRL(duplicatasPreview.entradaPaga?.valor ?? 0)}</span></div>
+                  <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Restante a parcelar</span><span className="text-foreground font-medium">{formatBRL(duplicatasPreview.restante)}</span></div>
+                </div>
+              </div>
             )}
 
             {/* ── Aba Totais ──────────────────────────────────────────────── */}

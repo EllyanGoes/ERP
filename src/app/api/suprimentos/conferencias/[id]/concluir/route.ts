@@ -5,7 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { notifyMovimentacao } from "@/lib/notify-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
-import { gerarContasPagarDoDocumento, classificacaoSugeridaDaEntrada, criarRateioInicialCp } from "@/lib/contas-pagar";
+import { gerarContasPagarDoDocumento, classificacaoSugeridaDaEntrada, criarRateioInicialCp, distribuicaoNaturezas } from "@/lib/contas-pagar";
 import { calcularParcelas, type Parcela } from "@/lib/parcelas";
 import { baixarTitulo } from "@/lib/baixa-titulo";
 import { generateSimpleDocNumber } from "@/lib/utils";
@@ -78,11 +78,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     });
     if (!conferencia) throw new Error("Conferência não encontrada");
 
-    // Classificação sugerida dos títulos: natureza pelo TES das linhas (única
-    // distinta) e centro das linhas (único distinto). A natureza do CABEÇALHO do
-    // DE, quando informada, tem precedência sobre a sugestão do TES.
+    // Classificação dos títulos: natureza agora é POR LINHA (item > TES da
+    // linha); linhas sem natureza caem no fallback (cabeçalho do DE > TES-único).
+    // A distribuição multi-natureza vira o rateio inicial de cada CP; a natureza
+    // PRINCIPAL (maior fatia) vai no nível do título.
     const sugestao = await classificacaoSugeridaDaEntrada(tx, conferencia.id);
-    const naturezaTitulo = conferencia.naturezaFinanceiraId ?? sugestao.naturezaTesId;
+    const naturezaFallback = conferencia.naturezaFinanceiraId ?? sugestao.naturezaTesId;
+    const distBase = distribuicaoNaturezas(sugestao.porNatureza, naturezaFallback);
+    const naturezaTitulo = distBase[0]?.naturezaFinanceiraId ?? naturezaFallback;
+    const distNaturezas = distBase.length > 0
+      ? distBase
+      : naturezaTitulo ? [{ naturezaFinanceiraId: naturezaTitulo, frac: 1 }] : [];
 
     // ── Título da ENTRADA JÁ PAGA (sinal da fatura) ───────────────────────────
     // Nasce ABERTA dentro da transação e é BAIXADO pós-commit (padrão do
@@ -120,7 +126,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           notaFiscal: conferencia.numeroNF ?? null,
         },
       });
-      await criarRateioInicialCp(tx2, cp.id, naturezaTitulo, pago);
+      await criarRateioInicialCp(tx2, cp.id, distNaturezas, pago);
       entradaPagaInfo = {
         cpId: cp.id,
         valor: pago,
@@ -475,7 +481,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 : {}),
             },
           });
-          await criarRateioInicialCp(tx, cpAvulsa.id, naturezaTitulo, p.valor);
+          await criarRateioInicialCp(tx, cpAvulsa.id, distNaturezas, p.valor);
         }
       }
     }
@@ -564,6 +570,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
                 naturezaFinanceiraId: naturezaTitulo,
                 centroCustoId: sugestao.centroCustoId,
                 formaPagamentoPrevistaId: conferencia.formaPagamentoId,
+                distNaturezas,
                 ...(custom ? { parcelasProntas: custom } : {}),
               }, condicao);
             }
