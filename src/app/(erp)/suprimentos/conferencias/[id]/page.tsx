@@ -15,6 +15,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { useRouter } from "next/navigation";
 import { ShieldAlert, Save, Loader2, Trash2, LinkIcon, Pencil, Info } from "lucide-react";
+import InfoHint from "@/components/shared/InfoHint";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
@@ -1461,7 +1462,7 @@ export default function DocumentoEntradaDetailPage() {
                           noneLabel="—"
                           menuMinWidth={420}
                           triggerClassName={cn("h-8 rounded-md text-xs", !centroGlobalId && "border-red-300")}
-                          options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
+                          options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}`, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                         />
                       </div>
                     ) : (
@@ -1673,7 +1674,7 @@ export default function DocumentoEntradaDetailPage() {
                                 noneLabel="—"
                                 menuMinWidth={420}
                                 triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ei.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                                options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
+                                options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}`, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                               />
                             ) : (
                               <span className="text-xs text-muted-foreground">{item.centroCusto ? `${item.centroCusto.codigo} - ${item.centroCusto.nome}` : "—"}</span>
@@ -1966,7 +1967,7 @@ export default function DocumentoEntradaDetailPage() {
                             noneLabel="—"
                             menuMinWidth={420}
                             triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                            options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
+                            options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}`, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                           />
                           )}
                         </td>

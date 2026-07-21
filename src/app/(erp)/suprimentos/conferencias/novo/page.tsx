@@ -14,6 +14,7 @@ import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText, ChevronRight } from "lucide-react";
+import InfoHint from "@/components/shared/InfoHint";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
@@ -1295,7 +1296,7 @@ export default function NovoDocumentoEntradaPage() {
                       noneLabel="—"
                       menuMinWidth={420}
                       triggerClassName={cn("h-8 rounded-md text-xs", !centroGlobalId && "border-red-300")}
-                      options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
+                      options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}`, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                     />
                   </div>
                 )}
@@ -1448,7 +1449,7 @@ export default function NovoDocumentoEntradaPage() {
                               noneLabel="—"
                               menuMinWidth={420}
                               triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                              options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
+                              options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}`, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                             />
                             )}
                           </td>
@@ -1655,7 +1656,10 @@ export default function NovoDocumentoEntradaPage() {
                 headerControls={
                   <>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
+                      <span className="flex items-center gap-1.5">
+                        <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
+                        <InfoHint>A condição estrutura o <b>prazo</b> do negócio (à vista, parcelado, sem vencimento).</InfoHint>
+                      </span>
                       <ComboboxWithCreate
                         value={condicaoPagamentoId}
                         onChange={(v) => setCondicaoPagamentoId(v)}
@@ -1663,13 +1667,12 @@ export default function NovoDocumentoEntradaPage() {
                         triggerClassName="h-9 rounded-md"
                         options={condicoes.map((c) => ({ value: c.id, label: c.nome }))}
                       />
-                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
-                        <FileText className="w-3 h-3 mt-0.5 shrink-0" />
-                        <span>A condição estrutura o <b>prazo</b> do negócio (à vista, parcelado, sem vencimento).</span>
-                      </p>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Forma de Pagamento (prevista)</Label>
+                      <span className="flex items-center gap-1.5">
+                        <Label className="text-xs text-muted-foreground">Forma de Pagamento (prevista)</Label>
+                        <InfoHint>A forma é o <b>meio de quitação</b> (PIX, dinheiro, permuta…) — <b>permuta</b> substitui dinheiro por bens/serviços, total ou parcialmente.</InfoHint>
+                      </span>
                       <ComboboxWithCreate
                         value={formaPagamentoId}
                         onChange={setFormaPagamentoId}
@@ -1677,25 +1680,20 @@ export default function NovoDocumentoEntradaPage() {
                         triggerClassName="h-9 rounded-md"
                         options={formasPagamento.filter((f) => f.ativo !== false).map((f) => ({ value: f.id, label: f.nome }))}
                       />
-                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
-                        <FileText className="w-3 h-3 mt-0.5 shrink-0" />
-                        <span>A forma é o <b>meio de quitação</b> (PIX, dinheiro, permuta…) — <b>permuta</b> substitui dinheiro por bens/serviços, total ou parcialmente.</span>
-                      </p>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Natureza Financeira (prevista)</Label>
+                      <span className="flex items-center gap-1.5">
+                        <Label className="text-xs text-muted-foreground">Natureza Financeira (prevista)</Label>
+                        <InfoHint>
+                          Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>.
+                        </InfoHint>
+                      </span>
                       <NaturezaCombobox
                         value={naturezaFinanceiraId}
                         onChange={setNaturezaFinanceiraId}
                         naturezas={naturezas}
                         placeholder="— Selecionar natureza —"
                       />
-                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
-                        <FileText className="w-3 h-3 mt-0.5 shrink-0" />
-                        <span>
-                          Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>.
-                        </span>
-                      </p>
                     </div>
 
                     {/* ── Pagamento JÁ REALIZADO (entrada/sinal da fatura) ── */}
