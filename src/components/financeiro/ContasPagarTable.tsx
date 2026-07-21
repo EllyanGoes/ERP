@@ -50,7 +50,9 @@ type ContaRow = {
   valorOriginal: unknown; valorPago: unknown;
   fornecedor: { id: string; razaoSocial: string } | null;
   contasContrapartida?: { id: string; nome: string }[];
-  naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown }[];
+  naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown; naturezaFinanceira?: { codigo: string | null; nome: string } | null }[];
+  // Natureza única do título (legado sem split) — com código/nome p/ coluna/filtro.
+  naturezaFinanceira?: { id: string; codigo: string | null; nome: string } | null;
   pedidoCompra?: {
     id: string; numero: string; conferencia?: { id: string; numero: string; dtEmissao?: Date | string | null } | null;
     itens?: ItemOrigem[];
@@ -147,6 +149,17 @@ function semCentro(c: ContaRow): boolean {
 }
 function classificacaoPendente(c: ContaRow): boolean {
   return semNatureza(c) || semCentro(c);
+}
+
+// Naturezas do título (coluna e filtro): as linhas do split; sem split, a
+// natureza única do título (legado). Rótulo com o código do plano como prefixo.
+function naturezasDoTitulo(c: ContaRow): { id: string; label: string }[] {
+  const rotulo = (n: { codigo?: string | null; nome: string }) => `${n.codigo ? `${n.codigo} ` : ""}${n.nome}`;
+  const doSplit = (c.naturezas ?? [])
+    .filter((l) => l.naturezaFinanceira)
+    .map((l) => ({ id: l.naturezaFinanceiraId, label: rotulo(l.naturezaFinanceira!) }));
+  if (doSplit.length > 0) return Array.from(new Map(doSplit.map((n) => [n.id, n])).values());
+  return c.naturezaFinanceira ? [{ id: c.naturezaFinanceira.id, label: rotulo(c.naturezaFinanceira) }] : [];
 }
 
 // Badge amber informativo (não bloqueia) — padrão da reconciliação da folha.
@@ -252,7 +265,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // Status é múltipla escolha (chave nova para não colidir com o valor antigo
   // de seleção única). Padrão: em aberto (ABERTA + PARCIAL).
   const [statusSel, setStatusSel] = usePersistedState<string[]>("financeiro:contas-pagar:status-multi", SET_ABERTO);
-  const [contaFiltro, setContaFiltro] = usePersistedState<string>("financeiro:contas-pagar:conta", "");
+  const [naturezaFiltro, setNaturezaFiltro] = usePersistedState<string>("financeiro:contas-pagar:natureza", "");
   const [fornecedorFiltro, setFornecedorFiltro] = usePersistedState<string>("financeiro:contas-pagar:fornecedor", "");
   // Busca na barra de filtros (vale para a tabela E para a visão agrupada).
   const [busca, setBusca] = useState("");
@@ -260,11 +273,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-pagar:periodo", { from: "", to: "" });
   // Filtro rápido: só títulos com classificação pendente (sem natureza e/ou sem centro).
   const [soPendentes, setSoPendentes] = usePersistedState<boolean>("financeiro:contas-pagar:classif-pendente", false);
-  // Contas de contrapartida distintas presentes na lista (para o filtro).
-  const contasDisponiveis = useMemo(() => {
+  // Naturezas distintas presentes na lista (para o filtro) — ordenadas pelo
+  // código do plano (o rótulo já vem com o código como prefixo).
+  const naturezasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
-    for (const c of contas) for (const cc of c.contasContrapartida ?? []) m.set(cc.id, cc.nome);
-    return Array.from(m.entries()).map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+    for (const c of contas) for (const n of naturezasDoTitulo(c)) m.set(n.id, n.label);
+    return Array.from(m.entries()).map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
   }, [contas]);
   // Fornecedores distintos presentes na lista (para o filtro).
   const fornecedoresDisponiveis = useMemo(() => {
@@ -296,7 +310,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const contasBase = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return contas.filter((c) => {
-      if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
+      if (naturezaFiltro !== "" && !naturezasDoTitulo(c).some((n) => n.id === naturezaFiltro)) return false;
       if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
       if (!dentroDoPeriodo(c, periodo)) return false;
       if (soPendentes && !classificacaoPendente(c)) return false;
@@ -305,7 +319,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, contaFiltro, fornecedorFiltro, busca, periodo, soPendentes]);
+  }, [contas, naturezaFiltro, fornecedorFiltro, busca, periodo, soPendentes]);
   // Tabela: base + o filtro de status (OR sobre os marcados).
   const contasFiltradas = useMemo(
     () => contasBase.filter((c) => statusSel.some((s) => casaStatus(c, s as StatusFiltro))),
@@ -539,7 +553,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   };
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
-    { accessorKey: "numero", header: "Número", cell: ({ row }) => (
+    { accessorKey: "numero", header: "Número", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => (
       <span className="inline-flex items-center gap-1.5">
         <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
         {row.original.antecipado && (
@@ -567,7 +581,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     ) },
     // Só o CÓDIGO do documento de origem (o nome do processo fica no tooltip);
     // sem código (manual, folha, recorrência…), mostra o rótulo mesmo.
-    { id: "origem", header: "Origem", cell: ({ row }) => {
+    { id: "origem", header: "Origem", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => {
       const o = origemPagar(row.original);
       if (!o.ref) return <span className="text-xs text-muted-foreground">{o.label}</span>;
       return o.confId ? (
@@ -583,6 +597,21 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         <span className="font-mono text-xs text-muted-foreground" title={o.label}>{o.ref}</span>
       );
     } },
+    {
+      id: "natureza",
+      header: "Natureza",
+      meta: { tdClass: "max-w-0", thClass: "w-[12rem]" },
+      cell: ({ row }) => {
+        const nats = naturezasDoTitulo(row.original);
+        if (nats.length === 0) return <span className="text-muted-foreground/60">—</span>;
+        const txt = nats.map((n) => n.label).join(" + ");
+        return (
+          <div className="truncate text-xs text-muted-foreground" title={txt}>
+            {nats.length === 1 ? nats[0].label : `Várias (${nats.length})`}
+          </div>
+        );
+      },
+    },
     {
       id: "parcela",
       header: "Parcela",
@@ -615,7 +644,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       },
     },
     { accessorKey: "valorOriginal", header: "Valor", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
-    { accessorKey: "status", header: "Status", cell: ({ row }) => {
+    { accessorKey: "status", header: "Status", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => {
       // Status colorido pela MESMA categoria dos blocos de totais: título ABERTO
       // vira Sem vencimento (violeta) / Vencida (vermelho) / A vencer (azul).
       // Parcial (âmbar, = "A Pagar") e Paga (verde) mantêm o rótulo.
@@ -782,15 +811,16 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             />
           </div>
         )}
-        {contasDisponiveis.length > 0 && (
+        {naturezasDisponiveis.length > 0 && (
           <div className="w-64">
             <ComboboxWithCreate
-              value={contaFiltro}
-              onChange={setContaFiltro}
-              noneLabel="Todas as contas"
+              value={naturezaFiltro}
+              onChange={setNaturezaFiltro}
+              noneLabel="Todas as naturezas"
+              placeholder="Natureza"
               triggerClassName="h-9 rounded-lg"
               menuMinWidth={340}
-              options={contasDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
+              options={naturezasDisponiveis.map((n) => ({ value: n.id, label: n.label }))}
             />
           </div>
         )}
@@ -913,7 +943,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         );
       })()}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Registrar Pagamento</DialogTitle>
             {selected && <p className="text-sm text-muted-foreground">{selected.numero} — Saldo: {formatBRL(saldo)}</p>}
@@ -950,7 +980,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                 taxa/tarifa é retida (paga MENOS) — quitação = linhas + taxa. */}
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Encargos (opcional)</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-[1fr_1fr_1fr_1.4fr] gap-2">
                 <div>
                   <Label className="text-xs">Juros (R$)</Label>
                   <Input value={juros} onChange={(e) => setJuros(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
@@ -959,8 +989,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                   <Label className="text-xs">Multa (R$)</Label>
                   <Input value={multa} onChange={(e) => setMulta(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
-              </div>
-              <div className="grid grid-cols-[9rem_1fr] gap-2">
                 <div>
                   <Label className="text-xs">Taxa/tarifa retida (R$)</Label>
                   <Input value={taxa} onChange={(e) => setTaxa(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
@@ -992,12 +1020,14 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                 );
               })()}
             </div>
-            {/* Classificação do título — centro de custo + rateio por natureza
-                (igual ao Novo Lançamento). Edições aqui ATUALIZAM o título. */}
+            {/* Classificação do título — cada linha: natureza / centro de custo /
+                detalhamento / valor. O centro é ÚNICO (nível do título, Opção A) e
+                vive na 1ª linha; as demais mantêm a coluna p/ alinhar. Edições
+                aqui ATUALIZAM o título. */}
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 min-w-0">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Naturezas financeiras</Label>
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Classificação</Label>
                   {/* Badges informativos (não bloqueiam a baixa) — refletem o que está na tela. */}
                   {selected && !centroPagId && tesSugereMaterial(selected) && <BadgeClassif>Sem centro de custo</BadgeClassif>}
                   {!rateio.some((l) => l.naturezaFinanceiraId) && <BadgeClassif>Sem natureza</BadgeClassif>}
@@ -1006,21 +1036,11 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                   <Plus className="w-3.5 h-3.5" /> Adicionar natureza
                 </button>
               </div>
-              {/* Centro de custo do título — editável (linha própria acima do split). */}
-              <div className="grid grid-cols-[9rem_1fr] gap-2 items-center">
-                <Label className="text-xs">Centro de custo</Label>
-                <ComboboxWithCreate
-                  value={centroPagId}
-                  onChange={setCentroPagId}
-                  options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
-                  placeholder="Selecionar centro de custo…"
-                  noneLabel="Sem centro de custo"
-                  triggerClassName="h-9"
-                  menuMinWidth={340}
-                />
+              <div className="grid grid-cols-[1.2fr_1fr_1fr_6.5rem_auto] gap-2 text-[11px] text-muted-foreground">
+                <span>Natureza</span><span>Centro de custo</span><span>Detalhamento</span><span className="text-right">Valor</span><span className="w-7" />
               </div>
-              {rateio.map((l) => (
-                <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">
+              {rateio.map((l, i) => (
+                <div key={l.key} className="grid grid-cols-[1.2fr_1fr_1fr_6.5rem_auto] gap-2 items-center">
                   <NaturezaCombobox
                     value={l.naturezaFinanceiraId}
                     onChange={(id) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, naturezaFinanceiraId: id } : x)))}
@@ -1029,6 +1049,19 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                     allowCreate
                     onCreated={(n) => setNaturezasOpts((prev) => [...prev, n])}
                   />
+                  {i === 0 ? (
+                    <ComboboxWithCreate
+                      value={centroPagId}
+                      onChange={setCentroPagId}
+                      options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+                      placeholder="Centro de custo…"
+                      noneLabel="Sem centro de custo"
+                      triggerClassName="h-9"
+                      menuMinWidth={340}
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground/40 px-2" title="O centro de custo é do título inteiro (definido na 1ª linha)">〃</span>
+                  )}
                   <Input value={l.detalhamento} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, detalhamento: e.target.value } : x)))} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
                   <Input value={l.valor} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, valor: e.target.value } : x)))} placeholder="0,00" className="h-9 text-right font-mono min-w-0" />
                   <button type="button" onClick={() => setRateio((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={rateio.length <= 1} className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30">
@@ -1036,7 +1069,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                   </button>
                 </div>
               ))}
-              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título por natureza — a soma deve bater com o valor do título. Opcional.</p>
+              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título — a soma das naturezas deve bater com o valor do título; o centro de custo vale para o título inteiro. Opcional.</p>
             </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
