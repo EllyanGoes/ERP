@@ -45,6 +45,36 @@ const macro: BpmnGrafo = {
   ],
 };
 
+// ── O que cada documento alimenta (DE / CP / RM → Balanço, Fluxo, DRE) ────────
+const alimentacaoFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "i1",  tipo: "inicio", x: 0,    y: 40,  label: "Compra chega" },
+    { id: "de",  tipo: "tarefa", x: 110,  y: 24,  label: "Documento de Entrada", sub: "registra o PATRIMÔNIO", cor: "ambar" },
+    { id: "bal", tipo: "tarefa", x: 360,  y: -50, label: "Balanço", sub: "D Estoque / C Fornecedores", cor: "cinza" },
+    { id: "cp",  tipo: "tarefa", x: 360,  y: 96,  label: "Contas a Pagar", sub: "registra o DINHEIRO", cor: "verde" },
+    { id: "fc",  tipo: "tarefa", x: 590,  y: 96,  label: "Fluxo de Caixa", sub: "projetado → baixa realiza", cor: "verde" },
+    { id: "rm",  tipo: "tarefa", x: 590,  y: -66, label: "Requisição (RM)", sub: "consome o estoque", cor: "ambar" },
+    { id: "g",   tipo: "gateway",x: 810,  y: -62, label: "Centro fabril?" },
+    { id: "cif", tipo: "tarefa", x: 940,  y: -120,label: "CIF → custo do produto", sub: "fica no Balanço até vender", cor: "cinza" },
+    { id: "dsp", tipo: "tarefa", x: 940,  y: 0,   label: "Despesa", sub: "DRE agora", cor: "azul" },
+    { id: "vd",  tipo: "tarefa", x: 1190, y: -120,label: "Venda → CPV", sub: "o custo chega à DRE", cor: "azul" },
+    { id: "f",   tipo: "fim",    x: 1420, y: -104, label: "Resultado" },
+  ],
+  edges: [
+    { from: "i1", to: "de" },
+    { from: "de", to: "bal", label: "entrada" },
+    { from: "de", to: "cp", label: "gera o título" },
+    { from: "cp", to: "fc" },
+    { from: "bal", to: "rm", label: "estoque" },
+    { from: "rm", to: "g" },
+    { from: "g", to: "cif", label: "sim" },
+    { from: "g", to: "dsp", label: "não" },
+    { from: "cif", to: "vd" },
+    { from: "vd", to: "f" },
+    { from: "dsp", to: "f" },
+  ],
+};
+
 // ── Faturamento ───────────────────────────────────────────────────────────────
 const faturamentoFluxo: BpmnGrafo = {
   nodes: [
@@ -410,6 +440,18 @@ export const MODULOS: ModuloDoc[] = [
       titulo: "Macro processo do grupo",
       texto: "Dois grandes fluxos se encontram no Estoque e no Financeiro: o de Venda (azul) e o de Suprimentos/Compras (âmbar). Toda venda vira recebimento (verde) e consome estoque; toda compra aprovada vira entrada de estoque + pagamento (verde).",
       grafo: macro,
+    }, {
+      titulo: "O que cada documento alimenta (DE, CP e RM)",
+      texto: "A sacada do desenho é a separação de papéis: o DE registra o PATRIMÔNIO, o CP registra o DINHEIRO, e a RM decide se o consumo vira custo do produto (Balanço, até vender) ou despesa (DRE agora). Comprar não é despesa — a entrada troca dinheiro futuro por ativo (D Estoque / C Fornecedores) e nada passa pela DRE. O título a pagar é o espelho financeiro desse passivo: em aberto alimenta o fluxo de caixa projetado; a baixa realiza o caixa (D Fornecedor / C Banco). O custo só 'decide seu destino' no consumo (RM), pela precedência material direto → capitaliza → centro: centro fabril vira CIF e segue no Balanço dentro do custo do produto; centro não-fabril vira despesa na hora. A DRE é alimentada de verdade pela venda (receita + CPV, quando o custo fabril finalmente sai do estoque), pelos consumos não-fabris, pelas despesas avulsas e pelos encargos financeiros da baixa (juros/multa/tarifas, grupo 6).",
+      grafo: alimentacaoFluxo,
+      detalhes: [
+        "DE (Documento de Entrada) → Estoque físico + CMPM e Balanço (D Estoque na conta do LOCAL / C Fornecedores analítica). Nunca toca a DRE.",
+        "CP (Contas a Pagar) → Fluxo de caixa: em aberto = projetado (agenda por vencimento, com natureza/centro como dimensões gerenciais); baixa = realizado (lançamento no caixa/banco; no Balanço troca passivo por caixa). Exceção que vai à DRE: encargos da baixa (juros, multa, tarifa, taxa de cartão — naturezas do grupo 6).",
+        "RM (Requisição de Material) → o consumo decide o destino pela precedência: material direto → PEP/WIP (Balanço); capitaliza → Imobilizado (Balanço); centro FABRIL → CIF → absorvido no custo do produto (Balanço, até vender); centro NÃO-FABRIL → Despesa (DRE agora).",
+        "DRE ← venda (receita + CPV por absorção), consumos não-fabris da RM, despesas avulsas (aluguel, utilidades administrativas, serviços), encargos financeiros e folha.",
+        "Balanço ← DE (estoque/fornecedores), RM fabril (WIP/CIF/imobilizado), baixas (caixa/bancos), vendas (clientes) e empréstimos.",
+        "Fluxo de caixa ← títulos CR/CP por vencimento (projetado) + baixas e lançamentos (realizado), classificados pelas naturezas — os grupos 7-9 (investimento/financiamento/movimentações internas) aparecem no fluxo mas ficam FORA da DRE gerencial.",
+      ],
     }],
   },
   {
