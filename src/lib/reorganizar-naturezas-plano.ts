@@ -101,6 +101,8 @@ const PLANO: DefNatureza[] = [
   { codigo: "8.01", nome: "Captação de empréstimos", tipo: "ENTRADA", contaResultado: "3.1.0001" },
   { codigo: "8.02", nome: "Amortização de empréstimos", tipo: "SAIDA", contaResultado: "3.3.0005", contrapartida: "2.1.3.0001" },
   { codigo: "8.03", nome: "Contas de terceiros", tipo: "AMBOS", contrapartida: "1.1.6" },
+  { codigo: "8.04", nome: "Aporte de capital", tipo: "ENTRADA" },
+  { codigo: "8.05", nome: "Retirada de capital", tipo: "SAIDA" },
   // Grupo 9 — Movimentações internas (não afeta resultado)
   { codigo: "9.01", nome: "Transferência entre contas", tipo: "AMBOS" },
 ];
