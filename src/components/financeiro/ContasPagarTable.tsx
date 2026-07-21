@@ -370,7 +370,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const [naturezasOpts, setNaturezasOpts] = useState<NaturezaOpt[]>([]);
   const [rateio, setRateio] = useState<RateioLinha[]>([]);
   // Centro de custo do título — editável na baixa (a alteração atualiza o título).
-  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string; grupoCentroCusto?: { nome: string } | null }[]>([]);
+  // Opções de centro agrupadas pelo GRUPO de centro de custo (mesma divisão do
+  // droplist de naturezas). Ordena por grupo p/ os cabeçalhos saírem juntos.
+  const centroOptions = [...centros]
+    .sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true }))
+    .map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}`, group: c.grupoCentroCusto?.nome ?? "Sem grupo" }));
   const [centroPagId, setCentroPagId] = useState("");
   // Encargos da baixa: juros/multa SAEM do caixa além do título; a taxa/tarifa
   // é RETIDA (paga MENOS) — o título é quitado por linhas + taxa e a taxa vira
@@ -670,7 +675,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       // Coluna estreita e fixa à direita — o menu de 3 pontos nunca é empurrado
       // para fora da tela (w-px encolhe a célula ao conteúdo).
       meta: { className: "w-px whitespace-nowrap", stickyRight: true },
-      cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
+      // ml-auto: mesmo se a coluna for alargada (resizer), o ⋮ fica ancorado à direita.
+      cell: ({ row }) => <div className="w-10 ml-auto">{renderAcoes(row.original)}</div>,
     },
   ], [contasBanco, isAdmin]);
 
@@ -693,8 +699,16 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       setErro(`Selecione a conta bancária de origem para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem sair do Caixa em Dinheiro.`);
       return;
     }
-    // Rateio gerencial por natureza (opcional): se preenchido, a soma deve bater
-    // com o valor do título (classifica a obrigação inteira).
+    // Classificação OBRIGATÓRIA na baixa: natureza (ao menos uma linha) e
+    // centro de custo — o título sai quitado já classificado.
+    if (!rateio.some((l) => l.naturezaFinanceiraId)) {
+      setErro("Informe a natureza financeira na Classificação."); return;
+    }
+    if (!centroPagId) {
+      setErro("Informe o centro de custo na Classificação."); return;
+    }
+    // Rateio por natureza: a soma deve bater com o valor do título (classifica a
+    // obrigação inteira).
     const rateioValido = rateio.filter((l) => l.naturezaFinanceiraId && parseValorBR(l.valor) > 0);
     if (rateioValido.length > 0) {
       const soma = Math.round(rateioValido.reduce((s, l) => s + parseValorBR(l.valor), 0) * 100) / 100;
@@ -1037,7 +1051,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                 </button>
               </div>
               <div className="grid grid-cols-[1.2fr_1fr_1fr_6.5rem_auto] gap-2 text-[11px] text-muted-foreground">
-                <span>Natureza</span><span>Centro de custo</span><span>Detalhamento</span><span className="text-right">Valor</span><span className="w-7" />
+                <span>Natureza <span className="text-red-500">*</span></span><span>Centro de custo <span className="text-red-500">*</span></span><span>Detalhamento</span><span className="text-right">Valor</span><span className="w-7" />
               </div>
               {rateio.map((l, i) => (
                 <div key={l.key} className="grid grid-cols-[1.2fr_1fr_1fr_6.5rem_auto] gap-2 items-center">
@@ -1053,7 +1067,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                     <ComboboxWithCreate
                       value={centroPagId}
                       onChange={setCentroPagId}
-                      options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+                      options={centroOptions}
                       placeholder="Centro de custo…"
                       noneLabel="Sem centro de custo"
                       triggerClassName="h-9"
@@ -1069,7 +1083,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                   </button>
                 </div>
               ))}
-              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título — a soma das naturezas deve bater com o valor do título; o centro de custo vale para o título inteiro. Opcional.</p>
+              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título — natureza e centro de custo são <b>obrigatórios</b>; a soma das naturezas deve bater com o valor do título; o centro vale para o título inteiro.</p>
             </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>

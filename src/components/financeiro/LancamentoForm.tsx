@@ -66,7 +66,11 @@ export default function LancamentoForm({
   const [contas, setContas] = useState<ContaOpt[]>(contaFixa ? [contaFixa] : []);
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
   const [centroCustoId, setCentroCustoId] = useState("");
-  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string; fabril?: boolean }[]>([]);
+  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string; fabril?: boolean; grupoCentroCusto?: { nome: string } | null }[]>([]);
+  // Opções agrupadas pelo GRUPO de centro (mesma divisão do droplist de naturezas).
+  const centroOptions = [...centros]
+    .sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true }))
+    .map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}`, group: c.grupoCentroCusto?.nome ?? "Sem grupo" }));
   // Valores detalhados (estilo Nibo): centro de custo, retenções, desconto, juros/multa.
   const [detalhado, setDetalhado] = useState(false);
   const [abaDetalhe, setAbaDetalhe] = useState<"centro" | "retencao" | "desconto" | "juros">("centro");
@@ -403,7 +407,7 @@ export default function LancamentoForm({
                   noneLabel="(Nenhum)"
                   triggerClassName="h-10 rounded-lg"
                   menuMinWidth={360}
-                  options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+                  options={centroOptions}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   {exigeCentro

@@ -310,7 +310,7 @@ export default function NovoDocumentoEntradaPage() {
   const [itens, setItens]                       = useState<ItemRow[]>([emptyRow()]);
   const [produtos, setProdutos]                 = useState<Produto[]>([]);
   const [locaisEstoque, setLocaisEstoque]       = useState<LocalEstoque[]>([]);
-  const [centrosCusto, setCentrosCusto]         = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [centrosCusto, setCentrosCusto]         = useState<{ id: string; codigo: string; nome: string; grupoCentroCusto?: { nome: string } | null }[]>([]);
   const [tesList, setTesList]                   = useState<{ id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean }[]>([]);
   const [prodSearchMap, setProdSearchMap]       = useState<Record<string, string>>({});
   // Unidades de compra por item (busca sob demanda quando o item entra na grade).
@@ -1295,7 +1295,7 @@ export default function NovoDocumentoEntradaPage() {
                       noneLabel="—"
                       menuMinWidth={420}
                       triggerClassName={cn("h-8 rounded-md text-xs", !centroGlobalId && "border-red-300")}
-                      options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                      options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                     />
                   </div>
                 )}
@@ -1448,7 +1448,7 @@ export default function NovoDocumentoEntradaPage() {
                               noneLabel="—"
                               menuMinWidth={420}
                               triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !row.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                              options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                              options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                             />
                             )}
                           </td>

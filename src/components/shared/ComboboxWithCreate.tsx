@@ -379,7 +379,8 @@ export default function ComboboxWithCreate({
                 }
                 return ordem.map((g) => (
                   <div key={g}>
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wider">{g}</div>
+                    {/* Cabeçalho de grupo sticky — mesmo visual do NaturezaCombobox. */}
+                    <div className="sticky top-0 z-10 px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted border-b border-border">{g}</div>
                     {porGrupo.get(g)!.map(renderOpt)}
                   </div>
                 ));

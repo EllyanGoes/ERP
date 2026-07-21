@@ -277,7 +277,7 @@ export default function DocumentoEntradaDetailPage() {
 
   const [saving, setSaving] = useState(false);
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoqueOption[]>([]);
-  const [centrosCusto, setCentrosCusto] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [centrosCusto, setCentrosCusto] = useState<{ id: string; codigo: string; nome: string; grupoCentroCusto?: { nome: string } | null }[]>([]);
   const [imobilizados, setImobilizados] = useState<{ id: string; descricao: string }[]>([]);
   const [tesList, setTesList] = useState<{ id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; almoxarifadoDefaultId: string | null; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean }[]>([]);
 
@@ -1461,7 +1461,7 @@ export default function DocumentoEntradaDetailPage() {
                           noneLabel="—"
                           menuMinWidth={420}
                           triggerClassName={cn("h-8 rounded-md text-xs", !centroGlobalId && "border-red-300")}
-                          options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                          options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                         />
                       </div>
                     ) : (
@@ -1673,7 +1673,7 @@ export default function DocumentoEntradaDetailPage() {
                                 noneLabel="—"
                                 menuMinWidth={420}
                                 triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ei.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                                options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                                options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                               />
                             ) : (
                               <span className="text-xs text-muted-foreground">{item.centroCusto ? `${item.centroCusto.codigo} - ${item.centroCusto.nome}` : "—"}</span>
@@ -1966,7 +1966,7 @@ export default function DocumentoEntradaDetailPage() {
                             noneLabel="—"
                             menuMinWidth={420}
                             triggerClassName={cn("h-7 rounded text-xs min-w-[12rem]", !ni.centroCustoId && "border-red-400 bg-danger/10 text-danger")}
-                            options={centrosCusto.map((cc) => ({ value: cc.id, label: `${cc.codigo} - ${cc.nome}` }))}
+                            options={[...centrosCusto].sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true })).map((cc) => ({ value: cc.id, label: ` - `, group: cc.grupoCentroCusto?.nome ?? "Sem grupo" }))}
                           />
                           )}
                         </td>
@@ -2117,7 +2117,10 @@ export default function DocumentoEntradaDetailPage() {
                 headerControls={
                   <>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
+                      <span className="flex items-center gap-1.5">
+                        <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
+                        <InfoHint>A condição estrutura o <b>prazo</b> do negócio (à vista, parcelado, sem vencimento).</InfoHint>
+                      </span>
                       {nfEditable ? (
                         <ComboboxWithCreate
                           value={condicaoPagamentoId}
@@ -2129,13 +2132,12 @@ export default function DocumentoEntradaDetailPage() {
                       ) : (
                         <Input value={condicoes.find((c) => c.id === condicaoPagamentoId)?.nome ?? "—"} readOnly className="bg-muted" />
                       )}
-                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
-                        <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                        <span>A condição estrutura o <b>prazo</b> do negócio (à vista, parcelado, sem vencimento).</span>
-                      </p>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Forma de Pagamento (prevista)</Label>
+                      <span className="flex items-center gap-1.5">
+                        <Label className="text-xs text-muted-foreground">Forma de Pagamento (prevista)</Label>
+                        <InfoHint>A forma é o <b>meio de quitação</b> (PIX, dinheiro, permuta…) — <b>permuta</b> substitui dinheiro por bens/serviços, total ou parcialmente.</InfoHint>
+                      </span>
                       {nfEditable ? (
                         <ComboboxWithCreate
                           value={formaPagamentoId}
@@ -2147,13 +2149,14 @@ export default function DocumentoEntradaDetailPage() {
                       ) : (
                         <Input value={formasPagamento.find((f) => f.id === formaPagamentoId)?.nome ?? "—"} readOnly className="bg-muted" />
                       )}
-                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
-                        <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                        <span>A forma é o <b>meio de quitação</b> (PIX, dinheiro, permuta…) — <b>permuta</b> substitui dinheiro por bens/serviços, total ou parcialmente.</span>
-                      </p>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Natureza Financeira (prevista)</Label>
+                      <span className="flex items-center gap-1.5">
+                        <Label className="text-xs text-muted-foreground">Natureza Financeira (prevista)</Label>
+                        <InfoHint>
+                          Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>, não da natureza.
+                        </InfoHint>
+                      </span>
                       {nfEditable ? (
                         <NaturezaCombobox
                           value={naturezaFinanceiraId}
@@ -2164,12 +2167,6 @@ export default function DocumentoEntradaDetailPage() {
                       ) : (
                         <Input value={naturezas.find((n) => n.id === naturezaFinanceiraId)?.nome ?? "—"} readOnly className="bg-muted" />
                       )}
-                      <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground leading-snug pt-0.5">
-                        <Info className="w-3 h-3 mt-0.5 shrink-0" />
-                        <span>
-                          Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>, não da natureza.
-                        </span>
-                      </p>
                     </div>
 
                     {/* ── Pagamento JÁ REALIZADO (entrada/sinal da fatura) ── */}
