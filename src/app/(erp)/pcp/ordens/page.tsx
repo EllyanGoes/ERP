@@ -29,9 +29,10 @@ type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada:
 type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; areaNodeId?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; equipe?: { id: string; nome: string }[]; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
-// Linha do popup de AJUSTE de saldo WIP (inventário): saldo do sistema em peças-base
-// e a contagem física digitada (nº de veículos + peças avulsas, como o pátio conta).
-type AjusteLinha = { produtoItemId: string; descricao: string; saldoSistema: number; veiculos: string; pecas: string };
+// Linha do popup de AJUSTE de saldo (inventário): saldo do sistema em peças-base no
+// local do estado e a contagem física digitada (nº de vagões/vagonetas/paletes +
+// peças avulsas, como o pátio conta).
+type AjusteLinha = { produtoItemId: string; descricao: string; saldoSistema: number; pecasPorPalete: number | null; veiculos: string; pecas: string };
 type AjusteWip = { estado: string; linhas: AjusteLinha[] | null; data: string; obs: string };
 type EstoqueLinha = { itemId: string | null; produtoItemId?: string | null; pecasPorPalete?: number | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; local?: string | null; suficiente: boolean;
@@ -159,15 +160,15 @@ export default function OrdensBoardPage() {
   // Ajuste de saldo de WIP (inventário): contagem física por estado → POST ajuste-wip.
   const [ajuste, setAjuste] = useState<AjusteWip | null>(null);
   const [salvandoAjuste, setSalvandoAjuste] = useState(false);
-  // Popup "Saldo": visão geral dos WIPs (úmido/seco/queimado) do fluxo, com o
-  // ajuste de saldo (inventário) por estado.
+  // Popup "Ajuste": visão geral dos saldos de produção (WIPs + acabado) do fluxo,
+  // com o ajuste de saldo (inventário) por estado.
   const [saldoPopup, setSaldoPopup] = useState(false);
   const [saldosWip, setSaldosWip] = useState<Record<string, EstoqueLinha[] | null>>({});
-  const ESTADOS_WIP = ["UMIDO", "SECO", "QUEIMADO"] as const;
+  const ESTADOS_POPUP = ["UMIDO", "SECO", "QUEIMADO", "ACABADO"] as const;
   function abrirSaldoPopup() {
     setSaldoPopup(true);
-    setSaldosWip({ UMIDO: null, SECO: null, QUEIMADO: null });
-    for (const est of ESTADOS_WIP) {
+    setSaldosWip({ UMIDO: null, SECO: null, QUEIMADO: null, ACABADO: null });
+    for (const est of ESTADOS_POPUP) {
       fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${est}`)
         .then((r) => r.json())
         .then((j) => setSaldosWip((s) => ({ ...s, [est]: j.data ?? [] })))
@@ -175,7 +176,9 @@ export default function OrdensBoardPage() {
     }
   }
   // Abre o popup de AJUSTE (inventário) de um estado: carrega os produtos do fluxo
-  // com o saldo do sistema (peças-base) — a mesma fonte dos cards do board.
+  // com o saldo do sistema (peças-base) — o saldo TOTAL do item (todos os locais),
+  // igual ao card do board; a diferença da contagem é aplicada no local do estado
+  // (PEP no WIP, Estoque de Produto Acabado no acabado).
   function abrirAjuste(estado: string) {
     setAjuste({ estado, linhas: null, data: hoje(), obs: "" });
     setErro(null);
@@ -185,15 +188,20 @@ export default function OrdensBoardPage() {
         ...a,
         linhas: ((j.data ?? []) as EstoqueLinha[])
           .filter((m) => m.produtoItemId)
-          .map((m) => ({ produtoItemId: m.produtoItemId!, descricao: m.descricao, saldoSistema: m.saldoTotal, veiculos: "", pecas: "" })),
+          .map((m) => ({
+            produtoItemId: m.produtoItemId!, descricao: m.descricao, saldoSistema: m.saldoTotal,
+            pecasPorPalete: m.pecasPorPalete ?? null, veiculos: "", pecas: "",
+          })),
       } : a))
       .catch(() => setAjuste((a) => a && a.estado === estado ? { ...a, linhas: [] } : a));
   }
+  // Capacidade do "veículo" de contagem da linha: vagoneta/vagão do cadastro de
+  // cargas no WIP; peças/palete no acabado (é assim que o pátio conta cada um).
+  const capAjuste = (l: AjusteLinha, estado: string): number =>
+    estado === "ACABADO" ? (l.pecasPorPalete ?? 0) : (capacidades[l.produtoItemId]?.[VEICULO_POR_ESTADO[estado]] ?? 0);
   // Físico (peças-base) de uma linha do ajuste: nº de veículos × capacidade + peças avulsas.
-  const fisicoAjuste = (l: AjusteLinha, estado: string): number => {
-    const cap = capacidades[l.produtoItemId]?.[VEICULO_POR_ESTADO[estado]] ?? 0;
-    return Math.round(numBR(l.veiculos) * cap + numBR(l.pecas));
-  };
+  const fisicoAjuste = (l: AjusteLinha, estado: string): number =>
+    Math.round(numBR(l.veiculos) * capAjuste(l, estado) + numBR(l.pecas));
   const linhaContada = (l: AjusteLinha) => l.veiculos.trim() !== "" || l.pecas.trim() !== "";
 
   // Apontar
@@ -862,9 +870,11 @@ export default function OrdensBoardPage() {
           <button onClick={() => { loadOps(); if (vista === "lista") loadLista(); }} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={cn("w-4 h-4", (carregandoOps || carregandoLista) && "animate-spin")} /> Atualizar
           </button>
-          {/* Saldo dos WIPs do fluxo (úmido/seco/queimado) + lançamento de saldo inicial */}
-          <button onClick={abrirSaldoPopup} disabled={!fluxoId} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50">
-            <Boxes className="w-4 h-4" /> Saldo
+          {/* Saldos de produção do fluxo (WIPs + acabado) com ajuste (inventário) por estado.
+              Guard no handler (não disabled): fluxoId persistido só chega no 1º render do
+              cliente e o atributo disabled do SSR ficava PRESO no DOM (mismatch de hidratação). */}
+          <button onClick={() => { if (fluxoId) abrirSaldoPopup(); }} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted" title="Saldos de produção + ajuste (inventário)">
+            <Calculator className="w-4 h-4" /> Ajuste
           </button>
           {/* Busca de OPs: filtra os cards do board e a lista (número/produto/responsável) */}
           <div className="ml-auto relative">
@@ -1076,7 +1086,7 @@ export default function OrdensBoardPage() {
 
               {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou o produto produzido) */}
               <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? "PEP de saída" : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}
-                acao={area.estadoSaida && area.estadoSaida !== "ACABADO" ? (
+                acao={area.estadoSaida ? (
                   <button onClick={() => abrirAjuste(area.estadoSaida!)}
                     className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-emerald-300 dark:border-emerald-800 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" title="Ajustar saldo (inventário)">
                     <Calculator className="w-3 h-3" /> Ajuste
@@ -1654,17 +1664,17 @@ export default function OrdensBoardPage() {
         );
       })()}
 
-      {/* Popup Saldo — WIPs do fluxo por estado, contados no veículo do pátio */}
+      {/* Popup Ajuste — saldos de produção do fluxo por estado (WIPs + acabado), contados no veículo do pátio */}
       {saldoPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSaldoPopup(false)}>
           <div className="w-full max-w-6xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Boxes className="w-5 h-5 text-amber-600" /> Saldo de produção (WIP)</h2>
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Boxes className="w-5 h-5 text-amber-600" /> Saldo de produção</h2>
               <button onClick={() => setSaldoPopup(false)} className="text-muted-foreground hover:text-foreground text-sm">Fechar ✕</button>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Produto em processo por estado, contado como no pátio (vagonetas/vagões + sobras). O ajuste de saldo (inventário) é lançado pelo botão de cada estado.</p>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
-              {ESTADOS_WIP.map((est) => (
+            <p className="text-xs text-muted-foreground mt-1">Produto em processo e acabado por estado, contado como no pátio (vagonetas/vagões/paletes + sobras). O ajuste de saldo (inventário) é lançado pelo botão de cada estado.</p>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
+              {ESTADOS_POPUP.map((est) => (
                 <div key={est} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ESTADO_LABEL[est] ?? est}</p>
@@ -1683,11 +1693,11 @@ export default function OrdensBoardPage() {
         </div>
       )}
 
-      {/* Modal AJUSTE de saldo WIP (inventário): contagem física por produto */}
+      {/* Modal AJUSTE de saldo (inventário): contagem física por produto (WIP ou acabado) */}
       {ajuste && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAjuste(null)}>
           <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5 text-amber-600" /> Ajuste de saldo — PEP {ESTADO_LABEL[ajuste.estado] ?? ajuste.estado}</h2>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5 text-amber-600" /> Ajuste de saldo — {ajuste.estado === "ACABADO" ? "Produto acabado" : `PEP ${ESTADO_LABEL[ajuste.estado] ?? ajuste.estado}`}</h2>
             <p className="text-xs text-muted-foreground mt-1">Contagem física (inventário). Linhas não preenchidas não são alteradas; digite 0 para zerar. O ajuste gera um inventário rastreável em Suprimentos.</p>
             {ajuste.linhas === null ? (
               <p className="mt-4 text-xs text-muted-foreground flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando saldos…</p>
@@ -1707,8 +1717,9 @@ export default function OrdensBoardPage() {
                   </thead>
                   <tbody>
                     {ajuste.linhas.map((l, i) => {
-                      const veiculo = VEICULO_POR_ESTADO[ajuste.estado];
-                      const cap = capacidades[l.produtoItemId]?.[veiculo] ?? 0;
+                      // Unidade de contagem do estado: vagonetas/vagões no WIP, paletes no acabado.
+                      const rotulo = ajuste.estado === "ACABADO" ? (["palete", "paletes"] as const) : VEICULO_LABEL[VEICULO_POR_ESTADO[ajuste.estado]];
+                      const cap = capAjuste(l, ajuste.estado);
                       const cheios = cap > 0 ? Math.trunc(l.saldoSistema / cap) : 0;
                       const sobra = cap > 0 ? l.saldoSistema - cheios * cap : 0;
                       const contada = linhaContada(l);
@@ -1721,18 +1732,18 @@ export default function OrdensBoardPage() {
                           <td className="py-2 pr-2 text-foreground font-medium">{l.descricao}</td>
                           <td className="py-2 px-2 text-right tabular-nums text-muted-foreground whitespace-nowrap">
                             {l.saldoSistema.toLocaleString("pt-BR")} pç
-                            {cap > 0 && <span className="block text-[10px]">{cheios.toLocaleString("pt-BR")} {VEICULO_LABEL[veiculo][Math.abs(cheios) === 1 ? 0 : 1]}{sobra !== 0 ? ` + ${sobra.toLocaleString("pt-BR")} pç` : ""}</span>}
+                            {cap > 0 && <span className="block text-[10px]">{cheios.toLocaleString("pt-BR")} {rotulo[Math.abs(cheios) === 1 ? 0 : 1]}{sobra !== 0 ? ` + ${sobra.toLocaleString("pt-BR")} pç` : ""}</span>}
                           </td>
                           {cap > 0 ? (
                             <td className="py-2 px-2">
                               <div className="flex items-center gap-1">
                                 <input inputMode="decimal" value={l.veiculos} onChange={(e) => setLinha({ veiculos: e.target.value })} placeholder="nº"
                                   className="w-14 h-8 rounded-lg border border-border px-2 text-xs bg-card text-right tabular-nums" />
-                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{VEICULO_LABEL[veiculo][1]} ({cap.toLocaleString("pt-BR")}/{VEICULO_LABEL[veiculo][0]})</span>
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{rotulo[1]} ({cap.toLocaleString("pt-BR")}/{rotulo[0]})</span>
                               </div>
                             </td>
                           ) : (
-                            <td className="py-2 px-2 text-[10px] text-muted-foreground">sem capacidade cadastrada</td>
+                            <td className="py-2 px-2 text-[10px] text-muted-foreground">{ajuste.estado === "ACABADO" ? "sem pç/palete cadastrado" : "sem capacidade cadastrada"}</td>
                           )}
                           <td className="py-2 px-2">
                             <div className="flex items-center gap-1">

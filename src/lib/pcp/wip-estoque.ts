@@ -9,15 +9,12 @@ import { assertSaldoNaoNegativo } from "@/lib/estoque-guard";
 // apontamento que consome embalagem (palete/fita/grampo) baixa DAQUI — então a
 // produção só consome o que foi liberado (saldo zero barra o apontamento). Constante
 // em módulo client-safe (reexportada aqui p/ não quebrar imports existentes).
-import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
-export { LOCAL_EMBALAGEM_PRODUCAO_NOME };
-
 // WIP unificado: um único local de produto em processo p/ todos os estados de WIP
 // (úmido/seco/queimado) e o fallback genérico. O estado segue como dimensão de ITEM
 // (WIP-X-UMIDO/SECO/QUEIMADO), não de local; o contábil já rola tudo p/ PEP-MD
 // (1.1.3.0005.0001) em contabilizarProducaoOrdem.
-const LOCAL_PEP_NOME = "Estoque de Produto em Processo";
-const LOCAL_PA_NOME = "Estoque de Produto Acabado";
+import { LOCAL_EMBALAGEM_PRODUCAO_NOME, LOCAL_PEP_NOME, LOCAL_PA_NOME } from "@/lib/locais-producao";
+export { LOCAL_EMBALAGEM_PRODUCAO_NOME };
 
 const ESTADO_LABEL: Record<EstadoWIP, string> = {
   UMIDO: "úmido",
