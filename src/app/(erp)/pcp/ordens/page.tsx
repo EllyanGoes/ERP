@@ -29,7 +29,10 @@ type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada:
 type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; areaNodeId?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; equipe?: { id: string; nome: string }[]; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
-type SaldoInicial = { estado: string; itemId: string; quantidade: string; unidadeId: string; data: string };
+// Linha do popup de AJUSTE de saldo WIP (inventário): saldo do sistema em peças-base
+// e a contagem física digitada (nº de veículos + peças avulsas, como o pátio conta).
+type AjusteLinha = { produtoItemId: string; descricao: string; saldoSistema: number; veiculos: string; pecas: string };
+type AjusteWip = { estado: string; linhas: AjusteLinha[] | null; data: string; obs: string };
 type EstoqueLinha = { itemId: string | null; produtoItemId?: string | null; pecasPorPalete?: number | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; local?: string | null; suficiente: boolean;
   // Unidade em que o chão aponta o consumo (ex.: CONCHADA) — fator alt→base.
@@ -99,7 +102,6 @@ export default function OrdensBoardPage() {
   // componente remonta) e à volta na sessão seguinte.
   const [fluxoId, setFluxoId] = usePersistedState("pcp-fluxo-id", "");
   const [areas, setAreas] = useState<Area[]>([]);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
   const [areaNodeId, setAreaNodeId] = usePersistedState("pcp-area-node", "");
   // PERÍODO (igual ao do relatório): 1º clique = início, 2º = fim; vazio = HOJE.
   // Abre em hoje a cada sessão, mas sobrevive à remontagem dentro da MESMA sessão
@@ -154,11 +156,11 @@ export default function OrdensBoardPage() {
   const [colaboradores, setColaboradores] = useState<{ id: string; nome: string; areasOperacao: string[] }[]>([]);
   const [consumo, setConsumo] = useState<ConsumoLinha[] | null>(null);
   const [carregandoConsumo, setCarregandoConsumo] = useState(false);
-  // Saldo inicial de WIP
-  const [saldoIni, setSaldoIni] = useState<SaldoInicial | null>(null);
-  const [salvandoSaldo, setSalvandoSaldo] = useState(false);
+  // Ajuste de saldo de WIP (inventário): contagem física por estado → POST ajuste-wip.
+  const [ajuste, setAjuste] = useState<AjusteWip | null>(null);
+  const [salvandoAjuste, setSalvandoAjuste] = useState(false);
   // Popup "Saldo": visão geral dos WIPs (úmido/seco/queimado) do fluxo, com o
-  // lançamento de saldo inicial por estado (substitui os botões dos cards).
+  // ajuste de saldo (inventário) por estado.
   const [saldoPopup, setSaldoPopup] = useState(false);
   const [saldosWip, setSaldosWip] = useState<Record<string, EstoqueLinha[] | null>>({});
   const ESTADOS_WIP = ["UMIDO", "SECO", "QUEIMADO"] as const;
@@ -172,6 +174,27 @@ export default function OrdensBoardPage() {
         .catch(() => setSaldosWip((s) => ({ ...s, [est]: [] })));
     }
   }
+  // Abre o popup de AJUSTE (inventário) de um estado: carrega os produtos do fluxo
+  // com o saldo do sistema (peças-base) — a mesma fonte dos cards do board.
+  function abrirAjuste(estado: string) {
+    setAjuste({ estado, linhas: null, data: hoje(), obs: "" });
+    setErro(null);
+    fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${estado}`)
+      .then((r) => r.json())
+      .then((j) => setAjuste((a) => a && a.estado === estado ? {
+        ...a,
+        linhas: ((j.data ?? []) as EstoqueLinha[])
+          .filter((m) => m.produtoItemId)
+          .map((m) => ({ produtoItemId: m.produtoItemId!, descricao: m.descricao, saldoSistema: m.saldoTotal, veiculos: "", pecas: "" })),
+      } : a))
+      .catch(() => setAjuste((a) => a && a.estado === estado ? { ...a, linhas: [] } : a));
+  }
+  // Físico (peças-base) de uma linha do ajuste: nº de veículos × capacidade + peças avulsas.
+  const fisicoAjuste = (l: AjusteLinha, estado: string): number => {
+    const cap = capacidades[l.produtoItemId]?.[VEICULO_POR_ESTADO[estado]] ?? 0;
+    return Math.round(numBR(l.veiculos) * cap + numBR(l.pecas));
+  };
+  const linhaContada = (l: AjusteLinha) => l.veiculos.trim() !== "" || l.pecas.trim() !== "";
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
@@ -232,7 +255,11 @@ export default function OrdensBoardPage() {
       if (e.key !== "Escape") return;
       if (calcPerda) { setCalcPerda(null); return; }
       if (calcPlan) { setCalcPlan(null); return; }
-      if (saldoIni) { setSaldoIni(null); return; }
+      if (ajuste) {
+        const preenchido = (ajuste.linhas ?? []).some((l) => l.veiculos.trim() !== "" || l.pecas.trim() !== "") || ajuste.obs.trim() !== "";
+        if (!preenchido || confirm("Fechar o ajuste sem salvar? A contagem será perdida.")) setAjuste(null);
+        return;
+      }
       if (apontar) {
         const preenchido = Object.values(apForm.perdas).some((v) => String(v).trim() !== "")
           || Object.values(apForm.paletes).some((v) => String(v).trim() !== "")
@@ -252,7 +279,7 @@ export default function OrdensBoardPage() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [calcPerda, calcPlan, saldoIni, saldoPopup, apontar, novo, apForm]);
+  }, [calcPerda, calcPlan, ajuste, saldoPopup, apontar, novo, apForm]);
   const [apBusy, setApBusy] = useState(false);
   const [consumoAp, setConsumoAp] = useState<ConsumoLinha[] | null>(null);
   const [carregandoConsumoAp, setCarregandoConsumoAp] = useState(false);
@@ -281,12 +308,11 @@ export default function OrdensBoardPage() {
 
   // 2. Abas (áreas) + produtos do fluxo
   useEffect(() => {
-    if (!fluxoId) { setAreas([]); setProdutos([]); return; }
+    if (!fluxoId) { setAreas([]); return; }
     fetch(`/api/pcp/ordens/area/abas?fluxoId=${fluxoId}`).then((r) => r.json()).then((j) => {
       setAreas(j.areas ?? []);
-      setProdutos(j.produtos ?? []);
       setAreaNodeId((prev) => prev === "TODAS" || (j.areas ?? []).some((a: Area) => a.nodeId === prev) ? prev : (j.areas?.[0]?.nodeId ?? ""));
-    }).catch(() => { setAreas([]); setProdutos([]); });
+    }).catch(() => { setAreas([]); });
   }, [fluxoId]);
 
   // 3. OPs da área no dia — ou de TODAS as áreas (uma coluna por etapa).
@@ -570,33 +596,33 @@ export default function OrdensBoardPage() {
     setErro(null);
   }
 
-  async function salvarSaldoInicial() {
-    if (!saldoIni) return;
-    if (!saldoIni.itemId || numBR(saldoIni.quantidade) <= 0) { setErro("Informe produto e quantidade > 0"); return; }
-    // Converte para a unidade-base (peças) pelo fator da unidade escolhida.
-    const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
-    const un = us.find((u) => u.id === saldoIni.unidadeId);
-    const fator = un?.fator ?? 1;
-    const quantidadeBase = Math.ceil(numBR(saldoIni.quantidade) * fator); // peças inteiras
-    // Unidade ≠ peças com valor alto: confirma mostrando a conversão — "32.000" em
-    // milheiro é 32.000.000 pç (foi assim que nasceu um saldo inicial de 32 milhões).
-    if (fator > 1 && quantidadeBase >= 100000) {
-      if (!confirm(`Confira a UNIDADE: ${numBR(saldoIni.quantidade).toLocaleString("pt-BR")} ${un?.sigla ?? ""} = ${quantidadeBase.toLocaleString("pt-BR")} peças.\n\nLançar mesmo assim?`)) return;
+  async function salvarAjusteWip() {
+    if (!ajuste?.linhas) return;
+    const contadas = ajuste.linhas.filter(linhaContada);
+    if (contadas.length === 0) { setErro("Informe a contagem de pelo menos um produto (linha vazia não é alterada)"); return; }
+    // Diferenças enormes normalmente são erro de digitação (unidade/veículo) — confirma.
+    const grandes = contadas.filter((l) => Math.abs(fisicoAjuste(l, ajuste.estado) - l.saldoSistema) >= 100000);
+    if (grandes.length > 0) {
+      const det = grandes.map((l) => `${l.descricao}: físico ${fisicoAjuste(l, ajuste.estado).toLocaleString("pt-BR")} pç (dif. ${(fisicoAjuste(l, ajuste.estado) - l.saldoSistema).toLocaleString("pt-BR")} pç)`).join("\n");
+      if (!confirm(`Diferença muito grande — confira a contagem:\n\n${det}\n\nAplicar mesmo assim?`)) return;
     }
-    setSalvandoSaldo(true); setErro(null);
+    setSalvandoAjuste(true); setErro(null);
     try {
-      const r = await fetch("/api/pcp/ordens/area/saldo-inicial-wip", {
+      const r = await fetch("/api/pcp/ordens/area/ajuste-wip", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: saldoIni.itemId, estado: saldoIni.estado, quantidade: quantidadeBase, data: saldoIni.data || null }),
+        body: JSON.stringify({
+          estado: ajuste.estado, data: ajuste.data || null, observacoes: ajuste.obs.trim() || null,
+          itens: contadas.map((l) => ({ produtoItemId: l.produtoItemId, saldoFisico: fisicoAjuste(l, ajuste.estado) })),
+        }),
       });
       const j = await r.json();
-      if (!r.ok) throw new Error(j?.error ?? "Erro ao lançar saldo inicial");
-      setSaldoIni(null);
+      if (!r.ok) throw new Error(j?.error ?? "Erro ao aplicar o ajuste");
+      setAjuste(null);
       const a = areas.find((x) => x.nodeId === areaNodeId) ?? null;
       if (a?.fromEstado) fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.fromEstado}`).then((r) => r.json()).then((j) => setEntradaWip(j.data ?? []));
       if (a?.estadoSaida) fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${a.estadoSaida}`).then((r) => r.json()).then((j) => setSaidaEstoque(j.data ?? []));
       if (saldoPopup) abrirSaldoPopup(); // recarrega o popup de saldo, se aberto
-    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setSalvandoSaldo(false); }
+    } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); } finally { setSalvandoAjuste(false); }
   }
 
   async function concluir() {
@@ -1051,9 +1077,9 @@ export default function OrdensBoardPage() {
               {/* Coluna 3 — SAÍDA (PEP que a etapa gera, ou o produto produzido) */}
               <ColBoard cor="emerald" titulo={area.estadoSaida === "ACABADO" ? "Produto acabado" : area.estadoSaida ? "PEP de saída" : "Saída"} icon={<PackageCheck className="w-3.5 h-3.5" />}
                 acao={area.estadoSaida && area.estadoSaida !== "ACABADO" ? (
-                  <button onClick={() => { setSaldoIni({ estado: area.estadoSaida!, itemId: produtos[0]?.id ?? "", quantidade: "", unidadeId: (produtos[0]?.unidades.find((u) => u.isPrincipal) ?? produtos[0]?.unidades[0])?.id ?? "", data: hoje() }); setErro(null); }}
-                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-emerald-300 dark:border-emerald-800 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" title="Definir saldo inicial">
-                    <Plus className="w-3 h-3" /> Saldo inicial
+                  <button onClick={() => abrirAjuste(area.estadoSaida!)}
+                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-emerald-300 dark:border-emerald-800 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" title="Ajustar saldo (inventário)">
+                    <Calculator className="w-3 h-3" /> Ajuste
                   </button>
                 ) : undefined}>
                 {area.estadoSaida ? (
@@ -1636,15 +1662,15 @@ export default function OrdensBoardPage() {
               <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Boxes className="w-5 h-5 text-amber-600" /> Saldo de produção (WIP)</h2>
               <button onClick={() => setSaldoPopup(false)} className="text-muted-foreground hover:text-foreground text-sm">Fechar ✕</button>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Produto em processo por estado, contado como no pátio (vagonetas/vagões + sobras). O saldo inicial é lançado pelo botão de cada estado.</p>
+            <p className="text-xs text-muted-foreground mt-1">Produto em processo por estado, contado como no pátio (vagonetas/vagões + sobras). O ajuste de saldo (inventário) é lançado pelo botão de cada estado.</p>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
               {ESTADOS_WIP.map((est) => (
                 <div key={est} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{ESTADO_LABEL[est] ?? est}</p>
-                    <button onClick={() => { setSaldoIni({ estado: est, itemId: produtos[0]?.id ?? "", quantidade: "", unidadeId: (produtos[0]?.unidades.find((u) => u.isPrincipal) ?? produtos[0]?.unidades[0])?.id ?? "", data: hoje() }); setErro(null); }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-amber-300 dark:border-amber-500/40 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30">
-                      <Plus className="w-3 h-3" /> Saldo inicial
+                    <button onClick={() => abrirAjuste(est)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-amber-300 dark:border-amber-500/40 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30" title="Ajustar saldo (inventário)">
+                      <Calculator className="w-3 h-3" /> Ajuste
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -1657,57 +1683,90 @@ export default function OrdensBoardPage() {
         </div>
       )}
 
-      {/* Modal saldo inicial de WIP */}
-      {saldoIni && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSaldoIni(null)}>
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Boxes className="w-5 h-5 text-amber-600" /> Saldo inicial — PEP {ESTADO_LABEL[saldoIni.estado] ?? saldoIni.estado}</h2>
-            <p className="text-xs text-muted-foreground mt-1">Saldo de abertura do produto neste estado de WIP (uma vez por produto/estado). Lança D Estoque WIP / C Saldos de Abertura.</p>
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Produto *</label>
-                <ComboboxWithCreate value={saldoIni.itemId}
-                  onChange={(v) => { const us = produtos.find((p) => p.id === v)?.unidades ?? []; const principal = us.find((u) => u.isPrincipal) ?? us[0]; setSaldoIni({ ...saldoIni, itemId: v, unidadeId: principal?.id ?? "" }); }}
-                  allowNone={false} triggerClassName="h-9 rounded-lg"
-                  options={produtos.map((p) => ({ value: p.id, label: `${p.codigo} · ${p.descricao}` }))} />
+      {/* Modal AJUSTE de saldo WIP (inventário): contagem física por produto */}
+      {ajuste && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAjuste(null)}>
+          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5 text-amber-600" /> Ajuste de saldo — PEP {ESTADO_LABEL[ajuste.estado] ?? ajuste.estado}</h2>
+            <p className="text-xs text-muted-foreground mt-1">Contagem física (inventário). Linhas não preenchidas não são alteradas; digite 0 para zerar. O ajuste gera um inventário rastreável em Suprimentos.</p>
+            {ajuste.linhas === null ? (
+              <p className="mt-4 text-xs text-muted-foreground flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando saldos…</p>
+            ) : ajuste.linhas.length === 0 ? (
+              <p className="mt-4 text-xs text-muted-foreground">Nenhum produto neste fluxo.</p>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border">
+                      <th className="py-1.5 pr-2 font-medium">Produto</th>
+                      <th className="py-1.5 px-2 font-medium text-right">Sistema</th>
+                      <th className="py-1.5 px-2 font-medium text-center" colSpan={2}>Contagem</th>
+                      <th className="py-1.5 px-2 font-medium text-right">Físico (pç)</th>
+                      <th className="py-1.5 pl-2 font-medium text-right">Diferença</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ajuste.linhas.map((l, i) => {
+                      const veiculo = VEICULO_POR_ESTADO[ajuste.estado];
+                      const cap = capacidades[l.produtoItemId]?.[veiculo] ?? 0;
+                      const cheios = cap > 0 ? Math.trunc(l.saldoSistema / cap) : 0;
+                      const sobra = cap > 0 ? l.saldoSistema - cheios * cap : 0;
+                      const contada = linhaContada(l);
+                      const fisico = fisicoAjuste(l, ajuste.estado);
+                      const diff = fisico - l.saldoSistema;
+                      const setLinha = (patch: Partial<AjusteLinha>) =>
+                        setAjuste((a) => a && { ...a, linhas: a.linhas!.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+                      return (
+                        <tr key={l.produtoItemId} className="border-b border-border/60">
+                          <td className="py-2 pr-2 text-foreground font-medium">{l.descricao}</td>
+                          <td className="py-2 px-2 text-right tabular-nums text-muted-foreground whitespace-nowrap">
+                            {l.saldoSistema.toLocaleString("pt-BR")} pç
+                            {cap > 0 && <span className="block text-[10px]">{cheios.toLocaleString("pt-BR")} {VEICULO_LABEL[veiculo][Math.abs(cheios) === 1 ? 0 : 1]}{sobra !== 0 ? ` + ${sobra.toLocaleString("pt-BR")} pç` : ""}</span>}
+                          </td>
+                          {cap > 0 ? (
+                            <td className="py-2 px-2">
+                              <div className="flex items-center gap-1">
+                                <input inputMode="decimal" value={l.veiculos} onChange={(e) => setLinha({ veiculos: e.target.value })} placeholder="nº"
+                                  className="w-14 h-8 rounded-lg border border-border px-2 text-xs bg-card text-right tabular-nums" />
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{VEICULO_LABEL[veiculo][1]} ({cap.toLocaleString("pt-BR")}/{VEICULO_LABEL[veiculo][0]})</span>
+                              </div>
+                            </td>
+                          ) : (
+                            <td className="py-2 px-2 text-[10px] text-muted-foreground">sem capacidade cadastrada</td>
+                          )}
+                          <td className="py-2 px-2">
+                            <div className="flex items-center gap-1">
+                              <input inputMode="decimal" value={l.pecas} onChange={(e) => setLinha({ pecas: e.target.value })} placeholder="pç"
+                                className="w-20 h-8 rounded-lg border border-border px-2 text-xs bg-card text-right tabular-nums" />
+                              <span className="text-[10px] text-muted-foreground">pç</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2 text-right tabular-nums whitespace-nowrap">{contada ? fisico.toLocaleString("pt-BR") : "—"}</td>
+                          <td className={cn("py-2 pl-2 text-right tabular-nums font-medium whitespace-nowrap", !contada ? "text-muted-foreground" : diff > 0 ? "text-success" : diff < 0 ? "text-destructive" : "text-muted-foreground")}>
+                            {contada ? `${diff > 0 ? "+" : ""}${diff.toLocaleString("pt-BR")}` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-              <div className="grid grid-cols-[1fr_8rem] gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Quantidade *</label>
-                  <input inputMode="decimal" value={saldoIni.quantidade} onChange={(e) => setSaldoIni({ ...saldoIni, quantidade: e.target.value })} className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card text-right tabular-nums" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">Unidade</label>
-                  {(() => {
-                    const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
-                    return (
-                      <select value={saldoIni.unidadeId} onChange={(e) => setSaldoIni({ ...saldoIni, unidadeId: e.target.value })}
-                        className="w-full h-9 rounded-lg border border-border px-2 text-sm bg-card">
-                        {us.length === 0 && <option value="">—</option>}
-                        {us.map((u) => <option key={u.id} value={u.id}>{u.sigla}{u.isPrincipal ? "" : ` (×${u.fator})`}</option>)}
-                      </select>
-                    );
-                  })()}
-                </div>
-              </div>
-              {(() => {
-                const us = produtos.find((p) => p.id === saldoIni.itemId)?.unidades ?? [];
-                const sel = us.find((u) => u.id === saldoIni.unidadeId);
-                const base = us.find((u) => u.isPrincipal);
-                if (!sel || sel.isPrincipal || !saldoIni.quantidade) return null;
-                const q = numBR(saldoIni.quantidade);
-                if (!q) return null;
-                return <p className="-mt-1 text-[11px] text-muted-foreground">= {(q * (sel.fator ?? 1)).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {base?.sigla}</p>;
-              })()}
+            )}
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-3">
               <div>
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Data do saldo</label>
-                <DatePicker value={saldoIni.data} onChange={(v) => setSaldoIni({ ...saldoIni, data: v })} className="w-full" />
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Data da contagem</label>
+                <DatePicker value={ajuste.data} onChange={(v) => setAjuste((a) => a && { ...a, data: v })} className="w-full" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">Observações</label>
+                <input value={ajuste.obs} onChange={(e) => setAjuste((a) => a && { ...a, obs: e.target.value })}
+                  className="w-full h-9 rounded-lg border border-border px-3 text-sm bg-card" placeholder="Motivo do ajuste (opcional)" />
               </div>
             </div>
             <div className="mt-5 flex items-center justify-end gap-2">
-              <button onClick={() => setSaldoIni(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
-              <button onClick={salvarSaldoInicial} disabled={salvandoSaldo} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
-                {salvandoSaldo ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Lançar
+              <button onClick={() => setAjuste(null)} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button onClick={salvarAjusteWip} disabled={salvandoAjuste || ajuste.linhas === null} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
+                {salvandoAjuste ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} Aplicar ajuste
               </button>
             </div>
           </div>
