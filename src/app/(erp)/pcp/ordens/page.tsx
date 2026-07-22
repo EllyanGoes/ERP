@@ -29,11 +29,12 @@ type ProdutoOP = { itemId: string; codigo: string; descricao: string; planejada:
 type BoardOP = { id: string; numero: string; status: string; dia?: string; areaNome?: string; areaNodeId?: string; quantidade: string | number; unidade: string | null; produto: string | null; produtoCodigo: string | null; etapaStatus: string; vagoes?: number | null; vagonetas?: number | null; responsavel: string | null; responsavelColaboradorId: string | null; equipe?: { id: string; nome: string }[]; criadoPor: string | null; observacao: string | null; planoTransporte?: PlanoVagaoSalvo[] | null; inicioPrevisto: string | null; fimPrevisto: string | null; produtos: ProdutoOP[] };
 // Plano de transporte como sai do banco (números) — vira CargaVagaoRow (strings) na edição.
 type PlanoVagaoSalvo = { veiculo: "VAGAO" | "VAGONETA"; nVagoes: number; cargas: { itemId: string; pecas: number }[] };
-// Linha do popup de AJUSTE de saldo (inventário): saldo do sistema em peças-base no
-// local do estado e a contagem física digitada (nº de vagões/vagonetas/paletes +
-// peças avulsas, como o pátio conta).
+// Linha do popup de AJUSTE de saldo (inventário): saldo TOTAL do sistema em peças-base
+// e a contagem física. No WIP a contagem vem das LINHAS DE VAGÃO (cheio/meiado, como a
+// calculadora de perda) + `pecas` avulsas por produto; no ACABADO é `veiculos` (nº de
+// paletes) + `pecas` avulsas.
 type AjusteLinha = { produtoItemId: string; descricao: string; saldoSistema: number; pecasPorPalete: number | null; veiculos: string; pecas: string };
-type AjusteWip = { estado: string; linhas: AjusteLinha[] | null; data: string; obs: string };
+type AjusteWip = { estado: string; linhas: AjusteLinha[] | null; rows: CargaVagaoRow[]; data: string; obs: string };
 type EstoqueLinha = { itemId: string | null; produtoItemId?: string | null; pecasPorPalete?: number | null; descricao: string; unidade: string | null; saldoTotal: number; locais: { localNome: string; saldo: number }[] };
 type ConsumoLinha = { itemId: string | null; descricao: string; unidade: string | null; consumo: number; gerenciavel: boolean; saldo: number | null; local?: string | null; suficiente: boolean;
   // Unidade em que o chão aponta o consumo (ex.: CONCHADA) — fator alt→base.
@@ -178,31 +179,46 @@ export default function OrdensBoardPage() {
   // Abre o popup de AJUSTE (inventário) de um estado: carrega os produtos do fluxo
   // com o saldo do sistema (peças-base) — o saldo TOTAL do item (todos os locais),
   // igual ao card do board; a diferença da contagem é aplicada no local do estado
-  // (PEP no WIP, Estoque de Produto Acabado no acabado).
+  // (PEP no WIP, Estoque de Produto Acabado no acabado). No WIP a contagem é por
+  // LINHAS DE VAGÃO (cheio/meiado, como a calculadora de perda): abre com uma linha
+  // "cheia" por produto com a capacidade do cadastro.
   function abrirAjuste(estado: string) {
-    setAjuste({ estado, linhas: null, data: hoje(), obs: "" });
+    setAjuste({ estado, linhas: null, rows: [], data: hoje(), obs: "" });
     setErro(null);
     fetch(`/api/pcp/ordens/area/estoque-estado?fluxoId=${fluxoId}&estado=${estado}`)
       .then((r) => r.json())
-      .then((j) => setAjuste((a) => a && a.estado === estado ? {
-        ...a,
-        linhas: ((j.data ?? []) as EstoqueLinha[])
+      .then((j) => setAjuste((a) => {
+        if (!a || a.estado !== estado) return a;
+        const linhas = ((j.data ?? []) as EstoqueLinha[])
           .filter((m) => m.produtoItemId)
           .map((m) => ({
             produtoItemId: m.produtoItemId!, descricao: m.descricao, saldoSistema: m.saldoTotal,
             pecasPorPalete: m.pecasPorPalete ?? null, veiculos: "", pecas: "",
-          })),
-      } : a))
+          }));
+        const veiculo = VEICULO_POR_ESTADO[estado] ?? "VAGAO";
+        const rows: CargaVagaoRow[] = estado === "ACABADO" ? [] : linhas.map((l) => ({
+          veiculo, nVagoes: "", cargas: [{ itemId: l.produtoItemId, pecas: String(capacidades[l.produtoItemId]?.[veiculo] ?? "") }],
+        }));
+        return { ...a, linhas, rows: rows.length ? rows : a.rows };
+      }))
       .catch(() => setAjuste((a) => a && a.estado === estado ? { ...a, linhas: [] } : a));
   }
-  // Capacidade do "veículo" de contagem da linha: vagoneta/vagão do cadastro de
-  // cargas no WIP; peças/palete no acabado (é assim que o pátio conta cada um).
+  // Peças/palete do acabado (é assim que o pátio conta o PA; o WIP conta por vagões).
   const capAjuste = (l: AjusteLinha, estado: string): number =>
     estado === "ACABADO" ? (l.pecasPorPalete ?? 0) : (capacidades[l.produtoItemId]?.[VEICULO_POR_ESTADO[estado]] ?? 0);
-  // Físico (peças-base) de uma linha do ajuste: nº de veículos × capacidade + peças avulsas.
-  const fisicoAjuste = (l: AjusteLinha, estado: string): number =>
-    Math.round(numBR(l.veiculos) * capAjuste(l, estado) + numBR(l.pecas));
-  const linhaContada = (l: AjusteLinha) => l.veiculos.trim() !== "" || l.pecas.trim() !== "";
+  // Contado nas linhas de vagão, por produto (WIP; vazio no acabado).
+  const contadoAjusteRows = (a: AjusteWip): Record<string, number> =>
+    a.estado === "ACABADO" ? {} : descarregadoPorProduto(a.rows);
+  // Físico (peças-base) de uma linha: ACABADO = nº paletes × pç/palete + avulsas;
+  // WIP = soma das linhas de vagão do produto + avulsas.
+  const fisicoAjuste = (l: AjusteLinha, a: AjusteWip, cont: Record<string, number>): number =>
+    a.estado === "ACABADO"
+      ? Math.round(numBR(l.veiculos) * capAjuste(l, a.estado) + numBR(l.pecas))
+      : Math.round((cont[l.produtoItemId] ?? 0) + numBR(l.pecas));
+  // Linha entra no ajuste se foi contada: apareceu nos vagões OU tem paletes/avulsas
+  // digitados (avulsas "0" zera explicitamente).
+  const linhaContada = (l: AjusteLinha, cont: Record<string, number>) =>
+    (cont[l.produtoItemId] ?? 0) > 0 || l.veiculos.trim() !== "" || l.pecas.trim() !== "";
 
   // Apontar
   const [apontar, setApontar] = useState<BoardOP | null>(null);
@@ -264,7 +280,9 @@ export default function OrdensBoardPage() {
       if (calcPerda) { setCalcPerda(null); return; }
       if (calcPlan) { setCalcPlan(null); return; }
       if (ajuste) {
-        const preenchido = (ajuste.linhas ?? []).some((l) => l.veiculos.trim() !== "" || l.pecas.trim() !== "") || ajuste.obs.trim() !== "";
+        const preenchido = (ajuste.linhas ?? []).some((l) => l.veiculos.trim() !== "" || l.pecas.trim() !== "")
+          || ajuste.rows.some((r) => r.nVagoes.trim() !== "")
+          || ajuste.obs.trim() !== "";
         if (!preenchido || confirm("Fechar o ajuste sem salvar? A contagem será perdida.")) setAjuste(null);
         return;
       }
@@ -606,12 +624,13 @@ export default function OrdensBoardPage() {
 
   async function salvarAjusteWip() {
     if (!ajuste?.linhas) return;
-    const contadas = ajuste.linhas.filter(linhaContada);
+    const cont = contadoAjusteRows(ajuste);
+    const contadas = ajuste.linhas.filter((l) => linhaContada(l, cont));
     if (contadas.length === 0) { setErro("Informe a contagem de pelo menos um produto (linha vazia não é alterada)"); return; }
     // Diferenças enormes normalmente são erro de digitação (unidade/veículo) — confirma.
-    const grandes = contadas.filter((l) => Math.abs(fisicoAjuste(l, ajuste.estado) - l.saldoSistema) >= 100000);
+    const grandes = contadas.filter((l) => Math.abs(fisicoAjuste(l, ajuste, cont) - l.saldoSistema) >= 100000);
     if (grandes.length > 0) {
-      const det = grandes.map((l) => `${l.descricao}: físico ${fisicoAjuste(l, ajuste.estado).toLocaleString("pt-BR")} pç (dif. ${(fisicoAjuste(l, ajuste.estado) - l.saldoSistema).toLocaleString("pt-BR")} pç)`).join("\n");
+      const det = grandes.map((l) => `${l.descricao}: físico ${fisicoAjuste(l, ajuste, cont).toLocaleString("pt-BR")} pç (dif. ${(fisicoAjuste(l, ajuste, cont) - l.saldoSistema).toLocaleString("pt-BR")} pç)`).join("\n");
       if (!confirm(`Diferença muito grande — confira a contagem:\n\n${det}\n\nAplicar mesmo assim?`)) return;
     }
     setSalvandoAjuste(true); setErro(null);
@@ -620,7 +639,7 @@ export default function OrdensBoardPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           estado: ajuste.estado, data: ajuste.data || null, observacoes: ajuste.obs.trim() || null,
-          itens: contadas.map((l) => ({ produtoItemId: l.produtoItemId, saldoFisico: fisicoAjuste(l, ajuste.estado) })),
+          itens: contadas.map((l) => ({ produtoItemId: l.produtoItemId, saldoFisico: fisicoAjuste(l, ajuste, cont) })),
         }),
       });
       const j = await r.json();
@@ -1698,12 +1717,18 @@ export default function OrdensBoardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAjuste(null)}>
           <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2"><Calculator className="w-5 h-5 text-amber-600" /> Ajuste de saldo — {ajuste.estado === "ACABADO" ? "Produto acabado" : `PEP ${ESTADO_LABEL[ajuste.estado] ?? ajuste.estado}`}</h2>
-            <p className="text-xs text-muted-foreground mt-1">Contagem física (inventário). Linhas não preenchidas não são alteradas; digite 0 para zerar. O ajuste gera um inventário rastreável em Suprimentos.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {ajuste.estado === "ACABADO"
+                ? "Contagem física (inventário) por palete. Linhas não preenchidas não são alteradas; digite 0 para zerar."
+                : <>Contagem física (inventário) pelos vagões do pátio: <b>cheio</b> = 1 produto; <b>meiado</b> = adicione mais de um produto. Sobras fora de vagão entram em <b>Avulsas</b>. Produto sem contagem não é alterado; digite 0 nas avulsas para zerar.</>}
+              {" "}O ajuste gera um inventário rastreável em Suprimentos.
+            </p>
             {ajuste.linhas === null ? (
               <p className="mt-4 text-xs text-muted-foreground flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando saldos…</p>
             ) : ajuste.linhas.length === 0 ? (
               <p className="mt-4 text-xs text-muted-foreground">Nenhum produto neste fluxo.</p>
-            ) : (
+            ) : ajuste.estado === "ACABADO" ? (
+              /* ACABADO: contagem POR PALETE (nº × pç/palete) + peças avulsas. */
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -1717,13 +1742,11 @@ export default function OrdensBoardPage() {
                   </thead>
                   <tbody>
                     {ajuste.linhas.map((l, i) => {
-                      // Unidade de contagem do estado: vagonetas/vagões no WIP, paletes no acabado.
-                      const rotulo = ajuste.estado === "ACABADO" ? (["palete", "paletes"] as const) : VEICULO_LABEL[VEICULO_POR_ESTADO[ajuste.estado]];
                       const cap = capAjuste(l, ajuste.estado);
                       const cheios = cap > 0 ? Math.trunc(l.saldoSistema / cap) : 0;
                       const sobra = cap > 0 ? l.saldoSistema - cheios * cap : 0;
-                      const contada = linhaContada(l);
-                      const fisico = fisicoAjuste(l, ajuste.estado);
+                      const contada = linhaContada(l, {});
+                      const fisico = fisicoAjuste(l, ajuste, {});
                       const diff = fisico - l.saldoSistema;
                       const setLinha = (patch: Partial<AjusteLinha>) =>
                         setAjuste((a) => a && { ...a, linhas: a.linhas!.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
@@ -1732,18 +1755,18 @@ export default function OrdensBoardPage() {
                           <td className="py-2 pr-2 text-foreground font-medium">{l.descricao}</td>
                           <td className="py-2 px-2 text-right tabular-nums text-muted-foreground whitespace-nowrap">
                             {l.saldoSistema.toLocaleString("pt-BR")} pç
-                            {cap > 0 && <span className="block text-[10px]">{cheios.toLocaleString("pt-BR")} {rotulo[Math.abs(cheios) === 1 ? 0 : 1]}{sobra !== 0 ? ` + ${sobra.toLocaleString("pt-BR")} pç` : ""}</span>}
+                            {cap > 0 && <span className="block text-[10px]">{cheios.toLocaleString("pt-BR")} {cheios === 1 ? "palete" : "paletes"}{sobra !== 0 ? ` + ${sobra.toLocaleString("pt-BR")} pç` : ""}</span>}
                           </td>
                           {cap > 0 ? (
                             <td className="py-2 px-2">
                               <div className="flex items-center gap-1">
                                 <input inputMode="decimal" value={l.veiculos} onChange={(e) => setLinha({ veiculos: e.target.value })} placeholder="nº"
                                   className="w-14 h-8 rounded-lg border border-border px-2 text-xs bg-card text-right tabular-nums" />
-                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{rotulo[1]} ({cap.toLocaleString("pt-BR")}/{rotulo[0]})</span>
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">paletes ({cap.toLocaleString("pt-BR")}/palete)</span>
                               </div>
                             </td>
                           ) : (
-                            <td className="py-2 px-2 text-[10px] text-muted-foreground">{ajuste.estado === "ACABADO" ? "sem pç/palete cadastrado" : "sem capacidade cadastrada"}</td>
+                            <td className="py-2 px-2 text-[10px] text-muted-foreground">sem pç/palete cadastrado</td>
                           )}
                           <td className="py-2 px-2">
                             <div className="flex items-center gap-1">
@@ -1762,7 +1785,78 @@ export default function OrdensBoardPage() {
                   </tbody>
                 </table>
               </div>
-            )}
+            ) : (() => {
+              /* WIP: contagem POR VAGÃO como a calculadora de perda — linhas de
+                 vagão/vagoneta (cheio = 1 produto; meiado = 2+) + avulsas por produto. */
+              const cont = contadoAjusteRows(ajuste);
+              const setRows = (rows: CargaVagaoRow[]) => setAjuste((a) => a && { ...a, rows });
+              const upRow = (i: number, patch: Partial<CargaVagaoRow>) => setRows(ajuste.rows.map((r, j) => j === i ? { ...r, ...patch } : r));
+              const upCarga = (i: number, k: number, patch: Partial<{ itemId: string; pecas: string }>) =>
+                upRow(i, { cargas: ajuste.rows[i].cargas.map((c, m) => m === k ? { ...c, ...patch } : c) });
+              const veiculoPadrao = VEICULO_POR_ESTADO[ajuste.estado] ?? "VAGAO";
+              return (
+                <>
+                  <div className="mt-4 space-y-2">
+                    {ajuste.rows.map((row, i) => (
+                      <div key={i} className="rounded-lg border border-border p-2.5 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <select value={row.veiculo} onChange={(e) => upRow(i, { veiculo: e.target.value as "VAGAO" | "VAGONETA" })} className="h-8 rounded-md border border-border px-1.5 text-xs bg-card">
+                            <option value="VAGAO">Vagão</option><option value="VAGONETA">Vagoneta</option>
+                          </select>
+                          <input inputMode="numeric" placeholder="nº" value={row.nVagoes} onChange={(e) => upRow(i, { nVagoes: e.target.value })} className="h-8 w-20 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card" />
+                          <span className="text-xs text-muted-foreground">{row.veiculo === "VAGONETA" ? "vagonetas" : "vagões"}, cada um com:</span>
+                          <div className="flex-1" />
+                          {ajuste.rows.length > 1 && <button type="button" onClick={() => setRows(ajuste.rows.filter((_, j) => j !== i))} className="text-muted-foreground/60 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
+                        </div>
+                        {row.cargas.map((c, k) => (
+                          <div key={k} className="flex items-center gap-2 pl-1">
+                            <select value={c.itemId} onChange={(e) => { const id = e.target.value; const cap = capacidades[id]?.[row.veiculo]; upCarga(i, k, { itemId: id, ...(!c.pecas && cap != null ? { pecas: String(cap) } : {}) }); }} className="h-8 flex-1 min-w-0 rounded-md border border-border px-1.5 text-xs bg-card">
+                              <option value="">Produto…</option>
+                              {ajuste.linhas!.map((p) => <option key={p.produtoItemId} value={p.produtoItemId}>{p.descricao}</option>)}
+                            </select>
+                            <input inputMode="numeric" placeholder="peças/vagão" value={c.pecas} onChange={(e) => upCarga(i, k, { pecas: e.target.value })} className="h-8 w-28 rounded-md border border-border px-2 text-xs text-right tabular-nums bg-card" />
+                            {row.cargas.length > 1 && <button type="button" onClick={() => upRow(i, { cargas: row.cargas.filter((_, m) => m !== k) })} className="text-muted-foreground/60 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => upRow(i, { cargas: [...row.cargas, { itemId: "", pecas: "" }] })} className="text-[11px] text-amber-600 hover:underline pl-1">+ produto (meiado)</button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setRows([...ajuste.rows, { veiculo: veiculoPadrao, nVagoes: "", cargas: [{ itemId: "", pecas: "" }] }])} className="inline-flex items-center gap-1 text-xs text-cyan-600 hover:underline"><Plus className="w-3.5 h-3.5" /> Adicionar vagão</button>
+                  </div>
+                  <div className="mt-4 rounded-lg border border-border overflow-hidden">
+                    <div className="grid grid-cols-[1fr_6rem_5rem_5.5rem_5rem_5rem] gap-2 px-3 py-1.5 bg-muted text-[11px] font-semibold text-muted-foreground uppercase">
+                      <span>Produto</span><span className="text-right">Sistema</span><span className="text-right">Vagões</span><span className="text-right">Avulsas</span><span className="text-right">Físico</span><span className="text-right">Diferença</span>
+                    </div>
+                    {ajuste.linhas.map((l, i) => {
+                      const cap = capAjuste(l, ajuste.estado);
+                      const cheios = cap > 0 ? Math.trunc(l.saldoSistema / cap) : 0;
+                      const sobra = cap > 0 ? l.saldoSistema - cheios * cap : 0;
+                      const contada = linhaContada(l, cont);
+                      const fisico = fisicoAjuste(l, ajuste, cont);
+                      const diff = fisico - l.saldoSistema;
+                      const setLinha = (patch: Partial<AjusteLinha>) =>
+                        setAjuste((a) => a && { ...a, linhas: a.linhas!.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+                      return (
+                        <div key={l.produtoItemId} className="grid grid-cols-[1fr_6rem_5rem_5.5rem_5rem_5rem] gap-2 px-3 py-1.5 items-center border-t border-border/60 text-xs tabular-nums">
+                          <span className="text-foreground truncate" title={l.descricao}>{l.descricao}</span>
+                          <span className="text-right text-muted-foreground whitespace-nowrap">
+                            {l.saldoSistema.toLocaleString("pt-BR")} pç
+                            {cap > 0 && <span className="block text-[10px]">{cheios.toLocaleString("pt-BR")} {VEICULO_LABEL[veiculoPadrao][Math.abs(cheios) === 1 ? 0 : 1]}{sobra !== 0 ? ` + ${sobra.toLocaleString("pt-BR")} pç` : ""}</span>}
+                          </span>
+                          <span className="text-right text-muted-foreground">{(cont[l.produtoItemId] ?? 0) > 0 ? (cont[l.produtoItemId] ?? 0).toLocaleString("pt-BR") : "—"}</span>
+                          <input inputMode="decimal" value={l.pecas} onChange={(e) => setLinha({ pecas: e.target.value })} placeholder="pç"
+                            className="h-7 w-full rounded-md border border-border px-1.5 text-xs bg-card text-right tabular-nums" />
+                          <span className="text-right">{contada ? fisico.toLocaleString("pt-BR") : "—"}</span>
+                          <span className={cn("text-right font-medium", !contada ? "text-muted-foreground" : diff > 0 ? "text-success" : diff < 0 ? "text-destructive" : "text-muted-foreground")}>
+                            {contada ? `${diff > 0 ? "+" : ""}${diff.toLocaleString("pt-BR")}` : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-3">
               <div>
                 <label className="block text-xs font-medium text-muted-foreground mb-1">Data da contagem</label>
