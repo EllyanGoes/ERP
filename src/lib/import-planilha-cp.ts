@@ -13,9 +13,10 @@
  *  - financiamentos de máquinas (≤ 12m)    → 2.1.3.0001 "Financiamentos a Pagar"
  *  - FGTS / pensão / consignados           → contas da folha (2.1.5.x / 2.1.8)
  * Parcelamentos/financiamentos usam semProvisao=true (dívida de exercícios
- * anteriores): a provisão NÃO vai para a DRE — um único lançamento de ABERTURA
- * por empresa (D 2.3.3 Saldos de Abertura / C passivos) registra o estoque da
- * dívida; a liquidação de cada parcela segue D passivo / C banco normalmente.
+ * anteriores): a provisão NÃO vai para a DRE — a abertura é lançada UM POR
+ * TÍTULO/PARCELA (D 2.3.3 Saldos de Abertura / C passivo da parcela, origem
+ * MANUAL import-cp-abertura#<chave>); a liquidação de cada parcela segue
+ * D passivo / C banco normalmente.
  *
  * Usada pelo script CLI (scripts/import-contas-pagar-planilha.ts) e pela rota
  * admin POST /api/admin/import-planilha-cp — em produção o banco só é acessível
@@ -504,44 +505,66 @@ export async function executarImportPlanilhaCp(
     stats.criados[empresaId]++;
   }
 
-  // Lançamento de ABERTURA por empresa: D 2.3.3 / C passivos dos parcelamentos.
-  // Só quando TODAS as linhas foram processadas (restantes = 0). Idempotente
-  // (MANUAL + origemId fixo → registrarLancamento re-sincroniza).
+  // Lançamentos de ABERTURA — UM POR TÍTULO/PARCELA (decisão do dono 23/07):
+  // D 2.3.3 Saldos de Abertura / C passivo da parcela (contaPassivoId do título),
+  // origemId determinístico por chave → idempotente e rastreável parcela a parcela.
+  // Só quando TODAS as linhas foram processadas (restantes = 0). Migração: o
+  // lançamento AGREGADO por empresa da 1ª versão é apagado aqui.
   if (!dry && restantes === 0) {
-    for (const emp of ["T", "A"] as Emp[]) {
-      const empresaId = EMP[emp];
-      const contas = contasPorEmpresa.get(empresaId)!;
-      let fin = 0, tribCirc = 0, tribLp = 0;
-      for (const c of CONTRATOS.filter((x) => x.empresa === emp)) {
-        for (let n = c.de; n <= c.ate; n++) {
-          const venc = addMeses(c.primeiroVenc, n - c.de, c.fimDeMes === true);
-          if (c.destino === "FIN") fin = r2(fin + c.valor);
-          else if (venc > CUTOFF_LP) tribLp = r2(tribLp + c.valor);
-          else tribCirc = r2(tribCirc + c.valor);
-        }
-      }
-      const totalAbertura = r2(fin + tribCirc + tribLp);
-      if (totalAbertura <= 0.005) continue;
-      const contaAbertura = await garantirContaSaldoAbertura(empresaId);
-      if (!contaAbertura) { log.push(`! sem conta 2.3.3 em ${empresaId} — abertura não lançada`); continue; }
-      const partidas: { contaId: string; tipo: "DEBITO" | "CREDITO"; valor: number }[] = [
-        { contaId: contaAbertura.id, tipo: "DEBITO", valor: totalAbertura },
-      ];
-      if (fin > 0.005) partidas.push({ contaId: contas.finId, tipo: "CREDITO", valor: fin });
-      if (tribCirc > 0.005) partidas.push({ contaId: contas.parcTribCircId, tipo: "CREDITO", valor: tribCirc });
-      if (tribLp > 0.005) partidas.push({ contaId: contas.parcTribLpId, tipo: "CREDITO", valor: tribLp });
-      await registrarLancamento({
-        empresaId,
-        data: dUTC("2026-07-01"),
-        historico: "Saldo de abertura — parcelamentos e financiamentos (import planilha CP jul/2026)",
-        origemTipo: "MANUAL",
-        origemId: `import-cp-abertura-${empresaId}`,
-        criadoPor: CRIADO_POR,
-        partidas,
-      });
-      log.push(`✔ abertura ${empresaId}: D 2.3.3 ${totalAbertura.toLocaleString("pt-BR")} / C fin ${fin.toLocaleString("pt-BR")} + trib.circ ${tribCirc.toLocaleString("pt-BR")} + trib.LP ${tribLp.toLocaleString("pt-BR")}`);
+    // 1) Apaga o agregado antigo (se existir) — substituído pelos individuais.
+    const { apagarLancamentosContabeis } = await import("@/lib/contabilidade");
+    for (const empresaId of [EMP.T, EMP.A]) {
+      await apagarLancamentosContabeis({ empresaId, origemTipo: "MANUAL", origemId: `import-cp-abertura-${empresaId}` })
+        .catch((e) => log.push(`! não apagou abertura agregada ${empresaId}: ${e instanceof Error ? e.message : String(e)}`));
     }
-    log.push("Ignorado de propósito: CEA EQUATORIAL - MÊS 07 (sem valor na planilha).");
+
+    // 2) Aberturas já lançadas (origemId por chave) — pular sem re-sync (barato).
+    const jaLancadas = new Set(
+      (await prismaSemEscopo.lancamentoContabil.findMany({
+        where: { origemTipo: "MANUAL", origemId: { startsWith: "import-cp-abertura#" } },
+        select: { origemId: true },
+      })).map((l) => l.origemId!),
+    );
+
+    // 3) Um lançamento por título de parcelamento/financiamento do import.
+    const titulos = await prismaSemEscopo.contaPagar.findMany({
+      where: { observacoes: { contains: `[${TAG}` }, semProvisao: true, contaPassivoId: { not: null } },
+      select: { empresaId: true, numero: true, descricao: true, valorOriginal: true, contaPassivoId: true, observacoes: true },
+    });
+    const aberturaConta = new Map<string, string>();
+    for (const empresaId of [EMP.T, EMP.A]) {
+      const c = await garantirContaSaldoAbertura(empresaId);
+      if (c) aberturaConta.set(empresaId, c.id);
+    }
+    let lancados = 0, restantesAbertura = 0;
+    for (const t of titulos) {
+      const chave = t.observacoes?.match(/#([\w-]+)\]/)?.[1];
+      const contaAbertura = aberturaConta.get(t.empresaId);
+      if (!chave || !contaAbertura) continue;
+      const origemId = `import-cp-abertura#${chave}`;
+      if (jaLancadas.has(origemId)) continue;
+      // Budget também aqui: o que não couber sai na próxima chamada.
+      if (Date.now() - t0 > budgetMs) { restantesAbertura++; continue; }
+      const valor = Math.round(Number(t.valorOriginal) * 100) / 100;
+      await registrarLancamento({
+        empresaId: t.empresaId,
+        data: dUTC("2026-07-01"),
+        historico: `Abertura de parcelamento — ${t.descricao} (${t.numero})`,
+        origemTipo: "MANUAL",
+        origemId,
+        criadoPor: CRIADO_POR,
+        partidas: [
+          { contaId: contaAbertura, tipo: "DEBITO", valor },
+          { contaId: t.contaPassivoId!, tipo: "CREDITO", valor },
+        ],
+      });
+      lancados++;
+    }
+    if (lancados > 0 || restantesAbertura > 0) {
+      log.push(`✔ aberturas por parcela: ${lancados} lançamento(s) novo(s), ${jaLancadas.size} já existiam, ${restantesAbertura} ficaram p/ a próxima chamada`);
+    }
+    restantes += restantesAbertura;
+    if (restantesAbertura === 0) log.push("Ignorado de propósito: CEA EQUATORIAL - MÊS 07 (sem valor na planilha).");
   }
 
   return {
