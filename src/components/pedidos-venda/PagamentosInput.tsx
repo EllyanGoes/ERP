@@ -154,6 +154,7 @@ export function pagamentoCartaoSemMaquineta(linhas: LinhaPagamento[], formas: Fo
 
 export default function PagamentosInput({
   linhas, setLinhas, formas, contas, total, mostrarConta = true, menuMinWidth, usarMaquinetas = false,
+  contaPlaceholder = "Conta de destino",
 }: {
   linhas: LinhaPagamento[];
   setLinhas: (fn: (prev: LinhaPagamento[]) => LinhaPagamento[]) => void;
@@ -166,6 +167,9 @@ export default function PagamentosInput({
   // lugar da conta (a conta efetiva é a da administradora, derivada no back).
   // Só ligar em fluxos cuja API aceita `maquinetaId` (PDV / venda balcão).
   usarMaquinetas?: boolean;
+  // Rótulo da conta conforme o lado: recebimento = "Conta de destino" (default);
+  // pagamento (contas a pagar) = "Conta de pagamento" (o dinheiro SAI dela).
+  contaPlaceholder?: string;
 }) {
   const pago = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
   const temDinheiro = linhas.some((l) => parseValorBR(l.valor) > 0 && formaEhDinheiro(l.forma, formas));
@@ -275,7 +279,7 @@ export default function PagamentosInput({
                 value={l.contaBancariaId}
                 onChange={(v) => up(l._key, "contaBancariaId", v)}
                 allowNone={false}
-                placeholder="Conta de destino"
+                placeholder={contaPlaceholder}
                 menuMinWidth={menuMinWidth}
                 triggerClassName={cn("h-9 rounded-lg", invalida && "border-red-400 bg-danger/10 text-danger")}
                 options={[

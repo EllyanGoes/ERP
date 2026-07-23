@@ -20,7 +20,8 @@ import PagamentosInput, {
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, TriangleAlert } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, TriangleAlert, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined } from "lucide-react";
+import ContasPagarGrafico from "@/components/financeiro/ContasPagarGrafico";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
@@ -271,6 +272,23 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const [busca, setBusca] = useState("");
   // Período por data de vencimento (persistido por usuário — padrão do sistema).
   const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-pagar:periodo", { from: "", to: "" });
+  // Filtro por MÊS (padrão, ativo quando não há período custom): mostra os títulos
+  // do mês selecionado + o que ficou VENCIDO em aberto dos meses anteriores (e os
+  // sem vencimento em aberto). Abre sempre no mês corrente (useState de propósito —
+  // persistir o mês deixaria a tela presa num mês antigo); "TODOS" desliga o recorte.
+  const [mes, setMes] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const mudarMes = (delta: number) => setMes((m) => {
+    if (m === "TODOS") return m;
+    const [a, mm] = m.split("-").map(Number);
+    const d = new Date(a, mm - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const modoMes = !periodo.from && !periodo.to;
+  // Vista: tabela (padrão) ou gráfico (acumulado por vencimento).
+  const [vista, setVista] = usePersistedState<"tabela" | "grafico">("financeiro:contas-pagar:vista", "tabela");
   // Filtro rápido: só títulos com classificação pendente (sem natureza e/ou sem centro).
   const [soPendentes, setSoPendentes] = usePersistedState<boolean>("financeiro:contas-pagar:classif-pendente", false);
   // Naturezas distintas presentes na lista (para o filtro) — ordenadas pelo
@@ -309,22 +327,58 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // período/busca selecionados.
   const contasBase = useMemo(() => {
     const q = busca.trim().toLowerCase();
+    // Recorte de data: período custom quando definido; senão o MODO MÊS (padrão) —
+    // títulos com vencimento no mês + carry-over EM ABERTO (vencidos de meses
+    // anteriores e sem vencimento). Meses futuros ficam fora até serem navegados.
+    const passaData = (c: ContaRow): boolean => {
+      if (periodo.from || periodo.to) return dentroDoPeriodo(c, periodo);
+      if (mes === "TODOS") return true;
+      const iso = isoDia(c.dataVencimento);
+      const ini = `${mes}-01`;
+      if (iso && iso >= ini && iso <= `${mes}-31`) return true; // do mês (qualquer status)
+      const emAberto = c.status === "ABERTA" || c.status === "PARCIAL";
+      return emAberto && (!iso || iso < ini); // carry-over: vencido antes do mês / sem data
+    };
     return contas.filter((c) => {
       if (naturezaFiltro !== "" && !naturezasDoTitulo(c).some((n) => n.id === naturezaFiltro)) return false;
       if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
-      if (!dentroDoPeriodo(c, periodo)) return false;
+      if (!passaData(c)) return false;
       if (soPendentes && !classificacaoPendente(c)) return false;
       if (!q) return true;
       const o = origemPagar(c);
       return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, naturezaFiltro, fornecedorFiltro, busca, periodo, soPendentes]);
+  }, [contas, naturezaFiltro, fornecedorFiltro, busca, periodo, mes, soPendentes]);
   // Tabela: base + o filtro de status (OR sobre os marcados).
   const contasFiltradas = useMemo(
     () => contasBase.filter((c) => statusSel.some((s) => casaStatus(c, s as StatusFiltro))),
     [contasBase, statusSel],
   );
+  // Gráfico (acumulado por vencimento): mesmos filtros MENOS o recorte de data —
+  // o horizonte é a dívida inteira. Valor = saldo em aberto; PAGA entra pelo
+  // original (só aparece se o filtro de status incluir pagas).
+  const pontosGrafico = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return contas
+      .filter((c) => {
+        if (c.status === "CANCELADA") return false;
+        if (!statusSel.some((s) => casaStatus(c, s as StatusFiltro))) return false;
+        if (naturezaFiltro !== "" && !naturezasDoTitulo(c).some((n) => n.id === naturezaFiltro)) return false;
+        if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
+        if (soPendentes && !classificacaoPendente(c)) return false;
+        if (!q) return true;
+        const o = origemPagar(c);
+        return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
+          .some((v) => v?.toLowerCase().includes(q));
+      })
+      .map((c) => ({
+        venc: isoDia(c.dataVencimento) || null,
+        valor: c.status === "PAGA"
+          ? decimalToNumber(c.valorOriginal)
+          : Math.max(0, decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)),
+      }));
+  }, [contas, statusSel, naturezaFiltro, fornecedorFiltro, busca, soPendentes]);
   // Totais dos blocos, recortando a base por categoria de status.
   const totais = useMemo(() => {
     const now = new Date();
@@ -787,8 +841,34 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             { value: "fornecedor", label: "Por fornecedor" },
           ]}
         />
-        {/* Período por data de vencimento. */}
-        <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período (vencimento)" />
+        {/* Recorte de data (padrão: MÊS). Mostra o mês selecionado + vencidos em
+            aberto dos meses anteriores; clicar no rótulo alterna Todos ↔ mês
+            atual. Período custom (DateRangePicker) desliga o modo mês. */}
+        {modoMes && (
+          <div className="inline-flex items-center h-9 rounded-lg border border-border bg-card overflow-hidden">
+            <button type="button" onClick={() => mudarMes(-1)} disabled={mes === "TODOS"}
+              className="h-full px-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" title="Mês anterior">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button type="button"
+              onClick={() => setMes((m) => m === "TODOS"
+                ? `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
+                : "TODOS")}
+              title="Mês do vencimento — inclui o vencido em aberto dos meses anteriores. Clique para alternar Todos ↔ mês atual."
+              className="h-full px-2 min-w-[6.5rem] text-xs font-medium text-foreground hover:bg-muted capitalize">
+              {mes === "TODOS" ? "Todos os meses" : (() => {
+                const [a, m] = mes.split("-").map(Number);
+                return new Date(a, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+              })()}
+            </button>
+            <button type="button" onClick={() => mudarMes(1)} disabled={mes === "TODOS"}
+              className="h-full px-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" title="Próximo mês">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        {/* Período custom por data de vencimento (substitui o modo mês). */}
+        <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período personalizado" />
         {/* Filtro rápido: classificação pendente (sem natureza e/ou sem centro). */}
         <button
           type="button"
@@ -839,6 +919,19 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           </div>
         )}
       </div>
+        {/* Vista: tabela × gráfico (acumulado por vencimento). */}
+        <div className="inline-flex items-center h-9 rounded-lg border border-border overflow-hidden shrink-0">
+          <button type="button" onClick={() => setVista("tabela")} title="Ver em tabela"
+            className={cn("h-full px-2.5 text-xs font-medium inline-flex items-center gap-1.5 transition-colors",
+              vista === "tabela" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
+            <Table2 className="w-3.5 h-3.5" /> Tabela
+          </button>
+          <button type="button" onClick={() => setVista("grafico")} title="Ver o acumulado por vencimento em gráfico"
+            className={cn("h-full px-2.5 text-xs font-medium inline-flex items-center gap-1.5 transition-colors",
+              vista === "grafico" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
+            <ChartNoAxesCombined className="w-3.5 h-3.5" /> Gráfico
+          </button>
+        </div>
         <NovaContaButton tipo="pagar" />
       </div>
       {/* Linha 2: totais em blocos compactos coloridos — clicáveis, cada um
@@ -876,6 +969,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         );
       })()}
       </div>
+      {vista === "grafico" ? (
+        <ContasPagarGrafico pontos={pontosGrafico} />
+      ) : (
       <DataTable
         data={contasFiltradas}
         columns={colsParaTabela}
@@ -890,6 +986,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         groupBy={groupByFn}
         renderGroupHeader={renderGrupoHeader}
       />
+      )}
       {detalhe && (() => {
         const podePagar = detalhe.status !== "PAGA" && detalhe.status !== "CANCELADA";
         const vo = decimalToNumber(detalhe.valorOriginal);
@@ -989,6 +1086,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               contas={contasBanco}
               total={saldo}
               menuMinWidth={340}
+              contaPlaceholder="Conta de pagamento"
             />
             {/* Encargos da baixa: juros/multa saem do caixa além do título; a
                 taxa/tarifa é retida (paga MENOS) — quitação = linhas + taxa. */}

@@ -11,7 +11,10 @@ export default async function ContasPagarPage() {
       fornecedor: { select: { id: true, razaoSocial: true } },
       contaBancaria: { select: { id: true, nome: true } },
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
-      naturezas: { select: { naturezaFinanceiraId: true, detalhamento: true, valor: true } },
+      // Split de naturezas COM código/nome (coluna e filtro de natureza na tabela)
+      // + natureza única do título (legado sem split).
+      naturezas: { select: { naturezaFinanceiraId: true, detalhamento: true, valor: true, naturezaFinanceira: { select: { codigo: true, nome: true } } } },
+      naturezaFinanceira: { select: { id: true, codigo: true, nome: true } },
       formaPagamentoPrevista: { select: { id: true, nome: true, tipo: true } },
       centroCusto: { select: { codigo: true, nome: true } },
       // DE de origem (pedido OU avulsa): número clicável + TES/centro dos itens
