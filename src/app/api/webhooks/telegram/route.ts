@@ -2,7 +2,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+// prismaSemEscopo: webhook não tem sessão — o `prisma` escopado cairia na
+// empresa padrão (Tramontin) e aprovações de cotações das demais empresas
+// não achariam a cotação (rollback silencioso). Mesmo padrão do webhook do
+// WhatsApp.
+import { prismaSemEscopo as prisma } from "@/lib/prisma";
 import { answerCallbackQuery, escMD, sendTelegramDM, sendTelegramDocument } from "@/lib/telegram";
 import { buildRelatorioEstoque, parseRelatorioDate } from "@/lib/relatorio-estoque";
 import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
