@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida, cn } from "@/lib/utils";
-import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers, UserRound, BookOpen, CircleDot } from "lucide-react";
+import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers, UserRound, BookOpen, CircleDot, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined } from "lucide-react";
+import TitulosGrafico from "@/components/financeiro/TitulosGrafico";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
@@ -142,6 +143,8 @@ const STATUS_RECEBER_KEYS = STATUS_RECEBER.map((s) => s.key) as string[];
 
 // Conjuntos de status por bloco de total (clique nos totais aplica um preset).
 const SET_ABERTO = ["ABERTA", "PARCIAL"];
+// "A Receber" = com vencimento (vencidas + a vencer); sem vencimento tem bloco próprio.
+const SET_A_RECEBER = ["VENCIDA", "A_VENCER"];
 const SET_VENCIDO = ["VENCIDA"];
 const SET_A_VENCER = ["A_VENCER"];
 const SET_SEM_VENC = ["SEM_VENCIMENTO"];
@@ -168,6 +171,21 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-receber:periodo", { from: "", to: "" });
   // Barra de filtros padrão (funil + chips) — ver shared/FilterBar.
   const filterBar = useFilterBar("financeiro:contas-receber:filtros", ["status"]);
+  // Vista: tabela (padrão) ou gráfico (barras por vencimento) — como no CP.
+  const [vista, setVista] = usePersistedState<"tabela" | "grafico">("financeiro:contas-receber:vista", "tabela");
+  // Filtro por MÊS (padrão, ativo sem período custom): títulos do mês + carry-over
+  // em aberto dos meses anteriores. Abre no mês corrente; "TODOS" desliga.
+  const [mes, setMes] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const mudarMes = (delta: number) => setMes((m) => {
+    if (m === "TODOS") return m;
+    const [a, mm] = m.split("-").map(Number);
+    const d = new Date(a, mm - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const modoMes = !periodo.from && !periodo.to;
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
@@ -202,16 +220,28 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   // categoria de status) — assim os blocos refletem cliente/conta/período/busca.
   const contasBase = useMemo(() => {
     const q = busca.trim().toLowerCase();
+    // Recorte de data: período custom quando definido; senão o MODO MÊS (padrão) —
+    // títulos com vencimento no mês + carry-over EM ABERTO (vencidos de meses
+    // anteriores e sem vencimento). Igual ao Contas a Pagar.
+    const passaData = (c: ContaRow): boolean => {
+      if (periodo.from || periodo.to) return dentroDoPeriodo(c, periodo);
+      if (mes === "TODOS") return true;
+      const iso = isoDia(c.dataVencimento);
+      const ini = `${mes}-01`;
+      if (iso && iso >= ini && iso <= `${mes}-31`) return true;
+      const emAberto = c.status === "ABERTA" || c.status === "PARCIAL";
+      return emAberto && (!iso || iso < ini);
+    };
     return contas.filter((c) => {
       if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
       if (clienteFiltro !== "" && c.cliente?.id !== clienteFiltro) return false;
-      if (!dentroDoPeriodo(c, periodo)) return false;
+      if (!passaData(c)) return false;
       if (!q) return true;
       const o = origemReceber(c);
       return [c.numero, c.cliente?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, contaFiltro, clienteFiltro, busca, periodo]);
+  }, [contas, contaFiltro, clienteFiltro, busca, periodo, mes]);
   const contasFiltradas = useMemo(
     () => contasBase.filter((c) => statusSel.some((s) => casaStatus(c, s as StatusFiltro))),
     [contasBase, statusSel],
@@ -233,8 +263,47 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) recebidoMes += decimalToNumber(c.valorPago);
       }
     }
-    return { emAberto, vencido, aVencer, semVenc, recebidoMes };
+    // A Receber DESCONSIDERA os sem vencimento (eles têm o próprio bloco).
+    return { aReceber: vencido + aVencer, vencido, aVencer, semVenc, recebidoMes };
   }, [contasBase]);
+  // SALDO de todo o Contas a Receber (em aberto, inclusive sem vencimento) —
+  // ignora mês/período e filtros; fica ao lado do navegador de mês.
+  const saldoTotal = useMemo(
+    () => contas.reduce((s, c) => (c.status === "ABERTA" || c.status === "PARCIAL")
+      ? s + decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)
+      : s, 0),
+    [contas],
+  );
+  // Gráfico (barras por vencimento): mesmos filtros MENOS o recorte de data —
+  // o horizonte é a carteira inteira. Valor = saldo em aberto; PAGA entra pelo
+  // original (só aparece se o filtro de status incluir recebidas).
+  const pontosGrafico = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return contas
+      .filter((c) => {
+        if (c.status === "CANCELADA") return false;
+        if (!statusSel.some((s) => casaStatus(c, s as StatusFiltro))) return false;
+        if (contaFiltro !== "" && !(c.contasContrapartida ?? []).some((cc) => cc.id === contaFiltro)) return false;
+        if (clienteFiltro !== "" && c.cliente?.id !== clienteFiltro) return false;
+        if (!q) return true;
+        const o = origemReceber(c);
+        return [c.numero, c.cliente?.razaoSocial, c.descricao, o.ref, o.label]
+          .some((v) => v?.toLowerCase().includes(q));
+      })
+      .map((c) => ({
+        venc: isoDia(c.dataVencimento) || null,
+        valor: c.status === "PAGA"
+          ? decimalToNumber(c.valorOriginal)
+          : Math.max(0, decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)),
+        // Detalhe p/ o popup da barra (lista de títulos do período clicado).
+        id: c.id,
+        numero: c.numero,
+        fornecedor: c.cliente?.razaoSocial ?? null,
+        descricao: c.descricao ?? null,
+        parcela: c.parcelaTotal ? `${c.parcelaNumero}/${c.parcelaTotal}` : "Única",
+        status: c.status,
+      }));
+  }, [contas, statusSel, contaFiltro, clienteFiltro, busca]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
@@ -692,6 +761,38 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             </button>
           )}
         </div>
+        {/* Recorte de data (padrão: MÊS) — igual ao Contas a Pagar. Clicar no
+            rótulo alterna Todos ↔ mês atual; período custom (chip) desliga. */}
+        {modoMes && (
+          <div className="inline-flex items-center h-9 rounded-lg border border-border bg-card overflow-hidden">
+            <button type="button" onClick={() => mudarMes(-1)} disabled={mes === "TODOS"}
+              className="h-full px-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" title="Mês anterior">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button type="button"
+              onClick={() => setMes((m) => m === "TODOS"
+                ? `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
+                : "TODOS")}
+              title="Mês do vencimento — inclui o vencido em aberto dos meses anteriores. Clique para alternar Todos ↔ mês atual."
+              className="h-full px-2 min-w-[6.5rem] text-xs font-medium text-foreground hover:bg-muted capitalize">
+              {mes === "TODOS" ? "Todos os meses" : (() => {
+                const [a, m] = mes.split("-").map(Number);
+                return new Date(a, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+              })()}
+            </button>
+            <button type="button" onClick={() => mudarMes(1)} disabled={mes === "TODOS"}
+              className="h-full px-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" title="Próximo mês">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        {/* SALDO de todo o CR (em aberto, inclusive sem vencimento) — não muda
+            com o mês nem com os filtros. */}
+        <div className="inline-flex items-center gap-2 h-9 rounded-lg bg-muted px-3"
+          title="Saldo em aberto de todo o Contas a Receber (inclui sem vencimento; não muda com mês/filtros)">
+          <span className="text-xs font-medium text-foreground">Saldo</span>
+          <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(saldoTotal)}</span>
+        </div>
       </div>
         {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
         <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
@@ -710,6 +811,19 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             { value: "cliente", label: "Por cliente" },
           ]}
         />
+        {/* Vista: tabela × gráfico (barras por vencimento). */}
+        <div className="inline-flex items-center h-9 rounded-lg border border-border overflow-hidden shrink-0">
+          <button type="button" onClick={() => setVista("tabela")} title="Ver em tabela"
+            className={cn("h-full px-2.5 inline-flex items-center transition-colors",
+              vista === "tabela" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
+            <Table2 className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={() => setVista("grafico")} title="Ver as contas por vencimento em gráfico"
+            className={cn("h-full px-2.5 inline-flex items-center transition-colors",
+              vista === "grafico" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
+            <ChartNoAxesCombined className="w-4 h-4" />
+          </button>
+        </div>
         <NovaContaButton tipo="receber" />
       </div>
       {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
@@ -720,10 +834,10 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_RECEBER_KEYS : set));
         return (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_ABERTO) && "ring-2 ring-warning")}>
-            <span className="text-xs font-medium text-warning">Em aberto</span>
-            <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(totais.emAberto)}</span>
+          <button type="button" onClick={() => toggle(SET_A_RECEBER)} title="Filtrar por Vencidas + A vencer (sem vencimento fica de fora)"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_A_RECEBER) && "ring-2 ring-warning")}>
+            <span className="text-xs font-medium text-warning">A Receber</span>
+            <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(totais.aReceber)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_VENCIDO)} title="Filtrar por Vencidas"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
@@ -749,6 +863,20 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         );
       })()}
       </div>
+      {vista === "grafico" ? (
+        <TitulosGrafico
+          pontos={pontosGrafico}
+          titulo="Contas a receber por vencimento"
+          subtitulo="Respeita os filtros de status/cliente/conta; o recorte de mês/período não se aplica (horizonte completo)."
+          parceiroHeader="Cliente"
+          rotuloPago="Recebido"
+          granKey="financeiro:contas-receber:grafico-gran"
+          onAbrirTitulo={(tituloId) => {
+            const c = contas.find((x) => x.id === tituloId);
+            if (c) setDetalhe(c);
+          }}
+        />
+      ) : (
       <DataTable
         data={contasFiltradas}
         columns={colsParaTabela}
@@ -763,6 +891,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         groupBy={groupByFn}
         renderGroupHeader={renderGrupoHeader}
       />
+      )}
       {detalhe && (() => {
         const podeReceber = detalhe.status !== "PAGA" && detalhe.status !== "CANCELADA";
         const podeEstornar = detalhe.status === "PAGA" || detalhe.status === "PARCIAL";

@@ -22,7 +22,7 @@ import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
 import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, CircleDot } from "lucide-react";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
-import ContasPagarGrafico from "@/components/financeiro/ContasPagarGrafico";
+import TitulosGrafico from "@/components/financeiro/TitulosGrafico";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
@@ -356,6 +356,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         numero: c.numero,
         fornecedor: c.fornecedor?.razaoSocial ?? null,
         descricao: c.descricao ?? null,
+        parcela: c.parcelaTotal ? `${c.parcelaNumero}/${c.parcelaTotal}` : "Única",
         status: c.status,
       }));
   }, [contas, statusSel, naturezaFiltro, fornecedorFiltro, busca]);
@@ -980,7 +981,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       })()}
       </div>
       {vista === "grafico" ? (
-        <ContasPagarGrafico
+        <TitulosGrafico
           pontos={pontosGrafico}
           onAbrirTitulo={(tituloId) => {
             const c = contas.find((x) => x.id === tituloId);

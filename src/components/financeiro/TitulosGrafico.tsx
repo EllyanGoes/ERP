@@ -1,6 +1,7 @@
 "use client";
 
-// Visão GRÁFICO do Contas a Pagar: BARRAS do valor a pagar por data de
+// Visão GRÁFICO dos títulos (Contas a Pagar E a Receber — rótulos por props):
+// BARRAS do valor por data de
 // vencimento, com granularidade dia/mês/ano. Recebe os títulos já filtrados por
 // status/fornecedor/natureza/busca (o recorte de período/mês NÃO se aplica aqui —
 // o gráfico mostra o horizonte inteiro da dívida). Série única (sem legenda);
@@ -25,6 +26,7 @@ export type PontoGrafico = {
   numero?: string;
   fornecedor?: string | null;
   descricao?: string | null;
+  parcela?: string | null;
   status?: string;
 };
 type Granularidade = "dia" | "mes" | "ano";
@@ -55,13 +57,26 @@ function brlCompacto(v: number): string {
   return v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 }
 
-export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
+export default function TitulosGrafico({
+  pontos, onAbrirTitulo,
+  titulo = "Contas a pagar por vencimento",
+  subtitulo = "Respeita os filtros de status/fornecedor/natureza; o recorte de mês/período não se aplica (horizonte completo).",
+  parceiroHeader = "Fornecedor",
+  rotuloPago = "Pago",
+  granKey = "financeiro:contas-pagar:grafico-gran",
+}: {
   pontos: PontoGrafico[];
-  // Clique no Nº do título dentro do popup da barra — abre o detalhe do CP
+  // Clique no Nº do título dentro do popup da barra — abre o detalhe do título
   // (o pai, que conhece as contas, decide como abrir).
   onAbrirTitulo?: (id: string) => void;
+  // Rótulos parametrizáveis: o mesmo gráfico atende Contas a Pagar e a Receber.
+  titulo?: string;
+  subtitulo?: string;
+  parceiroHeader?: string;
+  rotuloPago?: string;
+  granKey?: string;
 }) {
-  const [gran, setGran] = usePersistedState<Granularidade>("financeiro:contas-pagar:grafico-gran", "mes");
+  const [gran, setGran] = usePersistedState<Granularidade>(granKey, "mes");
   // Barra clicada → popup com a lista de títulos do período.
   const [bucketAberto, setBucketAberto] = useState<string | null>(null);
 
@@ -107,16 +122,16 @@ export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
     <div className="rounded-xl border border-border bg-card shadow-md px-4 pt-3 pb-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-foreground">Contas a pagar por vencimento</p>
+          <p className="text-sm font-semibold text-foreground">{titulo}</p>
           <p className="text-[11px] text-muted-foreground">
-            Respeita os filtros de status/fornecedor/natureza; o recorte de mês/período não se aplica (horizonte completo).
+            {subtitulo}
             {semVenc.qtd > 0 && <> · {semVenc.qtd} título(s) sem vencimento fora do gráfico ({formatBRL(semVenc.total)})</>}
           </p>
         </div>
         <div className="flex items-center gap-4">
           {/* Legenda dos status (série empilhada). */}
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-            {([["vencido", "Vencido"], ["aVencer", "A vencer"], ["pago", "Pago"]] as const).map(([k, rot]) => (
+            {([["vencido", "Vencido"], ["aVencer", "A vencer"], ["pago", rotuloPago]] as const).map(([k, rot]) => (
               <span key={k} className="inline-flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-sm" style={{ background: COR_STATUS[k] }} />
                 {rot}
@@ -157,7 +172,7 @@ export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
                 const linhas = [
                   { rot: "Vencido", v: p.vencido ?? 0, cor: COR_STATUS.vencido },
                   { rot: "A vencer", v: p.aVencer ?? 0, cor: COR_STATUS.aVencer },
-                  { rot: "Pago", v: p.pago ?? 0, cor: COR_STATUS.pago },
+                  { rot: rotuloPago, v: p.pago ?? 0, cor: COR_STATUS.pago },
                 ].filter((l) => l.v > 0);
                 return (
                   <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-md space-y-0.5" style={{ fontSize: 12 }}>
@@ -184,7 +199,7 @@ export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
             {([
               ["vencido", "Vencido", COR_STATUS.vencido, false],
               ["aVencer", "A vencer", COR_STATUS.aVencer, false],
-              ["pago", "Pago", COR_STATUS.pago, true],
+              ["pago", rotuloPago, COR_STATUS.pago, true],
             ] as const).map(([key, nome, cor, topo]) => (
               <Bar key={key} dataKey={key} name={nome} stackId="s"
                 fill={cor} fillOpacity={0.85}
@@ -206,7 +221,7 @@ export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
       <Dialog open={!!bucketAberto} onOpenChange={(o) => !o && setBucketAberto(null)}>
         {/* Largura explícita: o DialogContent tem sm:max-w-sm no base — a tabela
             de títulos precisa de mais para não cortar Valor/Status. */}
-        <DialogContent className="w-[min(52rem,calc(100vw-2rem))] sm:max-w-none">
+        <DialogContent className="w-[min(68rem,calc(100vw-2rem))] sm:max-w-none">
           <DialogHeader>
             <DialogTitle>
               Títulos com vencimento em {bucketAberto ? labelBucket(bucketAberto, gran) : ""}
@@ -224,7 +239,8 @@ export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
                   <thead className="sticky top-0 bg-muted">
                     <tr className="border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                       <th className="text-left px-3 py-2">Nº Título</th>
-                      <th className="text-left px-3 py-2">Fornecedor</th>
+                      <th className="text-center px-3 py-2 w-20">Parcela</th>
+                      <th className="text-left px-3 py-2">{parceiroHeader}</th>
                       <th className="text-left px-3 py-2">Descrição</th>
                       <th className="text-left px-3 py-2">Vencimento</th>
                       <th className="text-right px-3 py-2">Valor</th>
@@ -240,15 +256,17 @@ export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
                               type="button"
                               className="text-info hover:underline"
                               title="Abrir o título"
-                              onClick={() => { setBucketAberto(null); onAbrirTitulo(p.id!); }}
+                              // Abre o detalhe POR CIMA — a lista do período fica aberta atrás.
+                              onClick={() => onAbrirTitulo(p.id!)}
                             >
                               {p.numero ?? "—"}
                             </button>
                           ) : (p.numero ?? "—")}
                         </td>
-                        <td className="px-3 py-2"><div className="truncate max-w-[12rem]">{p.fornecedor ?? "—"}</div></td>
+                        <td className="px-3 py-2 text-center text-muted-foreground whitespace-nowrap">{p.parcela ?? "—"}</td>
+                        <td className="px-3 py-2"><div className="truncate max-w-[14rem]">{p.fornecedor ?? "—"}</div></td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          <div className="truncate max-w-[16rem]" title={p.descricao ?? undefined}>{p.descricao ?? "—"}</div>
+                          <div className="truncate max-w-[24rem]" title={p.descricao ?? undefined}>{p.descricao ?? "—"}</div>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">{p.venc ? formatDate(p.venc) : "—"}</td>
                         <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{formatBRL(p.valor)}</td>
@@ -258,7 +276,7 @@ export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
                   </tbody>
                   <tfoot>
                     <tr className="bg-muted/60 border-t border-border font-semibold">
-                      <td colSpan={4} className="px-3 py-2 text-xs text-muted-foreground uppercase">
+                      <td colSpan={5} className="px-3 py-2 text-xs text-muted-foreground uppercase">
                         {doPeriodo.length} título(s)
                       </td>
                       <td className="px-3 py-2 text-right">{formatBRL(total)}</td>
