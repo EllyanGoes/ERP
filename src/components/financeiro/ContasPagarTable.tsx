@@ -222,6 +222,8 @@ const STATUS_PAGAR_KEYS = STATUS_PAGAR.map((s) => s.key) as string[];
 
 // Conjuntos de status por bloco de total (clique nos totais aplica um preset).
 const SET_ABERTO = ["ABERTA", "PARCIAL"];
+// "A Pagar" = com vencimento (vencidas + a vencer); sem vencimento fica no Total.
+const SET_A_PAGAR = ["VENCIDA", "A_VENCER"];
 const SET_VENCIDO = ["VENCIDA"];
 const SET_A_VENCER = ["A_VENCER"];
 const SET_SEM_VENC = ["SEM_VENCIMENTO"];
@@ -374,7 +376,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) pagoMes += decimalToNumber(c.valorPago);
       }
     }
-    return { emAberto, vencido, aVencer, semVenc, pagoMes };
+    // A Pagar DESCONSIDERA os sem vencimento; o Total inclui tudo em aberto.
+    return { aPagar: vencido + aVencer, total: emAberto, vencido, aVencer, semVenc, pagoMes };
   }, [contasBase]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
@@ -932,10 +935,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_PAGAR_KEYS : set));
         return (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_ABERTO) && "ring-2 ring-warning")}>
+          <button type="button" onClick={() => toggle(SET_A_PAGAR)} title="Filtrar por Vencidas + A vencer (sem vencimento fica de fora)"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_A_PAGAR) && "ring-2 ring-warning")}>
             <span className="text-xs font-medium text-warning">A Pagar</span>
-            <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(totais.emAberto)}</span>
+            <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(totais.aPagar)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_VENCIDO)} title="Filtrar por Vencidas"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
@@ -951,6 +954,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             className={cn("inline-flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-1.5 transition-shadow hover:bg-violet-500/20 cursor-pointer", mesmoSet(statusSel, SET_SEM_VENC) && "ring-2 ring-violet-500")}>
             <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Sem vencimento</span>
             <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(totais.semVenc)}</span>
+          </button>
+          {/* Total em aberto = A Pagar + Sem vencimento. */}
+          <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto (inclui sem vencimento)"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 transition-shadow hover:bg-muted/70 cursor-pointer", mesmoSet(statusSel, SET_ABERTO) && "ring-2 ring-foreground/40")}>
+            <span className="text-xs font-medium text-foreground">Total</span>
+            <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(totais.total)}</span>
           </button>
           <button type="button" onClick={() => toggle(SET_PAGO)} title="Filtrar por Pagas"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 transition-shadow hover:bg-success/20 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-success")}>
