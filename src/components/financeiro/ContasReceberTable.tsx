@@ -320,6 +320,9 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const [multa, setMulta] = useState("");
   const [taxa, setTaxa] = useState("");
   const [taxaNaturezaId, setTaxaNaturezaId] = useState("");
+  // "100" → "100,00" ao sair de qualquer campo de valor (formato BR).
+  const fmtCampoBR = (s: string) =>
+    s.trim() === "" ? "" : parseValorBR(s).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const [taxaNaturezas, setTaxaNaturezas] = useState<TaxaNaturezaOpt[]>([]);
   // Pagamentos registrados no pedido de origem do título selecionado (forma +
   // valor por linha) — pré-preenchem a baixa e alimentam o backstop do Caixa.
@@ -966,17 +969,17 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs">Juros (R$)</Label>
-                  <Input value={juros} onChange={(e) => setJuros(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={juros} onChange={(e) => setJuros(e.target.value)} onBlur={(e) => setJuros(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
                 <div>
                   <Label className="text-xs">Multa (R$)</Label>
-                  <Input value={multa} onChange={(e) => setMulta(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={multa} onChange={(e) => setMulta(e.target.value)} onBlur={(e) => setMulta(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
               </div>
               <div className="grid grid-cols-[9rem_1fr] gap-2">
                 <div>
                   <Label className="text-xs">Taxa/tarifa retida (R$)</Label>
-                  <Input value={taxa} onChange={(e) => setTaxa(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={taxa} onChange={(e) => setTaxa(e.target.value)} onBlur={(e) => setTaxa(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
                 <div>
                   <Label className="text-xs">Natureza da taxa</Label>

@@ -434,6 +434,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // classificação ABSORVE a diferença (título − demais linhas − encargos) — o
   // somatório exibido continua batendo com o valor do título. Chamado nos
   // onChange (síncrono, mesmo render) para o verificador não piscar.
+  // "100" → "100,00" ao sair de qualquer campo de valor (formato BR).
+  const fmtCampoBR = (s: string) =>
+    s.trim() === "" ? "" : parseValorBR(s).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const absorverEncargos = (j: string, m: string, t: string) => {
     if (!selected) return;
     const valOrig = decimalToNumber(selected.valorOriginal);
@@ -1136,15 +1139,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <Label className="text-xs">Juros (R$)</Label>
-                  <Input value={juros} onChange={(e) => { setJuros(e.target.value); absorverEncargos(e.target.value, multa, taxa); }} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={juros} onChange={(e) => { setJuros(e.target.value); absorverEncargos(e.target.value, multa, taxa); }} onBlur={(e) => setJuros(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
                 <div>
                   <Label className="text-xs">Multa (R$)</Label>
-                  <Input value={multa} onChange={(e) => { setMulta(e.target.value); absorverEncargos(juros, e.target.value, taxa); }} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={multa} onChange={(e) => { setMulta(e.target.value); absorverEncargos(juros, e.target.value, taxa); }} onBlur={(e) => setMulta(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
                 <div>
                   <Label className="text-xs">Taxa/tarifa retida (R$)</Label>
-                  <Input value={taxa} onChange={(e) => { setTaxa(e.target.value); absorverEncargos(juros, multa, e.target.value); }} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={taxa} onChange={(e) => { setTaxa(e.target.value); absorverEncargos(juros, multa, e.target.value); }} onBlur={(e) => setTaxa(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
               </div>
               {(() => {
@@ -1201,7 +1204,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                     <span className="text-xs text-muted-foreground/40 px-2" title="O centro de custo é do título inteiro (definido na 1ª linha)">〃</span>
                   )}
                   <Input value={l.detalhamento} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, detalhamento: e.target.value } : x)))} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
-                  <Input value={l.valor} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, valor: e.target.value } : x)))} placeholder="0,00" className="h-9 text-right font-mono min-w-0" />
+                  <Input value={l.valor} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, valor: e.target.value } : x)))} onBlur={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, valor: fmtCampoBR(e.target.value) } : x)))} placeholder="0,00" className="h-9 text-right font-mono min-w-0" />
                   <button type="button" onClick={() => setRateio((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={rateio.length <= 1} className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30">
                     <Trash2 className="w-4 h-4" />
                   </button>

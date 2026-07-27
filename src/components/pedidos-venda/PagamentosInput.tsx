@@ -242,7 +242,9 @@ export default function PagamentosInput({
         const semMaquineta = cartao && maquinetas != null && maquinetas.length === 0;
         return (
         <div key={l._key}>
-        <div className={cn("grid gap-2 items-center", mostrarConta ? "grid-cols-[1fr_1fr_5rem_auto]" : "grid-cols-[1fr_5rem_auto]")}>
+        {/* minmax(0,1fr) nos comboboxes: eles ENCOLHEM em vez de empurrar o
+            campo de valor (6.5rem fixos) para fora da linha. */}
+        <div className={cn("grid gap-2 items-center", mostrarConta ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6.5rem_auto]" : "grid-cols-[minmax(0,1fr)_6.5rem_auto]")}>
           <div className="min-w-0">
             <ComboboxWithCreate
               value={l.forma}
@@ -266,8 +268,9 @@ export default function PagamentosInput({
               onChange={(v) => up(l._key, "maquinetaId", v)}
               allowNone={false}
               placeholder="— Maquineta —"
+              className="min-w-0"
               menuMinWidth={menuMinWidth}
-              triggerClassName={cn("h-9 rounded-lg", valorNum > 0 && !l.maquinetaId && "border-red-400 bg-danger/10 text-danger")}
+              triggerClassName={cn("h-9 rounded-lg w-full min-w-0", valorNum > 0 && !l.maquinetaId && "border-red-400 bg-danger/10 text-danger")}
               options={(maquinetas ?? []).map((m) => ({ value: m.id, label: m.nome }))}
             />
           ) : mostrarConta ? (() => {
@@ -280,8 +283,9 @@ export default function PagamentosInput({
                 onChange={(v) => up(l._key, "contaBancariaId", v)}
                 allowNone={false}
                 placeholder={contaPlaceholder}
+                className="min-w-0"
                 menuMinWidth={menuMinWidth}
-                triggerClassName={cn("h-9 rounded-lg", invalida && "border-red-400 bg-danger/10 text-danger")}
+                triggerClassName={cn("h-9 rounded-lg w-full min-w-0", invalida && "border-red-400 bg-danger/10 text-danger")}
                 options={[
                   // Divisão: contas da EMPRESA primeiro; contas de TERCEIROS
                   // (dinheiro de 3º sob guarda — 1.1.6) num grupo separado.
@@ -295,6 +299,12 @@ export default function PagamentosInput({
           <input
             value={l.valor}
             onChange={(e) => up(l._key, "valor", e.target.value)}
+            // Ao sair do campo, normaliza p/ o formato BR ("100" → "100,00").
+            onBlur={(e) => {
+              const s = e.target.value.trim();
+              if (s === "") return;
+              up(l._key, "valor", parseValorBR(s).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            }}
             placeholder="0,00"
             className="h-9 w-full min-w-0 rounded-lg border border-border px-2 text-sm text-right font-mono bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -325,17 +335,23 @@ export default function PagamentosInput({
         );
       })}
 
-      <div className="flex items-center justify-between text-sm pt-1">
-        <span className="text-muted-foreground">Pago: <span className="font-semibold text-foreground tabular-nums">{formatBRL(pago)}</span></span>
-        {falta > 0.001 ? (
-          <span className="font-bold text-danger tabular-nums">Falta {formatBRL(falta)}</span>
-        ) : trocoValido ? (
-          <span className="font-bold text-warning tabular-nums">Troco {formatBRL(excesso)}</span>
-        ) : excesso > 0.001 ? (
-          <span className="font-bold text-danger tabular-nums">Excesso sem dinheiro {formatBRL(excesso)}</span>
-        ) : (
-          <span className="font-bold text-success">Pagamento fecha ✓</span>
-        )}
+      {/* Verificador do pagamento — mesma barra da classificação: verde quando
+          fecha, vermelho com a falta/excesso, âmbar com troco. */}
+      <div className={cn(
+        "flex items-center justify-between rounded-lg px-3 py-2",
+        falta > 0.001 ? "bg-danger/10 text-danger"
+          : trocoValido ? "bg-warning/10 text-warning"
+          : excesso > 0.001 ? "bg-danger/10 text-danger"
+          : "bg-success/10 text-success",
+      )}>
+        <span className="text-xs font-semibold uppercase tracking-wide">Pagamento</span>
+        <span className="text-sm font-bold tabular-nums">
+          {formatBRL(pago)} / {formatBRL(total)}{" "}
+          {falta > 0.001 ? `· falta ${formatBRL(falta)}`
+            : trocoValido ? `· troco ${formatBRL(excesso)}`
+            : excesso > 0.001 ? `· excesso sem dinheiro ${formatBRL(excesso)}`
+            : "✓"}
+        </span>
       </div>
     </div>
   );
