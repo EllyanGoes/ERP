@@ -99,8 +99,8 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
       {serie.length === 0 ? (
         <p className="text-sm text-muted-foreground py-14 text-center">Nenhum título com vencimento nos filtros atuais.</p>
       ) : (
-        {/* Altura acompanha a viewport (aproveita a área abaixo do gráfico);
-            o mínimo preserva a leitura em janelas baixas. */}
+        // Altura acompanha a viewport (aproveita a área abaixo do gráfico);
+        // o mínimo preserva a leitura em janelas baixas.
         <div className="h-[max(380px,calc(100vh-27rem))]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={serie} margin={{ top: 16, right: 12, bottom: 4, left: 8 }}>
