@@ -99,7 +99,10 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
       {serie.length === 0 ? (
         <p className="text-sm text-muted-foreground py-14 text-center">Nenhum título com vencimento nos filtros atuais.</p>
       ) : (
-        <ResponsiveContainer width="100%" height={380}>
+        {/* Altura acompanha a viewport (aproveita a área abaixo do gráfico);
+            o mínimo preserva a leitura em janelas baixas. */}
+        <div className="h-[max(380px,calc(100vh-27rem))]">
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={serie} margin={{ top: 16, right: 12, bottom: 4, left: 8 }}>
             <CartesianGrid vertical={false} stroke="#94a3b8" strokeOpacity={0.18} />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
@@ -134,6 +137,7 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
               }} />
           </ComposedChart>
         </ResponsiveContainer>
+        </div>
       )}
 
       {/* Popup da barra clicada: lista dos títulos com vencimento no período. */}
