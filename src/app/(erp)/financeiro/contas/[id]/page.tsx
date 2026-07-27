@@ -13,7 +13,8 @@ import DateRangePicker from "@/components/shared/DateRangePicker";
 import { Autoria } from "@/components/shared/Autoria";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn, formatBRL, formatDate } from "@/lib/utils";
-import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, FileDown, Loader2, Plus, Search, X } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, ArrowLeftRight, CalendarDays, FileDown, Loader2, Plus, Search, X } from "lucide-react";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 
 type EmpresaContato = { razaoSocial: string; nomeFantasia: string | null };
 type ExtratoLinha = {
@@ -76,6 +77,8 @@ export default function ExtratoContaPage() {
   );
   const de = periodo.from;
   const ate = periodo.to;
+  // Barra de filtros padrão (shared/FilterBar): funil na toolbar + linha de chips.
+  const filterBar = useFilterBar("financeiro:conta-extrato:filtros", ["periodo", "fluxo"]);
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [novoOpen, setNovoOpen] = useState(false);
   const [aviso, setAviso] = useState("");
@@ -118,6 +121,61 @@ export default function ExtratoContaPage() {
       return !!buscaValor && Number(l.valor).toFixed(2).includes(buscaValor);
     });
   }, [conta, busca, fluxo]);
+
+  // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
+  // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarDays className="w-4 h-4 text-muted-foreground" />,
+      ativo: Boolean(de || ate),
+      limpar: () => setPeriodo({ from: "", to: "" }),
+      render: () => (
+        <DateRangePicker
+          value={{ from: de, to: ate }}
+          onChange={(r) => setPeriodo({ from: r.from, to: r.to })}
+          placeholder="Período"
+          triggerClassName={CHIP_TRIGGER}
+        />
+      ),
+    },
+    {
+      key: "fluxo", label: "Entradas / Saídas",
+      icon: <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />,
+      ativo: fluxo !== "TODOS",
+      limpar: () => setFluxo("TODOS"),
+      render: () => (
+        <span className="inline-flex items-center gap-1">
+          <button
+            onClick={() => setFluxo(fluxo === "ENTRADA" ? "TODOS" : "ENTRADA")}
+            className={cn(
+              CHIP_TRIGGER,
+              "inline-flex items-center gap-1.5 border font-medium transition-colors whitespace-nowrap",
+              fluxo === "ENTRADA"
+                ? "border-success/40 bg-success/10 text-success"
+                : "border-border bg-card text-muted-foreground hover:bg-muted"
+            )}
+            title="Mostrar só entradas"
+          >
+            <ArrowUpRight className="w-3.5 h-3.5" /> Entradas
+          </button>
+          <button
+            onClick={() => setFluxo(fluxo === "SAIDA" ? "TODOS" : "SAIDA")}
+            className={cn(
+              CHIP_TRIGGER,
+              "inline-flex items-center gap-1.5 border font-medium transition-colors whitespace-nowrap",
+              fluxo === "SAIDA"
+                ? "border-danger/40 bg-danger/10 text-danger"
+                : "border-border bg-card text-muted-foreground hover:bg-muted"
+            )}
+            title="Mostrar só saídas"
+          >
+            <ArrowDownLeft className="w-3.5 h-3.5" /> Saídas
+          </button>
+        </span>
+      ),
+    },
+  ];
 
   async function baixarPdf() {
     if (!conta) return;
@@ -215,13 +273,11 @@ export default function ExtratoContaPage() {
               </div>
             </div>
 
-            {/* Filtros (período, busca, entrada/saída) + PDF */}
+            {/* Toolbar (estilo Notion): busca à esquerda; funil + ações à direita.
+                Os FILTROS (período, entrada/saída) viram chips numa linha própria,
+                revelada pelo funil ou por filtro ativo. */}
+            <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3">
-              <DateRangePicker
-                value={{ from: de, to: ate }}
-                onChange={(r) => setPeriodo({ from: r.from, to: r.to })}
-                placeholder="Período"
-              />
               <div className="relative flex-1 min-w-[200px] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
@@ -239,31 +295,9 @@ export default function ExtratoContaPage() {
                   </button>
                 )}
               </div>
-              <button
-                onClick={() => setFluxo(fluxo === "ENTRADA" ? "TODOS" : "ENTRADA")}
-                className={cn(
-                  "flex items-center gap-1.5 h-9 px-3 text-sm border rounded-lg transition-colors whitespace-nowrap",
-                  fluxo === "ENTRADA"
-                    ? "border-success/40 bg-success/10 text-success"
-                    : "border-border bg-card text-muted-foreground hover:bg-muted"
-                )}
-                title="Mostrar só entradas"
-              >
-                <ArrowUpRight className="w-3.5 h-3.5" /> Entradas
-              </button>
-              <button
-                onClick={() => setFluxo(fluxo === "SAIDA" ? "TODOS" : "SAIDA")}
-                className={cn(
-                  "flex items-center gap-1.5 h-9 px-3 text-sm border rounded-lg transition-colors whitespace-nowrap",
-                  fluxo === "SAIDA"
-                    ? "border-danger/40 bg-danger/10 text-danger"
-                    : "border-border bg-card text-muted-foreground hover:bg-muted"
-                )}
-                title="Mostrar só saídas"
-              >
-                <ArrowDownLeft className="w-3.5 h-3.5" /> Saídas
-              </button>
               <div className="flex-1" />
+              {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+              <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
               <Button size="sm" onClick={() => setNovoOpen(true)} className="h-9 gap-1.5">
                 <Plus className="w-4 h-4" /> Novo Lançamento
               </Button>
@@ -271,6 +305,9 @@ export default function ExtratoContaPage() {
                 {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
                 Baixar PDF
               </Button>
+            </div>
+            {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+            <FilterBarChips bar={filterBar} chips={chipsFiltro} />
             </div>
 
             <div className="rounded-xl border border-border bg-card overflow-hidden">

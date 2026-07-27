@@ -5,6 +5,7 @@ import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePi
 import Dica from "@/components/shared/Dica";
 import { corArea, iconeArea } from "@/lib/pcp/area-visual";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import PrintButton from "@/components/shared/PrintButton";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -151,36 +152,62 @@ export default function RelatorioProducaoPage() {
     return out;
   }, [porDia, areaSel, from, to, granularidade]);
 
+  // Barra de filtros padrão (shared/FilterBar): o período fica na toolbar
+  // (insumo principal — vazio = mês atual); o fluxo de produção vira chip.
+  const filterBar = useFilterBar("pcp:rel-producao:filtros", ["fluxo"]);
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "fluxo", label: "Fluxo de produção",
+      icon: <Factory className="w-4 h-4 text-muted-foreground" />,
+      disponivel: fluxos.length > 0,
+      ativo: fluxoId !== "",
+      limpar: () => setFluxoId(""),
+      render: () => (
+        <ComboboxWithCreate
+          value={fluxoId}
+          onChange={setFluxoId}
+          allowNone
+          noneLabel="Todos os fluxos"
+          placeholder="Fluxo de produção"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          menuMinWidth={280}
+          options={fluxos.map((f) => ({ value: f.id, label: f.nome }))}
+        />
+      ),
+    },
+  ];
+
   return (
     <div>
       {/* Sem PageHeader: aproveitamento de tela — o Imprimir mora na linha de filtros. */}
       <div className="px-8 pt-4 pb-10 space-y-4">
-        {/* Filtros */}
-        <div className="no-print flex flex-wrap items-end gap-3">
-          <div className="min-w-[15rem]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Fluxo de produção</label>
-            <ComboboxWithCreate value={fluxoId} onChange={setFluxoId} allowNone noneLabel="Todos os fluxos" triggerClassName="h-9 rounded-lg"
-              options={fluxos.map((f) => ({ value: f.id, label: f.nome }))} />
-          </div>
-          <div className="min-w-[15rem]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Período <span className="text-muted-foreground/60">(vazio = mês atual)</span></label>
-            <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período — mês atual" />
-          </div>
-          <button onClick={carregar} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
-            <RefreshCw className={carregando ? "w-4 h-4 animate-spin" : "w-4 h-4"} /> Atualizar
-          </button>
-          {/* Totais do período, ao lado do Atualizar. */}
-          <div className="flex items-center gap-3 ml-2">
-            <div className="rounded-lg border border-border bg-card px-3 py-1">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Produzido</p>
-              <p className="text-sm font-bold tabular-nums text-foreground leading-tight">{n(totalPecas)} <span className="text-[10px] font-normal text-muted-foreground">{unidadeArea}</span></p>
+        {/* Toolbar enxuta (estilo Notion): período + funil + atualizar + totais;
+            o fluxo de produção vira chip na linha abaixo. */}
+        <div className="no-print space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-[15rem]">
+              <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período — mês atual" />
             </div>
-            <div className="rounded-lg border border-border bg-card px-3 py-1">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Perda</p>
-              <p className="text-sm font-bold tabular-nums text-amber-600 leading-tight">{n(totalPerda)} <span className="text-[10px] font-normal text-muted-foreground">{unidadeArea} · {pctPerda(totalPecas, totalPerda)}</span></p>
+            {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+            <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
+            <button onClick={carregar} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
+              <RefreshCw className={carregando ? "w-4 h-4 animate-spin" : "w-4 h-4"} /> Atualizar
+            </button>
+            {/* Totais do período, ao lado do Atualizar. */}
+            <div className="flex items-center gap-3 ml-2">
+              <div className="rounded-lg border border-border bg-card px-3 py-1">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Produzido</p>
+                <p className="text-sm font-bold tabular-nums text-foreground leading-tight">{n(totalPecas)} <span className="text-[10px] font-normal text-muted-foreground">{unidadeArea}</span></p>
+              </div>
+              <div className="rounded-lg border border-border bg-card px-3 py-1">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Perda</p>
+                <p className="text-sm font-bold tabular-nums text-amber-600 leading-tight">{n(totalPerda)} <span className="text-[10px] font-normal text-muted-foreground">{unidadeArea} · {pctPerda(totalPecas, totalPerda)}</span></p>
+              </div>
             </div>
+            <div className="ml-auto"><PrintButton /></div>
           </div>
-          <div className="no-print ml-auto"><PrintButton /></div>
+          {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+          <FilterBarChips bar={filterBar} chips={chipsFiltro} />
         </div>
 
         {/* Abas por ÁREA (mesmo padrão do Fluxo de Produção: ícone colorido +

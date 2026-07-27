@@ -13,6 +13,7 @@ import { Plus, RefreshCw, Factory, CheckCircle2, Workflow, Loader2, X, Boxes, Pa
 import ChaoView from "@/components/pcp/chao/ChaoView";
 import Dica from "@/components/shared/Dica";
 import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { corArea, iconeArea } from "@/lib/pcp/area-visual";
 
 type FluxoOpt = { id: string; nome: string; versaoAtivaId: string | null };
@@ -138,6 +139,8 @@ export default function OrdensBoardPage() {
         ...o.produtos.flatMap((p) => [p.codigo, p.descricao])].filter(Boolean).join(" ")).includes(q));
   }, [busca]);
   const [soAbertas, setSoAbertas] = usePersistedState("pcp-so-abertas", false);
+  // Barra de filtros padrão (shared/FilterBar): funil na toolbar + linha de chips.
+  const filterBar = useFilterBar("pcp:ordens:filtros", ["periodo", "soAbertas"]);
   // Lista: segundo agrupamento (dentro do dia) por área, na ordem do fluxo.
   const [agruparArea, setAgruparArea] = usePersistedState("pcp-lista-agrupar-area", false);
   // Lista: agrupar por data (cabeçalho por dia) OU lista corrida com a data em coluna.
@@ -862,6 +865,44 @@ export default function OrdensBoardPage() {
     } catch (e) { setErro(e instanceof Error ? e.message : "Erro"); }
   }
 
+  // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
+  // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarDays className="w-4 h-4 text-muted-foreground" />,
+      ativo: Boolean(periodo.from || periodo.to),
+      limpar: () => setPeriodo({ from: "", to: "" }),
+      render: () => (
+        // Vazio = HOJE (mesma janela do board de sempre).
+        <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Hoje" triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+    {
+      key: "soAbertas", label: "Só abertas",
+      icon: <CircleDashed className="w-4 h-4 text-muted-foreground" />,
+      ativo: soAbertas,
+      limpar: () => setSoAbertas(false),
+      render: () => (
+        <button
+          type="button"
+          onClick={() => setSoAbertas(!soAbertas)}
+          className={cn(
+            CHIP_TRIGGER,
+            "inline-flex items-center gap-1.5 border font-medium transition-colors whitespace-nowrap",
+            soAbertas
+              ? "border-blue-300 bg-info/10 text-info"
+              : "border-border bg-card text-muted-foreground hover:bg-muted"
+          )}
+          title="Só abertas (esconde as concluídas)"
+        >
+          <CircleDashed className="w-3.5 h-3.5" />
+          Só abertas
+        </button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col h-full">
       {/* Sem PageHeader (título/subtítulo): a tabela ganha a tela inteira — o botão
@@ -881,10 +922,6 @@ export default function OrdensBoardPage() {
               <ComboboxWithCreate value={fluxoId} onChange={setFluxoId} allowNone={false} triggerClassName="h-9 rounded-lg"
                 options={fluxos.map((f) => ({ value: f.id, label: f.nome }))} />
             )}
-          </div>
-          <div className="min-w-[14rem]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Período <span className="text-muted-foreground/60">(vazio = hoje)</span></label>
-            <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Hoje" />
           </div>
           <button onClick={() => { loadOps(); if (vista === "lista") loadLista(); }} className="h-9 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 text-sm text-muted-foreground hover:bg-muted">
             <RefreshCw className={cn("w-4 h-4", (carregandoOps || carregandoLista) && "animate-spin")} /> Atualizar
@@ -906,6 +943,8 @@ export default function OrdensBoardPage() {
               </button>
             )}
           </div>
+          {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+          <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
           {/* Toggle de visão: board (kanban) × lista (por dia) × fluxo de trabalho */}
           <div className="flex rounded-lg border border-border p-0.5 text-xs">
             <button type="button" onClick={() => setVista("board")}
@@ -922,6 +961,8 @@ export default function OrdensBoardPage() {
             </button>
           </div>
         </div>
+        {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+        <FilterBarChips bar={filterBar} chips={chipsFiltro} />
 
         {/* Visão FLUXO DE TRABALHO (editor do chão de fábrica) como 3ª opção do toggle */}
         {vista === "fluxo" && <ChaoView />}
@@ -962,20 +1003,14 @@ export default function OrdensBoardPage() {
               <Columns3 className="w-5 h-5" />
             </button>
             </Dica>
-            {/* Filtros como botões-ícone no canto direito da linha das abas:
-                "Só abertas" vale p/ board e lista; os agrupamentos são da lista. */}
+            {/* Agrupamentos como botões-ícone no canto direito da linha das abas
+                (o filtro "Só abertas" virou chip na barra de filtros). */}
             <div className="ml-auto flex items-center gap-1 self-center pb-1">
               {vista === "lista" && (
                 <span className="text-sm font-medium text-foreground mr-2 whitespace-nowrap">
                   {filtrarOps(opsLista).filter((o) => !soAbertas || o.etapaStatus !== "CONCLUIDA").length} OPs
                 </span>
               )}
-              <Dica label="Só abertas (esconde as concluídas)">
-              <button type="button" onClick={() => setSoAbertas(!soAbertas)}
-                className={cn("rounded-lg border p-1.5 transition-colors", soAbertas ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
-                <CircleDashed className="w-4 h-4" />
-              </button>
-              </Dica>
               {vista === "lista" && (
                 <Dica label="Agrupar por data (desligado: data vira coluna)">
                 <button type="button" onClick={() => setAgruparData(!agruparData)}

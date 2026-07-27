@@ -20,9 +20,10 @@ import {
   Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
   ShoppingCart, AlertTriangle, Trash2, Shuffle, Truck,
-  ArrowUp, ArrowDown, ArrowUpDown,
+  ArrowUp, ArrowDown, ArrowUpDown, CircleDot, FileX,
 } from "lucide-react";
 import EmpresaTag from "@/components/shared/EmpresaTag";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type PedidoRow = {
@@ -454,6 +455,9 @@ export default function PedidosVendaPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(loadFilters);
 
+  // Barra de filtros padrão (shared/FilterBar): funil na toolbar + linha de chips.
+  const filterBar = useFilterBar("comercial:pedidos-venda:filtros", ["status"]);
+
   // ── Drag-and-drop state ───────────────────────────────────────────────────
   const [draggingId, setDraggingId]     = useState<string | null>(null);
   const [dragOverCol, setDragOverCol]   = useState<string | null>(null);
@@ -610,7 +614,84 @@ export default function PedidosVendaPage() {
     return groups;
   }, [filtered, filters.groupBy]);
 
-  const hasActive = filters.statuses.length > 0 || filters.search || filters.dateFrom || filters.dateTo || filters.semOrcamento || filters.aOrdem;
+  // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
+  // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "status", label: "Status",
+      icon: <CircleDot className="w-4 h-4 text-muted-foreground" />,
+      ativo: filters.statuses.length > 0,
+      limpar: () => updateFilters({ statuses: [], statusOp: "is" }),
+      render: () => (
+        <StatusFilterChip
+          selected={filters.statuses}
+          op={filters.statusOp}
+          onChange={(v) => updateFilters({ statuses: v })}
+          onOpChange={(v) => updateFilters({ statusOp: v })}
+          onClear={() => updateFilters({ statuses: [], statusOp: "is" })}
+        />
+      ),
+    },
+    {
+      key: "periodo", label: "Período (emissão)",
+      icon: <CalendarDays className="w-4 h-4 text-muted-foreground" />,
+      ativo: Boolean(filters.dateFrom || filters.dateTo),
+      limpar: () => updateFilters({ dateFrom: "", dateTo: "" }),
+      render: () => (
+        <DateRangePicker
+          value={{ from: filters.dateFrom, to: filters.dateTo }}
+          onChange={(r) => updateFilters({ dateFrom: r.from, dateTo: r.to })}
+          placeholder="Período (emissão)"
+          triggerClassName={CHIP_TRIGGER}
+        />
+      ),
+    },
+    {
+      key: "semOrcamento", label: "Sem orçamento",
+      icon: <FileX className="w-4 h-4 text-muted-foreground" />,
+      ativo: filters.semOrcamento,
+      limpar: () => updateFilters({ semOrcamento: false }),
+      render: () => (
+        <button
+          type="button"
+          onClick={() => updateFilters({ semOrcamento: !filters.semOrcamento })}
+          className={cn(
+            CHIP_TRIGGER,
+            "inline-flex items-center gap-1.5 border font-medium transition-colors whitespace-nowrap",
+            filters.semOrcamento
+              ? "border-amber-300 bg-warning/10 text-warning"
+              : "border-border bg-card text-muted-foreground hover:bg-muted"
+          )}
+          title="Mostrar só pedidos sem Nº de Orçamento"
+        >
+          Sem orçamento
+        </button>
+      ),
+    },
+    {
+      key: "aOrdem", label: "À ordem",
+      icon: <Shuffle className="w-4 h-4 text-muted-foreground" />,
+      ativo: filters.aOrdem,
+      limpar: () => updateFilters({ aOrdem: false }),
+      render: () => (
+        <button
+          type="button"
+          onClick={() => updateFilters({ aOrdem: !filters.aOrdem })}
+          className={cn(
+            CHIP_TRIGGER,
+            "inline-flex items-center gap-1.5 border font-medium transition-colors whitespace-nowrap",
+            filters.aOrdem
+              ? "border-violet-300 bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300"
+              : "border-border bg-card text-muted-foreground hover:bg-muted"
+          )}
+          title="Mostrar só pedidos de venda à ordem (a venda na origem e a entrega na matriz)"
+        >
+          <Shuffle className="w-3.5 h-3.5" />
+          À ordem
+        </button>
+      ),
+    },
+  ];
 
   // ── Drag-and-drop handlers ────────────────────────────────────────────────
   async function moveCard(pedidoId: string, newStatus: string) {
@@ -740,8 +821,11 @@ export default function PedidosVendaPage() {
         }
       />
 
-      {/* ── Toolbar ───────────────────────────────────────────────────────── */}
-      <div className="px-8 pb-4 flex items-center gap-3 flex-wrap">
+      {/* ── Toolbar (estilo Notion): busca + contagem à esquerda; funil +
+          controles de vista/ação à direita. Os FILTROS viram chips numa linha
+          própria, revelada pelo funil ou por filtro ativo. ────────────────── */}
+      <div className="px-8 pb-4 space-y-2">
+      <div className="flex items-center gap-3 flex-wrap">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -761,65 +845,13 @@ export default function PedidosVendaPage() {
           )}
         </div>
 
-        {/* Status filter */}
-        <StatusFilterChip
-          selected={filters.statuses}
-          op={filters.statusOp}
-          onChange={(v) => updateFilters({ statuses: v })}
-          onOpChange={(v) => updateFilters({ statusOp: v })}
-          onClear={() => updateFilters({ statuses: [], statusOp: "is" })}
-        />
-
-        {/* Período de emissão — mesmo seletor do PCP (atalhos Hoje/Mês) */}
-        <DateRangePicker
-          value={{ from: filters.dateFrom, to: filters.dateTo }}
-          onChange={(r) => updateFilters({ dateFrom: r.from, dateTo: r.to })}
-          placeholder="Período (emissão)"
-        />
-
-        {/* Sem orçamento */}
-        <button
-          onClick={() => updateFilters({ semOrcamento: !filters.semOrcamento })}
-          className={cn(
-            "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors whitespace-nowrap",
-            filters.semOrcamento
-              ? "border-amber-300 bg-warning/10 text-warning"
-              : "border-border bg-card text-muted-foreground hover:bg-muted"
-          )}
-          title="Mostrar só pedidos sem Nº de Orçamento"
-        >
-          Sem orçamento
-        </button>
-
-        {/* Venda à ordem */}
-        <button
-          onClick={() => updateFilters({ aOrdem: !filters.aOrdem })}
-          className={cn(
-            "flex items-center gap-1.5 h-8 px-2.5 text-xs border rounded-md transition-colors whitespace-nowrap",
-            filters.aOrdem
-              ? "border-violet-300 bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300"
-              : "border-border bg-card text-muted-foreground hover:bg-muted"
-          )}
-          title="Mostrar só pedidos de venda à ordem (a venda na origem e a entrega na matriz)"
-        >
-          <Shuffle className="w-3.5 h-3.5" />
-          À ordem
-        </button>
-
-        {/* Limpar tudo */}
-        {hasActive && (
-          <button
-            onClick={() => updateFilters({ search: "", statuses: [], statusOp: "is", dateFrom: "", dateTo: "", semOrcamento: false, aOrdem: false })}
-            className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors whitespace-nowrap"
-          >
-            Limpar tudo
-          </button>
-        )}
-
         {/* Results count */}
         <span className="text-xs text-muted-foreground">
           {loading ? "…" : `${filtered.length} pedido${filtered.length !== 1 ? "s" : ""}`}
         </span>
+
+        {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+        <FilterBarToggle bar={filterBar} chips={chipsFiltro} className="ml-auto" />
 
         {/* Agrupar por — list only */}
         {filters.view === "list" && (
@@ -864,7 +896,7 @@ export default function PedidosVendaPage() {
         </button>
 
         {/* View toggle */}
-        <div className="ml-auto flex items-center gap-1 border border-border rounded-lg p-0.5 bg-card">
+        <div className="flex items-center gap-1 border border-border rounded-lg p-0.5 bg-card">
           <button
             className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors",
               filters.view === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
@@ -882,6 +914,9 @@ export default function PedidosVendaPage() {
             Kanban
           </button>
         </div>
+      </div>
+      {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+      <FilterBarChips bar={filterBar} chips={chipsFiltro} />
       </div>
 
       {/* ── Content ───────────────────────────────────────────────────────── */}

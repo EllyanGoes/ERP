@@ -3,10 +3,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, cn } from "@/lib/utils";
-import { Package, Loader2, Search, Download, ArrowDownToLine, ArrowUpFromLine, TrendingUp, Shuffle } from "lucide-react";
+import { Package, Loader2, Search, Download, ArrowDownToLine, ArrowUpFromLine, TrendingUp, Shuffle, CalendarClock } from "lucide-react";
 
 type Row = {
   itemId: string;
@@ -111,6 +112,22 @@ export default function MateriaisReportPage() {
     URL.revokeObjectURL(url);
   }
 
+  // Barra de filtros padrão (shared/FilterBar): busca fica na toolbar; o
+  // período (único filtro da tela) vira chip — ativo quando difere do padrão.
+  const filterBar = useFilterBar("comercial:rel-materiais:filtros", ["periodo"]);
+  const padrao = defaultRange();
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarClock className="w-4 h-4 text-muted-foreground" />,
+      ativo: range.from !== padrao.from || range.to !== padrao.to,
+      limpar: () => setRange(defaultRange()),
+      render: () => (
+        <DateRangePicker value={range} onChange={setRange} placeholder="Período" triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader
@@ -119,27 +136,31 @@ export default function MateriaisReportPage() {
       />
 
       <div className="px-8 pb-8 space-y-6">
-        {/* Filtros */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <DateRangePicker value={range} onChange={setRange} />
-          <div className="relative flex-1 min-w-[220px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar material por nome ou código..."
-              className="w-full h-10 pl-9 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-            />
+        {/* Toolbar enxuta (estilo Notion): busca + funil + exportar; período em chip. */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[220px] max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar material por nome ou código..."
+                className="w-full h-9 pl-9 pr-3 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+              />
+            </div>
+            <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
+            <button
+              type="button"
+              onClick={exportCsv}
+              disabled={filtradas.length === 0}
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" /> Exportar CSV
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={exportCsv}
-            disabled={filtradas.length === 0}
-            className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Download className="w-4 h-4" /> Exportar CSV
-          </button>
+          {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+          <FilterBarChips bar={filterBar} chips={chipsFiltro} />
         </div>
 
         {/* KPIs */}

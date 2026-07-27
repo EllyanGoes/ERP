@@ -21,6 +21,8 @@ type Props = {
   /** The key that means "no filter active" — defaults to "todos" */
   allKey?: string;
   placeholder?: string;
+  /** Classes extras do gatilho (ex.: CHIP_TRIGGER da barra de filtros). */
+  triggerClassName?: string;
 };
 
 export default function FilterDropdown({
@@ -30,6 +32,7 @@ export default function FilterDropdown({
   onChange,
   allKey = "todos",
   placeholder = "Selecione uma opção...",
+  triggerClassName,
 }: Props) {
   const [open, setOpen]     = useState(false);
   const [search, setSearch] = useState("");
@@ -69,7 +72,8 @@ export default function FilterDropdown({
           isActive
             ? "bg-info/10 border-blue-300 text-info hover:bg-info/15"
             : "bg-card border-border text-muted-foreground hover:bg-muted",
-          open && !isActive && "border-border bg-muted"
+          open && !isActive && "border-border bg-muted",
+          triggerClassName,
         )}
       >
         <span className="font-medium">{label}</span>

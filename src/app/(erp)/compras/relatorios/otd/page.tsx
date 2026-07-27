@@ -8,8 +8,10 @@ import {
   TrendingUp,
   Loader2,
   RefreshCw,
+  CalendarClock,
 } from "lucide-react";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import PageHeader from "@/components/shared/PageHeader";
@@ -503,17 +505,20 @@ function FornecedorTable({
   );
 }
 
+// Período padrão do relatório: últimos 12 meses.
+function defaultRange(): DateRange {
+  const to   = new Date();
+  const from = new Date();
+  from.setMonth(from.getMonth() - 12);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to:   to.toISOString().slice(0, 10),
+  };
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function OtdPage() {
-  const [range, setRange] = usePersistedState<DateRange>("relatorios:compras:otd:range", () => {
-    const to   = new Date();
-    const from = new Date();
-    from.setMonth(from.getMonth() - 12);
-    return {
-      from: from.toISOString().slice(0, 10),
-      to:   to.toISOString().slice(0, 10),
-    };
-  });
+  const [range, setRange] = usePersistedState<DateRange>("relatorios:compras:otd:range", defaultRange);
 
   const [data,    setData]    = useState<OtdData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -533,6 +538,22 @@ export default function OtdPage() {
 
   const s = data?.summary;
 
+  // Barra de filtros padrão (shared/FilterBar): o período (único filtro da
+  // tela) vira chip — ativo quando difere do padrão (últimos 12 meses).
+  const filterBar = useFilterBar("compras:rel-otd:filtros", ["periodo"]);
+  const padrao = defaultRange();
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarClock className="w-4 h-4 text-muted-foreground" />,
+      ativo: range.from !== padrao.from || range.to !== padrao.to,
+      limpar: () => setRange(defaultRange()),
+      render: () => (
+        <DateRangePicker value={range} onChange={setRange} placeholder="Período" triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-0">
       {/* ── Page Header ──────────────────────────────────────────────────────── */}
@@ -546,8 +567,9 @@ export default function OtdPage() {
             { label: "OTD" },
           ]}
         />
+        {/* Toolbar enxuta (estilo Notion): funil + atualizar; período em chip. */}
         <div className="flex items-center gap-2 shrink-0 pt-8">
-          <DateRangePicker value={range} onChange={setRange} />
+          <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
           <button
             onClick={load}
             className="flex items-center justify-center h-9 w-9 border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors"
@@ -559,6 +581,8 @@ export default function OtdPage() {
       </div>
 
       <div className="px-8 pb-8 space-y-5">
+        {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+        <FilterBarChips bar={filterBar} chips={chipsFiltro} />
         {loading && !data ? (
           <div className="flex justify-center py-24">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/60" />

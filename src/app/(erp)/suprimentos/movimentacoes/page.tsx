@@ -14,7 +14,9 @@ import Link from "next/link";
 import {
   Plus, Search, X, Loader2, TrendingUp, TrendingDown,
   ChevronDown, ChevronRight, Trash2, AlertTriangle, Info, Pencil, Save, RefreshCw,
+  CalendarDays, MapPin,
 } from "lucide-react";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import { LocalEstoqueQuickCreate } from "@/components/shared/QuickCreateDialogs";
@@ -331,6 +333,8 @@ export default function MovimentacoesPage() {
   const setLocalFilter  = (v: string)    => setF({ localFilter: v });
   const setOrigemFilter = (v: string)    => setF({ origemFilter: v });
   const setDateRange    = (v: DateRange) => setF({ dateRange: v });
+  // Barra de filtros padrão (shared/FilterBar): funil na toolbar + linha de chips.
+  const filterBar = useFilterBar("suprimentos:movimentacoes:filtros", ["periodo", "tipo"]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -644,6 +648,49 @@ export default function MovimentacoesPage() {
     ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-success/15 text-success" })),
   ];
 
+  // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
+  // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarDays className="w-4 h-4 text-muted-foreground" />,
+      ativo: !isDefaultRange,
+      // O padrão da tela é 1º de janeiro → hoje (não "sem período").
+      limpar: () => setDateRange(defaultRange),
+      render: () => (
+        <DateRangePicker value={dateRange} onChange={setDateRange} placeholder="Período..." triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+    {
+      key: "tipo", label: "Tipo",
+      icon: <TrendingUp className="w-4 h-4 text-muted-foreground" />,
+      ativo: tipoFilter !== "todos",
+      limpar: () => setTipoFilter("todos"),
+      render: () => (
+        <FilterDropdown label="Tipo" options={TIPO_FILTER_OPTIONS} value={tipoFilter} onChange={setTipoFilter} allKey="todos" placeholder="Tipo..." triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+    {
+      key: "local", label: "Local",
+      icon: <MapPin className="w-4 h-4 text-muted-foreground" />,
+      disponivel: locais.length > 0,
+      ativo: localFilter !== "todos",
+      limpar: () => setLocalFilter("todos"),
+      render: () => (
+        <FilterDropdown label="Local" options={LOCAL_FILTER_OPTIONS} value={localFilter} onChange={setLocalFilter} allKey="todos" placeholder="Local..." triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+    {
+      key: "origem", label: "Origem",
+      icon: <RefreshCw className="w-4 h-4 text-muted-foreground" />,
+      ativo: origemFilter !== "todos",
+      limpar: () => setOrigemFilter("todos"),
+      render: () => (
+        <FilterDropdown label="Origem" options={ORIGEM_FILTER_OPTIONS} value={origemFilter} onChange={setOrigemFilter} allKey="todos" placeholder="Origem..." triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+  ];
+
   function toggleExpand(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -739,7 +786,10 @@ export default function MovimentacoesPage() {
           </div>
         </div>
 
-        {/* Search + filters */}
+        {/* Toolbar (estilo Notion): busca à esquerda; funil + colunas à direita.
+            Os FILTROS viram chips numa linha própria, revelada pelo funil ou
+            por filtro ativo. */}
+        <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -756,22 +806,12 @@ export default function MovimentacoesPage() {
             )}
           </div>
 
-          <DateRangePicker
-            value={dateRange}
-            onChange={setDateRange}
-            placeholder="Período..."
-          />
-
-          <FilterDropdown label="Tipo" options={TIPO_FILTER_OPTIONS} value={tipoFilter} onChange={setTipoFilter} allKey="todos" placeholder="Tipo..." />
-          <FilterDropdown label="Local" options={LOCAL_FILTER_OPTIONS} value={localFilter} onChange={setLocalFilter} allKey="todos" placeholder="Local..." />
-          <FilterDropdown label="Origem" options={ORIGEM_FILTER_OPTIONS} value={origemFilter} onChange={setOrigemFilter} allKey="todos" placeholder="Origem..." />
-          {hasFilters && (
-            <button onClick={() => { setSearch(""); setTipoFilter("todos"); setLocalFilter("todos"); setOrigemFilter("todos"); setDateRange(defaultRange); }} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground">
-              <X className="w-3 h-3" /> Limpar
-            </button>
-          )}
-
+          {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+          <FilterBarToggle bar={filterBar} chips={chipsFiltro} className="ml-auto" />
           <ColumnConfigurator columns={MOV_COLS} order={colOrder} onOrderChange={setColOrder} visibility={colVis} onVisibilityChange={setColVis} onShowAll={showAllCols} />
+        </div>
+        {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+        <FilterBarChips bar={filterBar} chips={chipsFiltro} />
         </div>
 
         {/* List */}

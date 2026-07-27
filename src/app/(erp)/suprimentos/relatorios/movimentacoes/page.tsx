@@ -6,11 +6,12 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import {
   TrendingUp, TrendingDown, BarChart3, Download,
-  Loader2, Search, FileBarChart2, X,
+  Loader2, Search, FileBarChart2, ArrowLeftRight, Warehouse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
-import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type LocalEstoque = { id: string; nome: string };
@@ -127,6 +128,49 @@ export default function RelatorioMovimentacoesPage() {
     URL.revokeObjectURL(url);
   }
 
+  // Barra de filtros padrão (shared/FilterBar): período e busca ficam na
+  // toolbar (insumos principais); tipo e local viram chips.
+  const filterBar = useFilterBar("suprimentos:rel-movimentacoes:filtros", ["tipo", "local"]);
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "tipo", label: "Tipo",
+      icon: <ArrowLeftRight className="w-4 h-4 text-muted-foreground" />,
+      ativo: tipo !== "",
+      limpar: () => setTipo(""),
+      render: () => (
+        <ComboboxWithCreate
+          value={tipo}
+          onChange={setTipo}
+          noneLabel="Entradas e saídas"
+          placeholder="Tipo"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          options={[
+            { value: "ENTRADA", label: "Entradas" },
+            { value: "SAIDA",   label: "Saídas" },
+          ]}
+        />
+      ),
+    },
+    {
+      key: "local", label: "Local",
+      icon: <Warehouse className="w-4 h-4 text-muted-foreground" />,
+      disponivel: locais.length > 0,
+      ativo: localId !== "",
+      limpar: () => setLocalId(""),
+      render: () => (
+        <ComboboxWithCreate
+          value={localId}
+          onChange={setLocalId}
+          noneLabel="Todos os locais"
+          placeholder="Local"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          menuMinWidth={280}
+          options={locais.map((l) => ({ value: l.id, label: l.nome }))}
+        />
+      ),
+    },
+  ];
+
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -137,74 +181,44 @@ export default function RelatorioMovimentacoesPage() {
 
       <div className="px-8 pb-8 space-y-5">
 
-        {/* ── Filter bar ─────────────────────────────────────────────────── */}
-        {(() => {
-          const TIPO_OPTIONS: FilterOption[] = [
-            { key: "ENTRADA", label: "Entradas", color: "bg-success/15 text-success" },
-            { key: "SAIDA",   label: "Saídas",   color: "bg-danger/15 text-danger" },
-          ];
-          const LOCAL_OPTIONS: FilterOption[] = locais.map((l) => ({ key: l.id, label: l.nome }));
-          const defaultR = defaultRange();
-          const isDefaultRange = periodo.from === defaultR.from && periodo.to === defaultR.to;
-          const hasFilters = tipo !== "todos" || localId !== "todos" || !isDefaultRange;
-
-          return (
-            <div className="flex flex-wrap items-center gap-2">
-              <DateRangePicker
-                value={periodo}
-                onChange={setPeriodo}
-                placeholder="Período..."
+        {/* ── Toolbar enxuta (estilo Notion): período + busca + funil + ações;
+            tipo e local viram chips na linha abaixo. ───────────────────────── */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangePicker
+              value={periodo}
+              onChange={setPeriodo}
+              placeholder="Período..."
+            />
+            {/* Product search */}
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filtrar por produto..."
+                className="pl-8 pr-3 h-9 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
               />
-              <FilterDropdown
-                label="Tipo"
-                options={TIPO_OPTIONS}
-                value={tipo === "" ? "todos" : tipo}
-                onChange={(v) => setTipo(v === "todos" ? "" : v)}
-                allKey="todos"
-                placeholder="Buscar tipo..."
-              />
-              <FilterDropdown
-                label="Local"
-                options={LOCAL_OPTIONS}
-                value={localId === "" ? "todos" : localId}
-                onChange={(v) => setLocalId(v === "todos" ? "" : v)}
-                allKey="todos"
-                placeholder="Buscar local..."
-              />
-              {hasFilters && (
-                <button
-                  onClick={() => { setTipo(""); setLocalId(""); setPeriodo(defaultRange()); }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground"
-                >
-                  <X className="w-3.5 h-3.5" /> Limpar
-                </button>
-              )}
-              {/* Product search */}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Filtrar por produto..."
-                  className="pl-8 pr-3 h-9 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-52"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 ml-auto">
-                <Button onClick={fetchReport} disabled={loading} size="sm">
-                  {loading && <Loader2 className="w-4 h-4 animate-spin mr-1.5" />}
-                  Gerar Relatório
-                </Button>
-                {rows.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={exportCSV}>
-                    <Download className="w-4 h-4 mr-1.5" />
-                    Exportar CSV
-                  </Button>
-                )}
-              </div>
             </div>
-          );
-        })()}
+            {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+            <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
+
+            <div className="flex items-center gap-2 ml-auto">
+              <Button onClick={fetchReport} disabled={loading} size="sm">
+                {loading && <Loader2 className="w-4 h-4 animate-spin mr-1.5" />}
+                Gerar Relatório
+              </Button>
+              {rows.length > 0 && (
+                <Button variant="outline" size="sm" onClick={exportCSV}>
+                  <Download className="w-4 h-4 mr-1.5" />
+                  Exportar CSV
+                </Button>
+              )}
+            </div>
+          </div>
+          {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+          <FilterBarChips bar={filterBar} chips={chipsFiltro} />
+        </div>
 
         {/* ── KPI cards ──────────────────────────────────────────────────── */}
         {searched && !loading && (

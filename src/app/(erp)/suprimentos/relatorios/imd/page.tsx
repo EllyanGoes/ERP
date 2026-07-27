@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
-import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { Search, X, Loader2, Package, Truck, AlertTriangle, Info, Layers, RefreshCw } from "lucide-react";
+import { Search, X, Loader2, Package, Truck, AlertTriangle, Info, Layers, RefreshCw, Warehouse } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -47,11 +48,11 @@ function defaultRange(): DateRange {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const IMD_OPTIONS: FilterOption[] = [
-  { key: "todos",     label: "Todas",                color: "bg-muted text-muted-foreground" },
-  { key: "ESTOCAVEL", label: "Estocável  (IMD > 5)", color: "bg-success/15 text-success" },
-  { key: "MTO",       label: "MTO  (IMD 2 a 5)",     color: "bg-info/15 text-info" },
-  { key: "OBSOLETO",  label: "Obsoleto  (IMD < 2)",  color: "bg-danger/15 text-danger" },
+// Opções do chip de categoria ("todos" vive no noneLabel do combobox).
+const IMD_OPTIONS = [
+  { value: "ESTOCAVEL", label: "Estocável  (IMD > 5)" },
+  { value: "MTO",       label: "MTO  (IMD 2 a 5)" },
+  { value: "OBSOLETO",  label: "Obsoleto  (IMD < 2)" },
 ];
 
 const CAT_STYLES = {
@@ -159,12 +160,48 @@ export default function ImdPage() {
     fetchData();
   }, [fetchData, periodo.from, periodo.to]);
 
-  const LOCAL_OPTIONS: FilterOption[] = [
-    { key: "",    label: "Todos os locais", color: "bg-muted text-muted-foreground" },
-    ...locais.map((l) => ({ key: l.id, label: l.nome, color: "bg-info/15 text-info" })),
-  ];
-
   const hasFilters = !!(search || imdFilter !== "todos" || localId);
+
+  // Barra de filtros padrão (shared/FilterBar): período e busca ficam na
+  // toolbar (insumos principais); local e categoria viram chips.
+  const filterBar = useFilterBar("suprimentos:rel-imd:filtros", ["local", "categoria"]);
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "local", label: "Local de Estoque",
+      icon: <Warehouse className="w-4 h-4 text-muted-foreground" />,
+      disponivel: locais.length > 0,
+      ativo: localId !== "",
+      limpar: () => setLocalId(""),
+      render: () => (
+        <ComboboxWithCreate
+          value={localId}
+          onChange={setLocalId}
+          noneLabel="Todos os locais"
+          placeholder="Local de estoque"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          menuMinWidth={280}
+          options={locais.map((l) => ({ value: l.id, label: l.nome }))}
+        />
+      ),
+    },
+    {
+      key: "categoria", label: "Categoria",
+      icon: <Layers className="w-4 h-4 text-muted-foreground" />,
+      ativo: imdFilter !== "todos",
+      limpar: () => setImdFilter("todos"),
+      render: () => (
+        <ComboboxWithCreate
+          value={imdFilter === "todos" ? "" : imdFilter}
+          onChange={(v) => setImdFilter(v || "todos")}
+          noneLabel="Todas as categorias"
+          placeholder="Categoria"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          menuMinWidth={240}
+          options={IMD_OPTIONS}
+        />
+      ),
+    },
+  ];
 
   const filtered = useMemo(() => rows.filter((r) => {
     if (imdFilter !== "todos" && r.categoriaIMD !== imdFilter) return false;
@@ -197,47 +234,37 @@ export default function ImdPage() {
 
       <div className="px-8 pb-8 space-y-6">
 
-        {/* ── Filters (top) ─────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2">
-          <DateRangePicker value={periodo} onChange={setPeriodo} />
-          <FilterDropdown
-            label="Local de Estoque"
-            options={LOCAL_OPTIONS}
-            value={localId}
-            onChange={setLocalId}
-            allKey=""
-            placeholder="Todos os locais..."
-          />
-          <button
-            onClick={fetchData}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Atualizar
-          </button>
-
-          <div className="w-px h-6 bg-muted mx-1" />
-
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="text" value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar produto..."
-              className="pl-9 pr-8 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-52"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <FilterDropdown label="Categoria" options={IMD_OPTIONS} value={imdFilter} onChange={setImdFilter} allKey="todos" placeholder="Categoria..." />
-          {hasFilters && (
-            <button onClick={() => { setSearch(""); setImdFilter("todos"); }} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-muted-foreground">
-              <X className="w-3 h-3" /> Limpar
+        {/* ── Toolbar enxuta (estilo Notion): período + busca + funil + atualizar;
+            local e categoria viram chips na linha abaixo. ───────────────────── */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangePicker value={periodo} onChange={setPeriodo} />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="text" value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar produto..."
+                className="pl-9 pr-8 h-9 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-52"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+            <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
+            <button
+              onClick={fetchData}
+              className="flex items-center gap-1.5 h-9 px-3 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Atualizar
             </button>
-          )}
+          </div>
+          {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+          <FilterBarChips bar={filterBar} chips={chipsFiltro} />
         </div>
 
         {error && (

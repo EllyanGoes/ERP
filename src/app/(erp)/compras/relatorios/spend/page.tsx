@@ -10,8 +10,10 @@ import {
   Loader2,
   RefreshCw,
   X,
+  CalendarClock,
 } from "lucide-react";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn, formatBRL } from "@/lib/utils";
 
@@ -506,17 +508,20 @@ function SummaryCard({
   );
 }
 
+// Período padrão do relatório: últimos 12 meses.
+function defaultRange(): DateRange {
+  const to   = new Date();
+  const from = new Date();
+  from.setMonth(from.getMonth() - 12);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to:   to.toISOString().slice(0, 10),
+  };
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function SpendPage() {
-  const [range, setRange] = usePersistedState<DateRange>("relatorios:compras:spend:range", () => {
-    const to   = new Date();
-    const from = new Date();
-    from.setMonth(from.getMonth() - 12);
-    return {
-      from: from.toISOString().slice(0, 10),
-      to:   to.toISOString().slice(0, 10),
-    };
-  });
+  const [range, setRange] = usePersistedState<DateRange>("relatorios:compras:spend:range", defaultRange);
 
   const [data,      setData]      = useState<SpendData | null>(null);
   const [loading,   setLoading]   = useState(true);
@@ -590,6 +595,22 @@ export default function SpendPage() {
     });
   }
 
+  // Barra de filtros padrão (shared/FilterBar): o período (único filtro da
+  // tela) vira chip — ativo quando difere do padrão (últimos 12 meses).
+  const filterBar = useFilterBar("compras:rel-spend:filtros", ["periodo"]);
+  const padrao = defaultRange();
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarClock className="w-4 h-4 text-muted-foreground" />,
+      ativo: range.from !== padrao.from || range.to !== padrao.to,
+      limpar: () => setRange(defaultRange()),
+      render: () => (
+        <DateRangePicker value={range} onChange={setRange} placeholder="Período" triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+  ];
+
   return (
     <div className="p-6 space-y-6">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -607,8 +628,9 @@ export default function SpendPage() {
             Gastos com base nos documentos de entrada (notas fiscais), por fornecedor, categoria e período
           </p>
         </div>
+        {/* Toolbar enxuta (estilo Notion): funil + atualizar; período em chip. */}
         <div className="flex items-center gap-2 shrink-0">
-          <DateRangePicker value={range} onChange={setRange} />
+          <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
           <button
             onClick={load}
             className="flex items-center justify-center h-9 w-9 border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors"
@@ -618,6 +640,9 @@ export default function SpendPage() {
           </button>
         </div>
       </div>
+
+      {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+      <FilterBarChips bar={filterBar} chips={chipsFiltro} />
 
       {loading && !data ? (
         <div className="flex justify-center py-24">

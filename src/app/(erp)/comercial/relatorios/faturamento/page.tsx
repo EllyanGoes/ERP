@@ -8,11 +8,13 @@ import {
 } from "recharts";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, cn } from "@/lib/utils";
-import { BarChart3, Loader2, ChevronRight, TrendingUp, ShoppingCart, Users, Package, X } from "lucide-react";
+import { BarChart3, Loader2, ChevronRight, TrendingUp, ShoppingCart, Users, Package, X, CircleDot } from "lucide-react";
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 type ItemRow = { itemId: string; codigo: string; descricao: string; valor: number };
@@ -249,6 +251,32 @@ export default function FaturamentoReportPage() {
 
   const chartData = selectedDay ? porCliente : porDia;
 
+  // Barra de filtros padrão (shared/FilterBar): o período fica na toolbar
+  // (insumo principal do relatório); o critério do faturamento vira chip.
+  const filterBar = useFilterBar("comercial:rel-faturamento:filtros", ["criterio"]);
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "criterio", label: "Critério",
+      icon: <CircleDot className="w-4 h-4 text-muted-foreground" />,
+      ativo: criterio !== "entrega",
+      limpar: () => setCriterio("entrega"),
+      render: () => (
+        <ComboboxWithCreate
+          value={criterio}
+          onChange={(v) => setCriterio((v || "entrega") as "entrega" | "confirmacao")}
+          allowNone={false}
+          placeholder="Critério"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          menuMinWidth={280}
+          options={[
+            { value: "entrega", label: "Por entrega/conclusão" },
+            { value: "confirmacao", label: "Por confirmação do pedido" },
+          ]}
+        />
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader
@@ -257,30 +285,19 @@ export default function FaturamentoReportPage() {
       />
 
       <div className="px-8 pb-8 space-y-6">
-        {/* Filtro de período + critério do que conta como faturado */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <DateRangePicker value={range} onChange={setRange} />
-          <div className="inline-flex rounded-lg border border-border overflow-hidden shrink-0">
-            <button
-              type="button"
-              onClick={() => setCriterio("entrega")}
-              className={cn("px-3 py-2 text-sm font-medium", criterio === "entrega" ? "bg-blue-600 text-white" : "bg-card text-muted-foreground hover:bg-muted")}
-            >
-              Por entrega/conclusão
-            </button>
-            <button
-              type="button"
-              onClick={() => setCriterio("confirmacao")}
-              className={cn("px-3 py-2 text-sm font-medium border-l border-border", criterio === "confirmacao" ? "bg-blue-600 text-white" : "bg-card text-muted-foreground hover:bg-muted")}
-            >
-              Por confirmação do pedido
-            </button>
+        {/* Toolbar enxuta (estilo Notion): período + funil; o critério vira chip. */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <DateRangePicker value={range} onChange={setRange} />
+            <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
+            <span className="text-xs text-muted-foreground">
+              {criterio === "entrega"
+                ? "Faturamento realizado: balcão na conclusão e venda agendada a cada entrega (minuta entregue)."
+                : "Faturamento por pedido confirmado: confirmados, em agendamento e concluídos, pelo valor total na data de emissão."}
+            </span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {criterio === "entrega"
-              ? "Faturamento realizado: balcão na conclusão e venda agendada a cada entrega (minuta entregue)."
-              : "Faturamento por pedido confirmado: confirmados, em agendamento e concluídos, pelo valor total na data de emissão."}
-          </span>
+          {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+          <FilterBarChips bar={filterBar} chips={chipsFiltro} />
         </div>
 
         {/* KPIs */}

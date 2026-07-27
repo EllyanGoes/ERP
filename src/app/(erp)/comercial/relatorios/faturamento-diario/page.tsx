@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL } from "@/lib/utils";
-import { Loader2, FileText, Wallet, CreditCard } from "lucide-react";
+import { Loader2, FileText, Wallet, CreditCard, CalendarClock } from "lucide-react";
 
 type ItemRow = { codigo: string; descricao: string; unidade: string; quantidade: number; valor: number };
 type Row = {
@@ -61,6 +62,21 @@ export default function FaturamentoDiarioPage() {
 
   useEffect(() => { if (range.from && range.to) load(); }, [range.from, range.to, load]);
 
+  // Barra de filtros padrão (shared/FilterBar): o período é o único filtro da
+  // tela e vira chip — ativo quando difere do padrão (hoje).
+  const filterBar = useFilterBar("comercial:rel-faturamento-diario:filtros", ["periodo"]);
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarClock className="w-4 h-4 text-muted-foreground" />,
+      ativo: range.from !== hojeISO() || range.to !== hojeISO(),
+      limpar: () => setRange({ from: hojeISO(), to: hojeISO() }),
+      render: () => (
+        <DateRangePicker value={range} onChange={setRange} placeholder="Período" triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col h-full">
       <PageHeader
@@ -69,11 +85,16 @@ export default function FaturamentoDiarioPage() {
       />
 
       <div className="px-8 pb-8 space-y-5">
-        <div className="flex items-center gap-3 flex-wrap">
-          <DateRangePicker value={range} onChange={setRange} />
-          <span className="text-xs text-muted-foreground">
-            Pedidos faturados (concluídos) no período, com itens, forma de pagamento e conta de recebimento.
-          </span>
+        {/* Toolbar enxuta (estilo Notion): funil + descrição; o período é chip. */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
+            <span className="text-xs text-muted-foreground">
+              Pedidos faturados (concluídos) no período, com itens, forma de pagamento e conta de recebimento.
+            </span>
+          </div>
+          {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+          <FilterBarChips bar={filterBar} chips={chipsFiltro} />
         </div>
 
         {/* Resumo */}
