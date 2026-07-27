@@ -1020,6 +1020,14 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       <EditarTituloDialog
         tipo="receber"
         titulo={editar ? { ...editar, clienteId: editar.cliente?.id ?? null } : null}
+        origemInfo={editar ? (() => {
+          const org = origemReceber(editar);
+          return {
+            origem: `${org.label}${org.ref ? ` · ${org.ref}` : ""}`,
+            tes: "—", // TES é do fluxo de compras — não se aplica ao receber
+            centro: editar.centroCusto ? `${editar.centroCusto.codigo} ${editar.centroCusto.nome}` : "—",
+          };
+        })() : null}
         onOpenChange={(o) => !o && setEditar(null)}
         onSaved={() => router.refresh()}
       />
