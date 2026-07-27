@@ -221,7 +221,7 @@ export default function TitulosGrafico({
       <Dialog open={!!bucketAberto} onOpenChange={(o) => !o && setBucketAberto(null)}>
         {/* Largura explícita: o DialogContent tem sm:max-w-sm no base — a tabela
             de títulos precisa de mais para não cortar Valor/Status. */}
-        <DialogContent className="w-[min(68rem,calc(100vw-2rem))] sm:max-w-none">
+        <DialogContent className="w-[min(80rem,calc(100vw-2rem))] sm:max-w-none">
           <DialogHeader>
             <DialogTitle>
               Títulos com vencimento em {bucketAberto ? labelBucket(bucketAberto, gran) : ""}
@@ -235,15 +235,17 @@ export default function TitulosGrafico({
             const total = doPeriodo.reduce((s, p) => s + p.valor, 0);
             return (
               <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border">
-                <table className="w-full text-sm">
+                {/* table-fixed com larguras explícitas: a tabela NUNCA excede o
+                    dialog (sem scroll horizontal); só a Descrição flexiona. */}
+                <table className="w-full table-fixed text-sm">
                   <thead className="sticky top-0 bg-muted">
                     <tr className="border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
-                      <th className="text-left px-3 py-2">Nº Título</th>
+                      <th className="text-left px-3 py-2 w-28">Nº Título</th>
                       <th className="text-center px-3 py-2 w-20">Parcela</th>
-                      <th className="text-left px-3 py-2">{parceiroHeader}</th>
+                      <th className="text-left px-3 py-2 w-52">{parceiroHeader}</th>
                       <th className="text-left px-3 py-2">Descrição</th>
-                      <th className="text-left px-3 py-2">Vencimento</th>
-                      <th className="text-right px-3 py-2">Valor</th>
+                      <th className="text-left px-3 py-2 w-28">Vencimento</th>
+                      <th className="text-right px-3 py-2 w-32">Valor</th>
                       <th className="text-center px-3 py-2 w-24">Status</th>
                     </tr>
                   </thead>
@@ -264,9 +266,9 @@ export default function TitulosGrafico({
                           ) : (p.numero ?? "—")}
                         </td>
                         <td className="px-3 py-2 text-center text-muted-foreground whitespace-nowrap">{p.parcela ?? "—"}</td>
-                        <td className="px-3 py-2"><div className="truncate max-w-[14rem]">{p.fornecedor ?? "—"}</div></td>
+                        <td className="px-3 py-2"><div className="truncate" title={p.fornecedor ?? undefined}>{p.fornecedor ?? "—"}</div></td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          <div className="truncate max-w-[24rem]" title={p.descricao ?? undefined}>{p.descricao ?? "—"}</div>
+                          <div className="truncate" title={p.descricao ?? undefined}>{p.descricao ?? "—"}</div>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">{p.venc ? formatDate(p.venc) : "—"}</td>
                         <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{formatBRL(p.valor)}</td>
