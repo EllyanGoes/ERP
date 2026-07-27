@@ -432,11 +432,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
 
   // Encargos POR DENTRO do título: ao alimentar juros/multa/taxa, a 1ª linha da
   // classificação ABSORVE a diferença (título − demais linhas − encargos) — o
-  // somatório exibido continua batendo com o valor do título.
-  useEffect(() => {
+  // somatório exibido continua batendo com o valor do título. Chamado nos
+  // onChange (síncrono, mesmo render) para o verificador não piscar.
+  const absorverEncargos = (j: string, m: string, t: string) => {
     if (!selected) return;
     const valOrig = decimalToNumber(selected.valorOriginal);
-    const encargos = parseValorBR(juros) + parseValorBR(multa) + parseValorBR(taxa);
+    const encargos = parseValorBR(j) + parseValorBR(m) + parseValorBR(t);
     setRateio((prev) => {
       if (prev.length === 0) return prev;
       const outras = prev.slice(1).reduce((s, l) => s + parseValorBR(l.valor), 0);
@@ -445,8 +446,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       if (prev[0].valor === fmt) return prev;
       return prev.map((l, i) => (i === 0 ? { ...l, valor: fmt } : l));
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [juros, multa, taxa]);
+  };
 
   // Rastreabilidade: ?focus=<id> destaca o título vindo do Razão/contabilidade.
   useEffect(() => {
@@ -1136,15 +1136,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <Label className="text-xs">Juros (R$)</Label>
-                  <Input value={juros} onChange={(e) => setJuros(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={juros} onChange={(e) => { setJuros(e.target.value); absorverEncargos(e.target.value, multa, taxa); }} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
                 <div>
                   <Label className="text-xs">Multa (R$)</Label>
-                  <Input value={multa} onChange={(e) => setMulta(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={multa} onChange={(e) => { setMulta(e.target.value); absorverEncargos(juros, e.target.value, taxa); }} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
                 <div>
                   <Label className="text-xs">Taxa/tarifa retida (R$)</Label>
-                  <Input value={taxa} onChange={(e) => setTaxa(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
+                  <Input value={taxa} onChange={(e) => { setTaxa(e.target.value); absorverEncargos(juros, multa, e.target.value); }} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
                 </div>
               </div>
               {(() => {
