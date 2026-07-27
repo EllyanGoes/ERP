@@ -376,9 +376,17 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) pagoMes += decimalToNumber(c.valorPago);
       }
     }
-    // A Pagar DESCONSIDERA os sem vencimento; o Total inclui tudo em aberto.
-    return { aPagar: vencido + aVencer, total: emAberto, vencido, aVencer, semVenc, pagoMes };
+    // A Pagar DESCONSIDERA os sem vencimento (eles têm o próprio bloco).
+    return { aPagar: vencido + aVencer, vencido, aVencer, semVenc, pagoMes };
   }, [contasBase]);
+  // SALDO de todo o Contas a Pagar (em aberto, inclusive sem vencimento) —
+  // ignora mês/período e filtros; fica ao lado do navegador de mês.
+  const saldoTotal = useMemo(
+    () => contas.reduce((s, c) => (c.status === "ABERTA" || c.status === "PARCIAL")
+      ? s + decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)
+      : s, 0),
+    [contas],
+  );
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
   // Vínculo de título manual com Documento de Entrada (modal de candidatos).
@@ -894,6 +902,13 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             </button>
           </div>
         )}
+        {/* SALDO de todo o CP (em aberto, inclusive sem vencimento) — não muda
+            com o mês nem com os filtros. */}
+        <div className="inline-flex items-center gap-2 h-9 rounded-lg bg-muted px-3"
+          title="Saldo em aberto de todo o Contas a Pagar (inclui sem vencimento; não muda com mês/filtros)">
+          <span className="text-xs font-medium text-foreground">Saldo</span>
+          <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(saldoTotal)}</span>
+        </div>
       </div>
         {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
         <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
@@ -935,12 +950,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_PAGAR_KEYS : set));
         return (
         <div className="flex flex-wrap items-center gap-2">
-          {/* Total em aberto = A Pagar + Sem vencimento (primeiro da linha). */}
-          <button type="button" onClick={() => toggle(SET_ABERTO)} title="Filtrar por Em aberto (inclui sem vencimento)"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 transition-shadow hover:bg-muted/70 cursor-pointer", mesmoSet(statusSel, SET_ABERTO) && "ring-2 ring-foreground/40")}>
-            <span className="text-xs font-medium text-foreground">Total</span>
-            <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(totais.total)}</span>
-          </button>
           <button type="button" onClick={() => toggle(SET_A_PAGAR)} title="Filtrar por Vencidas + A vencer (sem vencimento fica de fora)"
             className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_A_PAGAR) && "ring-2 ring-warning")}>
             <span className="text-xs font-medium text-warning">A Pagar</span>
