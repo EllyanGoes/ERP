@@ -1195,7 +1195,31 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                   </button>
                 </div>
               ))}
-              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título — natureza e centro de custo são <b>obrigatórios</b>; a soma das naturezas deve bater com o valor do título; o centro vale para o título inteiro.</p>
+              {/* ENCARGOS refletidos automaticamente (somente leitura) — espelho
+                  do que a contabilização grava: juros/multa nas naturezas
+                  travadas do grupo 6 e a taxa na natureza escolhida acima. */}
+              {(() => {
+                const buscaChave = (ch: string) => taxaNaturezas.find((n) => n.sistemaChave === ch);
+                const natTaxa = taxaNaturezas.find((n) => n.id === (taxaNaturezaId || taxaNaturezaDefault(taxaNaturezas)?.id));
+                const encargos = [
+                  { rot: "Juros da baixa", v: parseValorBR(juros), nat: buscaChave("juros-pagos") },
+                  { rot: "Multa da baixa", v: parseValorBR(multa), nat: buscaChave("multa-paga") },
+                  { rot: "Taxa/tarifa retida", v: parseValorBR(taxa), nat: natTaxa },
+                ].filter((e) => e.v > 0);
+                if (encargos.length === 0) return null;
+                return encargos.map((e) => (
+                  <div key={e.rot} className="grid grid-cols-[1.2fr_1fr_1fr_6.5rem_auto] gap-2 items-center opacity-80">
+                    <span className="h-9 flex items-center px-2 rounded-md bg-muted text-sm truncate" title="Classificação automática do encargo">
+                      {e.nat ? `${e.nat.codigo ? `${e.nat.codigo} ` : ""}${e.nat.nome}` : "Natureza travada do sistema"}
+                    </span>
+                    <span className="text-xs text-muted-foreground/40 px-2" title="O centro de custo é do título inteiro (definido na 1ª linha)">〃</span>
+                    <span className="h-9 flex items-center px-2 rounded-md bg-muted text-sm text-muted-foreground">{e.rot} (automático)</span>
+                    <span className="h-9 flex items-center justify-end px-2 rounded-md bg-muted text-sm font-mono">{e.v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="w-7" />
+                  </div>
+                ));
+              })()}
+              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título — natureza e centro de custo são <b>obrigatórios</b>; a soma das naturezas deve bater com o valor do título; o centro vale para o título inteiro. Juros, multa e taxa entram <b>automaticamente</b> nas linhas acima ao serem preenchidos.</p>
             </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>

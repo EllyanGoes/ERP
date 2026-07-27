@@ -283,8 +283,11 @@ export default function PagamentosInput({
                 menuMinWidth={menuMinWidth}
                 triggerClassName={cn("h-9 rounded-lg", invalida && "border-red-400 bg-danger/10 text-danger")}
                 options={[
-                  ...(!temCaixa ? [{ value: "caixa-geral", label: "Caixa Geral" }] : []),
-                  ...contasOpts.map((c) => ({ value: c.id, label: c.nome })),
+                  // Divisão: contas da EMPRESA primeiro; contas de TERCEIROS
+                  // (dinheiro de 3º sob guarda — 1.1.6) num grupo separado.
+                  ...(!temCaixa ? [{ value: "caixa-geral", label: "Caixa Geral", group: "Contas da empresa" }] : []),
+                  ...contasOpts.filter((c) => !c.ehTerceiro).map((c) => ({ value: c.id, label: c.nome, group: "Contas da empresa" })),
+                  ...contasOpts.filter((c) => c.ehTerceiro).map((c) => ({ value: c.id, label: c.nome, group: "Contas de terceiros" })),
                 ]}
               />
             );
