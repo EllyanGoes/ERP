@@ -21,8 +21,10 @@ export type PontoGrafico = {
   venc: string | null;
   valor: number;
   // Detalhe do título p/ o popup ao clicar na barra.
+  id?: string;
   numero?: string;
   fornecedor?: string | null;
+  descricao?: string | null;
   status?: string;
 };
 type Granularidade = "dia" | "mes" | "ano";
@@ -53,7 +55,12 @@ function brlCompacto(v: number): string {
   return v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
 }
 
-export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] }) {
+export default function ContasPagarGrafico({ pontos, onAbrirTitulo }: {
+  pontos: PontoGrafico[];
+  // Clique no Nº do título dentro do popup da barra — abre o detalhe do CP
+  // (o pai, que conhece as contas, decide como abrir).
+  onAbrirTitulo?: (id: string) => void;
+}) {
   const [gran, setGran] = usePersistedState<Granularidade>("financeiro:contas-pagar:grafico-gran", "mes");
   // Barra clicada → popup com a lista de títulos do período.
   const [bucketAberto, setBucketAberto] = useState<string | null>(null);
@@ -218,6 +225,7 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
                     <tr className="border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                       <th className="text-left px-3 py-2">Nº Título</th>
                       <th className="text-left px-3 py-2">Fornecedor</th>
+                      <th className="text-left px-3 py-2">Descrição</th>
                       <th className="text-left px-3 py-2">Vencimento</th>
                       <th className="text-right px-3 py-2">Valor</th>
                       <th className="text-center px-3 py-2 w-24">Status</th>
@@ -226,8 +234,22 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
                   <tbody>
                     {doPeriodo.map((p, i) => (
                       <tr key={i} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2 font-mono text-xs font-semibold whitespace-nowrap">{p.numero ?? "—"}</td>
-                        <td className="px-3 py-2"><div className="truncate max-w-[18rem]">{p.fornecedor ?? "—"}</div></td>
+                        <td className="px-3 py-2 font-mono text-xs font-semibold whitespace-nowrap">
+                          {p.id && onAbrirTitulo ? (
+                            <button
+                              type="button"
+                              className="text-info hover:underline"
+                              title="Abrir o título"
+                              onClick={() => { setBucketAberto(null); onAbrirTitulo(p.id!); }}
+                            >
+                              {p.numero ?? "—"}
+                            </button>
+                          ) : (p.numero ?? "—")}
+                        </td>
+                        <td className="px-3 py-2"><div className="truncate max-w-[12rem]">{p.fornecedor ?? "—"}</div></td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          <div className="truncate max-w-[16rem]" title={p.descricao ?? undefined}>{p.descricao ?? "—"}</div>
+                        </td>
                         <td className="px-3 py-2 whitespace-nowrap">{p.venc ? formatDate(p.venc) : "—"}</td>
                         <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{formatBRL(p.valor)}</td>
                         <td className="px-3 py-2 text-center">{p.status ? <StatusBadge status={p.status} /> : null}</td>
@@ -236,7 +258,7 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
                   </tbody>
                   <tfoot>
                     <tr className="bg-muted/60 border-t border-border font-semibold">
-                      <td colSpan={3} className="px-3 py-2 text-xs text-muted-foreground uppercase">
+                      <td colSpan={4} className="px-3 py-2 text-xs text-muted-foreground uppercase">
                         {doPeriodo.length} título(s)
                       </td>
                       <td className="px-3 py-2 text-right">{formatBRL(total)}</td>

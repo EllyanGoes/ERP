@@ -350,8 +350,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           ? decimalToNumber(c.valorOriginal)
           : Math.max(0, decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)),
         // Detalhe p/ o popup da barra (lista de títulos do período clicado).
+        id: c.id,
         numero: c.numero,
         fornecedor: c.fornecedor?.razaoSocial ?? null,
+        descricao: c.descricao ?? null,
         status: c.status,
       }));
   }, [contas, statusSel, naturezaFiltro, fornecedorFiltro, busca]);
@@ -960,7 +962,13 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       })()}
       </div>
       {vista === "grafico" ? (
-        <ContasPagarGrafico pontos={pontosGrafico} />
+        <ContasPagarGrafico
+          pontos={pontosGrafico}
+          onAbrirTitulo={(tituloId) => {
+            const c = contas.find((x) => x.id === tituloId);
+            if (c) setDetalhe(c);
+          }}
+        />
       ) : (
       <DataTable
         data={contasFiltradas}
