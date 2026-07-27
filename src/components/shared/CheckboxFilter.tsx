@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,9 @@ export default function CheckboxFilter({
   noun = "itens",
   menuWidth = "w-56",
   className,
+  icon,
+  iconOnly,
+  triggerClassName,
 }: {
   values: string[];
   onChange: (v: string[]) => void;
@@ -25,6 +28,12 @@ export default function CheckboxFilter({
   noun?: string;
   menuWidth?: string;
   className?: string;
+  /** Ícone no gatilho (antes do rótulo). */
+  icon?: ReactNode;
+  /** Gatilho compacto SÓ com o ícone — o rótulo atual vira tooltip. */
+  iconOnly?: boolean;
+  /** Classes extras do gatilho (ex.: estilo "chip" da barra de filtros). */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -55,15 +64,19 @@ export default function CheckboxFilter({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        title={iconOnly ? label : undefined}
         className={cn(
-          "flex items-center gap-1.5 h-9 px-3 text-sm border rounded-lg transition-colors",
+          "flex items-center gap-1.5 h-9 text-sm border rounded-lg transition-colors",
+          iconOnly ? "px-2.5" : "px-3",
           active
             ? "border-blue-300 bg-info/10 text-info"
             : "border-border bg-card text-foreground hover:bg-muted",
+          triggerClassName,
         )}
       >
-        <span>{label}</span>
-        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+        {icon}
+        {!iconOnly && <span>{label}</span>}
+        {!iconOnly && <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
       </button>
 
       {open && (

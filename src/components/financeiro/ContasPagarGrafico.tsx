@@ -1,16 +1,17 @@
 "use client";
 
-// Visão GRÁFICO do Contas a Pagar: curva ACUMULADA do valor a pagar pela data de
+// Visão GRÁFICO do Contas a Pagar: BARRAS do valor a pagar por data de
 // vencimento, com granularidade dia/mês/ano. Recebe os títulos já filtrados por
 // status/fornecedor/natureza/busca (o recorte de período/mês NÃO se aplica aqui —
 // o gráfico mostra o horizonte inteiro da dívida). Série única (sem legenda);
-// linha tracejada marca HOJE, separando o vencido do a vencer.
+// o acumulado fica no tooltip; linha tracejada marca HOJE, separando o vencido
+// do a vencer.
 
 import { useMemo } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn, formatBRL } from "@/lib/utils";
 import {
-  ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, ComposedChart, Bar, XAxis, YAxis, Tooltip,
   CartesianGrid, ReferenceLine,
 } from "recharts";
 
@@ -67,7 +68,7 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
     <div className="rounded-xl border border-border bg-card shadow-md px-4 pt-3 pb-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-foreground">Contas a pagar acumuladas por vencimento</p>
+          <p className="text-sm font-semibold text-foreground">Contas a pagar por vencimento</p>
           <p className="text-[11px] text-muted-foreground">
             Respeita os filtros de status/fornecedor/natureza; o recorte de mês/período não se aplica (horizonte completo).
             {semVenc.qtd > 0 && <> · {semVenc.qtd} título(s) sem vencimento fora do gráfico ({formatBRL(semVenc.total)})</>}
@@ -94,7 +95,7 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
             <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={brlCompacto} axisLine={false} tickLine={false} width={58}
               label={{ value: "R$", position: "insideTopLeft", offset: 0, fontSize: 10, fill: "#94a3b8" }} />
             <Tooltip
-              cursor={{ stroke: "#94a3b8", strokeOpacity: 0.35 }}
+              cursor={{ fill: "#94a3b8", fillOpacity: 0.12 }}
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
                 const p = (payload[0]?.payload ?? {}) as { doBucket?: number; acumulado?: number };
@@ -112,10 +113,9 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
               <ReferenceLine x={serie.find((s) => s.chave === chaveHoje)?.label} stroke="#94a3b8" strokeDasharray="4 4"
                 label={{ value: "hoje", position: "top", fontSize: 10, fill: "#94a3b8" }} />
             )}
-            <Area type="stepAfter" dataKey="acumulado" name="Acumulado"
-              stroke="hsl(var(--warning))" strokeWidth={2}
-              fill="hsl(var(--warning))" fillOpacity={0.12}
-              dot={false} activeDot={{ r: 4 }} />
+            <Bar dataKey="doBucket" name={rotuloBucket}
+              fill="hsl(var(--warning))" fillOpacity={0.85}
+              radius={[4, 4, 0, 0]} maxBarSize={48} />
           </ComposedChart>
         </ResponsiveContainer>
       )}

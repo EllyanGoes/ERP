@@ -83,11 +83,15 @@ interface Props {
   value: DateRange;
   onChange: (range: DateRange) => void;
   placeholder?: string;
+  /** Gatilho compacto SÓ com o ícone de calendário — o período vira tooltip. */
+  iconOnly?: boolean;
+  /** Classes extras do gatilho (ex.: estilo "chip" da barra de filtros). */
+  triggerClassName?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function DateRangePicker({ value, onChange, placeholder = "Selecionar período..." }: Props) {
+export default function DateRangePicker({ value, onChange, placeholder = "Selecionar período...", iconOnly, triggerClassName }: Props) {
   const today = todayISO();
 
   const [picking,   setPicking]   = useState<"from" | "to">("from");
@@ -261,18 +265,23 @@ export default function DateRangePicker({ value, onChange, placeholder = "Seleci
         ref={triggerRef}
         type="button"
         onClick={() => { setOpen((v) => !v); setPicking("from"); }}
+        title={iconOnly ? triggerLabel : undefined}
         className={cn(
-          "flex items-center gap-2 h-9 px-3 rounded-lg border text-sm transition-colors select-none",
+          "flex items-center gap-2 h-9 rounded-lg border text-sm transition-colors select-none",
+          iconOnly ? "px-2.5" : "px-3",
           open
             ? "border-blue-500 ring-2 ring-blue-100 bg-card"
+            : hasValue && iconOnly
+            ? "border-blue-300 bg-info/10"
             : "border-border bg-card hover:border-border",
-          hasValue ? "text-foreground" : "text-muted-foreground"
+          hasValue ? "text-foreground" : "text-muted-foreground",
+          triggerClassName,
         )}
       >
-        <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-        <span className="whitespace-nowrap">{triggerLabel}</span>
+        <Calendar className={cn("w-3.5 h-3.5 shrink-0", hasValue && iconOnly ? "text-info" : "text-muted-foreground")} />
+        {!iconOnly && <span className="whitespace-nowrap">{triggerLabel}</span>}
         {hasValue && (
-          <span role="button" onClick={clear} className="text-muted-foreground/60 hover:text-muted-foreground ml-0.5 cursor-pointer">
+          <span role="button" onClick={clear} className="text-muted-foreground/60 hover:text-muted-foreground ml-0.5 cursor-pointer" title="Limpar período">
             <X className="w-3 h-3" />
           </span>
         )}

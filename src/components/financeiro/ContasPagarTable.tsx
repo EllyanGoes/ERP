@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import DataTable, { type GroupInfo } from "@/components/shared/DataTable";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -20,7 +20,7 @@ import PagamentosInput, {
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, TriangleAlert, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, ListFilter, CircleDot } from "lucide-react";
 import ContasPagarGrafico from "@/components/financeiro/ContasPagarGrafico";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
@@ -134,24 +134,6 @@ function taxaNaturezaDefault(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt | undefine
   return arr.find((n) => n.sistemaChave === "tarifa-bancaria") ?? arr[0];
 }
 
-// ── Classificação incompleta (badges amber + filtro "Classificação pendente") ──
-// Sem natureza: split vazio e sem natureza única no título.
-function semNatureza(c: ContaRow): boolean {
-  return !(c.naturezas && c.naturezas.length > 0) && !c.naturezaFinanceiraId;
-}
-// TES da origem sugere natureza de MATERIAL (grupo 2 — potencial CIF): título
-// sem centro nesse caso é classificação incompleta (o centro decide CIF×Despesa).
-function tesSugereMaterial(c: ContaRow): boolean {
-  const itens = [...(c.conferencia?.itens ?? []), ...(c.pedidoCompra?.itens ?? [])];
-  return itens.some((i) => i.tes?.naturezaSugerida?.codigo?.startsWith("2."));
-}
-function semCentro(c: ContaRow): boolean {
-  return !c.centroCustoId && tesSugereMaterial(c);
-}
-function classificacaoPendente(c: ContaRow): boolean {
-  return semNatureza(c) || semCentro(c);
-}
-
 // Naturezas do título (coluna e filtro): as linhas do split; sem split, a
 // natureza única do título (legado). Rótulo com o código do plano como prefixo.
 function naturezasDoTitulo(c: ContaRow): { id: string; label: string }[] {
@@ -161,15 +143,6 @@ function naturezasDoTitulo(c: ContaRow): { id: string; label: string }[] {
     .map((l) => ({ id: l.naturezaFinanceiraId, label: rotulo(l.naturezaFinanceira!) }));
   if (doSplit.length > 0) return Array.from(new Map(doSplit.map((n) => [n.id, n])).values());
   return c.naturezaFinanceira ? [{ id: c.naturezaFinanceira.id, label: rotulo(c.naturezaFinanceira) }] : [];
-}
-
-// Badge amber informativo (não bloqueia) — padrão da reconciliação da folha.
-function BadgeClassif({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400 whitespace-nowrap">
-      {children}
-    </span>
-  );
 }
 
 // Data (Date|string) → "YYYY-MM-DD" para comparar com o range do filtro.
@@ -256,6 +229,47 @@ function mesmoSet(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((x) => b.includes(x));
 }
 
+// Chaves dos filtros da barra de chips (estilo Notion) e a ordem fixa deles.
+type FiltroChave = "status" | "periodo" | "fornecedor" | "natureza";
+const ORDEM_FILTROS: FiltroChave[] = ["status", "periodo", "fornecedor", "natureza"];
+
+// "+ Filtrar" no estilo Notion: menu com as propriedades de filtro que ainda não
+// estão na barra de chips.
+function AdicionarFiltroMenu({ opcoes, onAdd }: {
+  opcoes: { key: FiltroChave; label: string; icon: React.ReactNode }[];
+  onAdd: (k: FiltroChave) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+  if (opcoes.length === 0) return null;
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 h-7 px-2 rounded-full text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
+        <Plus className="w-3.5 h-3.5" /> Filtrar
+      </button>
+      {open && (
+        <div className="absolute left-0 top-8 z-20 w-44 bg-card border border-border rounded-xl shadow-lg py-1.5">
+          {opcoes.map((o) => (
+            <button key={o.key} type="button" onClick={() => { onAdd(o.key); setOpen(false); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-muted">
+              {o.icon} {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Resumo = { emAberto: number; vencido: number; pagoMes: number };
 
 export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[]; resumo?: Resumo }) {
@@ -289,8 +303,11 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const modoMes = !periodo.from && !periodo.to;
   // Vista: tabela (padrão) ou gráfico (acumulado por vencimento).
   const [vista, setVista] = usePersistedState<"tabela" | "grafico">("financeiro:contas-pagar:vista", "tabela");
-  // Filtro rápido: só títulos com classificação pendente (sem natureza e/ou sem centro).
-  const [soPendentes, setSoPendentes] = usePersistedState<boolean>("financeiro:contas-pagar:classif-pendente", false);
+  // Barra de filtros estilo Notion: os filtros vivem numa linha de CHIPS sob a
+  // toolbar. `filtrosVisiveis` = chips adicionados via "+ Filtrar" (persistido);
+  // filtros com valor ativo aparecem sempre, mesmo sem estar na lista.
+  const [filtrosVisiveis, setFiltrosVisiveis] = usePersistedState<FiltroChave[]>("financeiro:contas-pagar:filtros-visiveis", ["status"]);
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
   // Naturezas distintas presentes na lista (para o filtro) — ordenadas pelo
   // código do plano (o rótulo já vem com o código como prefixo).
   const naturezasDisponiveis = useMemo(() => {
@@ -343,13 +360,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       if (naturezaFiltro !== "" && !naturezasDoTitulo(c).some((n) => n.id === naturezaFiltro)) return false;
       if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
       if (!passaData(c)) return false;
-      if (soPendentes && !classificacaoPendente(c)) return false;
       if (!q) return true;
       const o = origemPagar(c);
       return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, naturezaFiltro, fornecedorFiltro, busca, periodo, mes, soPendentes]);
+  }, [contas, naturezaFiltro, fornecedorFiltro, busca, periodo, mes]);
   // Tabela: base + o filtro de status (OR sobre os marcados).
   const contasFiltradas = useMemo(
     () => contasBase.filter((c) => statusSel.some((s) => casaStatus(c, s as StatusFiltro))),
@@ -366,7 +382,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         if (!statusSel.some((s) => casaStatus(c, s as StatusFiltro))) return false;
         if (naturezaFiltro !== "" && !naturezasDoTitulo(c).some((n) => n.id === naturezaFiltro)) return false;
         if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
-        if (soPendentes && !classificacaoPendente(c)) return false;
         if (!q) return true;
         const o = origemPagar(c);
         return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
@@ -378,7 +393,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           ? decimalToNumber(c.valorOriginal)
           : Math.max(0, decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)),
       }));
-  }, [contas, statusSel, naturezaFiltro, fornecedorFiltro, busca, soPendentes]);
+  }, [contas, statusSel, naturezaFiltro, fornecedorFiltro, busca]);
   // Totais dos blocos, recortando a base por categoria de status.
   const totais = useMemo(() => {
     const now = new Date();
@@ -618,15 +633,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         {row.original.antecipado && (
           <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado — adiantamento a fornecedor gerado no pedido">PA</span>
         )}
-        {/* Classificação incompleta (informativo — não bloqueia a baixa). */}
-        {classificacaoPendente(row.original) && (
-          <span
-            className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 p-0.5 text-amber-700 dark:text-amber-400"
-            title={[semNatureza(row.original) ? "Sem natureza" : null, semCentro(row.original) ? "Sem centro de custo" : null].filter(Boolean).join(" · ")}
-          >
-            <TriangleAlert className="w-3 h-3" />
-          </span>
-        )}
       </span>
     ) },
     { id: "fornecedor", header: "Fornecedor", cell: ({ row }) => (
@@ -800,10 +806,35 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
 
   const totalInformado = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
 
+  // Chips da barra de filtros (estilo Notion): mostram os adicionados via
+  // "+ Filtrar" + os que estão com valor ativo (mesmo sem terem sido adicionados).
+  const CHIP = "h-7 rounded-full text-xs px-2.5";
+  const filtrosAtivos = ORDEM_FILTROS.filter((f) =>
+    f === "status" ? !mesmoSet(statusSel, SET_ABERTO)
+    : f === "periodo" ? Boolean(periodo.from || periodo.to)
+    : f === "fornecedor" ? fornecedorFiltro !== ""
+    : naturezaFiltro !== "");
+  const chipsFiltro = ORDEM_FILTROS.filter((f) => filtrosVisiveis.includes(f) || filtrosAtivos.includes(f));
+  const removerFiltro = (f: FiltroChave) => {
+    setFiltrosVisiveis((p) => p.filter((x) => x !== f));
+    if (f === "status") setStatusSel(SET_ABERTO);
+    if (f === "periodo") setPeriodo({ from: "", to: "" });
+    if (f === "fornecedor") setFornecedorFiltro("");
+    if (f === "natureza") setNaturezaFiltro("");
+  };
+  const opcoesFiltro = [
+    { key: "status" as const, label: "Status", icon: <CircleDot className="w-4 h-4 text-muted-foreground" /> },
+    { key: "periodo" as const, label: "Período", icon: <CalendarClock className="w-4 h-4 text-muted-foreground" /> },
+    ...(fornecedoresDisponiveis.length > 0 ? [{ key: "fornecedor" as const, label: "Fornecedor", icon: <Building2 className="w-4 h-4 text-muted-foreground" /> }] : []),
+    ...(naturezasDisponiveis.length > 0 ? [{ key: "natureza" as const, label: "Natureza", icon: <BookOpen className="w-4 h-4 text-muted-foreground" /> }] : []),
+  ].filter((o) => !chipsFiltro.includes(o.key));
+
   return (
     <>
       <div className="space-y-2">
-      {/* Linha 1: todos os filtros + botão de novo lançamento (canto sup. direito). */}
+      {/* Linha 1 (estilo Notion): busca + mês à esquerda; ícones (filtros,
+          agrupar, vista) + novo lançamento à direita. Os FILTROS viram chips
+          numa linha própria, revelada pelo funil ou por filtro ativo. */}
       <div className="flex items-start gap-2">
       <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
         {/* Busca (mesmo padrão das listagens: à esquerda, com limpar). */}
@@ -817,33 +848,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             </button>
           )}
         </div>
-        {/* Status: múltipla escolha (checkboxes) no estilo das listagens. */}
-        <CheckboxFilter
-          values={statusSel}
-          onChange={setStatusSel}
-          noun="status"
-          options={STATUS_PAGAR.map((f) => ({
-            value: f.key,
-            label: f.label,
-            hint: String(contas.filter((c) => casaStatus(c, f.key)).length),
-          }))}
-        />
-        {/* Agrupamento: um único dropdown (Não agrupar / Vencimento / Fornecedor). */}
-        <FilterSelect
-          value={agrupamento}
-          onChange={(v) => setAgrupamento(v as "none" | "vencimento" | "fornecedor")}
-          active={agrupado}
-          icon={<Layers className="w-3.5 h-3.5" />}
-          menuWidth="w-48"
-          options={[
-            { value: "none", label: "Não agrupar" },
-            { value: "vencimento", label: "Por vencimento" },
-            { value: "fornecedor", label: "Por fornecedor" },
-          ]}
-        />
         {/* Recorte de data (padrão: MÊS). Mostra o mês selecionado + vencidos em
             aberto dos meses anteriores; clicar no rótulo alterna Todos ↔ mês
-            atual. Período custom (DateRangePicker) desliga o modo mês. */}
+            atual. Período custom (chip Período) desliga o modo mês. */}
         {modoMes && (
           <div className="inline-flex items-center h-9 rounded-lg border border-border bg-card overflow-hidden">
             <button type="button" onClick={() => mudarMes(-1)} disabled={mes === "TODOS"}
@@ -867,73 +874,108 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             </button>
           </div>
         )}
-        {/* Período custom por data de vencimento (substitui o modo mês). */}
-        <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período personalizado" />
-        {/* Filtro rápido: classificação pendente (sem natureza e/ou sem centro). */}
-        <button
-          type="button"
-          onClick={() => setSoPendentes((v) => !v)}
-          title="Só títulos sem natureza e/ou sem centro de custo"
-          className={cn(
-            "inline-flex items-center gap-1.5 h-9 rounded-lg border px-3 text-xs font-medium transition-colors",
-            soPendentes
-              ? "border-amber-400/60 bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400"
-              : "border-border bg-card text-muted-foreground hover:bg-muted",
-          )}
-        >
-          <TriangleAlert className="w-3.5 h-3.5" /> Classificação pendente
-        </button>
-        {/* Fornecedor (da lista carregada). */}
-        {fornecedoresDisponiveis.length > 0 && (
-          <div className="w-80">
-            <ComboboxWithCreate
-              value={fornecedorFiltro}
-              onChange={setFornecedorFiltro}
-              noneLabel="Todos os fornecedores"
-              placeholder="Fornecedor"
-              triggerClassName="h-9 rounded-lg"
-              menuMinWidth={460}
-              options={fornecedoresDisponiveis.map((f) => ({
-                value: f.id, label: f.nome,
-                render: () => (
-                  <span className="inline-flex items-center gap-2 w-full min-w-0">
-                    <span className="flex-1 truncate">{f.nome}</span>
-                    {bolinhasForn(fornecedorStats.get(f.id))}
-                  </span>
-                ),
-              }))}
-            />
-          </div>
-        )}
-        {naturezasDisponiveis.length > 0 && (
-          <div className="w-64">
-            <ComboboxWithCreate
-              value={naturezaFiltro}
-              onChange={setNaturezaFiltro}
-              noneLabel="Todas as naturezas"
-              placeholder="Natureza"
-              triggerClassName="h-9 rounded-lg"
-              menuMinWidth={340}
-              options={naturezasDisponiveis.map((n) => ({ value: n.id, label: n.label }))}
-            />
-          </div>
-        )}
       </div>
-        {/* Vista: tabela × gráfico (acumulado por vencimento). */}
+        {/* Funil: revela/esconde a linha de chips de filtro. */}
+        <button type="button" onClick={() => setMostrarFiltros((v) => !v)} title="Filtros"
+          className={cn(
+            "inline-flex items-center justify-center h-9 w-9 rounded-lg border transition-colors shrink-0",
+            mostrarFiltros || filtrosAtivos.length > 0
+              ? "border-blue-300 bg-info/10 text-info"
+              : "border-border bg-card text-muted-foreground hover:bg-muted",
+          )}>
+          <ListFilter className="w-4 h-4" />
+        </button>
+        {/* Agrupamento: só o ícone (o rótulo atual vira tooltip). */}
+        <FilterSelect
+          value={agrupamento}
+          onChange={(v) => setAgrupamento(v as "none" | "vencimento" | "fornecedor")}
+          active={agrupado}
+          icon={<Layers className="w-4 h-4" />}
+          iconOnly
+          className="shrink-0"
+          menuWidth="w-48"
+          options={[
+            { value: "none", label: "Não agrupar" },
+            { value: "vencimento", label: "Por vencimento" },
+            { value: "fornecedor", label: "Por fornecedor" },
+          ]}
+        />
+        {/* Vista: tabela × gráfico (barras por vencimento). */}
         <div className="inline-flex items-center h-9 rounded-lg border border-border overflow-hidden shrink-0">
           <button type="button" onClick={() => setVista("tabela")} title="Ver em tabela"
-            className={cn("h-full px-2.5 text-xs font-medium inline-flex items-center gap-1.5 transition-colors",
+            className={cn("h-full px-2.5 inline-flex items-center transition-colors",
               vista === "tabela" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
-            <Table2 className="w-3.5 h-3.5" /> Tabela
+            <Table2 className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => setVista("grafico")} title="Ver o acumulado por vencimento em gráfico"
-            className={cn("h-full px-2.5 text-xs font-medium inline-flex items-center gap-1.5 transition-colors",
+          <button type="button" onClick={() => setVista("grafico")} title="Ver as contas por vencimento em gráfico"
+            className={cn("h-full px-2.5 inline-flex items-center transition-colors",
               vista === "grafico" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
-            <ChartNoAxesCombined className="w-3.5 h-3.5" /> Gráfico
+            <ChartNoAxesCombined className="w-4 h-4" />
           </button>
         </div>
         <NovaContaButton tipo="pagar" />
       </div>
+      {/* Linha de CHIPS de filtro (estilo Notion): cada chip abre o próprio
+          popover; o X remove o chip e limpa o filtro; "+ Filtrar" adiciona. */}
+      {(mostrarFiltros || chipsFiltro.length > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {chipsFiltro.map((f) => (
+            <span key={f} className="inline-flex items-center gap-0.5">
+              {f === "status" && (
+                <CheckboxFilter
+                  values={statusSel}
+                  onChange={setStatusSel}
+                  noun="status"
+                  triggerClassName={CHIP}
+                  options={STATUS_PAGAR.map((s) => ({
+                    value: s.key,
+                    label: s.label,
+                    hint: String(contas.filter((c) => casaStatus(c, s.key)).length),
+                  }))}
+                />
+              )}
+              {f === "periodo" && (
+                <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período" triggerClassName={CHIP} />
+              )}
+              {f === "fornecedor" && fornecedoresDisponiveis.length > 0 && (
+                <ComboboxWithCreate
+                  value={fornecedorFiltro}
+                  onChange={setFornecedorFiltro}
+                  noneLabel="Todos os fornecedores"
+                  placeholder="Fornecedor"
+                  triggerClassName={cn(CHIP, "w-auto max-w-[16rem] border-border bg-card")}
+                  menuMinWidth={460}
+                  options={fornecedoresDisponiveis.map((fo) => ({
+                    value: fo.id, label: fo.nome,
+                    render: () => (
+                      <span className="inline-flex items-center gap-2 w-full min-w-0">
+                        <span className="flex-1 truncate">{fo.nome}</span>
+                        {bolinhasForn(fornecedorStats.get(fo.id))}
+                      </span>
+                    ),
+                  }))}
+                />
+              )}
+              {f === "natureza" && naturezasDisponiveis.length > 0 && (
+                <ComboboxWithCreate
+                  value={naturezaFiltro}
+                  onChange={setNaturezaFiltro}
+                  noneLabel="Todas as naturezas"
+                  placeholder="Natureza"
+                  triggerClassName={cn(CHIP, "w-auto max-w-[14rem] border-border bg-card")}
+                  menuMinWidth={340}
+                  options={naturezasDisponiveis.map((n) => ({ value: n.id, label: n.label }))}
+                />
+              )}
+              <button type="button" onClick={() => removerFiltro(f)} title="Remover filtro"
+                className="p-1 rounded-full text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          <AdicionarFiltroMenu opcoes={opcoesFiltro} onAdd={(k) => setFiltrosVisiveis((p) => [...p, k])} />
+        </div>
+      )}
       {/* Linha 2: totais em blocos compactos coloridos — clicáveis, cada um
           aplica o preset de status (toggle: reclicar marca todos os status). */}
       {resumo && (() => {
@@ -1140,9 +1182,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 min-w-0">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Classificação</Label>
-                  {/* Badges informativos (não bloqueiam a baixa) — refletem o que está na tela. */}
-                  {selected && !centroPagId && tesSugereMaterial(selected) && <BadgeClassif>Sem centro de custo</BadgeClassif>}
-                  {!rateio.some((l) => l.naturezaFinanceiraId) && <BadgeClassif>Sem natureza</BadgeClassif>}
                 </span>
                 <button type="button" onClick={() => setRateio((p) => [...p, { key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: "" }])} className="inline-flex items-center gap-1 text-xs text-info hover:text-info font-medium">
                   <Plus className="w-3.5 h-3.5" /> Adicionar natureza

@@ -20,6 +20,7 @@ export default function FilterSelect({
   active,
   className,
   menuWidth = "w-52",
+  iconOnly,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -28,6 +29,8 @@ export default function FilterSelect({
   active?: boolean;
   className?: string;
   menuWidth?: string;
+  /** Gatilho compacto SÓ com o ícone — o rótulo atual vira tooltip. */
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -48,16 +51,18 @@ export default function FilterSelect({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        title={iconOnly ? current?.label : undefined}
         className={cn(
-          "flex items-center gap-1.5 h-9 px-3 text-sm border rounded-lg transition-colors",
+          "flex items-center gap-1.5 h-9 text-sm border rounded-lg transition-colors",
+          iconOnly ? "px-2.5" : "px-3",
           active
             ? "border-blue-300 bg-info/10 text-info"
             : "border-border bg-card text-foreground hover:bg-muted",
         )}
       >
         {icon}
-        <span>{current?.label}</span>
-        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+        {!iconOnly && <span>{current?.label}</span>}
+        {!iconOnly && <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
       </button>
 
       {open && (
