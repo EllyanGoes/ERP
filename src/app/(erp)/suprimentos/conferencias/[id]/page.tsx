@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -238,6 +238,9 @@ export default function DocumentoEntradaDetailPage() {
   const [despesas, setDespesas] = useState("");
   const [desconto, setDesconto] = useState("");
   const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
+  // Condição como está SALVA no banco — para detectar mudança no salvar e
+  // regerar a grade de duplicatas de DE já concluído.
+  const condicaoSalvaRef = useRef("");
   const [condicoes, setCondicoes] = useState<CondicaoFull[]>([]);
   const [formaPagamentoId, setFormaPagamentoId] = useState("");
   const [formasPagamento, setFormasPagamento] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
@@ -315,6 +318,7 @@ export default function DocumentoEntradaDetailPage() {
       setUfOrigem(conf.ufOrigem ?? "");
       // Condição do DE: usa a do próprio DE, senão herda a do pedido.
       setCondicaoPagamentoId(conf.condicaoPagamentoId ?? conf.pedido?.condicaoPagamentoId ?? "");
+      condicaoSalvaRef.current = conf.condicaoPagamentoId ?? conf.pedido?.condicaoPagamentoId ?? "";
       setFormaPagamentoId(conf.formaPagamentoId ?? "");
       setNaturezaFinanceiraId(conf.naturezaFinanceiraId ?? "");
       setValorPagoAntecipado(decimalToNumber(conf.valorPagoAntecipado) > 0 ? String(decimalToNumber(conf.valorPagoAntecipado)) : "");
@@ -760,6 +764,20 @@ export default function DocumentoEntradaDetailPage() {
       if (!res.ok) {
         setActionError(json.error || "Erro ao salvar");
         return false;
+      }
+      // DE concluído: mudar a CONDIÇÃO DE PAGAMENTO regera a grade de
+      // vencimentos das parcelas em aberto (sem pagamento) — pagas ficam.
+      const concluido = conferencia?.status === "CONCLUIDA" || conferencia?.status === "DIVERGENCIA";
+      const mudouCondicao = (condicaoPagamentoId || "") !== condicaoSalvaRef.current;
+      if (concluido && mudouCondicao && (conferencia?.contasPagar?.length ?? 0) > 0) {
+        const r = await fetch(`/api/suprimentos/conferencias/${id}/regerar-duplicatas`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+        });
+        // 422 = nada em aberto para regerar (tudo pago) — não é erro de salvar.
+        if (!r.ok && r.status !== 422) {
+          const d = await r.json().catch(() => ({}));
+          setActionError(d.error ?? "A condição foi salva, mas a grade de vencimentos não pôde ser regerada.");
+        }
       }
       setNewItems([]); // clear pending new items after save
       await load();

@@ -156,7 +156,7 @@ export default function DuplicatasTab({
             <div className="flex items-start gap-2 rounded-lg border border-border bg-muted p-3 text-xs text-muted-foreground">
               <Lock className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <p>
-                Os títulos já foram <b>gerados na conclusão</b> — alterar a condição de pagamento não regera títulos existentes. Vencimento e valor das parcelas em aberto podem ser ajustados em <b>Editar grade</b>.
+                Os títulos já foram <b>gerados na conclusão</b> — alterar a condição de pagamento e salvar <b>regera as parcelas em aberto</b> (sem pagamento) pela nova condição; parcelas pagas ficam intocadas. Ajustes finos de vencimento/valor podem ser feitos em <b>Editar grade</b>.
               </p>
             </div>
           )}
