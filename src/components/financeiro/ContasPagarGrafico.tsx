@@ -38,6 +38,14 @@ function labelBucket(chave: string, g: Granularidade): string {
   if (g === "mes") return `${MESES[Number(m) - 1]}/${a.slice(2)}`;
   return `${d}/${m}/${a.slice(2)}`;
 }
+// Cores por status — o mesmo vocabulário dos blocos de totais da tela
+// (Vencido vermelho, A vencer azul, Pago verde).
+const COR_STATUS = {
+  vencido: "hsl(var(--danger))",
+  aVencer: "#0ea5e9",
+  pago: "hsl(var(--success))",
+} as const;
+
 // R$ compacto p/ eixo (1,2 mi · 350 mil) — rótulo curto, tooltip tem o exato.
 function brlCompacto(v: number): string {
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
@@ -53,19 +61,32 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
   const { serie, semVenc, chaveHoje } = useMemo(() => {
     const hoje = new Date();
     const isoHoje = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
-    const porBucket = new Map<string, number>();
+    // Pilha por STATUS dentro de cada bucket: vencido (aberto, venc < hoje),
+    // a vencer (aberto, venc ≥ hoje) e pago (PAGA — só entra quando o filtro
+    // de status da tela inclui pagas). Mesmas categorias dos blocos de totais.
+    const porBucket = new Map<string, { vencido: number; aVencer: number; pago: number }>();
     let semVencTotal = 0, semVencQtd = 0;
     for (const p of pontos) {
       if (!p.venc) { semVencTotal += p.valor; semVencQtd++; continue; }
       const k = chaveBucket(p.venc, gran);
-      porBucket.set(k, (porBucket.get(k) ?? 0) + p.valor);
+      const b = porBucket.get(k) ?? { vencido: 0, aVencer: 0, pago: 0 };
+      if (p.status === "PAGA") b.pago += p.valor;
+      else if (p.venc < isoHoje) b.vencido += p.valor;
+      else b.aVencer += p.valor;
+      porBucket.set(k, b);
     }
+    const r2 = (n: number) => Math.round(n * 100) / 100;
     const chaves = Array.from(porBucket.keys()).sort();
     let acumulado = 0;
     const serie = chaves.map((k) => {
-      const doBucket = Math.round((porBucket.get(k) ?? 0) * 100) / 100;
-      acumulado = Math.round((acumulado + doBucket) * 100) / 100;
-      return { chave: k, label: labelBucket(k, gran), doBucket, acumulado };
+      const b = porBucket.get(k)!;
+      const doBucket = r2(b.vencido + b.aVencer + b.pago);
+      acumulado = r2(acumulado + doBucket);
+      return {
+        chave: k, label: labelBucket(k, gran),
+        vencido: r2(b.vencido), aVencer: r2(b.aVencer), pago: r2(b.pago),
+        doBucket, acumulado,
+      };
     });
     // Bucket de HOJE (p/ a linha de referência): o que contém a data corrente.
     const kHoje = chaveBucket(isoHoje, gran);
@@ -85,15 +106,26 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
             {semVenc.qtd > 0 && <> · {semVenc.qtd} título(s) sem vencimento fora do gráfico ({formatBRL(semVenc.total)})</>}
           </p>
         </div>
-        {/* Granularidade: segmentado dia/mês/ano. */}
-        <div className="inline-flex items-center rounded-lg border border-border overflow-hidden">
-          {(["dia", "mes", "ano"] as Granularidade[]).map((g) => (
-            <button key={g} type="button" onClick={() => setGran(g)}
-              className={cn("px-3 h-8 text-xs font-medium transition-colors",
-                gran === g ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
-              {g === "dia" ? "Dia" : g === "mes" ? "Mês" : "Ano"}
-            </button>
-          ))}
+        <div className="flex items-center gap-4">
+          {/* Legenda dos status (série empilhada). */}
+          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+            {([["vencido", "Vencido"], ["aVencer", "A vencer"], ["pago", "Pago"]] as const).map(([k, rot]) => (
+              <span key={k} className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm" style={{ background: COR_STATUS[k] }} />
+                {rot}
+              </span>
+            ))}
+          </div>
+          {/* Granularidade: segmentado dia/mês/ano. */}
+          <div className="inline-flex items-center rounded-lg border border-border overflow-hidden">
+            {(["dia", "mes", "ano"] as Granularidade[]).map((g) => (
+              <button key={g} type="button" onClick={() => setGran(g)}
+                className={cn("px-3 h-8 text-xs font-medium transition-colors",
+                  gran === g ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
+                {g === "dia" ? "Dia" : g === "mes" ? "Mês" : "Ano"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       {serie.length === 0 ? (
@@ -112,10 +144,23 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
               cursor={{ fill: "#94a3b8", fillOpacity: 0.12 }}
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
-                const p = (payload[0]?.payload ?? {}) as { doBucket?: number; acumulado?: number };
+                const p = (payload[0]?.payload ?? {}) as {
+                  vencido?: number; aVencer?: number; pago?: number; doBucket?: number; acumulado?: number;
+                };
+                const linhas = [
+                  { rot: "Vencido", v: p.vencido ?? 0, cor: COR_STATUS.vencido },
+                  { rot: "A vencer", v: p.aVencer ?? 0, cor: COR_STATUS.aVencer },
+                  { rot: "Pago", v: p.pago ?? 0, cor: COR_STATUS.pago },
+                ].filter((l) => l.v > 0);
                 return (
                   <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-md space-y-0.5" style={{ fontSize: 12 }}>
                     <p className="font-medium text-foreground">{label}</p>
+                    {linhas.map((l) => (
+                      <p key={l.rot} className="text-muted-foreground flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-sm inline-block" style={{ background: l.cor }} />
+                        {l.rot}: <b className="text-foreground">{formatBRL(l.v)}</b>
+                      </p>
+                    ))}
                     <p className="text-muted-foreground">{rotuloBucket}: <b className="text-foreground">{formatBRL(p.doBucket ?? 0)}</b></p>
                     <p className="text-muted-foreground">Acumulado: <b className="text-foreground">{formatBRL(p.acumulado ?? 0)}</b></p>
                   </div>
@@ -127,14 +172,24 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
               <ReferenceLine x={serie.find((s) => s.chave === chaveHoje)?.label} stroke="#94a3b8" strokeDasharray="4 4"
                 label={{ value: "hoje", position: "top", fontSize: 10, fill: "#94a3b8" }} />
             )}
-            <Bar dataKey="doBucket" name={rotuloBucket}
-              fill="hsl(var(--warning))" fillOpacity={0.85}
-              radius={[4, 4, 0, 0]} maxBarSize={48}
-              cursor="pointer"
-              onClick={(d: { payload?: { chave?: string } }) => {
-                const chave = d?.payload?.chave;
-                if (chave) setBucketAberto(chave);
-              }} />
+            {/* Pilha por status: vencido (base) → a vencer → pago (topo).
+                O stroke na cor do card dá o respiro entre os segmentos. */}
+            {([
+              ["vencido", "Vencido", COR_STATUS.vencido, false],
+              ["aVencer", "A vencer", COR_STATUS.aVencer, false],
+              ["pago", "Pago", COR_STATUS.pago, true],
+            ] as const).map(([key, nome, cor, topo]) => (
+              <Bar key={key} dataKey={key} name={nome} stackId="s"
+                fill={cor} fillOpacity={0.85}
+                stroke="hsl(var(--card))" strokeWidth={1}
+                {...(topo ? { radius: [4, 4, 0, 0] as [number, number, number, number] } : {})}
+                maxBarSize={48}
+                cursor="pointer"
+                onClick={(d: { payload?: { chave?: string } }) => {
+                  const chave = d?.payload?.chave;
+                  if (chave) setBucketAberto(chave);
+                }} />
+            ))}
           </ComposedChart>
         </ResponsiveContainer>
         </div>
