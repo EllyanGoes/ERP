@@ -20,7 +20,7 @@
 import { useState } from "react";
 import {
   SlidersHorizontal, GripVertical, RotateCcw,
-  Eye, EyeOff,
+  Eye, EyeOff, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import React from "react";
@@ -60,6 +60,8 @@ export default function ColumnConfigurator({
   visibility = {}, onVisibilityChange, onShowAll,
 }: Props) {
   const [open, setOpen] = useState(false);
+  // Busca (estilo Notion: "Procurar uma propriedade…") — filtra as duas listas.
+  const [busca, setBusca] = useState("");
 
   // Drag state (only visible columns are draggable)
   const [dragIdx,     setDragIdx]     = useState<number | null>(null);
@@ -70,8 +72,12 @@ export default function ColumnConfigurator({
     .map((id) => columns.find((c) => c.id === id))
     .filter((c): c is { id: string; label: string } => c !== undefined);
 
+  const q = busca.trim().toLowerCase();
+  const casaBusca = (c: { label: string }) => !q || c.label.toLowerCase().includes(q);
   const visible = orderedAll.filter((c) => visibility[c.id] !== false);
   const hidden  = orderedAll.filter((c) => visibility[c.id] === false);
+  const visibleFiltradas = visible.filter(casaBusca);
+  const hiddenFiltradas  = hidden.filter(casaBusca);
 
   function handleDrop(toIdx: number) {
     if (dragIdx === null || dragIdx === toIdx) return;
@@ -137,6 +143,19 @@ export default function ColumnConfigurator({
               </button>
             </div>
 
+            {/* Busca (estilo Notion) */}
+            <div className="px-3 py-2 border-b border-border">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Procurar uma coluna…"
+                  className="h-8 w-full rounded-lg border border-border bg-background pl-8 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
             {/* ── Visible section ────────────────────────────────────────── */}
             <div className="max-h-80 overflow-y-auto">
               <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
@@ -153,7 +172,9 @@ export default function ColumnConfigurator({
                 )}
               </div>
 
-              {visible.map((col, idx) => (
+              {visibleFiltradas.map((col) => {
+                const idx = visible.indexOf(col);
+                return (
                 <div
                   key={col.id}
                   draggable
@@ -177,22 +198,23 @@ export default function ColumnConfigurator({
                     <button
                       onClick={(e) => { e.stopPropagation(); onVisibilityChange(col.id, false); }}
                       title="Ocultar coluna"
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                      className="text-muted-foreground/70 hover:text-foreground transition-colors"
                     >
                       <Eye className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
-              ))}
+                );
+              })}
 
-              {visible.length === 0 && (
+              {visibleFiltradas.length === 0 && (
                 <p className="px-3 py-2 text-xs text-muted-foreground italic">
                   Nenhuma coluna visível
                 </p>
               )}
 
               {/* ── Hidden section ─────────────────────────────────────── */}
-              {hidden.length > 0 && (
+              {hiddenFiltradas.length > 0 && (
                 <>
                   <div className="flex items-center justify-between px-3 pt-3 pb-1 border-t border-border mt-1">
                     <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
@@ -208,7 +230,7 @@ export default function ColumnConfigurator({
                     )}
                   </div>
 
-                  {hidden.map((col) => (
+                  {hiddenFiltradas.map((col) => (
                     <div
                       key={col.id}
                       className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground group hover:bg-muted transition-colors"

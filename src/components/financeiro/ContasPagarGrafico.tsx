@@ -7,15 +7,24 @@
 // o acumulado fica no tooltip; linha tracejada marca HOJE, separando o vencido
 // do a vencer.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { cn, formatBRL } from "@/lib/utils";
+import { cn, formatBRL, formatDate } from "@/lib/utils";
 import {
   ResponsiveContainer, ComposedChart, Bar, XAxis, YAxis, Tooltip,
   CartesianGrid, ReferenceLine,
 } from "recharts";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import StatusBadge from "@/components/shared/StatusBadge";
 
-export type PontoGrafico = { venc: string | null; valor: number };
+export type PontoGrafico = {
+  venc: string | null;
+  valor: number;
+  // Detalhe do título p/ o popup ao clicar na barra.
+  numero?: string;
+  fornecedor?: string | null;
+  status?: string;
+};
 type Granularidade = "dia" | "mes" | "ano";
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -38,6 +47,8 @@ function brlCompacto(v: number): string {
 
 export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] }) {
   const [gran, setGran] = usePersistedState<Granularidade>("financeiro:contas-pagar:grafico-gran", "mes");
+  // Barra clicada → popup com a lista de títulos do período.
+  const [bucketAberto, setBucketAberto] = useState<string | null>(null);
 
   const { serie, semVenc, chaveHoje } = useMemo(() => {
     const hoje = new Date();
@@ -115,10 +126,68 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
             )}
             <Bar dataKey="doBucket" name={rotuloBucket}
               fill="hsl(var(--warning))" fillOpacity={0.85}
-              radius={[4, 4, 0, 0]} maxBarSize={48} />
+              radius={[4, 4, 0, 0]} maxBarSize={48}
+              cursor="pointer"
+              onClick={(d: { payload?: { chave?: string } }) => {
+                const chave = d?.payload?.chave;
+                if (chave) setBucketAberto(chave);
+              }} />
           </ComposedChart>
         </ResponsiveContainer>
       )}
+
+      {/* Popup da barra clicada: lista dos títulos com vencimento no período. */}
+      <Dialog open={!!bucketAberto} onOpenChange={(o) => !o && setBucketAberto(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Títulos com vencimento em {bucketAberto ? labelBucket(bucketAberto, gran) : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {(() => {
+            if (!bucketAberto) return null;
+            const doPeriodo = pontos
+              .filter((p) => p.venc && chaveBucket(p.venc, gran) === bucketAberto)
+              .sort((a, b) => (a.venc! < b.venc! ? -1 : a.venc! > b.venc! ? 1 : b.valor - a.valor));
+            const total = doPeriodo.reduce((s, p) => s + p.valor, 0);
+            return (
+              <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-muted">
+                    <tr className="border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
+                      <th className="text-left px-3 py-2">Nº Título</th>
+                      <th className="text-left px-3 py-2">Fornecedor</th>
+                      <th className="text-left px-3 py-2">Vencimento</th>
+                      <th className="text-right px-3 py-2">Valor</th>
+                      <th className="text-center px-3 py-2 w-24">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {doPeriodo.map((p, i) => (
+                      <tr key={i} className="border-b border-border last:border-0">
+                        <td className="px-3 py-2 font-mono text-xs font-semibold">{p.numero ?? "—"}</td>
+                        <td className="px-3 py-2 truncate max-w-[16rem]">{p.fornecedor ?? "—"}</td>
+                        <td className="px-3 py-2">{p.venc ? formatDate(p.venc) : "—"}</td>
+                        <td className="px-3 py-2 text-right font-medium">{formatBRL(p.valor)}</td>
+                        <td className="px-3 py-2 text-center">{p.status ? <StatusBadge status={p.status} /> : null}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-muted/60 border-t border-border font-semibold">
+                      <td colSpan={3} className="px-3 py-2 text-xs text-muted-foreground uppercase">
+                        {doPeriodo.length} título(s)
+                      </td>
+                      <td className="px-3 py-2 text-right">{formatBRL(total)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

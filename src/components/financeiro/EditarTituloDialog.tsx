@@ -13,6 +13,7 @@ import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { centroExigidoPelaNatureza } from "@/lib/natureza-centro";
+import { cn, formatBRL } from "@/lib/utils";
 
 export type TituloEdicao = {
   id: string;
@@ -35,12 +36,14 @@ function toISODate(d: Date | string): string {
   return typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10);
 }
 
-export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false, onOpenChange, onSaved }: {
+export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false, origemInfo, onOpenChange, onSaved }: {
   tipo: "pagar" | "receber";
   titulo: TituloEdicao | null;
   // Título AVULSO (sem material): o centro de custo é editável aqui. Título de
   // material mantém o centro somente-leitura (vem do material) e este fica false.
   permiteCentro?: boolean;
+  // Faixa de origem (somente leitura) no topo — mesmo padrão do modal de baixa.
+  origemInfo?: { origem: string; tes: string; centro: string } | null;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
@@ -117,63 +120,80 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
 
   return (
     <Dialog open={!!titulo} onOpenChange={(o) => !o && onOpenChange(false)}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Editar título</DialogTitle>
-          {titulo && <p className="text-sm text-muted-foreground">{titulo.numero}</p>}
+          <DialogTitle>Editar Título</DialogTitle>
+          {titulo && (
+            <p className="text-sm text-muted-foreground">
+              {titulo.numero} — Valor: {formatBRL(Number(titulo.valorOriginal ?? 0))}
+            </p>
+          )}
         </DialogHeader>
         <div className="space-y-4 py-2">
+          {/* Classificação de origem (somente leitura) — mesmo padrão do modal de baixa. */}
+          {origemInfo && (
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs grid grid-cols-3 gap-2">
+              <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Origem</span><span className="text-foreground">{origemInfo.origem}</span></div>
+              <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">TES</span><span className="text-foreground">{origemInfo.tes}</span></div>
+              <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Centro de custo</span><span className="text-foreground">{origemInfo.centro}</span></div>
+            </div>
+          )}
           <div>
             <Label>Descrição</Label>
             <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} className="mt-1" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Valor (R$)</Label>
-              <Input type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} className="mt-1 text-right font-mono" />
+              <Label className="text-xs">Valor (R$)</Label>
+              <Input type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} className="mt-1 h-9 text-right font-mono" />
             </div>
             <div>
-              <Label>Vencimento</Label>
+              <Label className="text-xs">Vencimento</Label>
               <DatePicker value={vencimento} onChange={(v) => setVencimento(v)} className="mt-1 w-full" />
             </div>
           </div>
-          <div>
-            <Label>Natureza financeira</Label>
-            <div className="mt-1">
-              <NaturezaCombobox
-                value={naturezaId}
-                onChange={setNaturezaId}
-                naturezas={naturezas}
-                defaultTipo={tipo === "pagar" ? "SAIDA" : "ENTRADA"}
-                allowCreate
-                onCreated={(n) => setNaturezas((prev) => [...prev, n])}
-              />
-            </div>
-          </div>
-          {/* Centro de custo — editável só em título avulso e quando o destino é de
-              custo (despesa/CIF). Título de material não mostra (centro vem da origem). */}
-          {exigeCentro && (
-            <div>
-              <Label>Centro de custo</Label>
-              <div className="mt-1">
-                <ComboboxWithCreate
-                  options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
-                  value={centroCustoId}
-                  onChange={setCentroCustoId}
-                  placeholder="Selecionar centro de custo..."
-                />
+          {/* Classificação gerencial — mesma seção do modal de baixa. Centro só em
+              título avulso com destino de custo (material herda da origem). */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Classificação</Label>
+            <div className={cn("grid gap-2", exigeCentro ? "grid-cols-2" : "grid-cols-1")}>
+              <div>
+                <Label className="text-xs">Natureza</Label>
+                <div className="mt-1">
+                  <NaturezaCombobox
+                    value={naturezaId}
+                    onChange={setNaturezaId}
+                    naturezas={naturezas}
+                    defaultTipo={tipo === "pagar" ? "SAIDA" : "ENTRADA"}
+                    allowCreate
+                    onCreated={(n) => setNaturezas((prev) => [...prev, n])}
+                  />
+                </div>
               </div>
+              {exigeCentro && (
+                <div>
+                  <Label className="text-xs">Centro de custo</Label>
+                  <div className="mt-1">
+                    <ComboboxWithCreate
+                      options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))}
+                      value={centroCustoId}
+                      onChange={setCentroCustoId}
+                      placeholder="Centro de custo..."
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+            <p className="text-[11px] text-muted-foreground">
+              {permiteCentro
+                ? "Beneficiário e TES vêm da origem e não são editados aqui."
+                : "TES, centro de custo e beneficiário vêm do documento de origem e não são editados aqui."}
+            </p>
+          </div>
           <div>
             <Label>Observações</Label>
             <Input value={observacoes} onChange={(e) => setObservacoes(e.target.value)} className="mt-1" placeholder="Opcional" />
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            {permiteCentro
-              ? "Beneficiário e TES vêm da origem e não são editados aqui."
-              : "TES, centro de custo e beneficiário vêm do documento de origem e não são editados aqui."}
-          </p>
           {erro && <p className="text-sm text-danger">{erro}</p>}
         </div>
         <DialogFooter>

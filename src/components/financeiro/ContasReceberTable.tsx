@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida, cn } from "@/lib/utils";
-import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers, UserRound, BookOpen } from "lucide-react";
+import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers, UserRound, BookOpen, CircleDot } from "lucide-react";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import FilterSelect from "@/components/shared/FilterSelect";
@@ -165,6 +166,8 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const [busca, setBusca] = useState("");
   // Período por data de vencimento (persistido por usuário — padrão do sistema).
   const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-receber:periodo", { from: "", to: "" });
+  // Barra de filtros padrão (funil + chips) — ver shared/FilterBar.
+  const filterBar = useFilterBar("financeiro:contas-receber:filtros", ["status"]);
   // Contas de contrapartida distintas presentes na lista (para o filtro).
   const contasDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
@@ -593,10 +596,89 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
 
   const totalInformado = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
 
+  // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
+  // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "status", label: "Status",
+      icon: <CircleDot className="w-4 h-4 text-muted-foreground" />,
+      ativo: !mesmoSet(statusSel, SET_ABERTO),
+      limpar: () => setStatusSel(SET_ABERTO),
+      render: () => (
+        <CheckboxFilter
+          values={statusSel}
+          onChange={setStatusSel}
+          noun="status"
+          triggerClassName={CHIP_TRIGGER}
+          options={STATUS_RECEBER.map((f) => ({
+            value: f.key,
+            label: f.label,
+            hint: String(contas.filter((c) => casaStatus(c, f.key)).length),
+          }))}
+        />
+      ),
+    },
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarClock className="w-4 h-4 text-muted-foreground" />,
+      ativo: Boolean(periodo.from || periodo.to),
+      limpar: () => setPeriodo({ from: "", to: "" }),
+      render: () => (
+        <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período" triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+    {
+      key: "cliente", label: "Cliente",
+      icon: <UserRound className="w-4 h-4 text-muted-foreground" />,
+      disponivel: clientesDisponiveis.length > 0,
+      ativo: clienteFiltro !== "",
+      limpar: () => setClienteFiltro(""),
+      render: () => (
+        <ComboboxWithCreate
+          value={clienteFiltro}
+          onChange={setClienteFiltro}
+          noneLabel="Todos os clientes"
+          placeholder="Cliente"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          menuMinWidth={460}
+          options={clientesDisponiveis.map((c) => ({
+            value: c.id, label: c.nome,
+            render: () => (
+              <span className="inline-flex items-center gap-2 w-full min-w-0">
+                <span className="flex-1 truncate">{c.nome}</span>
+                {bolinhasCliente(clienteStats.get(c.id))}
+              </span>
+            ),
+          }))}
+        />
+      ),
+    },
+    {
+      key: "conta", label: "Conta",
+      icon: <Wallet className="w-4 h-4 text-muted-foreground" />,
+      disponivel: contasDisponiveis.length > 0,
+      ativo: contaFiltro !== "",
+      limpar: () => setContaFiltro(""),
+      render: () => (
+        <ComboboxWithCreate
+          value={contaFiltro}
+          onChange={setContaFiltro}
+          noneLabel="Todas as contas"
+          placeholder="Conta"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          menuMinWidth={340}
+          options={contasDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
+        />
+      ),
+    },
+  ];
+
   return (
     <>
       <div className="space-y-2">
-      {/* Linha 1: todos os filtros + botão de novo lançamento (canto sup. direito). */}
+      {/* Linha 1 (estilo Notion): busca à esquerda; ícones (filtros, agrupar) +
+          novo lançamento à direita. Os FILTROS viram chips numa linha própria,
+          revelada pelo funil ou por filtro ativo. */}
       <div className="flex items-start gap-2">
       <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
         {/* Busca (mesmo padrão das listagens: à esquerda, com limpar). */}
@@ -610,23 +692,17 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             </button>
           )}
         </div>
-        {/* Status: múltipla escolha (checkboxes) no estilo das listagens. */}
-        <CheckboxFilter
-          values={statusSel}
-          onChange={setStatusSel}
-          noun="status"
-          options={STATUS_RECEBER.map((f) => ({
-            value: f.key,
-            label: f.label,
-            hint: String(contas.filter((c) => casaStatus(c, f.key)).length),
-          }))}
-        />
-        {/* Agrupamento: um único dropdown (Não agrupar / Vencimento / Cliente). */}
+      </div>
+        {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+        <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
+        {/* Agrupamento: só o ícone (o rótulo atual vira tooltip). */}
         <FilterSelect
           value={agrupamento}
           onChange={(v) => setAgrupamento(v as "none" | "vencimento" | "cliente")}
           active={agrupamento !== "none"}
-          icon={<Layers className="w-3.5 h-3.5" />}
+          icon={<Layers className="w-4 h-4" />}
+          iconOnly
+          className="shrink-0"
           menuWidth="w-48"
           options={[
             { value: "none", label: "Não agrupar" },
@@ -634,45 +710,10 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             { value: "cliente", label: "Por cliente" },
           ]}
         />
-        {/* Período por data de vencimento. */}
-        <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período (vencimento)" />
-        {/* Cliente (da lista carregada). */}
-        {clientesDisponiveis.length > 0 && (
-          <div className="w-80">
-            <ComboboxWithCreate
-              value={clienteFiltro}
-              onChange={setClienteFiltro}
-              noneLabel="Todos os clientes"
-              placeholder="Cliente"
-              triggerClassName="h-9 rounded-lg"
-              menuMinWidth={460}
-              options={clientesDisponiveis.map((c) => ({
-                value: c.id, label: c.nome,
-                render: () => (
-                  <span className="inline-flex items-center gap-2 w-full min-w-0">
-                    <span className="flex-1 truncate">{c.nome}</span>
-                    {bolinhasCliente(clienteStats.get(c.id))}
-                  </span>
-                ),
-              }))}
-            />
-          </div>
-        )}
-        {contasDisponiveis.length > 0 && (
-          <div className="w-64">
-            <ComboboxWithCreate
-              value={contaFiltro}
-              onChange={setContaFiltro}
-              noneLabel="Todas as contas"
-              triggerClassName="h-9 rounded-lg"
-              menuMinWidth={340}
-              options={contasDisponiveis.map((c) => ({ value: c.id, label: c.nome }))}
-            />
-          </div>
-        )}
-      </div>
         <NovaContaButton tipo="receber" />
       </div>
+      {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+      <FilterBarChips bar={filterBar} chips={chipsFiltro} />
       {/* Linha 2: totais em blocos compactos coloridos — clicáveis, cada um
           aplica o preset de status (toggle: reclicar marca todos os status). */}
       {resumo && (() => {

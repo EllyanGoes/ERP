@@ -20,7 +20,8 @@ import PagamentosInput, {
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, ListFilter, CircleDot } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, CircleDot } from "lucide-react";
+import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import ContasPagarGrafico from "@/components/financeiro/ContasPagarGrafico";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
@@ -229,47 +230,6 @@ function mesmoSet(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((x) => b.includes(x));
 }
 
-// Chaves dos filtros da barra de chips (estilo Notion) e a ordem fixa deles.
-type FiltroChave = "status" | "periodo" | "fornecedor" | "natureza";
-const ORDEM_FILTROS: FiltroChave[] = ["status", "periodo", "fornecedor", "natureza"];
-
-// "+ Filtrar" no estilo Notion: menu com as propriedades de filtro que ainda não
-// estão na barra de chips.
-function AdicionarFiltroMenu({ opcoes, onAdd }: {
-  opcoes: { key: FiltroChave; label: string; icon: React.ReactNode }[];
-  onAdd: (k: FiltroChave) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, [open]);
-  if (opcoes.length === 0) return null;
-  return (
-    <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 h-7 px-2 rounded-full text-xs font-medium text-muted-foreground hover:bg-muted transition-colors">
-        <Plus className="w-3.5 h-3.5" /> Filtrar
-      </button>
-      {open && (
-        <div className="absolute left-0 top-8 z-20 w-44 bg-card border border-border rounded-xl shadow-lg py-1.5">
-          {opcoes.map((o) => (
-            <button key={o.key} type="button" onClick={() => { onAdd(o.key); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-muted">
-              {o.icon} {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 type Resumo = { emAberto: number; vencido: number; pagoMes: number };
 
 export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[]; resumo?: Resumo }) {
@@ -303,11 +263,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const modoMes = !periodo.from && !periodo.to;
   // Vista: tabela (padrão) ou gráfico (acumulado por vencimento).
   const [vista, setVista] = usePersistedState<"tabela" | "grafico">("financeiro:contas-pagar:vista", "tabela");
-  // Barra de filtros estilo Notion: os filtros vivem numa linha de CHIPS sob a
-  // toolbar. `filtrosVisiveis` = chips adicionados via "+ Filtrar" (persistido);
-  // filtros com valor ativo aparecem sempre, mesmo sem estar na lista.
-  const [filtrosVisiveis, setFiltrosVisiveis] = usePersistedState<FiltroChave[]>("financeiro:contas-pagar:filtros-visiveis", ["status"]);
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  // Barra de filtros padrão (funil + chips) — ver shared/FilterBar.
+  const filterBar = useFilterBar("financeiro:contas-pagar:filtros", ["status"]);
   // Naturezas distintas presentes na lista (para o filtro) — ordenadas pelo
   // código do plano (o rótulo já vem com o código como prefixo).
   const naturezasDisponiveis = useMemo(() => {
@@ -392,6 +349,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         valor: c.status === "PAGA"
           ? decimalToNumber(c.valorOriginal)
           : Math.max(0, decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)),
+        // Detalhe p/ o popup da barra (lista de títulos do período clicado).
+        numero: c.numero,
+        fornecedor: c.fornecedor?.razaoSocial ?? null,
+        status: c.status,
       }));
   }, [contas, statusSel, naturezaFiltro, fornecedorFiltro, busca]);
   // Totais dos blocos, recortando a base por categoria de status.
@@ -806,28 +767,82 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
 
   const totalInformado = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
 
-  // Chips da barra de filtros (estilo Notion): mostram os adicionados via
-  // "+ Filtrar" + os que estão com valor ativo (mesmo sem terem sido adicionados).
-  const CHIP = "h-7 rounded-full text-xs px-2.5";
-  const filtrosAtivos = ORDEM_FILTROS.filter((f) =>
-    f === "status" ? !mesmoSet(statusSel, SET_ABERTO)
-    : f === "periodo" ? Boolean(periodo.from || periodo.to)
-    : f === "fornecedor" ? fornecedorFiltro !== ""
-    : naturezaFiltro !== "");
-  const chipsFiltro = ORDEM_FILTROS.filter((f) => filtrosVisiveis.includes(f) || filtrosAtivos.includes(f));
-  const removerFiltro = (f: FiltroChave) => {
-    setFiltrosVisiveis((p) => p.filter((x) => x !== f));
-    if (f === "status") setStatusSel(SET_ABERTO);
-    if (f === "periodo") setPeriodo({ from: "", to: "" });
-    if (f === "fornecedor") setFornecedorFiltro("");
-    if (f === "natureza") setNaturezaFiltro("");
-  };
-  const opcoesFiltro = [
-    { key: "status" as const, label: "Status", icon: <CircleDot className="w-4 h-4 text-muted-foreground" /> },
-    { key: "periodo" as const, label: "Período", icon: <CalendarClock className="w-4 h-4 text-muted-foreground" /> },
-    ...(fornecedoresDisponiveis.length > 0 ? [{ key: "fornecedor" as const, label: "Fornecedor", icon: <Building2 className="w-4 h-4 text-muted-foreground" /> }] : []),
-    ...(naturezasDisponiveis.length > 0 ? [{ key: "natureza" as const, label: "Natureza", icon: <BookOpen className="w-4 h-4 text-muted-foreground" /> }] : []),
-  ].filter((o) => !chipsFiltro.includes(o.key));
+  // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
+  // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
+  const chipsFiltro: FiltroChip[] = [
+    {
+      key: "status", label: "Status",
+      icon: <CircleDot className="w-4 h-4 text-muted-foreground" />,
+      ativo: !mesmoSet(statusSel, SET_ABERTO),
+      limpar: () => setStatusSel(SET_ABERTO),
+      render: () => (
+        <CheckboxFilter
+          values={statusSel}
+          onChange={setStatusSel}
+          noun="status"
+          triggerClassName={CHIP_TRIGGER}
+          options={STATUS_PAGAR.map((s) => ({
+            value: s.key,
+            label: s.label,
+            hint: String(contas.filter((c) => casaStatus(c, s.key)).length),
+          }))}
+        />
+      ),
+    },
+    {
+      key: "periodo", label: "Período",
+      icon: <CalendarClock className="w-4 h-4 text-muted-foreground" />,
+      ativo: Boolean(periodo.from || periodo.to),
+      limpar: () => setPeriodo({ from: "", to: "" }),
+      render: () => (
+        <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período" triggerClassName={CHIP_TRIGGER} />
+      ),
+    },
+    {
+      key: "fornecedor", label: "Fornecedor",
+      icon: <Building2 className="w-4 h-4 text-muted-foreground" />,
+      disponivel: fornecedoresDisponiveis.length > 0,
+      ativo: fornecedorFiltro !== "",
+      limpar: () => setFornecedorFiltro(""),
+      render: () => (
+        <ComboboxWithCreate
+          value={fornecedorFiltro}
+          onChange={setFornecedorFiltro}
+          noneLabel="Todos os fornecedores"
+          placeholder="Fornecedor"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[16rem] border-border bg-card")}
+          menuMinWidth={460}
+          options={fornecedoresDisponiveis.map((fo) => ({
+            value: fo.id, label: fo.nome,
+            render: () => (
+              <span className="inline-flex items-center gap-2 w-full min-w-0">
+                <span className="flex-1 truncate">{fo.nome}</span>
+                {bolinhasForn(fornecedorStats.get(fo.id))}
+              </span>
+            ),
+          }))}
+        />
+      ),
+    },
+    {
+      key: "natureza", label: "Natureza",
+      icon: <BookOpen className="w-4 h-4 text-muted-foreground" />,
+      disponivel: naturezasDisponiveis.length > 0,
+      ativo: naturezaFiltro !== "",
+      limpar: () => setNaturezaFiltro(""),
+      render: () => (
+        <ComboboxWithCreate
+          value={naturezaFiltro}
+          onChange={setNaturezaFiltro}
+          noneLabel="Todas as naturezas"
+          placeholder="Natureza"
+          triggerClassName={cn(CHIP_TRIGGER, "w-auto max-w-[14rem] border-border bg-card")}
+          menuMinWidth={340}
+          options={naturezasDisponiveis.map((n) => ({ value: n.id, label: n.label }))}
+        />
+      ),
+    },
+  ];
 
   return (
     <>
@@ -875,16 +890,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           </div>
         )}
       </div>
-        {/* Funil: revela/esconde a linha de chips de filtro. */}
-        <button type="button" onClick={() => setMostrarFiltros((v) => !v)} title="Filtros"
-          className={cn(
-            "inline-flex items-center justify-center h-9 w-9 rounded-lg border transition-colors shrink-0",
-            mostrarFiltros || filtrosAtivos.length > 0
-              ? "border-blue-300 bg-info/10 text-info"
-              : "border-border bg-card text-muted-foreground hover:bg-muted",
-          )}>
-          <ListFilter className="w-4 h-4" />
-        </button>
+        {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
+        <FilterBarToggle bar={filterBar} chips={chipsFiltro} />
         {/* Agrupamento: só o ícone (o rótulo atual vira tooltip). */}
         <FilterSelect
           value={agrupamento}
@@ -915,67 +922,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         </div>
         <NovaContaButton tipo="pagar" />
       </div>
-      {/* Linha de CHIPS de filtro (estilo Notion): cada chip abre o próprio
-          popover; o X remove o chip e limpa o filtro; "+ Filtrar" adiciona. */}
-      {(mostrarFiltros || chipsFiltro.length > 0) && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {chipsFiltro.map((f) => (
-            <span key={f} className="inline-flex items-center gap-0.5">
-              {f === "status" && (
-                <CheckboxFilter
-                  values={statusSel}
-                  onChange={setStatusSel}
-                  noun="status"
-                  triggerClassName={CHIP}
-                  options={STATUS_PAGAR.map((s) => ({
-                    value: s.key,
-                    label: s.label,
-                    hint: String(contas.filter((c) => casaStatus(c, s.key)).length),
-                  }))}
-                />
-              )}
-              {f === "periodo" && (
-                <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Período" triggerClassName={CHIP} />
-              )}
-              {f === "fornecedor" && fornecedoresDisponiveis.length > 0 && (
-                <ComboboxWithCreate
-                  value={fornecedorFiltro}
-                  onChange={setFornecedorFiltro}
-                  noneLabel="Todos os fornecedores"
-                  placeholder="Fornecedor"
-                  triggerClassName={cn(CHIP, "w-auto max-w-[16rem] border-border bg-card")}
-                  menuMinWidth={460}
-                  options={fornecedoresDisponiveis.map((fo) => ({
-                    value: fo.id, label: fo.nome,
-                    render: () => (
-                      <span className="inline-flex items-center gap-2 w-full min-w-0">
-                        <span className="flex-1 truncate">{fo.nome}</span>
-                        {bolinhasForn(fornecedorStats.get(fo.id))}
-                      </span>
-                    ),
-                  }))}
-                />
-              )}
-              {f === "natureza" && naturezasDisponiveis.length > 0 && (
-                <ComboboxWithCreate
-                  value={naturezaFiltro}
-                  onChange={setNaturezaFiltro}
-                  noneLabel="Todas as naturezas"
-                  placeholder="Natureza"
-                  triggerClassName={cn(CHIP, "w-auto max-w-[14rem] border-border bg-card")}
-                  menuMinWidth={340}
-                  options={naturezasDisponiveis.map((n) => ({ value: n.id, label: n.label }))}
-                />
-              )}
-              <button type="button" onClick={() => removerFiltro(f)} title="Remover filtro"
-                className="p-1 rounded-full text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted">
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-          <AdicionarFiltroMenu opcoes={opcoesFiltro} onAdd={(k) => setFiltrosVisiveis((p) => [...p, k])} />
-        </div>
-      )}
+      {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
+      <FilterBarChips bar={filterBar} chips={chipsFiltro} />
       {/* Linha 2: totais em blocos compactos coloridos — clicáveis, cada um
           aplica o preset de status (toggle: reclicar marca todos os status). */}
       {resumo && (() => {
@@ -1239,6 +1187,11 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         tipo="pagar"
         titulo={editar ? { ...editar, fornecedorId: editar.fornecedor?.id ?? null } : null}
         permiteCentro={!!editar && !editar.pedidoCompra && !editar.folhaId}
+        origemInfo={editar ? (() => {
+          const o = tesEcentroDoTitulo(editar);
+          const org = origemPagar(editar);
+          return { origem: `${org.label}${org.ref ? ` · ${org.ref}` : ""}`, tes: o.tes, centro: o.centro };
+        })() : null}
         onOpenChange={(o) => !o && setEditar(null)}
         onSaved={() => router.refresh()}
       />
