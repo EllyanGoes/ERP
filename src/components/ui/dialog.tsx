@@ -31,7 +31,10 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-[9600] bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // Mesmo z do conteúdo: com dialogs EMPILHADOS (ex.: detalhe do título
+        // sobre a lista do gráfico), o overlay do dialog mais recente fica por
+        // cima do conteúdo do anterior (ordem do DOM) e escurece o fundo.
+        "fixed inset-0 isolate z-[9601] bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
