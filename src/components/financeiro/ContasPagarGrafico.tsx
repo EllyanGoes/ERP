@@ -138,7 +138,9 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
 
       {/* Popup da barra clicada: lista dos títulos com vencimento no período. */}
       <Dialog open={!!bucketAberto} onOpenChange={(o) => !o && setBucketAberto(null)}>
-        <DialogContent className="max-w-2xl">
+        {/* Largura explícita: o DialogContent tem sm:max-w-sm no base — a tabela
+            de títulos precisa de mais para não cortar Valor/Status. */}
+        <DialogContent className="w-[min(52rem,calc(100vw-2rem))] sm:max-w-none">
           <DialogHeader>
             <DialogTitle>
               Títulos com vencimento em {bucketAberto ? labelBucket(bucketAberto, gran) : ""}
@@ -165,10 +167,10 @@ export default function ContasPagarGrafico({ pontos }: { pontos: PontoGrafico[] 
                   <tbody>
                     {doPeriodo.map((p, i) => (
                       <tr key={i} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2 font-mono text-xs font-semibold">{p.numero ?? "—"}</td>
-                        <td className="px-3 py-2 truncate max-w-[16rem]">{p.fornecedor ?? "—"}</td>
-                        <td className="px-3 py-2">{p.venc ? formatDate(p.venc) : "—"}</td>
-                        <td className="px-3 py-2 text-right font-medium">{formatBRL(p.valor)}</td>
+                        <td className="px-3 py-2 font-mono text-xs font-semibold whitespace-nowrap">{p.numero ?? "—"}</td>
+                        <td className="px-3 py-2"><div className="truncate max-w-[18rem]">{p.fornecedor ?? "—"}</div></td>
+                        <td className="px-3 py-2 whitespace-nowrap">{p.venc ? formatDate(p.venc) : "—"}</td>
+                        <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{formatBRL(p.valor)}</td>
                         <td className="px-3 py-2 text-center">{p.status ? <StatusBadge status={p.status} /> : null}</td>
                       </tr>
                     ))}
