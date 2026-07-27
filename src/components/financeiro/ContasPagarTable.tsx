@@ -430,6 +430,24 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const [taxaNaturezaId, setTaxaNaturezaId] = useState("");
   const [taxaNaturezas, setTaxaNaturezas] = useState<TaxaNaturezaOpt[]>([]);
 
+  // Encargos POR DENTRO do título: ao alimentar juros/multa/taxa, a 1ª linha da
+  // classificação ABSORVE a diferença (título − demais linhas − encargos) — o
+  // somatório exibido continua batendo com o valor do título.
+  useEffect(() => {
+    if (!selected) return;
+    const valOrig = decimalToNumber(selected.valorOriginal);
+    const encargos = parseValorBR(juros) + parseValorBR(multa) + parseValorBR(taxa);
+    setRateio((prev) => {
+      if (prev.length === 0) return prev;
+      const outras = prev.slice(1).reduce((s, l) => s + parseValorBR(l.valor), 0);
+      const alvo = Math.max(0, Math.round((valOrig - outras - encargos) * 100) / 100);
+      const fmt = alvo.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      if (prev[0].valor === fmt) return prev;
+      return prev.map((l, i) => (i === 0 ? { ...l, valor: fmt } : l));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [juros, multa, taxa]);
+
   // Rastreabilidade: ?focus=<id> destaca o título vindo do Razão/contabilidade.
   useEffect(() => {
     const f = new URLSearchParams(window.location.search).get("focus");
@@ -742,22 +760,26 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     if (!centroPagId) {
       setErro("Informe o centro de custo na Classificação."); return;
     }
-    // Rateio por natureza: a soma deve bater com o valor do título (classifica a
-    // obrigação inteira).
-    const rateioValido = rateio.filter((l) => l.naturezaFinanceiraId && parseValorBR(l.valor) > 0);
-    if (rateioValido.length > 0) {
-      const soma = Math.round(rateioValido.reduce((s, l) => s + parseValorBR(l.valor), 0) * 100) / 100;
-      const valOrig = decimalToNumber(selected.valorOriginal);
-      if (Math.abs(soma - valOrig) > 0.05) {
-        setErro(`A soma das naturezas (${formatBRL(soma)}) deve bater com o valor do título (${formatBRL(valOrig)}).`);
-        return;
-      }
-    }
     // Encargos: juros/multa saem do caixa; taxa é retida (natureza travada).
     const vJuros = parseValorBR(juros);
     const vMulta = parseValorBR(multa);
     const vTaxa = parseValorBR(taxa);
     if (vJuros < 0 || vMulta < 0 || vTaxa < 0) { setErro("Juros, multa e taxa não podem ser negativos."); return; }
+    // Rateio por natureza: a soma deve bater com o valor do título — sozinha
+    // (encargos por fora) ou somada aos encargos (por dentro — a 1ª linha
+    // absorve; juros/multa/taxa viajam nas naturezas travadas automáticas).
+    const rateioValido = rateio.filter((l) => l.naturezaFinanceiraId && parseValorBR(l.valor) > 0);
+    if (rateioValido.length > 0) {
+      const soma = Math.round(rateioValido.reduce((s, l) => s + parseValorBR(l.valor), 0) * 100) / 100;
+      const valOrig = decimalToNumber(selected.valorOriginal);
+      const encargos = Math.round((vJuros + vMulta + vTaxa) * 100) / 100;
+      const bateSozinha = Math.abs(soma - valOrig) <= 0.05;
+      const bateComEncargos = encargos > 0.005 && Math.abs(soma + encargos - valOrig) <= 0.05;
+      if (!bateSozinha && !bateComEncargos) {
+        setErro(`A soma da classificação (${formatBRL(soma + encargos)}, com encargos) deve bater com o valor do título (${formatBRL(valOrig)}).`);
+        return;
+      }
+    }
     setSaving(true); setErro(null);
     const res = await fetch(`/api/contas-pagar/${selected.id}`, {
       method: "PATCH",
@@ -1109,7 +1131,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                 taxa/tarifa é retida (paga MENOS) — quitação = linhas + taxa. */}
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Encargos (opcional)</Label>
-              <div className="grid grid-cols-[1fr_1fr_1fr_1.4fr] gap-2">
+              {/* A natureza da taxa não é escolhida aqui: cai na travada padrão
+                  (6.02 Tarifas bancárias) e aparece na linha automática abaixo. */}
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <Label className="text-xs">Juros (R$)</Label>
                   <Input value={juros} onChange={(e) => setJuros(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
@@ -1121,18 +1145,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                 <div>
                   <Label className="text-xs">Taxa/tarifa retida (R$)</Label>
                   <Input value={taxa} onChange={(e) => setTaxa(e.target.value)} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
-                </div>
-                <div>
-                  <Label className="text-xs">Natureza da taxa</Label>
-                  <select
-                    value={taxaNaturezaId || taxaNaturezaDefault(taxaNaturezas)?.id || ""}
-                    onChange={(e) => setTaxaNaturezaId(e.target.value)}
-                    disabled={taxaNaturezas.length === 0}
-                    className="mt-1 w-full h-9 rounded-lg border border-border px-2 text-sm bg-card disabled:opacity-50"
-                  >
-                    {taxaNaturezas.length === 0 && <option value="">—</option>}
-                    {taxaNaturezas.map((n) => <option key={n.id} value={n.id}>{n.codigo ? `${n.codigo} ` : ""}{n.nome}</option>)}
-                  </select>
                 </div>
               </div>
               {(() => {
@@ -1219,7 +1231,27 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                   </div>
                 ));
               })()}
-              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título — natureza e centro de custo são <b>obrigatórios</b>; a soma das naturezas deve bater com o valor do título; o centro vale para o título inteiro. Juros, multa e taxa entram <b>automaticamente</b> nas linhas acima ao serem preenchidos.</p>
+              {/* SOMATÓRIO ao vivo: linhas editáveis + encargos automáticos ×
+                  valor do título — verde quando fecha, vermelho com a diferença. */}
+              {selected && (() => {
+                const valOrig = decimalToNumber(selected.valorOriginal);
+                const somaEdit = rateio.reduce((s, l) => s + parseValorBR(l.valor), 0);
+                const enc = parseValorBR(juros) + parseValorBR(multa) + parseValorBR(taxa);
+                const soma = Math.round((somaEdit + enc) * 100) / 100;
+                const bate = Math.abs(soma - valOrig) <= 0.05;
+                return (
+                  <div className={cn(
+                    "flex items-center justify-between rounded-lg px-3 py-2",
+                    bate ? "bg-success/10 text-success" : "bg-danger/10 text-danger",
+                  )}>
+                    <span className="text-xs font-semibold uppercase tracking-wide">Soma da classificação</span>
+                    <span className="text-sm font-bold tabular-nums">
+                      {formatBRL(soma)} / {formatBRL(valOrig)} {bate ? "✓" : `· diferença ${formatBRL(soma - valOrig)}`}
+                    </span>
+                  </div>
+                );
+              })()}
+              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título — natureza e centro de custo são <b>obrigatórios</b>; o centro vale para o título inteiro. Juros, multa e taxa entram <b>automaticamente</b> nas linhas acima e a 1ª linha absorve o valor deles para a soma continuar batendo com o título.</p>
             </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>

@@ -206,12 +206,19 @@ export async function baixarTitulo(
   }
 
   // Rateio gerencial por natureza (opcional, só PAGAR): a soma deve bater com o
-  // valor do título (classifica a obrigação inteira).
+  // valor do título (classifica a obrigação inteira). Duas convenções aceitas:
+  //   • rateio = título (encargos da baixa por FORA, como sempre); ou
+  //   • rateio + juros/multa/taxa = título (encargos POR DENTRO — a tela abate
+  //     os encargos da 1ª linha; juros/multa/taxa já viajam como dimensão nas
+  //     próprias naturezas travadas, então o gerencial fecha no total).
   const naturezasRateio = !isReceber && opts.naturezas ? opts.naturezas : [];
   if (naturezasRateio.length > 0) {
     const somaNat = r2(naturezasRateio.reduce((s, n) => s + n.valor, 0));
-    if (Math.abs(somaNat - totalOriginal) > 0.05) {
-      return { erro: { msg: `A soma das naturezas (R$ ${somaNat.toFixed(2)}) deve bater com o valor do título (R$ ${totalOriginal.toFixed(2)}).`, status: 422 }, conta: null };
+    const encargos = r2(valorJuros + valorMulta + valorTaxaManual);
+    const bateSozinha = Math.abs(somaNat - totalOriginal) <= 0.05;
+    const bateComEncargos = encargos > 0.005 && Math.abs(r2(somaNat + encargos) - totalOriginal) <= 0.05;
+    if (!bateSozinha && !bateComEncargos) {
+      return { erro: { msg: `A soma das naturezas (R$ ${somaNat.toFixed(2)}) deve bater com o valor do título (R$ ${totalOriginal.toFixed(2)})${encargos > 0.005 ? ` — sozinha ou somada aos encargos (R$ ${encargos.toFixed(2)})` : ""}.`, status: 422 }, conta: null };
     }
     // Rateio novo só com naturezas ATIVAS (a inativa aponta a sucessora).
     const { validarNaturezasAtivas } = await import("@/lib/natureza-sistema");
