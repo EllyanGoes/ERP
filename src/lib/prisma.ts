@@ -193,6 +193,11 @@ const MODELOS_LEITURA_GRUPO = new Set<string>([
   "PedidoVenda", "PedidoVendaItem", "Minuta", "MinutaItem", "TabelaPreco",
   // estoque (movimentado pela minuta/conferência da empresa dona)
   "LocalEstoque", "EstoqueItem", "MovimentacaoEstoque", "LoteMovimentacao", "Filial",
+  // financeiro: TÍTULOS de todas as empresas numa tela só (Contas a Pagar /
+  // a Receber com EmpresaTag). As AÇÕES mutantes sobre título de outra empresa
+  // são bloqueadas na UI (pedem a troca da empresa ativa) — contas bancárias,
+  // lançamentos e numeração continuam por empresa.
+  "ContaPagar", "ContaReceber",
 ])
 
 /** Extensão que amarra todas as operações dos modelos escopados a uma empresa. */

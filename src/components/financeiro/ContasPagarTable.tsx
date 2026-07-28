@@ -25,6 +25,7 @@ import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type Filtr
 import TitulosGrafico from "@/components/financeiro/TitulosGrafico";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 import FilterSelect from "@/components/shared/FilterSelect";
 import CheckboxFilter from "@/components/shared/CheckboxFilter";
 import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
@@ -42,6 +43,8 @@ type ItemOrigem = {
 
 type ContaRow = {
   id: string; numero: string; descricao: string; categoria: string | null; status: string; antecipado?: boolean;
+  // Empresa dona do título (modo grupo lista todas — a tag identifica cada uma).
+  empresaId?: string | null;
   parcelaNumero?: number | null; parcelaTotal?: number | null;
   // Forma PREVISTA de quitação (herdada do DE; ex.: permuta) — distinta do
   // formaPagamento (resumo do que foi efetivamente baixado).
@@ -473,6 +476,17 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
 
   const saldo = selected ? decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago) : 0;
 
+  // MODO GRUPO: título de OUTRA empresa aparece na lista (leitura em grupo do
+  // seletor), mas as AÇÕES pedem a troca da empresa ativa — baixa/edição usam
+  // contas bancárias, naturezas e centros da empresa ativa, que não são os dele.
+  const acaoCruzaEmpresa = (c: ContaRow): boolean =>
+    !!c.empresaId && !!user?.activeEmpresaId && c.empresaId !== user.activeEmpresaId;
+  const comGuardaEmpresa = (c: ContaRow, fn: () => void) => () => {
+    if (!acaoCruzaEmpresa(c)) return fn();
+    const nome = user?.empresas?.find((e) => e.id === c.empresaId)?.nome ?? "outra empresa";
+    alert(`Este título é da ${nome}. Troque a empresa ativa no seletor (canto superior direito) para executar esta ação.`);
+  };
+
   function abrir(row: ContaRow) {
     setSelected(row);
     setErro(null);
@@ -565,22 +579,22 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-auto min-w-36">
             {podePagar && (
-              <DropdownMenuItem onClick={() => abrir(c)}>
+              <DropdownMenuItem onClick={comGuardaEmpresa(c, () => abrir(c))}>
                 <Wallet className="w-4 h-4 text-emerald-600" /> Pagar
               </DropdownMenuItem>
             )}
             {podeVincularDe(c) && !c.conferencia && (
-              <DropdownMenuItem onClick={() => setVincular(c)}>
+              <DropdownMenuItem onClick={comGuardaEmpresa(c, () => setVincular(c))}>
                 <Link2 className="w-4 h-4 text-info" /> Vincular a Doc. de Entrada
               </DropdownMenuItem>
             )}
             {isAdmin && podeVincularDe(c) && c.conferencia && (
-              <DropdownMenuItem onClick={() => desvincularDe(c)}>
+              <DropdownMenuItem onClick={comGuardaEmpresa(c, () => desvincularDe(c))}>
                 <Link2 className="w-4 h-4 text-danger" /> Desvincular do DE
               </DropdownMenuItem>
             )}
             {isAdmin && (
-              <DropdownMenuItem onClick={() => setEditar(c)}>
+              <DropdownMenuItem onClick={comGuardaEmpresa(c, () => setEditar(c))}>
                 <Pencil className="w-4 h-4" /> Editar
               </DropdownMenuItem>
             )}
@@ -626,6 +640,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     { accessorKey: "numero", header: "Número", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => (
       <span className="inline-flex items-center gap-1.5">
         <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
+        <EmpresaTag empresaId={row.original.empresaId} />
         {row.original.antecipado && (
           <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado — adiantamento a fornecedor gerado no pedido">PA</span>
         )}
@@ -1082,6 +1097,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             : []),
           ...(isAdmin ? [{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setEditar(r); } }] : []),
         ];
+        // Modo grupo: título de outra empresa → toda ação pede a troca de empresa.
+        const acoesGuardadas = acoes.map((a) => ({ ...a, onClick: comGuardaEmpresa(detalhe, a.onClick) }));
         return (
           <TituloDetalhesDialog
             open={!!detalhe}
@@ -1089,7 +1106,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             numero={detalhe.numero}
             status={detalhe.status}
             campos={campos}
-            acoes={acoes}
+            acoes={acoesGuardadas}
             criadoPor={detalhe.criadoPor}
             atualizadoPor={detalhe.atualizadoPor}
           />

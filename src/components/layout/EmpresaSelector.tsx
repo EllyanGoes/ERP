@@ -26,7 +26,8 @@ function siglaEmpresa(nome: string): string {
  * Seletor de empresa ativa (multiempresa). Fica no topo, ao lado das abas.
  * Só aparece quando o usuário pode ativar mais de uma empresa.
  *
- * Também controla o "modo grupo" das telas de COMPRAS e COMERCIAL: com o
+ * Também controla o "modo grupo" das telas de COMPRAS, COMERCIAL e FINANCEIRO
+ * (títulos a pagar/receber com a tag da empresa): com o
  * modo ligado, as listagens desses módulos mostram os processos de todas as
  * empresas do usuário juntos (com a tag da empresa em cada um) e os
  * documentos novos herdam a empresa da cadeia (cotação ← solicitação,

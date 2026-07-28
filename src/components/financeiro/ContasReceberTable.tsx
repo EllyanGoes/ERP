@@ -15,6 +15,7 @@ import TitulosGrafico from "@/components/financeiro/TitulosGrafico";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 import FilterSelect from "@/components/shared/FilterSelect";
 import CheckboxFilter from "@/components/shared/CheckboxFilter";
 import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
@@ -32,6 +33,8 @@ import PagamentosInput, {
 
 type ContaRow = {
   id: string; numero: string; descricao: string; status: string;
+  // Empresa dona do título (modo grupo lista todas — a tag identifica cada uma).
+  empresaId?: string | null;
   parcelaNumero?: number | null; parcelaTotal?: number | null;
   dataVencimento: Date | string; dataPagamento: Date | string | null;
   dataEmissao?: Date | string | null;
@@ -379,6 +382,17 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
 
   const saldo = selected ? decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago) : 0;
 
+  // MODO GRUPO: título de OUTRA empresa aparece na lista (leitura em grupo do
+  // seletor), mas as AÇÕES pedem a troca da empresa ativa — baixa/edição usam
+  // contas bancárias e naturezas da empresa ativa, que não são os dele.
+  const acaoCruzaEmpresa = (c: ContaRow): boolean =>
+    !!c.empresaId && !!user?.activeEmpresaId && c.empresaId !== user.activeEmpresaId;
+  const comGuardaEmpresa = (c: ContaRow, fn: () => void) => () => {
+    if (!acaoCruzaEmpresa(c)) return fn();
+    const nome = user?.empresas?.find((e) => e.id === c.empresaId)?.nome ?? "outra empresa";
+    alert(`Este título é da ${nome}. Troque a empresa ativa no seletor (canto superior direito) para executar esta ação.`);
+  };
+
   function abrir(row: ContaRow) {
     setSelected(row);
     setErro(null);
@@ -471,17 +485,17 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-auto min-w-36">
             {podeReceber && (
-              <DropdownMenuItem onClick={() => abrir(c)}>
+              <DropdownMenuItem onClick={comGuardaEmpresa(c, () => abrir(c))}>
                 <Wallet className="w-4 h-4 text-emerald-600" /> Receber
               </DropdownMenuItem>
             )}
             {podeEstornar && (
-              <DropdownMenuItem onClick={() => estornar(c)}>
+              <DropdownMenuItem onClick={comGuardaEmpresa(c, () => estornar(c))}>
                 <RotateCcw className="w-4 h-4 text-amber-600" /> Estornar
               </DropdownMenuItem>
             )}
             {isAdmin && (
-              <DropdownMenuItem onClick={() => setEditar(c)}>
+              <DropdownMenuItem onClick={comGuardaEmpresa(c, () => setEditar(c))}>
                 <Pencil className="w-4 h-4" /> Editar
               </DropdownMenuItem>
             )}
@@ -492,7 +506,12 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   }
 
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
-    { accessorKey: "numero", header: "Número", cell: ({ row }) => <span className="font-mono text-xs font-semibold">{row.original.numero}</span> },
+    { accessorKey: "numero", header: "Número", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
+        <EmpresaTag empresaId={row.original.empresaId} />
+      </span>
+    ) },
     { id: "cliente", header: "Cliente", cell: ({ row }) => (
       <div className="max-w-[16rem]">{renderCliente(row.original)}</div>
     ) },
@@ -937,7 +956,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             numero={detalhe.numero}
             status={detalhe.status}
             campos={campos}
-            acoes={acoes}
+            acoes={acoes.map((a) => ({ ...a, onClick: comGuardaEmpresa(detalhe, a.onClick) }))}
             criadoPor={detalhe.criadoPor}
             atualizadoPor={detalhe.atualizadoPor}
           />
