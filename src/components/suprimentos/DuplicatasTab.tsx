@@ -412,6 +412,7 @@ export default function DuplicatasTab({
           atualizadoPor={detalhe.atualizadoPor}
           campos={buildCampos(detalhe, fornecedorNome)}
           acoes={[]}
+          anexosApiBase={`/api/contas-pagar/${detalhe.id}/anexos`}
         />
       )}
     </div>

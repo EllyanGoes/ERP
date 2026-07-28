@@ -644,6 +644,25 @@ model IntegracaoPagamento {
   @@index([empresaId])
 }
 
+
+// Anexos dos TÍTULOS financeiros (fatura, boleto, comprovante…) — um registro
+// por arquivo no Blob; título a pagar OU a receber (uma das FKs preenchida).
+model AnexoTitulo {
+  id             String        @id @default(cuid())
+  contaPagarId   String?
+  contaReceberId String?
+  nome           String
+  url            String
+  tamanho        Int
+  tipo           String
+  createdAt      DateTime      @default(now())
+  contaPagar     ContaPagar?   @relation(fields: [contaPagarId], references: [id], onDelete: Cascade)
+  contaReceber   ContaReceber? @relation(fields: [contaReceberId], references: [id], onDelete: Cascade)
+
+  @@index([contaPagarId])
+  @@index([contaReceberId])
+}
+
 model ContaPagar {
   id                    String                 @id @default(cuid())
   empresaId             String                 @default("emp_tramontin")
@@ -715,6 +734,7 @@ model ContaPagar {
   naturezaFinanceira    NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   lancamentos           LancamentoFinanceiro[]
   naturezas             ContaPagarNatureza[] // rateio gerencial por natureza (definido na baixa)
+  anexos                AnexoTitulo[] // documentos do título (fatura, boleto, comprovante)
   // Título-resíduo nascido de um Encontro de Contas (modo "nova parcela"): a perna
   // de nascimento é um RECLASS contra a conta transitória de compensação (não gera
   // nova despesa). Aponta para a Compensacao que o criou.
@@ -804,6 +824,7 @@ model ContaReceber {
   naturezaFinanceira   NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
   espelhoPagar         ContaPagar?            @relation("EspelhoIntragrupoCR")
   lancamentos          LancamentoFinanceiro[]
+  anexos               AnexoTitulo[] // documentos do título (fatura, boleto, comprovante)
   naturezas            ContaReceberNatureza[] // rateio gerencial por natureza (definido na criação)
   // Título-resíduo nascido de um Encontro de Contas (modo "nova parcela"): a perna
   // de nascimento é um RECLASS contra a conta transitória de compensação (não gera

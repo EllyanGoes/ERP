@@ -957,6 +957,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             status={detalhe.status}
             campos={campos}
             acoes={acoes.map((a) => ({ ...a, onClick: comGuardaEmpresa(detalhe, a.onClick) }))}
+            anexosApiBase={`/api/contas-receber/${detalhe.id}/anexos`}
             criadoPor={detalhe.criadoPor}
             atualizadoPor={detalhe.atualizadoPor}
           />

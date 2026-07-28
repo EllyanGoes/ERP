@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Autoria } from "@/components/shared/Autoria";
+import AnexosSection from "@/components/shared/AnexosSection";
 import { cn } from "@/lib/utils";
 
 // Popup de detalhes de um título (Contas a Pagar/Receber): mostra os dados e as
@@ -19,7 +20,7 @@ export type TituloAcao = {
 };
 
 export default function TituloDetalhesDialog({
-  open, onOpenChange, numero, status, campos, acoes, criadoPor, atualizadoPor,
+  open, onOpenChange, numero, status, campos, acoes, criadoPor, atualizadoPor, anexosApiBase,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -29,6 +30,9 @@ export default function TituloDetalhesDialog({
   acoes: TituloAcao[];
   criadoPor?: string | null;
   atualizadoPor?: string | null;
+  /** Base da API de anexos do título (ex.: /api/contas-pagar/<id>/anexos) —
+      quando presente, o popup ganha a seção de documentos anexados. */
+  anexosApiBase?: string;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -48,6 +52,14 @@ export default function TituloDetalhesDialog({
             </div>
           ))}
         </div>
+
+        {/* Documentos do título (fatura, boleto, comprovante…). */}
+        {anexosApiBase && (
+          <div className="pt-1">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">Documentos</div>
+            <AnexosSection apiBase={anexosApiBase} />
+          </div>
+        )}
 
         <Autoria criadoPor={criadoPor} atualizadoPor={atualizadoPor} />
 

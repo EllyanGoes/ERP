@@ -1107,6 +1107,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             status={detalhe.status}
             campos={campos}
             acoes={acoesGuardadas}
+            anexosApiBase={`/api/contas-pagar/${detalhe.id}/anexos`}
             criadoPor={detalhe.criadoPor}
             atualizadoPor={detalhe.atualizadoPor}
           />
