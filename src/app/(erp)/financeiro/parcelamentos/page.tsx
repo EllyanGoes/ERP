@@ -19,7 +19,7 @@ import {
 } from "@/components/shared/FilterBar";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
-import { Search, Layers, ListFilter } from "lucide-react";
+import { Search, Layers, ListFilter, ChevronLeft, ChevronRight } from "lucide-react";
 
 type Parcela = {
   id: string;
@@ -64,6 +64,18 @@ function SituacaoBadge({ situacao }: { situacao: Parcelamento["situacao"] }) {
 
 export default function ParcelamentosPage() {
   const router = useRouter();
+  // Recorte por MÊS (padrão CP): parcelamentos com parcela no mês + carry-over
+  // vencido em aberto; "TODOS" desliga. Abre no mês corrente.
+  const [mes, setMes] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const mudarMes = (delta: number) => setMes((m) => {
+    if (m === "TODOS") return m;
+    const [a, mm] = m.split("-").map(Number);
+    const d = new Date(a, mm - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [parcelamentos, setParcelamentos] = useState<Parcelamento[]>([]);
   const [loading, setLoading] = useState(true);
   // Parcelamento clicado → popup com a grade completa das parcelas.
@@ -83,12 +95,30 @@ export default function ParcelamentosPage() {
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
+    // Recorte de mês: fica quem tem parcela EM ABERTO no mês selecionado ou
+    // vencida antes dele (carry-over) — mesmo espírito do Contas a Pagar.
+    const passaMes = (p: Parcelamento): boolean => {
+      if (mes === "TODOS") return true;
+      const ini = `${mes}-01`, fim = `${mes}-31`;
+      return p.parcelas.some((par) => {
+        if (par.status !== "ABERTA" && par.status !== "PARCIAL") return false;
+        const iso = par.dataVencimento ? par.dataVencimento.slice(0, 10) : "";
+        return !iso || iso <= fim; // do mês, vencida antes ou sem data
+      }) && p.parcelas.some((par) => {
+        const iso = par.dataVencimento ? par.dataVencimento.slice(0, 10) : "";
+        return (iso >= ini && iso <= fim) || (par.vencida && (par.status === "ABERTA" || par.status === "PARCIAL"));
+      });
+    };
     return parcelamentos.filter((p) => {
       if (situacao !== "TODAS" && p.situacao !== situacao) return false;
+      if (!passaMes(p)) return false;
       if (!q) return true;
       return (p.fornecedor ?? "").toLowerCase().includes(q) || p.descricao.toLowerCase().includes(q);
     });
-  }, [parcelamentos, busca, situacao]);
+  }, [parcelamentos, busca, situacao, mes]);
+
+  // SALDO de todos os parcelamentos (imune a filtros) — bloco ao lado do mês.
+  const saldoTotal = useMemo(() => parcelamentos.reduce((s, p) => s + p.saldo, 0), [parcelamentos]);
 
   const chips: FiltroChip[] = [
     {
@@ -173,17 +203,16 @@ export default function ParcelamentosPage() {
   // Blocos de TOTAIS (padrão CP): parcelas em aberto VENCIDAS e as A VENCER no
   // mês corrente — contagem + saldo, na barra da tabela (toolbarLeft).
   const blocosTotais = (() => {
-    const agora = new Date();
-    const mesIni = new Date(agora.getFullYear(), agora.getMonth(), 1);
-    const mesFim = new Date(agora.getFullYear(), agora.getMonth() + 1, 1);
     let vencidasQtd = 0, vencidasVal = 0, mesQtd = 0, mesVal = 0;
+    const ini = mes === "TODOS" ? "" : `${mes}-01`;
+    const fim = mes === "TODOS" ? "9999" : `${mes}-31`;
     for (const g of parcelamentos) {
       for (const par of g.parcelas) {
         if (par.status !== "ABERTA" && par.status !== "PARCIAL") continue;
         const saldo = Math.max(0, par.valorOriginal - par.valorPago);
         if (par.vencida) { vencidasQtd++; vencidasVal += saldo; continue; }
-        const d = par.dataVencimento ? new Date(par.dataVencimento) : null;
-        if (d && d >= mesIni && d < mesFim) { mesQtd++; mesVal += saldo; }
+        const iso = par.dataVencimento ? par.dataVencimento.slice(0, 10) : "";
+        if (iso >= ini && iso <= fim) { mesQtd++; mesVal += saldo; }
       }
     }
     return (
@@ -193,7 +222,7 @@ export default function ParcelamentosPage() {
           <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(vencidasVal)}</span>
         </span>
         <span className="inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5">
-          <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer no mês · {mesQtd}</span>
+          <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer · {mesQtd}</span>
           <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(mesVal)}</span>
         </span>
       </div>
@@ -213,6 +242,34 @@ export default function ParcelamentosPage() {
               onChange={(e) => setBusca(e.target.value)}
               className="pl-9"
             />
+          </div>
+          {/* Navegador de MÊS (padrão CP): clicar no rótulo alterna Todos ↔ atual. */}
+          <div className="inline-flex items-center h-9 rounded-lg border border-border bg-card overflow-hidden shrink-0">
+            <button type="button" onClick={() => mudarMes(-1)} disabled={mes === "TODOS"}
+              className="h-full px-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" title="Mês anterior">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button type="button"
+              onClick={() => setMes((m) => m === "TODOS"
+                ? `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
+                : "TODOS")}
+              title="Mês do vencimento das parcelas — inclui o vencido em aberto. Clique para alternar Todos ↔ mês atual."
+              className="h-full px-2 min-w-[6.5rem] text-xs font-medium text-foreground hover:bg-muted capitalize">
+              {mes === "TODOS" ? "Todos os meses" : (() => {
+                const [a, m] = mes.split("-").map(Number);
+                return new Date(a, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+              })()}
+            </button>
+            <button type="button" onClick={() => mudarMes(1)} disabled={mes === "TODOS"}
+              className="h-full px-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30" title="Próximo mês">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          {/* SALDO de todos os parcelamentos — não muda com mês/filtros. */}
+          <div className="inline-flex items-center gap-2 h-9 rounded-lg bg-muted px-3 shrink-0"
+            title="Saldo em aberto de todos os parcelamentos (não muda com mês/filtros)">
+            <span className="text-xs font-medium text-foreground">Saldo</span>
+            <span className="text-sm font-bold text-foreground tabular-nums">{formatBRL(saldoTotal)}</span>
           </div>
           <div className="flex-1" />
           {/* Funil à direita (padrão CP): mostra/esconde os chips de filtro. */}
