@@ -524,8 +524,8 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => (
       <span className="inline-flex items-center gap-1.5">
-        <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
         <EmpresaTag empresaId={row.original.empresaId} compact />
+        <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
       </span>
     ) },
     { id: "cliente", header: "Cliente", cell: ({ row }) => (

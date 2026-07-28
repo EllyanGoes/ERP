@@ -656,8 +656,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => (
       <span className="inline-flex items-center gap-1.5">
-        <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
         <EmpresaTag empresaId={row.original.empresaId} compact />
+        <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
         {row.original.antecipado && (
           <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado — adiantamento a fornecedor gerado no pedido">PA</span>
         )}
