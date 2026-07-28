@@ -7,7 +7,10 @@
 // Tela SÓ de leitura — baixa/edição continua na tela de Contas a Pagar.
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
+import DataTable from "@/components/shared/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Input } from "@/components/ui/input";
@@ -17,7 +20,7 @@ import {
 } from "@/components/shared/FilterBar";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
-import { Search, ChevronRight, Layers, ListFilter } from "lucide-react";
+import { Search, Layers, ListFilter } from "lucide-react";
 
 type Parcela = {
   id: string;
@@ -61,6 +64,7 @@ function SituacaoBadge({ situacao }: { situacao: Parcelamento["situacao"] }) {
 }
 
 export default function ParcelamentosPage() {
+  const router = useRouter();
   const [parcelamentos, setParcelamentos] = useState<Parcelamento[]>([]);
   const [loading, setLoading] = useState(true);
   // Parcelamento clicado → popup com a grade completa das parcelas.
@@ -109,6 +113,63 @@ export default function ParcelamentosPage() {
     },
   ];
 
+
+  // Colunas no MESMO padrão da planilha do CP (DataTable).
+  const colunas: ColumnDef<Parcelamento>[] = [
+    { id: "fornecedor", header: "Fornecedor / Descrição", cell: ({ row }) => (
+      <div>
+        <div className="flex items-center gap-2">
+          <EmpresaTag empresaId={row.original.empresaId} />
+          <p className="font-medium text-foreground">{row.original.fornecedor ?? "—"}</p>
+        </div>
+        <p className="text-xs text-muted-foreground truncate max-w-md" title={row.original.descricao}>{row.original.descricao}</p>
+      </div>
+    ) },
+    { id: "progresso", header: "Progresso", cell: ({ row }) => {
+      const p = row.original;
+      const pct = p.totalParcelas > 0 ? Math.min(100, (p.parcelasPagas / p.totalParcelas) * 100) : 0;
+      return (
+        <div className="w-40">
+          <p className="text-xs text-muted-foreground mb-1 tabular-nums">
+            {p.parcelasPagas}/{p.totalParcelas} pagas
+            {p.vencidasEmAberto > 0 && (
+              <span className="text-danger font-medium"> · {p.vencidasEmAberto} vencida{p.vencidasEmAberto === 1 ? "" : "s"}</span>
+            )}
+          </p>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn("h-full rounded-full", p.situacao === "QUITADO" ? "bg-success" : p.situacao === "COM_VENCIDAS" ? "bg-danger" : "bg-info")}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      );
+    } },
+    { id: "valorTotal", header: "Valor total", accessorFn: (p) => p.valorTotal, meta: { className: "text-right" },
+      cell: ({ row }) => <span className="tabular-nums">{formatBRL(row.original.valorTotal)}</span> },
+    { id: "pago", header: "Pago", accessorFn: (p) => p.valorPago, meta: { className: "text-right" },
+      cell: ({ row }) => <span className="tabular-nums text-success">{formatBRL(row.original.valorPago)}</span> },
+    { id: "saldo", header: "Saldo", accessorFn: (p) => p.saldo, meta: { className: "text-right" },
+      cell: ({ row }) => <span className="tabular-nums font-semibold">{formatBRL(row.original.saldo)}</span> },
+    { id: "proxima", header: "Próxima parcela", accessorFn: (p) => p.proximaParcela?.dataVencimento ?? "", cell: ({ row }) => {
+      const p = row.original;
+      if (!p.proximaParcela) return <span className="text-muted-foreground">—</span>;
+      return (
+        <div className={cn("tabular-nums", p.proximaParcela.vencida ? "text-danger font-medium" : "text-foreground/80")}>
+          <p>
+            {p.proximaParcela.dataVencimento ? formatDate(p.proximaParcela.dataVencimento) : "Sem data"}
+            {p.proximaParcela.parcelaNumero != null && (
+              <span className="text-xs text-muted-foreground"> ({p.proximaParcela.parcelaNumero}/{p.totalParcelas})</span>
+            )}
+          </p>
+          <p className="text-xs">{formatBRL(p.proximaParcela.valor)}</p>
+        </div>
+      );
+    } },
+    { id: "situacao", header: "Situação", accessorFn: (p) => p.situacao,
+      cell: ({ row }) => <SituacaoBadge situacao={row.original.situacao} /> },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -134,88 +195,24 @@ export default function ParcelamentosPage() {
         </div>
         <FilterBarChips bar={bar} chips={chips} />
 
-        <div className="rounded-xl border border-border bg-card overflow-x-auto">
-          {loading ? (
-            <p className="px-6 py-10 text-sm text-muted-foreground text-center">Carregando...</p>
-          ) : filtrados.length === 0 ? (
-            <p className="px-6 py-10 text-sm text-muted-foreground text-center">
-              {parcelamentos.length === 0
-                ? "Nenhum parcelamento encontrado no Contas a Pagar."
-                : "Nenhum parcelamento casa com a busca/filtros."}
-            </p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-muted-foreground border-b border-border">
-                  <th className="px-4 py-3 font-medium w-8" />
-                  <th className="px-4 py-3 font-medium">Fornecedor / Descrição</th>
-                  <th className="px-4 py-3 font-medium w-44">Progresso</th>
-                  <th className="px-4 py-3 font-medium text-right">Valor total</th>
-                  <th className="px-4 py-3 font-medium text-right">Pago</th>
-                  <th className="px-4 py-3 font-medium text-right">Saldo</th>
-                  <th className="px-4 py-3 font-medium">Próxima parcela</th>
-                  <th className="px-4 py-3 font-medium">Situação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtrados.map((p) => {
-                  const pct = p.totalParcelas > 0 ? Math.min(100, (p.parcelasPagas / p.totalParcelas) * 100) : 0;
-                  return (
-                    <tr
-                      key={p.grupoId}
-                      onClick={() => setDetalhe(p)}
-                      className="border-b border-border cursor-pointer transition-colors hover:bg-muted"
-                    >
-                      <td className="pl-4 py-3">
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-foreground">{p.fornecedor ?? "—"}</p>
-                          <EmpresaTag empresaId={p.empresaId} />
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate max-w-md" title={p.descricao}>{p.descricao}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-xs text-muted-foreground mb-1 tabular-nums">
-                          {p.parcelasPagas}/{p.totalParcelas} pagas
-                          {p.vencidasEmAberto > 0 && (
-                            <span className="text-danger font-medium"> · {p.vencidasEmAberto} vencida{p.vencidasEmAberto === 1 ? "" : "s"}</span>
-                          )}
-                        </p>
-                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                          <div
-                            className={cn("h-full rounded-full", p.situacao === "QUITADO" ? "bg-success" : p.situacao === "COM_VENCIDAS" ? "bg-danger" : "bg-info")}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right tabular-nums">{formatBRL(p.valorTotal)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums text-success">{formatBRL(p.valorPago)}</td>
-                      <td className="px-4 py-3 text-right tabular-nums font-semibold">{formatBRL(p.saldo)}</td>
-                      <td className="px-4 py-3">
-                        {p.proximaParcela ? (
-                          <div className={cn("tabular-nums", p.proximaParcela.vencida ? "text-danger font-medium" : "text-foreground/80")}>
-                            <p>
-                              {p.proximaParcela.dataVencimento ? formatDate(p.proximaParcela.dataVencimento) : "Sem data"}
-                              {p.proximaParcela.parcelaNumero != null && (
-                                <span className="text-xs text-muted-foreground"> ({p.proximaParcela.parcelaNumero}/{p.totalParcelas})</span>
-                              )}
-                            </p>
-                            <p className="text-xs">{formatBRL(p.proximaParcela.valor)}</p>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3"><SituacaoBadge situacao={p.situacao} /></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
+        {loading ? (
+          <p className="px-6 py-10 text-sm text-muted-foreground text-center">Carregando...</p>
+        ) : (
+          /* Mesma planilha do Contas a Pagar (DataTable): colunas configuráveis,
+             ordenação pelo cabeçalho, paginação persistida. Sem coluna de seta —
+             clicar na LINHA abre o popup do parcelamento. */
+          <DataTable
+            data={filtrados}
+            columns={colunas}
+            hideSearch
+            columnConfig
+            itemLabel="parcelamento"
+            containerClassName="shadow-md rounded-xl"
+            headerClassName="bg-muted"
+            getRowId={(x) => x.grupoId}
+            onRowClick={(x) => setDetalhe(x)}
+          />
+        )}
       </div>
 
       {/* POPUP do parcelamento: grade completa das parcelas do grupo. */}
@@ -250,7 +247,13 @@ export default function ParcelamentosPage() {
                   <tbody>
                     {detalhe.parcelas.map((par) => (
                       <tr key={par.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                        <td className="px-4 py-2 text-foreground/80">{par.numero}</td>
+                        <td className="px-4 py-2">
+                          {/* Nº clicável: abre o título na tela de Contas a Pagar (?abrir=id). */}
+                          <button type="button" className="font-mono text-xs font-semibold text-info hover:underline"
+                            onClick={() => router.push(`/contas-pagar?abrir=${par.id}`)}>
+                            {par.numero}
+                          </button>
+                        </td>
                         <td className="px-4 py-2 tabular-nums">
                           {par.parcelaNumero != null ? `${par.parcelaNumero}/${detalhe.totalParcelas}` : "—"}
                         </td>
