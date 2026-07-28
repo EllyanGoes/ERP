@@ -334,6 +334,34 @@ export default function LancamentoForm({
         </div>
       </div>
 
+      {/* Rateio */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Naturezas financeiras <span className="text-red-500">*</span></Label>
+          <button type="button" onClick={() => setLinhas((p) => [...p, novaLinha()])} className="inline-flex items-center gap-1 text-xs text-info hover:text-info font-medium">
+            <Plus className="w-3.5 h-3.5" /> Adicionar natureza
+          </button>
+        </div>
+        {linhas.map((l) => (
+          <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">
+            <NaturezaCombobox
+              value={l.naturezaFinanceiraId}
+              onChange={(id) => up(l.key, "naturezaFinanceiraId", id)}
+              naturezas={naturezas}
+              defaultTipo={isReceber ? "ENTRADA" : "SAIDA"}
+              allowCreate
+              onCreated={(n) => setNaturezas((prev) => [...prev, n])}
+            />
+            <Input value={l.detalhamento} onChange={(e) => up(l.key, "detalhamento", e.target.value)} placeholder="Detalhamento (opcional)" className="h-9 min-w-0 bg-card" />
+            <Input value={l.valor} onChange={(e) => up(l.key, "valor", e.target.value)} placeholder="0,00" className="h-9 text-right font-mono min-w-0 bg-card" />
+            <button type="button" onClick={() => setLinhas((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={linhas.length <= 1} className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+        <p className="text-[11px] text-muted-foreground">As naturezas classificam o título (rateio) — a soma é o valor total. Crie/edite naturezas em Financeiro → Naturezas Financeiras.</p>
+      </div>
+
       {/* Condição de pagamento (só agendamento): parcela o lançamento pela
           condição — um título por parcela, a partir do vencimento informado. */}
       {!pago && (
@@ -398,33 +426,6 @@ export default function LancamentoForm({
         </div>
       )}
 
-      {/* Rateio */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Naturezas financeiras <span className="text-red-500">*</span></Label>
-          <button type="button" onClick={() => setLinhas((p) => [...p, novaLinha()])} className="inline-flex items-center gap-1 text-xs text-info hover:text-info font-medium">
-            <Plus className="w-3.5 h-3.5" /> Adicionar natureza
-          </button>
-        </div>
-        {linhas.map((l) => (
-          <div key={l.key} className="grid grid-cols-[1fr_1fr_6rem_auto] gap-2 items-center">
-            <NaturezaCombobox
-              value={l.naturezaFinanceiraId}
-              onChange={(id) => up(l.key, "naturezaFinanceiraId", id)}
-              naturezas={naturezas}
-              defaultTipo={isReceber ? "ENTRADA" : "SAIDA"}
-              allowCreate
-              onCreated={(n) => setNaturezas((prev) => [...prev, n])}
-            />
-            <Input value={l.detalhamento} onChange={(e) => up(l.key, "detalhamento", e.target.value)} placeholder="Detalhamento (opcional)" className="h-9 min-w-0 bg-card" />
-            <Input value={l.valor} onChange={(e) => up(l.key, "valor", e.target.value)} placeholder="0,00" className="h-9 text-right font-mono min-w-0 bg-card" />
-            <button type="button" onClick={() => setLinhas((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={linhas.length <= 1} className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30">
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
-        <p className="text-[11px] text-muted-foreground">As naturezas classificam o título (rateio) — a soma é o valor total. Crie/edite naturezas em Financeiro → Naturezas Financeiras.</p>
-      </div>
 
       {/* Valores detalhados (estilo Nibo): centro de custo, retenção de impostos,
           desconto e juros/multa em abas. Centro obrigatório (despesa/CIF) força o
