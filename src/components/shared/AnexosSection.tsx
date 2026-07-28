@@ -117,12 +117,10 @@ export default function AnexosSection({ apiBase, disabled, disabledHint, initial
         <p className="text-xs text-danger bg-danger/10 px-3 py-1.5 rounded-lg">{error}</p>
       )}
 
-      {/* File list */}
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-          <Loader2 className="w-4 h-4 animate-spin" /> Carregando...
-        </div>
-      ) : (
+      {/* File list — sem linha "Carregando…" separada: o estado de carga vive
+          DENTRO do dropzone, senão o popup abre mais alto e "encurta" quando a
+          busca termina (salto de layout). */}
+      {!loading && anexos.length > 0 && (
         <div className="space-y-1.5">
           {anexos.map((a) => (
             <div
@@ -180,7 +178,7 @@ export default function AnexosSection({ apiBase, disabled, disabledHint, initial
               : "border-border hover:border-blue-300 hover:bg-muted"
           )}
         >
-          {uploading ? (
+          {uploading || loading ? (
             <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
           ) : (
             <Upload className={cn("w-5 h-5", dragOver ? "text-blue-500" : "text-muted-foreground/60")} />
@@ -188,6 +186,8 @@ export default function AnexosSection({ apiBase, disabled, disabledHint, initial
           <p className="text-xs text-muted-foreground select-none text-center">
             {uploading
               ? "Enviando..."
+              : loading
+              ? "Carregando anexos..."
               : dragOver
               ? "Solte para anexar"
               : "Clique ou arraste arquivos aqui"

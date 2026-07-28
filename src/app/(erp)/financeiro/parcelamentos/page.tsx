@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip,
 } from "@/components/shared/FilterBar";
-import { usePersistedState } from "@/lib/use-persisted-state";
+import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
 import { Search, Layers, ListFilter, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -37,6 +37,7 @@ type Parcelamento = {
   empresaId: string;
   fornecedor: string | null;
   descricao: string;
+  origem: { label: string; ref: string | null; deId: string | null };
   totalParcelas: number;
   parcelasPagas: number;
   valorTotal: number;
@@ -66,7 +67,7 @@ export default function ParcelamentosPage() {
   const router = useRouter();
   // Recorte por MÊS (padrão CP): parcelamentos com parcela no mês + carry-over
   // vencido em aberto; "TODOS" desliga. Abre no mês corrente.
-  const [mes, setMes] = useState<string>(() => {
+  const [mes, setMes] = useSessionState<string>("financeiro:parcelamentos:mes", () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
@@ -173,6 +174,19 @@ export default function ParcelamentosPage() {
           </div>
         </div>
       );
+    } },
+    { id: "origem", header: "Origem", accessorFn: (p) => p.origem.label, cell: ({ row }) => {
+      const o = row.original.origem;
+      if (o.deId) {
+        return (
+          <button type="button" className="font-mono text-xs font-semibold text-info hover:underline"
+            onClick={(e) => { e.stopPropagation(); router.push(`/suprimentos/conferencias/${o.deId}`); }}
+            title="Abrir o Documento de Entrada">
+            {o.ref}
+          </button>
+        );
+      }
+      return <span className="text-muted-foreground">{o.ref ?? o.label}</span>;
     } },
     { id: "valorTotal", header: "Valor total", accessorFn: (p) => p.valorTotal, meta: { className: "text-right" },
       cell: ({ row }) => <span className="tabular-nums">{formatBRL(row.original.valorTotal)}</span> },
@@ -310,6 +324,16 @@ export default function ParcelamentosPage() {
             {detalhe && (
               <p className="text-sm text-muted-foreground">
                 {detalhe.descricao} · {detalhe.parcelasPagas}/{detalhe.totalParcelas} pagas · saldo {formatBRL(detalhe.saldo)}
+                {" · "}Origem: {detalhe.origem.label}
+                {detalhe.origem.deId ? (
+                  <>
+                    {" "}
+                    <button type="button" className="font-mono text-xs font-semibold text-info hover:underline align-baseline"
+                      onClick={() => router.push(`/suprimentos/conferencias/${detalhe.origem.deId}`)}>
+                      {detalhe.origem.ref}
+                    </button>
+                  </>
+                ) : detalhe.origem.ref ? ` · ${detalhe.origem.ref}` : null}
               </p>
             )}
           </DialogHeader>

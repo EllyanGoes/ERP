@@ -43,6 +43,10 @@ export async function GET() {
       dataPagamento: true,
       status: true,
       fornecedor: { select: { razaoSocial: true } },
+      // Origem do parcelamento (como no CP): DE direto, DE do pedido ou pedido.
+      recorrenciaId: true,
+      conferencia: { select: { id: true, numero: true } },
+      pedidoCompra: { select: { id: true, numero: true, conferencia: { select: { id: true, numero: true } } } },
     },
     orderBy: [{ parcelaNumero: "asc" }, { dataVencimento: "asc" }],
   });
@@ -89,6 +93,17 @@ export async function GET() {
 
     const situacao = emAberto.length === 0 ? "QUITADO" : vencidasEmAberto > 0 ? "COM_VENCIDAS" : "EM_DIA";
 
+    // Origem (mesma precedência da tela de CP): DE vinculado (direto ou via
+    // pedido) → clicável na tela; senão pedido/recorrência/manual.
+    const conf = primeira.conferencia ?? primeira.pedidoCompra?.conferencia ?? null;
+    const origem = conf
+      ? { label: "Documento de Entrada", ref: conf.numero, deId: conf.id }
+      : primeira.pedidoCompra
+      ? { label: "Pedido de Compra", ref: primeira.pedidoCompra.numero, deId: null }
+      : primeira.recorrenciaId
+      ? { label: "Recorrência", ref: null, deId: null }
+      : { label: "Manual", ref: null, deId: null };
+
     const parcelasOut: ParcelaOut[] = parcelas.map((p) => ({
       id: p.id,
       numero: p.numero,
@@ -105,6 +120,7 @@ export async function GET() {
       empresaId: primeira.empresaId,
       fornecedor: primeira.fornecedor?.razaoSocial ?? null,
       descricao: descricaoBase,
+      origem,
       totalParcelas,
       parcelasPagas: pagas,
       valorTotal,
