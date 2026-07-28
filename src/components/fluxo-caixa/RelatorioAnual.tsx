@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
-import { Loader2, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, ChevronRight as Caret } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, ChevronRight as Caret, Download } from "lucide-react";
 import Link from "next/link";
 
 // Grupos/subgrupos recolhidos (persistido — mesmo padrão da tela de naturezas).
@@ -100,15 +100,53 @@ export default function RelatorioAnual() {
     Fluxo: r.variacaoCaixa[i],
   }));
 
+  // BAIXAR: exporta a grade (grupo/subgrupo/natureza × meses + resumo) em CSV
+  // pt-BR (separador ";", decimal com vírgula, BOM p/ Excel).
+  function baixarCsv() {
+    if (!rel) return;
+    const num = (v: number) => v.toFixed(2).replace(".", ",");
+    const linhas: string[] = [["Grupo", "Subgrupo", "Natureza", ...MESES, "Total"].join(";")];
+    for (const g of rel.grupos) {
+      for (const sub of g.subgrupos) {
+        for (const n of sub.naturezas) {
+          linhas.push([GRUPO_LABEL[g.grupo] ?? g.grupo, sub.nome ?? "", n.nome, ...n.meses.map(num), num(n.total)].join(";"));
+        }
+      }
+      linhas.push([`Total ${GRUPO_LABEL[g.grupo] ?? g.grupo}`, "", "", ...g.meses.map(num), num(g.total)].join(";"));
+    }
+    const RESUMO: [string, string][] = [
+      ["saldoInicial", "Saldo inicial"], ["margemContribuicao", "Margem de contribuição"],
+      ["resultadoOperacional", "Resultado operacional"], ["variacaoCaixa", "Variação de caixa"],
+      ["saldoFinal", "Saldo final"],
+    ];
+    for (const [k, rotulo] of RESUMO) {
+      const m = rel.resumo[k];
+      if (!m) continue;
+      linhas.push([rotulo, "", "", ...m.map(num), num(k === "saldoFinal" ? m[11] : soma(m))].join(";"));
+    }
+    const blob = new Blob(["﻿" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `fluxo-caixa-${rel.ano}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   return (
     <div className="space-y-6">
-      {/* Seletor de ano */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Painel de acompanhamento anual</p>
-        <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-1">
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAno((a) => a - 1)}><ChevronLeft className="w-4 h-4" /></Button>
-          <span className="px-2 text-sm font-semibold text-foreground tabular-nums">{ano}</span>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAno((a) => a + 1)}><ChevronRight className="w-4 h-4" /></Button>
+      {/* Barra superior (padrão CP): título compacto à esquerda; ano + download
+          à direita — a planilha começa logo abaixo. */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-foreground">Fluxo de Caixa — relatório anual</p>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAno((a) => a - 1)}><ChevronLeft className="w-4 h-4" /></Button>
+            <span className="px-2 text-sm font-semibold text-foreground tabular-nums">{ano}</span>
+            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAno((a) => a + 1)}><ChevronRight className="w-4 h-4" /></Button>
+          </div>
+          <Button variant="outline" size="sm" onClick={baixarCsv} disabled={!rel} className="gap-1.5">
+            <Download className="w-4 h-4" /> Baixar CSV
+          </Button>
         </div>
       </div>
 
