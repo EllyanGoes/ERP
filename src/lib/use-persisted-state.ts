@@ -28,6 +28,33 @@ function ler<T>(fullKey: string, inicial: T | (() => T)): T {
  *
  * `key` deve ser única por tela+campo. O valor é serializado em JSON.
  */
+/**
+ * Variante por SESSÃO do navegador (sessionStorage): o valor sobrevive à
+ * navegação entre telas, mas uma sessão nova volta ao default. Para filtros
+ * "voláteis" como busca e mês — que devem persistir ao trocar de página sem
+ * prender o usuário num estado antigo dias depois.
+ */
+export function useSessionState<T>(
+  key: string,
+  inicial: T | (() => T),
+): [T, Dispatch<SetStateAction<T>>] {
+  const { user } = useSession();
+  const fullKey = chave(user?.id ?? "anon", key);
+  const [valor, setValor] = useState<T>(() => {
+    const fallback = (): T => (typeof inicial === "function" ? (inicial as () => T)() : inicial);
+    if (typeof window === "undefined") return fallback();
+    try {
+      const raw = window.sessionStorage.getItem(fullKey);
+      if (raw != null) return JSON.parse(raw) as T;
+    } catch { /* ignore */ }
+    return fallback();
+  });
+  useEffect(() => {
+    try { window.sessionStorage.setItem(fullKey, JSON.stringify(valor)); } catch { /* ignore */ }
+  }, [fullKey, valor]);
+  return [valor, setValor];
+}
+
 export function usePersistedState<T>(
   key: string,
   inicial: T | (() => T),

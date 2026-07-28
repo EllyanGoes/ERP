@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import DataTable, { type GroupInfo } from "@/components/shared/DataTable";
-import { usePersistedState } from "@/lib/use-persisted-state";
+import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -258,15 +258,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const [empresasSel, setEmpresasSel] = usePersistedState<string[]>("financeiro:contas-pagar:empresas", []);
   const [naturezaFiltro, setNaturezaFiltro] = usePersistedState<string>("financeiro:contas-pagar:natureza", "");
   const [fornecedorFiltro, setFornecedorFiltro] = usePersistedState<string>("financeiro:contas-pagar:fornecedor", "");
-  // Busca na barra de filtros (vale para a tabela E para a visão agrupada).
-  const [busca, setBusca] = useState("");
+  // Busca na barra de filtros (vale para a tabela E para a visão agrupada) —
+  // persiste na SESSÃO (sobrevive à troca de página; sessão nova zera).
+  const [busca, setBusca] = useSessionState("financeiro:contas-pagar:busca", "");
   // Período por data de vencimento (persistido por usuário — padrão do sistema).
   const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-pagar:periodo", { from: "", to: "" });
   // Filtro por MÊS (padrão, ativo quando não há período custom): mostra os títulos
-  // do mês selecionado + o que ficou VENCIDO em aberto dos meses anteriores (e os
-  // sem vencimento em aberto). Abre sempre no mês corrente (useState de propósito —
-  // persistir o mês deixaria a tela presa num mês antigo); "TODOS" desliga o recorte.
-  const [mes, setMes] = useState<string>(() => {
+  // do mês selecionado + o carry-over vencido/sem data. Persiste na SESSÃO —
+  // sobrevive à troca de página, mas sessão nova abre no mês corrente.
+  const [mes, setMes] = useSessionState<string>("financeiro:contas-pagar:mes", () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });

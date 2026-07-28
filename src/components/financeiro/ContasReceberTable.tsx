@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import DataTable, { type GroupInfo } from "@/components/shared/DataTable";
-import { usePersistedState } from "@/lib/use-persisted-state";
+import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -178,8 +178,8 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const empresasSessao = user?.empresas ?? [];
   const [empresasSel, setEmpresasSel] = usePersistedState<string[]>("financeiro:contas-receber:empresas", []);
   const [contaFiltro, setContaFiltro] = usePersistedState<string>("financeiro:contas-receber:conta", "");
-  // Busca na barra de filtros (vale para a tabela E para a visão agrupada).
-  const [busca, setBusca] = useState("");
+  // Busca na barra de filtros — persiste na SESSÃO (troca de página mantém).
+  const [busca, setBusca] = useSessionState("financeiro:contas-receber:busca", "");
   // Período por data de vencimento (persistido por usuário — padrão do sistema).
   const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-receber:periodo", { from: "", to: "" });
   // Barra de filtros padrão (funil + chips) — ver shared/FilterBar.
@@ -188,7 +188,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const [vista, setVista] = usePersistedState<"tabela" | "grafico">("financeiro:contas-receber:vista", "tabela");
   // Filtro por MÊS (padrão, ativo sem período custom): títulos do mês + carry-over
   // em aberto dos meses anteriores. Abre no mês corrente; "TODOS" desliga.
-  const [mes, setMes] = useState<string>(() => {
+  const [mes, setMes] = useSessionState<string>("financeiro:contas-receber:mes", () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
