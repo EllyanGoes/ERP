@@ -1126,7 +1126,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           ...(emissao ? [{ label: "Emissão", valor: formatDate(emissao) }] : []),
           ...(detalhe.dataCompetencia ? [{ label: "Competência", valor: formatDate(detalhe.dataCompetencia) }] : []),
           { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{detalhe.dataVencimento ? formatDate(detalhe.dataVencimento) : "A combinar"}</span> },
-          ...(detalhe.dataPagamento ? [{ label: "Pagamento", valor: formatDate(detalhe.dataPagamento) }] : []),
+          // (sem campo "Pagamento" aqui: a data já aparece na linha do grupo Pagamento)
           // ── Valores ──────────────────────────────────────────────────────
           { label: "Valor original", valor: formatBRL(vo) },
           { label: "Pago", valor: formatBRL(vp) },

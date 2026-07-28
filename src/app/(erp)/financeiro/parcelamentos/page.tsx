@@ -215,7 +215,8 @@ export default function ParcelamentosPage() {
 
 
   // Blocos de TOTAIS (padrão CP): parcelas em aberto VENCIDAS e as A VENCER no
-  // mês corrente — contagem + saldo, na barra da tabela (toolbarLeft).
+  // mês corrente — contagem + saldo, na barra da tabela (toolbarLeft). São
+  // CLICÁVEIS como no CP: alternam o filtro de situação (clicar de novo limpa).
   const blocosTotais = (() => {
     let vencidasQtd = 0, vencidasVal = 0, mesQtd = 0, mesVal = 0;
     const ini = mes === "TODOS" ? "" : `${mes}-01`;
@@ -229,16 +230,19 @@ export default function ParcelamentosPage() {
         if (iso >= ini && iso <= fim) { mesQtd++; mesVal += saldo; }
       }
     }
+    const toggle = (s: SituacaoFiltro) => setSituacao((cur) => (cur === s ? "TODAS" : s));
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5">
+        <button type="button" onClick={() => toggle("COM_VENCIDAS")} title="Filtrar parcelamentos com parcelas vencidas"
+          className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", situacao === "COM_VENCIDAS" && "ring-2 ring-danger")}>
           <span className="text-xs font-medium text-danger">Vencidas · {vencidasQtd}</span>
           <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(vencidasVal)}</span>
-        </span>
-        <span className="inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5">
+        </button>
+        <button type="button" onClick={() => toggle("EM_DIA")} title="Filtrar parcelamentos em dia"
+          className={cn("inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5 transition-shadow hover:bg-sky-500/20 cursor-pointer", situacao === "EM_DIA" && "ring-2 ring-sky-500")}>
           <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer · {mesQtd}</span>
           <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(mesVal)}</span>
-        </span>
+        </button>
       </div>
     );
   })();
