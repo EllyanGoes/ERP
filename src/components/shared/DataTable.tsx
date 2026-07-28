@@ -11,8 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, ArrowUpDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, ArrowUpDown, ArrowUp, ArrowDown, EyeOff } from "lucide-react";
 import ColumnConfigurator from "@/components/shared/ColumnConfigurator";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 const LINHAS_OPCOES = [10, 20, 50, 100, 200];
 
@@ -300,15 +301,43 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
                     )}
                   >
                     {header.isPlaceholder ? null : (
-                      <button
-                        className="flex items-center gap-1 hover:text-foreground transition-colors"
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() && (
-                          <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />
-                        )}
-                      </button>
+                      /* Menu de configurações da COLUNA (estilo Notion): clicar
+                         no cabeçalho abre as ações disponíveis — ordenar ↑/↓,
+                         limpar ordenação e ocultar (quando configurável). */
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <button className="flex items-center gap-1 hover:text-foreground transition-colors" />
+                          }
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {header.column.getIsSorted() === "asc" ? <ArrowUp className="h-3 w-3 text-info" />
+                            : header.column.getIsSorted() === "desc" ? <ArrowDown className="h-3 w-3 text-info" />
+                            : header.column.getCanSort() ? <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" /> : null}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-auto min-w-44">
+                          {header.column.getCanSort() && (
+                            <>
+                              <DropdownMenuItem onClick={() => header.column.toggleSorting(false)}>
+                                <ArrowUp className="w-4 h-4" /> Ordenar crescente
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => header.column.toggleSorting(true)}>
+                                <ArrowDown className="w-4 h-4" /> Ordenar decrescente
+                              </DropdownMenuItem>
+                              {header.column.getIsSorted() && (
+                                <DropdownMenuItem onClick={() => header.column.clearSorting()}>
+                                  <ArrowUpDown className="w-4 h-4" /> Limpar ordenação
+                                </DropdownMenuItem>
+                              )}
+                            </>
+                          )}
+                          {columnConfig && allColIds.includes(header.column.id) && (
+                            <DropdownMenuItem onClick={() => setColVis((prev) => ({ ...prev, [header.column.id]: false }))}>
+                              <EyeOff className="w-4 h-4" /> Ocultar coluna
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </TableHead>
                 ))}

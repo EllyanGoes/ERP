@@ -3,7 +3,7 @@
 // ── Parcelamentos (Contas a Pagar) ───────────────────────────────────────────
 // Acompanhamento de TODOS os parcelamentos do CP em uma tela só: cada linha é
 // um grupo (grupoParcelamentoId) com fornecedor, progresso pago, saldo e a
-// próxima parcela; clicar na linha expande a grade completa de parcelas.
+// próxima parcela; clicar na linha abre o POPUP com a grade de parcelas.
 // Tela SÓ de leitura — baixa/edição continua na tela de Contas a Pagar.
 
 import { useEffect, useMemo, useState } from "react";
@@ -11,6 +11,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip,
 } from "@/components/shared/FilterBar";
@@ -62,7 +63,8 @@ function SituacaoBadge({ situacao }: { situacao: Parcelamento["situacao"] }) {
 export default function ParcelamentosPage() {
   const [parcelamentos, setParcelamentos] = useState<Parcelamento[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandido, setExpandido] = useState<string | null>(null);
+  // Parcelamento clicado → popup com a grade completa das parcelas.
+  const [detalhe, setDetalhe] = useState<Parcelamento | null>(null);
 
   // Filtros persistem por usuário (padrão da casa) — voltar à tela mantém a lente.
   const [busca, setBusca] = usePersistedState<string>("financeiro:parcelamentos:busca", "");
@@ -157,16 +159,15 @@ export default function ParcelamentosPage() {
               </thead>
               <tbody>
                 {filtrados.map((p) => {
-                  const aberto = expandido === p.grupoId;
                   const pct = p.totalParcelas > 0 ? Math.min(100, (p.parcelasPagas / p.totalParcelas) * 100) : 0;
-                  return [
+                  return (
                     <tr
                       key={p.grupoId}
-                      onClick={() => setExpandido(aberto ? null : p.grupoId)}
-                      className={cn("border-b border-border cursor-pointer transition-colors", aberto ? "bg-primary/5" : "hover:bg-muted")}
+                      onClick={() => setDetalhe(p)}
+                      className="border-b border-border cursor-pointer transition-colors hover:bg-muted"
                     >
                       <td className="pl-4 py-3">
-                        <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", aberto && "rotate-90")} />
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -208,60 +209,75 @@ export default function ParcelamentosPage() {
                         )}
                       </td>
                       <td className="px-4 py-3"><SituacaoBadge situacao={p.situacao} /></td>
-                    </tr>,
-                    // Detalhe expandido: grade completa das parcelas do grupo.
-                    aberto && (
-                      <tr key={`${p.grupoId}-det`} className="border-b border-border bg-muted/40">
-                        <td colSpan={8} className="px-6 py-4">
-                          <div className="rounded-lg border border-border bg-card overflow-hidden">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="text-left text-muted-foreground border-b border-border bg-muted/60">
-                                  <th className="px-4 py-2 font-medium">Nº</th>
-                                  <th className="px-4 py-2 font-medium">Parcela</th>
-                                  <th className="px-4 py-2 font-medium">Vencimento</th>
-                                  <th className="px-4 py-2 font-medium text-right">Valor</th>
-                                  <th className="px-4 py-2 font-medium text-right">Pago</th>
-                                  <th className="px-4 py-2 font-medium">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {p.parcelas.map((par) => (
-                                  <tr key={par.id} className="border-b border-border last:border-0 hover:bg-muted/40">
-                                    <td className="px-4 py-2 text-foreground/80">{par.numero}</td>
-                                    <td className="px-4 py-2 tabular-nums">
-                                      {par.parcelaNumero != null ? `${par.parcelaNumero}/${p.totalParcelas}` : "—"}
-                                    </td>
-                                    <td className={cn("px-4 py-2 tabular-nums", par.vencida && "text-danger font-medium")}>
-                                      {par.dataVencimento ? formatDate(par.dataVencimento) : "Sem data"}
-                                    </td>
-                                    <td className="px-4 py-2 text-right tabular-nums">{formatBRL(par.valorOriginal)}</td>
-                                    <td className="px-4 py-2 text-right tabular-nums">{par.valorPago > 0 ? formatBRL(par.valorPago) : "—"}</td>
-                                    <td className="px-4 py-2">
-                                      {/* Vencida é derivado (não é status do banco) — mesma lente da tela de CP */}
-                                      <StatusBadge status={par.vencida ? "VENCIDA" : par.status} />
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          {p.ultimaParcela?.dataVencimento && (
-                            <p className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
-                              <Layers className="w-3.5 h-3.5" />
-                              Última parcela em {formatDate(p.ultimaParcela.dataVencimento)}
-                            </p>
-                          )}
-                        </td>
-                      </tr>
-                    ),
-                  ];
+                    </tr>
+                  );
                 })}
               </tbody>
             </table>
           )}
         </div>
       </div>
+
+      {/* POPUP do parcelamento: grade completa das parcelas do grupo. */}
+      <Dialog open={!!detalhe} onOpenChange={(o) => !o && setDetalhe(null)}>
+        <DialogContent className="w-[min(60rem,calc(100vw-2rem))] sm:max-w-none max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span>{detalhe?.fornecedor ?? "—"}</span>
+              <EmpresaTag empresaId={detalhe?.empresaId} />
+              {detalhe && <SituacaoBadge situacao={detalhe.situacao} />}
+            </DialogTitle>
+            {detalhe && (
+              <p className="text-sm text-muted-foreground">
+                {detalhe.descricao} · {detalhe.parcelasPagas}/{detalhe.totalParcelas} pagas · saldo {formatBRL(detalhe.saldo)}
+              </p>
+            )}
+          </DialogHeader>
+          {detalhe && (
+            <>
+              <div className="rounded-lg border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-muted-foreground border-b border-border bg-muted/60">
+                      <th className="px-4 py-2 font-medium">Nº</th>
+                      <th className="px-4 py-2 font-medium">Parcela</th>
+                      <th className="px-4 py-2 font-medium">Vencimento</th>
+                      <th className="px-4 py-2 font-medium text-right">Valor</th>
+                      <th className="px-4 py-2 font-medium text-right">Pago</th>
+                      <th className="px-4 py-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detalhe.parcelas.map((par) => (
+                      <tr key={par.id} className="border-b border-border last:border-0 hover:bg-muted/40">
+                        <td className="px-4 py-2 text-foreground/80">{par.numero}</td>
+                        <td className="px-4 py-2 tabular-nums">
+                          {par.parcelaNumero != null ? `${par.parcelaNumero}/${detalhe.totalParcelas}` : "—"}
+                        </td>
+                        <td className={cn("px-4 py-2 tabular-nums", par.vencida && "text-danger font-medium")}>
+                          {par.dataVencimento ? formatDate(par.dataVencimento) : "Sem data"}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums">{formatBRL(par.valorOriginal)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums">{par.valorPago > 0 ? formatBRL(par.valorPago) : "—"}</td>
+                        <td className="px-4 py-2">
+                          {/* Vencida é derivado (não é status do banco) — mesma lente da tela de CP */}
+                          <StatusBadge status={par.vencida ? "VENCIDA" : par.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {detalhe.ultimaParcela?.dataVencimento && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Layers className="w-3.5 h-3.5" />
+                  Última parcela em {formatDate(detalhe.ultimaParcela.dataVencimento)}
+                </p>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
