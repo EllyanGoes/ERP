@@ -36,7 +36,12 @@ function toISODate(d: Date | string): string {
   return typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10);
 }
 
-export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false, origemInfo, onOpenChange, onSaved }: {
+export type LancamentoEdicao = {
+  id: string; valor: number; dataLancamento?: Date | string | null;
+  descricao?: string | null; contaBancariaId: string | null; contaNome: string | null;
+};
+
+export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false, origemInfo, lancamentosPagamento, onOpenChange, onSaved }: {
   tipo: "pagar" | "receber";
   titulo: TituloEdicao | null;
   // Título AVULSO (sem material): o centro de custo é editável aqui. Título de
@@ -44,6 +49,9 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
   permiteCentro?: boolean;
   // Faixa de origem (somente leitura) no topo — mesmo padrão do modal de baixa.
   origemInfo?: { origem: string; tes: string; centro: string } | null;
+  // Linhas do PAGAMENTO (título pago): a CONTA de cada linha é editável — caso
+  // "paguei pela conta errada". Valor/data não mudam aqui (Reabrir p/ isso).
+  lancamentosPagamento?: LancamentoEdicao[];
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
@@ -55,6 +63,9 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
   const [centroCustoId, setCentroCustoId] = useState("");
   const [naturezas, setNaturezas] = useState<NaturezaOpt[]>([]);
   const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  // Contas bancárias + troca de conta por lançamento (título pago).
+  const [contasBanco, setContasBanco] = useState<{ id: string; nome: string; ativo?: boolean; compensacao?: boolean; ehTerceiro?: boolean }[]>([]);
+  const [trocasConta, setTrocasConta] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -70,8 +81,16 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
     setNaturezaId(titulo.naturezaFinanceiraId ?? "");
     setObservacoes(titulo.observacoes ?? "");
     setCentroCustoId(titulo.centroCustoId ?? "");
+    setTrocasConta({});
     setErro(null);
   }, [titulo]);
+
+  // Contas bancárias (troca de conta do pagamento) — só quando há lançamentos.
+  useEffect(() => {
+    if (!lancamentosPagamento?.length) return;
+    fetch("/api/financeiro/contas").then((r) => r.json())
+      .then((j) => setContasBanco(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+  }, [lancamentosPagamento?.length]);
 
   useEffect(() => {
     const t = tipo === "pagar" ? "SAIDA" : "ENTRADA";
@@ -112,6 +131,17 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
         }),
       });
       if (!res.ok) { setErro((await res.json().catch(() => ({}))).error ?? "Erro ao salvar."); return; }
+      // Trocas de CONTA do pagamento (título pago) — rota própria, reprocessa o razão.
+      const trocas = (lancamentosPagamento ?? [])
+        .filter((l) => trocasConta[l.id] && trocasConta[l.id] !== l.contaBancariaId)
+        .map((l) => ({ lancamentoId: l.id, contaBancariaId: trocasConta[l.id] }));
+      if (tipo === "pagar" && trocas.length > 0) {
+        const rl = await fetch(`/api/contas-pagar/${titulo.id}/lancamentos`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trocas }),
+        });
+        if (!rl.ok) { setErro((await rl.json().catch(() => ({}))).error ?? "Erro ao trocar a conta do pagamento."); return; }
+      }
       onOpenChange(false);
       onSaved();
     } catch { setErro("Erro de conexão."); }
@@ -190,6 +220,38 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
                 : "TES, centro de custo e beneficiário vêm do documento de origem e não são editados aqui."}
             </p>
           </div>
+          {/* PAGAMENTO (título pago) — mesma seção da tela de pagamento: uma
+              linha por lançamento; a CONTA é editável (caso "paguei pela conta
+              errada"); valor/data ficam travados — para mudá-los, Reabrir. */}
+          {tipo === "pagar" && (lancamentosPagamento?.length ?? 0) > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pagamento</Label>
+              {lancamentosPagamento!.map((l) => {
+                const forma = l.descricao?.match(/\(([^)]+)\)\s*$/)?.[1] ?? null;
+                return (
+                  <div key={l.id} className="grid grid-cols-[8rem_1fr_7rem] gap-2 items-center">
+                    <span className="text-xs text-muted-foreground truncate">
+                      {l.dataLancamento ? toISODate(l.dataLancamento).split("-").reverse().join("/") : "—"}{forma ? ` · ${forma}` : ""}
+                    </span>
+                    <ComboboxWithCreate
+                      value={trocasConta[l.id] ?? l.contaBancariaId ?? ""}
+                      onChange={(v) => setTrocasConta((p) => ({ ...p, [l.id]: v }))}
+                      allowNone={false}
+                      placeholder="Conta"
+                      className="min-w-0"
+                      triggerClassName="h-9 rounded-lg w-full min-w-0"
+                      menuMinWidth={340}
+                      options={contasBanco
+                        .filter((c) => c.ativo !== false && !c.compensacao)
+                        .map((c) => ({ value: c.id, label: c.nome, group: c.ehTerceiro ? "Contas de terceiros" : "Contas da empresa" }))}
+                    />
+                    <span className="text-sm font-medium tabular-nums text-right">{formatBRL(l.valor)}</span>
+                  </div>
+                );
+              })}
+              <p className="text-[11px] text-muted-foreground">Trocar a conta reprocessa o razão do pagamento. Valor e data não mudam aqui — use <b>Reabrir</b> e baixe de novo.</p>
+            </div>
+          )}
           <div>
             <Label>Observações</Label>
             <Input value={observacoes} onChange={(e) => setObservacoes(e.target.value)} className="mt-1" placeholder="Opcional" />

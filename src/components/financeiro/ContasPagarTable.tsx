@@ -45,6 +45,8 @@ type ContaRow = {
   id: string; numero: string; descricao: string; categoria: string | null; status: string; antecipado?: boolean;
   // Empresa dona do título (modo grupo lista todas — a tag identifica cada uma).
   empresaId?: string | null;
+  // Linhas do pagamento (como foi pago: conta/valor/data por lançamento).
+  lancamentos?: { id: string; valor: unknown; dataLancamento?: Date | string | null; descricao?: string | null; contaBancaria: { id: string; nome: string } | null }[];
   parcelaNumero?: number | null; parcelaTotal?: number | null;
   // Forma PREVISTA de quitação (herdada do DE; ex.: permuta) — distinta do
   // formaPagamento (resumo do que foi efetivamente baixado).
@@ -1152,7 +1154,28 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               </div>
             ) : rotuloNat(detalhe.naturezaFinanceira!),
           }] : []),
-          ...(contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + ") }] : []),
+          // PAGAMENTO em linhas (como foi pago): data · forma · conta — valor.
+          ...(detalhe.lancamentos && detalhe.lancamentos.length > 0
+            ? [{
+                label: "Pagamento", full: true,
+                valor: (
+                  <div className="space-y-1">
+                    {detalhe.lancamentos.map((l) => {
+                      const forma = l.descricao?.match(/\(([^)]+)\)\s*$/)?.[1] ?? null;
+                      return (
+                        <div key={l.id} className="flex items-center gap-3 rounded-md bg-muted px-2.5 py-1.5 text-sm">
+                          <span className="text-muted-foreground whitespace-nowrap">
+                            {l.dataLancamento ? formatDate(l.dataLancamento) : "—"}{forma ? ` · ${forma}` : ""}
+                          </span>
+                          <span className="flex-1 truncate">{l.contaBancaria?.nome ?? "—"}</span>
+                          <span className="font-medium tabular-nums">{formatBRL(decimalToNumber(l.valor))}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ),
+              }]
+            : (contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + ") }] : [])),
           // ── Origem ───────────────────────────────────────────────────────
           { label: "Origem", valor: org.label },
           // Documento de entrada clicável (igual ao pedido) — abre a conferência.
@@ -1387,6 +1410,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           const org = origemPagar(editar);
           return { origem: `${org.label}${org.ref ? ` · ${org.ref}` : ""}`, tes: o.tes, centro: o.centro };
         })() : null}
+        lancamentosPagamento={(editar?.lancamentos ?? []).map((l) => ({
+          id: l.id, valor: decimalToNumber(l.valor), dataLancamento: l.dataLancamento,
+          descricao: l.descricao, contaBancariaId: l.contaBancaria?.id ?? null, contaNome: l.contaBancaria?.nome ?? null,
+        }))}
         onOpenChange={(o) => !o && setEditar(null)}
         onSaved={() => router.refresh()}
       />
