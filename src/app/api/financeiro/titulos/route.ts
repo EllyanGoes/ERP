@@ -14,6 +14,7 @@ import { contabilizarTituloReceber, contabilizarTituloPagar } from "@/lib/contab
 import { garantirContaImpostosRetidos } from "@/lib/conta-contabil";
 import { validarNaturezasAtivas } from "@/lib/natureza-sistema";
 import { espelharContaReceber } from "@/lib/intragrupo";
+import { calcularParcelas, type Parcela } from "@/lib/parcelas";
 import { z } from "zod";
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -34,6 +35,10 @@ const schema = z.object({
   // Centro de custo gerencial do título (só saída sem material, quando o destino é
   // despesa/CIF). O razão segue pela natureza; centro é dimensão gerencial do título.
   centroCustoId: z.string().optional().nullable().transform((v) => v || null),
+  // PARCELAMENTO pela condição de pagamento (só AGENDAMENTO): a grade sai de
+  // calcularParcelas sobre o total, ancorada na data de vencimento informada
+  // (data base) — mesma mecânica do Documento de Entrada.
+  condicaoPagamentoId: z.string().optional().nullable().transform((v) => v || null),
   // Valores detalhados (só status PAGAMENTO): juros/multa pagos além do principal.
   // Mesma convenção da baixa (src/lib/baixa-titulo.ts): valorPago = principal,
   // juros/multa nas colunas próprias e o caixa sai pelo efetivo (principal+j+m) —
@@ -176,6 +181,20 @@ export async function POST(req: NextRequest) {
 
   const totalCaixa = r2(total + valorJuros + valorMulta - valorTaxa);
 
+  // Grade de parcelas pela CONDIÇÃO (só agendamento — pagamento realizado é
+  // título único). Vencimentos ancorados no vencimento informado como data base.
+  let grade: Parcela[] | null = null;
+  if (f.condicaoPagamentoId) {
+    if (pago) {
+      return NextResponse.json({ error: "Parcelamento por condição vale só para agendamento — um pagamento já realizado é um título único." }, { status: 422 });
+    }
+    const condicao = await prisma.condicaoPagamento.findUnique({ where: { id: f.condicaoPagamentoId } });
+    if (!condicao) return NextResponse.json({ error: "Condição de pagamento não encontrada." }, { status: 422 });
+    const g = calcularParcelas(condicao, total, venc);
+    if (g.length === 0) return NextResponse.json({ error: "A condição não gerou parcelas para o valor informado." }, { status: 422 });
+    grade = g;
+  }
+
   // Passivo das retenções (as guias liquidam nele) — garantido fora da transação.
   const contaPassivoRetencaoId = guias.length > 0
     ? ((await garantirContaImpostosRetidos(empresaId))?.id ?? null)
@@ -185,8 +204,53 @@ export async function POST(req: NextRequest) {
   const rateio = f.linhas.length > 1
     ? f.linhas.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento?.trim() || null, valor: Math.round(l.valor * 100) / 100 }))
     : [];
+  // Rateio de UMA parcela: proporcional às linhas, centavo de ajuste na última
+  // (a soma de cada parcela fecha exata) — mesmo padrão do POST de contas-pagar.
+  const rateioDaParcela = (valorParcela: number) => {
+    if (rateio.length === 0) return [];
+    const linhasP = rateio.map((l) => ({ ...l, valor: r2((l.valor * valorParcela) / total) }));
+    const somaPrevias = r2(linhasP.slice(0, -1).reduce((s, l) => s + l.valor, 0));
+    linhasP[linhasP.length - 1].valor = r2(valorParcela - somaPrevias);
+    return linhasP.filter((l) => l.valor > 0);
+  };
 
   try {
+    // ── Grade com 2+ parcelas: um título POR PARCELA, mesmo grupo ────────────
+    if (grade && grade.length > 1) {
+      const criados = await prisma.$transaction(async (tx) => {
+        const out: { id: string; numero: string }[] = [];
+        for (const p of grade) {
+          const numero = (isReceber ? generateDocNumber : generateSimpleDocNumber)(prefixo, await proximaSequenciaDaEmpresa(empresaId, prefixo));
+          const splitP = rateioDaParcela(p.valor);
+          const base = {
+            empresaId, numero, beneficiarioTipo: benTipo, beneficiarioId: benId,
+            descricao: `${descricaoTitulo} (${p.parcelaNumero}/${p.parcelaTotal})`,
+            valorOriginal: p.valor, valorPago: 0, status: "ABERTA" as const,
+            dataVencimento: p.dataVencimento, dataCompetencia: competencia, dataEmissao: emissao,
+            formaPagamento: f.formaPagamento || null,
+            naturezaFinanceiraId: natPrincipal,
+            grupoParcelamentoId: p.grupoParcelamentoId, parcelaNumero: p.parcelaNumero, parcelaTotal: p.parcelaTotal,
+            ...(splitP.length ? { naturezas: { create: splitP } } : {}),
+          };
+          if (isReceber) {
+            const cr = await tx.contaReceber.create({ data: { ...base, clienteId } });
+            out.push({ id: cr.id, numero: cr.numero });
+          } else {
+            const cp = await tx.contaPagar.create({ data: { ...base, fornecedorId, centroCustoId: f.centroCustoId } });
+            out.push({ id: cp.id, numero: cp.numero });
+          }
+        }
+        return out;
+      });
+      for (const c of criados) {
+        if (isReceber) { await espelharContaReceber(c.id).catch((e) => console.error("[financeiro/titulos] espelhar intragrupo:", e)); await contabilizarTituloReceber(c.id).catch((e) => console.error("[financeiro/titulos] contabilizar:", e)); }
+        else await contabilizarTituloPagar(c.id).catch((e) => console.error("[financeiro/titulos] contabilizar:", e));
+      }
+      return NextResponse.json({ data: { numeros: criados.map((c) => c.numero), total: criados.length } }, { status: 201 });
+    }
+    // Condição de parcela única: o vencimento sai da grade (pode ser "a
+    // combinar" = null nas condições sem vencimento).
+    const vencEfetivo = grade ? grade[0].dataVencimento : venc;
     const criado = await prisma.$transaction(async (tx) => {
       // CP é numerado sem o ano (CP-0110); CR mantém o formato com ano.
       const numero = (isReceber ? generateDocNumber : generateSimpleDocNumber)(prefixo, await proximaSequenciaDaEmpresa(empresaId, prefixo));
@@ -197,7 +261,7 @@ export async function POST(req: NextRequest) {
             valorOriginal: total, valorPago: pago ? total : 0,
             valorJuros, valorMulta,
             ...(valorTaxa > 0 ? { valorTaxa, taxaNaturezaId } : {}),
-            dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia, dataEmissao: emissao,
+            dataVencimento: vencEfetivo, dataPagamento: pagamento, dataCompetencia: competencia, dataEmissao: emissao,
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
@@ -217,7 +281,7 @@ export async function POST(req: NextRequest) {
             valorOriginal: total, valorPago: pago ? total : 0,
             valorJuros, valorMulta,
             ...(valorTaxa > 0 ? { valorTaxa, taxaNaturezaId } : {}),
-            dataVencimento: venc, dataPagamento: pagamento, dataCompetencia: competencia, dataEmissao: emissao,
+            dataVencimento: vencEfetivo, dataPagamento: pagamento, dataCompetencia: competencia, dataEmissao: emissao,
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,

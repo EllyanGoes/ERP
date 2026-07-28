@@ -13,6 +13,10 @@ export default async function ContasReceberPage() {
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
       pedidoVenda: { select: { id: true, numero: true } },
       centroCusto: { select: { codigo: true, nome: true } },
+      // Split de naturezas COM código/nome + natureza única (legado sem split) —
+      // exibidos no detalhe do título.
+      naturezas: { select: { naturezaFinanceiraId: true, detalhamento: true, valor: true, naturezaFinanceira: { select: { codigo: true, nome: true } } } },
+      naturezaFinanceira: { select: { id: true, codigo: true, nome: true } },
     },
     orderBy: { dataVencimento: "asc" },
   });

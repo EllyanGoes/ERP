@@ -17,12 +17,14 @@ import {
 } from "recharts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusBadge from "@/components/shared/StatusBadge";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 export type PontoGrafico = {
   venc: string | null;
   valor: number;
   // Detalhe do título p/ o popup ao clicar na barra.
   id?: string;
+  empresaId?: string | null;
   numero?: string;
   fornecedor?: string | null;
   descricao?: string | null;
@@ -60,7 +62,7 @@ function brlCompacto(v: number): string {
 export default function TitulosGrafico({
   pontos, onAbrirTitulo,
   titulo = "Contas a pagar por vencimento",
-  subtitulo = "Respeita os filtros de status/fornecedor/natureza; o recorte de mês/período não se aplica (horizonte completo).",
+  subtitulo = "Respeita os filtros da tela, inclusive o recorte de mês/período.",
   parceiroHeader = "Fornecedor",
   rotuloPago = "Pago",
   granKey = "financeiro:contas-pagar:grafico-gran",
@@ -253,6 +255,7 @@ export default function TitulosGrafico({
                     {doPeriodo.map((p, i) => (
                       <tr key={i} className="border-b border-border last:border-0">
                         <td className="px-3 py-2 font-mono text-xs font-semibold whitespace-nowrap">
+                          <EmpresaTag empresaId={p.empresaId} />{" "}
                           {p.id && onAbrirTitulo ? (
                             <button
                               type="button"

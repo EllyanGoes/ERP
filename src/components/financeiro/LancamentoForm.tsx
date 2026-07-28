@@ -11,11 +11,15 @@ import DatePicker from "@/components/shared/DatePicker";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import BeneficiarioCombobox, { type BenTipo } from "@/components/financeiro/BeneficiarioCombobox";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
-import { formatBRL, parseDecimal } from "@/lib/utils";
+import { formatBRL, formatDate, parseDecimal } from "@/lib/utils";
 import { centroExigidoPelaNatureza } from "@/lib/natureza-centro";
+import { calcularParcelas, type CondicaoParcelas } from "@/lib/parcelas";
 
 type Contato = { id: string; razaoSocial: string; doc?: string | null };
 type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
+// Condição com os campos da grade (numeroParcelas/dias/percentuais/…) p/ a
+// PRÉVIA client-side via calcularParcelas — mesma mecânica do DE.
+type CondOpt = { id: string; nome: string; ativo?: boolean } & NonNullable<CondicaoParcelas>;
 type Linha = { key: string; naturezaFinanceiraId: string; detalhamento: string; valor: string };
 
 function hojeInput() {
@@ -79,6 +83,10 @@ export default function LancamentoForm({
   const [valorDesconto, setValorDesconto] = useState("");
   const RETENCAO_VAZIA = { iss: "", irpj: "", csll: "", inss: "", pis: "", cofins: "", outras: "" };
   const [retencoes, setRetencoes] = useState<Record<string, string>>(RETENCAO_VAZIA);
+  // Parcelamento pela condição de pagamento (só agendamento): a grade nasce de
+  // calcularParcelas sobre o total, ancorada no VENCIMENTO informado (data base).
+  const [condicaoPagamentoId, setCondicaoPagamentoId] = useState("");
+  const [condicoes, setCondicoes] = useState<CondOpt[]>([]);
   // Modo conta: as listas de clientes/fornecedores trocam conforme o tipo.
   const [clientes, setClientes] = useState<Contato[]>([]);
   const [fornecedores, setFornecedores] = useState<Contato[]>([]);
@@ -94,7 +102,7 @@ export default function LancamentoForm({
       setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput()); setDataEmissao(hojeInput());
       setLinhas([novaLinha()]); setCentroCustoId(""); setErro(null);
       setDetalhado(false); setAbaDetalhe("centro"); setValorJuros(""); setValorMulta("");
-      setValorDesconto(""); setRetencoes(RETENCAO_VAZIA);
+      setValorDesconto(""); setRetencoes(RETENCAO_VAZIA); setCondicaoPagamentoId("");
     },
   });
 
@@ -117,7 +125,16 @@ export default function LancamentoForm({
   useEffect(() => {
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
       .then((j) => setCentros(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/suprimentos/condicoes-pagamento").then((r) => r.json())
+      .then((j) => setCondicoes(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, []);
+
+  // PRÉVIA da grade de parcelas (condição × total × vencimento como data base).
+  const condicaoSel = condicoes.find((c) => c.id === condicaoPagamentoId) ?? null;
+  const totalLinhas = linhas.reduce((s, l) => { const v = parseDecimal(l.valor); return s + (Number.isFinite(v) ? v : 0); }, 0);
+  const gradePrevia = condicaoSel && status === "AGENDAMENTO" && totalLinhas > 0
+    ? calcularParcelas(condicaoSel, totalLinhas, `${dataVencimento || hojeInput()}T00:00:00.000Z`)
+    : null;
 
   // Centro (gerencial no título) é exigido quando ALGUMA natureza do rateio é de custo
   // (despesa/CIF). Saída sem material; o razão segue pela natureza. Receita não exige.
@@ -201,6 +218,7 @@ export default function LancamentoForm({
           dataCompetencia,
           dataEmissao,
           centroCustoId: centroCustoId || null,
+          condicaoPagamentoId: !pago ? (condicaoPagamentoId || null) : null,
           valorJuros: jurosNum || 0,
           valorMulta: multaNum || 0,
           valorDesconto: descontoNum || 0,
@@ -315,6 +333,56 @@ export default function LancamentoForm({
           )}
         </div>
       </div>
+
+      {/* Condição de pagamento (só agendamento): parcela o lançamento pela
+          condição — um título por parcela, a partir do vencimento informado. */}
+      {!pago && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-3 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Condição de pagamento <span className="text-muted-foreground">(opcional)</span></Label>
+              <ComboboxWithCreate
+                value={condicaoPagamentoId}
+                onChange={setCondicaoPagamentoId}
+                noneLabel="À vista / vencimento único"
+                placeholder="À vista / vencimento único"
+                triggerClassName="h-10 rounded-lg"
+                menuMinWidth={300}
+                options={condicoes.filter((c) => c.ativo !== false).map((c) => ({ value: c.id, label: c.nome }))}
+              />
+            </div>
+            {gradePrevia && (
+              <p className="col-span-2 text-[11px] text-muted-foreground pb-2">
+                {gradePrevia.length > 1
+                  ? <>Serão criados <b>{gradePrevia.length} títulos</b> (um por parcela), a partir do vencimento informado.</>
+                  : <>Parcela única pela condição{gradePrevia[0].dataVencimento ? ` — vence ${formatDate(gradePrevia[0].dataVencimento)}` : " — sem vencimento (a combinar)"}.</>}
+              </p>
+            )}
+          </div>
+          {gradePrevia && gradePrevia.length > 1 && (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr className="border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
+                    <th className="text-center px-3 py-1.5 w-20">Parcela</th>
+                    <th className="text-left px-3 py-1.5">Vencimento</th>
+                    <th className="text-right px-3 py-1.5">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gradePrevia.map((p, i) => (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="px-3 py-1.5 text-center text-muted-foreground">{p.parcelaNumero}/{p.parcelaTotal}</td>
+                      <td className="px-3 py-1.5">{p.dataVencimento ? formatDate(p.dataVencimento) : "A combinar"}</td>
+                      <td className="px-3 py-1.5 text-right font-medium">{formatBRL(p.valor)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Rateio */}
       <div className="space-y-2">

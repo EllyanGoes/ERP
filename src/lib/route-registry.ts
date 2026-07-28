@@ -147,6 +147,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/contabilidade/balanco",                label: "Balanço Patrimonial",      group: "Contabilidade",  section: "Relatórios",    icon: Calculator,     keywords: "contabilidade balanço patrimonial ativo passivo patrimonio liquido posição" },
   { href: "/contas-receber",                       label: "Contas a Receber",        group: "Financeiro",     section: "Financeiro",       icon: TrendingUp },
   { href: "/contas-pagar",                         label: "Contas a Pagar",          group: "Financeiro",     section: "Financeiro",       icon: TrendingDown },
+  { href: "/financeiro/parcelamentos",             label: "Parcelamentos",           group: "Financeiro",     section: "Financeiro",       icon: Layers,        keywords: "parcelamento parcela grupo contas a pagar acompanhamento vencida quitado saldo" },
   { href: "/financeiro/agenda",                    label: "Agenda Financeira",       group: "Financeiro",     section: "Financeiro",       icon: CalendarClock, keywords: "agenda vencimento baixa lote a vencer" },
   { href: "/financeiro/recorrencias",              label: "Recorrências",            group: "Financeiro",     section: "Financeiro",       icon: Repeat,        keywords: "recorrência recorrente mensal aluguel salário fixa" },
   { href: "/financeiro/conciliacao",               label: "Conciliação (OFX)",       group: "Financeiro",     section: "Financeiro",       icon: FileCheck2,    keywords: "conciliação ofx extrato banco importar conciliar" },

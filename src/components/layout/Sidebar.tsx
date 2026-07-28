@@ -283,7 +283,14 @@ const mainModules: Module[] = [
         items: [
           { href: "/contas-receber",       label: "Contas a Receber",  icon: TrendingUp },
           { href: "/contas-pagar",         label: "Contas a Pagar",    icon: TrendingDown },
+          { href: "/financeiro/parcelamentos", label: "Parcelamentos", icon: Layers },
           { href: "/financeiro/encontro-de-contas", label: "Compensação Pagar/Receber", icon: ArrowLeftRight },
+        ],
+      },
+      // "Outros": processos que ficam para o futuro — fora do fluxo do dia a dia.
+      {
+        kind: "Outros",
+        items: [
           { href: "/financeiro/agenda",    label: "Agenda Financeira", icon: CalendarClock },
           { href: "/financeiro/recorrencias", label: "Recorrências",   icon: Repeat },
           { href: "/financeiro/conciliacao", label: "Conciliação (OFX)", icon: FileCheck2 },

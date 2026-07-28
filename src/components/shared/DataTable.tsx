@@ -47,6 +47,10 @@ interface DataTableProps<T> {
   // Conteúdo do cabeçalho de grupo (recebe as linhas COMPLETAS do grupo, não só
   // as da página). Padrão: rótulo + contagem.
   renderGroupHeader?: (info: { key: string; label: string; rows: T[] }) => React.ReactNode;
+  // Congela a 1ª coluna à esquerda no scroll horizontal (espelho do stickyRight
+  // das ações ⋮): fundo opaco p/ o conteúdo não vazar por baixo + sombra sutil.
+  // Opt-in — vale para a 1ª coluna VISÍVEL (a de identificação da linha).
+  stickyFirstColumn?: boolean;
 }
 
 export type GroupInfo = { key: string; label: string; ordem?: number | string };
@@ -56,7 +60,7 @@ function colId<T>(c: ColumnDef<T>): string {
   return c.id ?? String((c as { accessorKey?: string }).accessorKey ?? "");
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro", groupBy, renderGroupHeader }: DataTableProps<T>) {
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro", groupBy, renderGroupHeader, stickyFirstColumn }: DataTableProps<T>) {
   const pathname = usePathname();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -193,7 +197,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
         onRowClick(row.original);
       } : undefined}
     >
-      {row.getVisibleCells().map((cell) => (
+      {row.getVisibleCells().map((cell, idx) => (
         <TableCell
           key={cell.id}
           className={cn(
@@ -202,6 +206,10 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
             (cell.column.columnDef.meta as { className?: string; tdClass?: string } | undefined)?.tdClass,
             (cell.column.columnDef.meta as { stickyRight?: boolean } | undefined)?.stickyRight &&
               "sticky right-0 z-10 bg-card shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]",
+            // 1ª coluna congelada à esquerda (identificação da linha) — fundo
+            // opaco + z acima das células p/ nada vazar por baixo no scroll.
+            stickyFirstColumn && idx === 0 &&
+              "sticky left-0 z-10 bg-card shadow-[6px_0_6px_-6px_rgba(0,0,0,0.25)]",
           )}
         >
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -270,7 +278,7 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
           <TableHeader>
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id} className={cn("hover:bg-transparent border-b border-border", headerClassName)}>
-                {hg.headers.map((header) => (
+                {hg.headers.map((header, idx) => (
                   <TableHead
                     key={header.id}
                     className={cn(
@@ -281,6 +289,9 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
                       // opaco igual ao do cabeçalho p/ o conteúdo não vazar por baixo.
                       (header.column.columnDef.meta as { stickyRight?: boolean } | undefined)?.stickyRight &&
                         "sticky right-0 z-10 bg-muted shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]",
+                      // 1ª coluna congelada à esquerda — fundo do cabeçalho (bg-muted).
+                      stickyFirstColumn && idx === 0 &&
+                        "sticky left-0 z-10 bg-muted shadow-[6px_0_6px_-6px_rgba(0,0,0,0.25)]",
                     )}
                   >
                     {header.isPlaceholder ? null : (

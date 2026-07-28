@@ -52,7 +52,14 @@ type ContaRow = {
   dataVencimento: Date | string; dataPagamento: Date | string | null;
   // Emissão do título (NF/lançamento manual). Fallback na tela: emissão do DE.
   dataEmissao?: Date | string | null;
+  // Competência (regime de competência) e criação — exibidas no detalhe.
+  dataCompetencia?: Date | string | null;
+  createdAt?: Date | string | null;
   valorOriginal: unknown; valorPago: unknown;
+  // Encargos ACUMULADOS nas baixas (juros/multa por fora, taxa retida).
+  valorJuros?: unknown; valorMulta?: unknown; valorTaxa?: unknown;
+  // Nota fiscal do documento (quando informada no título).
+  notaFiscal?: string | null;
   fornecedor: { id: string; razaoSocial: string } | null;
   contasContrapartida?: { id: string; nome: string }[];
   naturezas?: { naturezaFinanceiraId: string; detalhamento: string | null; valor: unknown; naturezaFinanceira?: { codigo: string | null; nome: string } | null }[];
@@ -245,6 +252,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // Status é múltipla escolha (chave nova para não colidir com o valor antigo
   // de seleção única). Padrão: em aberto (ABERTA + PARCIAL).
   const [statusSel, setStatusSel] = usePersistedState<string[]>("financeiro:contas-pagar:status-multi", SET_ABERTO);
+  // Filtro por EMPRESA (modo grupo — multi-seleção). Vazio = sem recorte (todas
+  // marcadas no chip, mesmo padrão do status: todos marcados = tudo).
+  const empresasSessao = user?.empresas ?? [];
+  const [empresasSel, setEmpresasSel] = usePersistedState<string[]>("financeiro:contas-pagar:empresas", []);
   const [naturezaFiltro, setNaturezaFiltro] = usePersistedState<string>("financeiro:contas-pagar:natureza", "");
   const [fornecedorFiltro, setFornecedorFiltro] = usePersistedState<string>("financeiro:contas-pagar:fornecedor", "");
   // Busca na barra de filtros (vale para a tabela E para a visão agrupada).
@@ -304,21 +315,23 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // Base dos totais: aplica TODOS os filtros MENOS o de status (cada bloco de
   // total é uma categoria de status). Assim os blocos refletem fornecedor/conta/
   // período/busca selecionados.
+  // Recorte de data: período custom quando definido; senão o MODO MÊS (padrão) —
+  // títulos com vencimento no mês + carry-over EM ABERTO (vencidos de meses
+  // anteriores e sem vencimento). Vale para a TABELA e para o GRÁFICO.
+  const passaData = (c: ContaRow): boolean => {
+    if (periodo.from || periodo.to) return dentroDoPeriodo(c, periodo);
+    if (mes === "TODOS") return true;
+    const iso = isoDia(c.dataVencimento);
+    const ini = `${mes}-01`;
+    if (iso && iso >= ini && iso <= `${mes}-31`) return true; // do mês (qualquer status)
+    const emAberto = c.status === "ABERTA" || c.status === "PARCIAL";
+    return emAberto && (!iso || iso < ini); // carry-over: vencido antes do mês / sem data
+  };
   const contasBase = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    // Recorte de data: período custom quando definido; senão o MODO MÊS (padrão) —
-    // títulos com vencimento no mês + carry-over EM ABERTO (vencidos de meses
-    // anteriores e sem vencimento). Meses futuros ficam fora até serem navegados.
-    const passaData = (c: ContaRow): boolean => {
-      if (periodo.from || periodo.to) return dentroDoPeriodo(c, periodo);
-      if (mes === "TODOS") return true;
-      const iso = isoDia(c.dataVencimento);
-      const ini = `${mes}-01`;
-      if (iso && iso >= ini && iso <= `${mes}-31`) return true; // do mês (qualquer status)
-      const emAberto = c.status === "ABERTA" || c.status === "PARCIAL";
-      return emAberto && (!iso || iso < ini); // carry-over: vencido antes do mês / sem data
-    };
     return contas.filter((c) => {
+      // Recorte por empresa (modo grupo): seleção vazia = todas.
+      if (empresasSel.length > 0 && c.empresaId && !empresasSel.includes(c.empresaId)) return false;
       if (naturezaFiltro !== "" && !naturezasDoTitulo(c).some((n) => n.id === naturezaFiltro)) return false;
       if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
       if (!passaData(c)) return false;
@@ -327,23 +340,25 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
         .some((v) => v?.toLowerCase().includes(q));
     });
-  }, [contas, naturezaFiltro, fornecedorFiltro, busca, periodo, mes]);
+  }, [contas, empresasSel, naturezaFiltro, fornecedorFiltro, busca, periodo, mes]);
   // Tabela: base + o filtro de status (OR sobre os marcados).
   const contasFiltradas = useMemo(
     () => contasBase.filter((c) => statusSel.some((s) => casaStatus(c, s as StatusFiltro))),
     [contasBase, statusSel],
   );
-  // Gráfico (acumulado por vencimento): mesmos filtros MENOS o recorte de data —
-  // o horizonte é a dívida inteira. Valor = saldo em aberto; PAGA entra pelo
-  // original (só aparece se o filtro de status incluir pagas).
+  // Gráfico (barras por vencimento): mesmos filtros da tabela, INCLUINDO o
+  // recorte de mês/período. Valor = saldo em aberto; PAGA entra pelo original
+  // (só aparece se o filtro de status incluir pagas).
   const pontosGrafico = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return contas
       .filter((c) => {
         if (c.status === "CANCELADA") return false;
+        if (empresasSel.length > 0 && c.empresaId && !empresasSel.includes(c.empresaId)) return false;
         if (!statusSel.some((s) => casaStatus(c, s as StatusFiltro))) return false;
         if (naturezaFiltro !== "" && !naturezasDoTitulo(c).some((n) => n.id === naturezaFiltro)) return false;
         if (fornecedorFiltro !== "" && c.fornecedor?.id !== fornecedorFiltro) return false;
+        if (!passaData(c)) return false;
         if (!q) return true;
         const o = origemPagar(c);
         return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
@@ -356,13 +371,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           : Math.max(0, decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)),
         // Detalhe p/ o popup da barra (lista de títulos do período clicado).
         id: c.id,
+        empresaId: c.empresaId ?? null,
         numero: c.numero,
         fornecedor: c.fornecedor?.razaoSocial ?? null,
         descricao: c.descricao ?? null,
         parcela: c.parcelaTotal ? `${c.parcelaNumero}/${c.parcelaTotal}` : "Única",
         status: c.status,
       }));
-  }, [contas, statusSel, naturezaFiltro, fornecedorFiltro, busca]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contas, empresasSel, statusSel, naturezaFiltro, fornecedorFiltro, busca, periodo, mes]);
   // Totais dos blocos, recortando a base por categoria de status.
   const totais = useMemo(() => {
     const now = new Date();
@@ -640,7 +657,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     { accessorKey: "numero", header: "Número", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => (
       <span className="inline-flex items-center gap-1.5">
         <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
-        <EmpresaTag empresaId={row.original.empresaId} />
+        <EmpresaTag empresaId={row.original.empresaId} compact />
         {row.original.antecipado && (
           <span className="inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400" title="Pagamento antecipado — adiantamento a fornecedor gerado no pedido">PA</span>
         )}
@@ -844,6 +861,27 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       ),
     },
     {
+      // Empresa (modo grupo): multi-seleção — vazio persiste como "todas".
+      key: "empresa", label: "Empresa",
+      icon: <Building2 className="w-4 h-4 text-muted-foreground" />,
+      disponivel: empresasSessao.length > 1,
+      ativo: empresasSel.length > 0 && empresasSel.length < empresasSessao.length,
+      limpar: () => setEmpresasSel([]),
+      render: () => (
+        <CheckboxFilter
+          values={empresasSel.length ? empresasSel : empresasSessao.map((e) => e.id)}
+          onChange={(v) => setEmpresasSel(v.length >= empresasSessao.length ? [] : v)}
+          noun="empresas"
+          triggerClassName={CHIP_TRIGGER}
+          options={empresasSessao.map((e) => ({
+            value: e.id,
+            label: e.nome,
+            hint: String(contas.filter((c) => c.empresaId === e.id).length),
+          }))}
+        />
+      ),
+    },
+    {
       key: "periodo", label: "Período",
       icon: <CalendarClock className="w-4 h-4 text-muted-foreground" />,
       ativo: Boolean(periodo.from || periodo.to),
@@ -1042,6 +1080,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         onRowClick={(row) => setDetalhe(row)}
         groupBy={groupByFn}
         renderGroupHeader={renderGrupoHeader}
+        stickyFirstColumn
       />
       )}
       {detalhe && (() => {
@@ -1051,8 +1090,63 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         const contas = detalhe.contasContrapartida ?? [];
         const org = origemPagar(detalhe);
         const conf = detalhe.conferencia ?? detalhe.pedidoCompra?.conferencia;
+        // Empresa dona do título (modo grupo) — só faz sentido p/ quem vê 2+.
+        const nomeEmpresa = empresasSessao.length > 1 && detalhe.empresaId
+          ? empresasSessao.find((e) => e.id === detalhe.empresaId)?.nome ?? null
+          : null;
+        // Encargos ACUMULADOS nas baixas — só aparecem quando > 0.
+        const vJuros = decimalToNumber(detalhe.valorJuros ?? 0);
+        const vMulta = decimalToNumber(detalhe.valorMulta ?? 0);
+        const vTaxa = decimalToNumber(detalhe.valorTaxa ?? 0);
+        // Emissão do título; sem ela cai na emissão do DE e, por fim, na criação.
+        const emissao = detalhe.dataEmissao ?? conf?.dtEmissao ?? detalhe.createdAt ?? null;
+        // Naturezas: split com valores (uma linha por natureza); sem split, a
+        // natureza única do título (legado).
+        const natLinhas = (detalhe.naturezas ?? []).filter((l) => l.naturezaFinanceira);
+        const rotuloNat = (n: { codigo?: string | null; nome: string }) => `${n.codigo ? `${n.codigo} ` : ""}${n.nome}`;
+        // Ordem lógica: identificação → datas → valores → classificação → origem.
         const campos: TituloCampo[] = [
+          // ── Identificação ────────────────────────────────────────────────
+          ...(nomeEmpresa ? [{ label: "Empresa", valor: nomeEmpresa, full: true }] : []),
           { label: "Fornecedor", valor: renderFornecedor(detalhe, "font-medium"), full: true },
+          { label: "Descrição", valor: detalhe.descricao || "—", full: true },
+          { label: "Parcela", valor: detalhe.parcelaTotal && detalhe.parcelaTotal > 1 ? `${detalhe.parcelaNumero ?? 1}/${detalhe.parcelaTotal}` : "Única" },
+          ...(detalhe.notaFiscal ? [{ label: "Nota Fiscal", valor: detalhe.notaFiscal }] : []),
+          ...(detalhe.formaPagamentoPrevista ? [{ label: "Forma prevista", valor: detalhe.formaPagamentoPrevista.nome }] : []),
+          // ── Datas ────────────────────────────────────────────────────────
+          ...(emissao ? [{ label: "Emissão", valor: formatDate(emissao) }] : []),
+          ...(detalhe.dataCompetencia ? [{ label: "Competência", valor: formatDate(detalhe.dataCompetencia) }] : []),
+          { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{detalhe.dataVencimento ? formatDate(detalhe.dataVencimento) : "A combinar"}</span> },
+          ...(detalhe.dataPagamento ? [{ label: "Pagamento", valor: formatDate(detalhe.dataPagamento) }] : []),
+          // ── Valores ──────────────────────────────────────────────────────
+          { label: "Valor original", valor: formatBRL(vo) },
+          { label: "Pago", valor: formatBRL(vp) },
+          { label: "Saldo", valor: <span className="font-medium">{formatBRL(vo - vp)}</span> },
+          ...(vJuros > 0 ? [{ label: "Juros", valor: formatBRL(vJuros) }] : []),
+          ...(vMulta > 0 ? [{ label: "Multa", valor: formatBRL(vMulta) }] : []),
+          ...(vTaxa > 0 ? [{ label: "Taxa retida", valor: formatBRL(vTaxa) }] : []),
+          // ── Classificação ────────────────────────────────────────────────
+          // TES e Centro de custo — SOMENTE LEITURA (definidos no material, não aqui).
+          { label: "TES (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).tes}</span> },
+          { label: "Centro de custo", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).centro}</span> },
+          ...(natLinhas.length || detalhe.naturezaFinanceira ? [{
+            label: natLinhas.length > 1 ? "Naturezas" : "Natureza", full: true,
+            valor: natLinhas.length ? (
+              <div className="space-y-0.5">
+                {natLinhas.map((l, i) => (
+                  <div key={i} className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate">
+                      {rotuloNat(l.naturezaFinanceira!)}
+                      {l.detalhamento ? <span className="text-muted-foreground"> · {l.detalhamento}</span> : null}
+                    </span>
+                    <span className="shrink-0 font-medium tabular-nums">{formatBRL(decimalToNumber(l.valor))}</span>
+                  </div>
+                ))}
+              </div>
+            ) : rotuloNat(detalhe.naturezaFinanceira!),
+          }] : []),
+          ...(contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + "), full: true }] : []),
+          // ── Origem ───────────────────────────────────────────────────────
           { label: "Origem", full: true, valor: org.label },
           // Documento de entrada clicável (igual ao pedido) — abre a conferência.
           ...(conf ? [{
@@ -1076,17 +1170,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               </button>
             ),
           }] : []),
-          { label: "Descrição", valor: detalhe.descricao || "—", full: true },
-          // TES e Centro de custo — SOMENTE LEITURA (definidos no material, não aqui).
-          { label: "TES (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).tes}</span> },
-          { label: "Centro de custo (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).centro}</span> },
-          { label: "Vencimento", valor: <span className={isVencida(detalhe.dataVencimento, detalhe.dataPagamento) ? "text-danger font-medium" : undefined}>{detalhe.dataVencimento ? formatDate(detalhe.dataVencimento) : "A combinar"}</span> },
-          ...(detalhe.formaPagamentoPrevista ? [{ label: "Forma prevista", valor: detalhe.formaPagamentoPrevista.nome }] : []),
-          { label: "Valor", valor: formatBRL(vo) },
-          { label: "Pago", valor: formatBRL(vp) },
-          { label: "Saldo", valor: <span className="font-medium">{formatBRL(vo - vp)}</span> },
-          ...(detalhe.dataPagamento ? [{ label: "Pagamento", valor: formatDate(detalhe.dataPagamento) }] : []),
-          ...(contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + "), full: true }] : []),
+          ...(detalhe.observacoes ? [{ label: "Observações", valor: detalhe.observacoes, full: true }] : []),
         ];
         const podeEstornar = detalhe.status === "PAGA" || detalhe.status === "PARCIAL";
         const acoes: TituloAcao[] = [
