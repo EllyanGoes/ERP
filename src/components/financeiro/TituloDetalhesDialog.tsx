@@ -36,8 +36,9 @@ export default function TituloDetalhesDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Largo o bastante p/ DUAS colunas de campos (formato mais quadrado). */}
-      <DialogContent className="w-[min(46rem,calc(100vw-2rem))] sm:max-w-none max-h-[85vh] overflow-y-auto">
+      {/* Largo o bastante p/ QUATRO colunas de campos curtos — o conteúdo cabe
+          sem rolagem na maioria dos títulos (a rolagem fica só de segurança). */}
+      <DialogContent className="w-[min(64rem,calc(100vw-2rem))] sm:max-w-none max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <span className="font-mono text-info">{numero}</span>
@@ -45,9 +46,9 @@ export default function TituloDetalhesDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3 py-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2.5 py-1">
           {campos.map((c, i) => (
-            <div key={i} className={cn("min-w-0", c.full && "col-span-2")}>
+            <div key={i} className={cn("min-w-0", c.full && "col-span-2 sm:col-span-4")}>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{c.label}</div>
               <div className="text-sm text-foreground break-words">{c.valor}</div>
             </div>
