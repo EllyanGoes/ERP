@@ -43,6 +43,10 @@ function applyWidths(table: HTMLTableElement, widths: number[]): boolean {
   if (!ths.length || ths.length !== widths.length) return false;
   table.style.tableLayout = "fixed";
   table.style.width = widths.reduce((a, b) => a + b, 0) + "px";
+  // Nunca mais estreita que o card: sem isso, larguras salvas somando menos que
+  // o contêiner encolhem a tabela — a coluna congelada (sticky right, ex.: ⋮)
+  // fica "solta" no meio do card em vez de grudada na borda direita.
+  table.style.minWidth = "100%";
   ths.forEach((th, i) => { th.style.width = widths[i] + "px"; });
   // Marca a tabela como "congelada" p/ a regra global que clipa o conteúdo que
   // ultrapassa a largura da coluna (senão o texto transborda p/ a coluna vizinha).

@@ -26,13 +26,15 @@ type ConferenciaRow = {
   dataConferencia: string | null;
   createdAt: string;
   vrTotal: unknown;
+  desconto: unknown;
+  frete: unknown;
   pedido: {
     id: string;
     numero: string;
     fornecedor: { razaoSocial: string; nomeFantasia: string | null } | null;
   } | null;
   fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
-  itens: Array<{ id: string; vlrTotal: unknown }>;
+  itens: Array<{ id: string; vlrTotal: unknown; paiId: string | null }>;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -42,10 +44,14 @@ function getFornecedorNome(doc: ConferenciaRow): string {
   return "—";
 }
 
+// Espelha encargosConferencia (lib/pedido-compra-de): líquido = Σ linhas-pai −
+// desconto + frete. Filhos (paiId) decompõem o preço do pai — somá-los dobraria.
 function calcValorTotal(doc: ConferenciaRow): number {
   const vr = decimalToNumber(doc.vrTotal);
   if (vr > 0) return vr;
-  return doc.itens.reduce((s, i) => s + decimalToNumber(i.vlrTotal), 0);
+  const base = doc.itens.reduce((s, i) => s + (i.paiId ? 0 : decimalToNumber(i.vlrTotal)), 0);
+  const liquido = base - decimalToNumber(doc.desconto) + decimalToNumber(doc.frete);
+  return Math.round(liquido * 100) / 100;
 }
 
 // ── Status config ─────────────────────────────────────────────────────────────
