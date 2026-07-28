@@ -1138,22 +1138,38 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           // TES e Centro de custo — SOMENTE LEITURA (definidos no material, não aqui).
           { label: "TES (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).tes}</span> },
           { label: "Centro de custo", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).centro}</span> },
-          ...(natLinhas.length || detalhe.naturezaFinanceira ? [{
-            label: natLinhas.length > 1 ? "Naturezas" : "Natureza", full: true,
-            valor: natLinhas.length ? (
-              <div className="space-y-0.5">
-                {natLinhas.map((l, i) => (
-                  <div key={i} className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 truncate">
-                      {rotuloNat(l.naturezaFinanceira!)}
-                      {l.detalhamento ? <span className="text-muted-foreground"> · {l.detalhamento}</span> : null}
-                    </span>
-                    <span className="shrink-0 font-medium tabular-nums">{formatBRL(decimalToNumber(l.valor))}</span>
-                  </div>
-                ))}
-              </div>
-            ) : rotuloNat(detalhe.naturezaFinanceira!),
-          }] : []),
+          // TODAS as linhas da classificação: o rateio editável + os ENCARGOS
+          // que foram por dentro (juros/multa/taxa nas naturezas travadas) —
+          // espelho do que o razão gerencial grava.
+          ...(() => {
+            const buscaChave = (ch: string) => taxaNaturezas.find((n) => n.sistemaChave === ch) ?? null;
+            const natTaxaSel = taxaNaturezas.find((n) => n.id === (detalhe as { taxaNaturezaId?: string | null }).taxaNaturezaId) ?? buscaChave("tarifa-bancaria");
+            const rotSis = (n: TaxaNaturezaOpt | null, fb: string) => (n ? `${n.codigo ? `${n.codigo} ` : ""}${n.nome}` : fb);
+            const linhas = [
+              ...natLinhas.map((l) => ({ rot: rotuloNat(l.naturezaFinanceira!), det: l.detalhamento ?? null, valor: decimalToNumber(l.valor), auto: false })),
+              ...(natLinhas.length === 0 && detalhe.naturezaFinanceira ? [{ rot: rotuloNat(detalhe.naturezaFinanceira), det: null, valor: vo, auto: false }] : []),
+              ...(vJuros > 0 ? [{ rot: rotSis(buscaChave("juros-pagos"), "Juros pagos"), det: "juros da baixa", valor: vJuros, auto: true }] : []),
+              ...(vMulta > 0 ? [{ rot: rotSis(buscaChave("multa-paga"), "Multas pagas"), det: "multa da baixa", valor: vMulta, auto: true }] : []),
+              ...(vTaxa > 0 ? [{ rot: rotSis(natTaxaSel, "Taxa retida"), det: "taxa/tarifa retida", valor: vTaxa, auto: true }] : []),
+            ];
+            if (linhas.length === 0) return [];
+            return [{
+              label: linhas.length > 1 ? "Classificação" : "Natureza", full: true,
+              valor: (
+                <div className="space-y-0.5">
+                  {linhas.map((l, i) => (
+                    <div key={i} className="flex items-baseline justify-between gap-3">
+                      <span className={cn("min-w-0 truncate", l.auto && "text-muted-foreground")}>
+                        {l.rot}
+                        {l.det ? <span className="text-muted-foreground"> · {l.det}</span> : null}
+                      </span>
+                      <span className={cn("shrink-0 font-medium tabular-nums", l.auto && "text-muted-foreground")}>{formatBRL(l.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              ),
+            }];
+          })(),
           // PAGAMENTO em linhas (como foi pago): data · forma · conta — valor.
           ...(detalhe.lancamentos && detalhe.lancamentos.length > 0
             ? [{
