@@ -36,7 +36,8 @@ export default function TituloDetalhesDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      {/* Largo o bastante p/ DUAS colunas de campos (formato mais quadrado). */}
+      <DialogContent className="w-[min(46rem,calc(100vw-2rem))] sm:max-w-none max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <span className="font-mono text-info">{numero}</span>

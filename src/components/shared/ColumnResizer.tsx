@@ -38,16 +38,23 @@ function sig(table: HTMLTableElement): string {
   return headerCells(table).map((c) => (c.textContent || "").trim().slice(0, 16)).join("~");
 }
 
+// Coluna congelada à direita (ações ⋮): largura FIXA — só o necessário para o
+// botão; larguras salvas/arrastadas não valem para ela.
+const STICKY_ACOES_W = 44;
+const ehStickyDireita = (th: HTMLTableCellElement) =>
+  th.classList.contains("sticky") && th.classList.contains("right-0");
+
 function applyWidths(table: HTMLTableElement, widths: number[]): boolean {
   const ths = headerCells(table);
   if (!ths.length || ths.length !== widths.length) return false;
+  const efetivas = ths.map((th, i) => (ehStickyDireita(th) ? STICKY_ACOES_W : widths[i]));
   table.style.tableLayout = "fixed";
-  table.style.width = widths.reduce((a, b) => a + b, 0) + "px";
+  table.style.width = efetivas.reduce((a, b) => a + b, 0) + "px";
   // Nunca mais estreita que o card: sem isso, larguras salvas somando menos que
   // o contêiner encolhem a tabela — a coluna congelada (sticky right, ex.: ⋮)
   // fica "solta" no meio do card em vez de grudada na borda direita.
   table.style.minWidth = "100%";
-  ths.forEach((th, i) => { th.style.width = widths[i] + "px"; });
+  ths.forEach((th, i) => { th.style.width = efetivas[i] + "px"; });
   // Marca a tabela como "congelada" p/ a regra global que clipa o conteúdo que
   // ultrapassa a largura da coluna (senão o texto transborda p/ a coluna vizinha).
   table.dataset.colw = "1";

@@ -801,6 +801,42 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     },
   ];
 
+  // Blocos de TOTAIS (clicáveis — presets de status): moram na barra do
+  // DataTable (toolbarLeft) na vista tabela — aproveitando a faixa ao lado
+  // do contador/por página — e acima do gráfico na vista gráfico.
+  const blocosTotais = resumo ? (() => {
+        const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_RECEBER_KEYS : set));
+        return (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => toggle(SET_A_RECEBER)} title="Filtrar por Vencidas + A vencer (sem vencimento fica de fora)"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_A_RECEBER) && "ring-2 ring-warning")}>
+            <span className="text-xs font-medium text-warning">A Receber</span>
+            <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(totais.aReceber)}</span>
+          </button>
+          <button type="button" onClick={() => toggle(SET_VENCIDO)} title="Filtrar por Vencidas"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
+            <span className="text-xs font-medium text-danger">Vencido</span>
+            <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(totais.vencido)}</span>
+          </button>
+          <button type="button" onClick={() => toggle(SET_A_VENCER)} title="Filtrar por A vencer"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5 transition-shadow hover:bg-sky-500/20 cursor-pointer", mesmoSet(statusSel, SET_A_VENCER) && "ring-2 ring-sky-500")}>
+            <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer</span>
+            <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(totais.aVencer)}</span>
+          </button>
+          <button type="button" onClick={() => toggle(SET_SEM_VENC)} title="Filtrar por Sem vencimento"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-1.5 transition-shadow hover:bg-violet-500/20 cursor-pointer", mesmoSet(statusSel, SET_SEM_VENC) && "ring-2 ring-violet-500")}>
+            <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Sem vencimento</span>
+            <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(totais.semVenc)}</span>
+          </button>
+          <button type="button" onClick={() => toggle(SET_PAGO)} title="Filtrar por Recebidas"
+            className={cn("inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 transition-shadow hover:bg-success/20 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-success")}>
+            <span className="text-xs font-medium text-success">Recebido no mês</span>
+            <span className="text-sm font-bold text-success tabular-nums">{formatBRL(totais.recebidoMes)}</span>
+          </button>
+        </div>
+        );
+      })() : null;
+
   return (
     <>
       <div className="space-y-2">
@@ -887,42 +923,11 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       </div>
       {/* Linha de CHIPS de filtro (padrão do sistema — shared/FilterBar). */}
       <FilterBarChips bar={filterBar} chips={chipsFiltro} />
-      {/* Linha 2: totais em blocos compactos coloridos — clicáveis, cada um
-          aplica o preset de status (toggle: reclicar marca todos os status). */}
-      {resumo && (() => {
-        const toggle = (set: string[]) => setStatusSel((cur) => (mesmoSet(cur, set) ? STATUS_RECEBER_KEYS : set));
-        return (
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => toggle(SET_A_RECEBER)} title="Filtrar por Vencidas + A vencer (sem vencimento fica de fora)"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-1.5 transition-shadow hover:bg-warning/20 cursor-pointer", mesmoSet(statusSel, SET_A_RECEBER) && "ring-2 ring-warning")}>
-            <span className="text-xs font-medium text-warning">A Receber</span>
-            <span className="text-sm font-bold text-warning tabular-nums">{formatBRL(totais.aReceber)}</span>
-          </button>
-          <button type="button" onClick={() => toggle(SET_VENCIDO)} title="Filtrar por Vencidas"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5 transition-shadow hover:bg-danger/20 cursor-pointer", mesmoSet(statusSel, SET_VENCIDO) && "ring-2 ring-danger")}>
-            <span className="text-xs font-medium text-danger">Vencido</span>
-            <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(totais.vencido)}</span>
-          </button>
-          <button type="button" onClick={() => toggle(SET_A_VENCER)} title="Filtrar por A vencer"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5 transition-shadow hover:bg-sky-500/20 cursor-pointer", mesmoSet(statusSel, SET_A_VENCER) && "ring-2 ring-sky-500")}>
-            <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer</span>
-            <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(totais.aVencer)}</span>
-          </button>
-          <button type="button" onClick={() => toggle(SET_SEM_VENC)} title="Filtrar por Sem vencimento"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-1.5 transition-shadow hover:bg-violet-500/20 cursor-pointer", mesmoSet(statusSel, SET_SEM_VENC) && "ring-2 ring-violet-500")}>
-            <span className="text-xs font-medium text-violet-700 dark:text-violet-300">Sem vencimento</span>
-            <span className="text-sm font-bold text-violet-700 dark:text-violet-300 tabular-nums">{formatBRL(totais.semVenc)}</span>
-          </button>
-          <button type="button" onClick={() => toggle(SET_PAGO)} title="Filtrar por Recebidas"
-            className={cn("inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 transition-shadow hover:bg-success/20 cursor-pointer", mesmoSet(statusSel, SET_PAGO) && "ring-2 ring-success")}>
-            <span className="text-xs font-medium text-success">Recebido no mês</span>
-            <span className="text-sm font-bold text-success tabular-nums">{formatBRL(totais.recebidoMes)}</span>
-          </button>
-        </div>
-        );
-      })()}
+
       </div>
       {vista === "grafico" ? (
+        <div className="space-y-2">
+        {blocosTotais}
         <TitulosGrafico
           pontos={pontosGrafico}
           titulo="Contas a receber por vencimento"
@@ -935,6 +940,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             if (c) setDetalhe(c);
           }}
         />
+        </div>
       ) : (
       <DataTable
         data={contasFiltradas}
@@ -942,6 +948,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         hideSearch
         columnConfig
         itemLabel="título"
+        toolbarLeft={blocosTotais}
         containerClassName="shadow-md rounded-xl"
         headerClassName="bg-muted"
         focusId={focusId}
@@ -976,8 +983,8 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         // Ordem lógica: identificação → datas → valores → classificação → origem.
         const campos: TituloCampo[] = [
           // ── Identificação ────────────────────────────────────────────────
-          ...(nomeEmpresa ? [{ label: "Empresa", valor: nomeEmpresa, full: true }] : []),
-          { label: "Cliente", valor: renderCliente(detalhe, "font-medium"), full: true },
+          ...(nomeEmpresa ? [{ label: "Empresa", valor: nomeEmpresa }] : []),
+          { label: "Cliente", valor: renderCliente(detalhe, "font-medium") },
           { label: "Descrição", valor: detalhe.descricao || "—", full: true },
           { label: "Parcela", valor: detalhe.parcelaTotal && detalhe.parcelaTotal > 1 ? `${detalhe.parcelaNumero ?? 1}/${detalhe.parcelaTotal}` : "Única" },
           // ── Datas ────────────────────────────────────────────────────────
@@ -1010,12 +1017,12 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
               </div>
             ) : rotuloNat(detalhe.naturezaFinanceira!),
           }] : []),
-          ...(contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + "), full: true }] : []),
+          ...(contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + ") }] : []),
           // ── Origem ───────────────────────────────────────────────────────
-          { label: "Origem", full: true, valor: org.label },
+          { label: "Origem", valor: org.label },
           // Pedido de venda clicável — abre o pedido de origem.
           ...(detalhe.pedidoVenda ? [{
-            label: "Pedido de venda", full: true,
+            label: "Pedido de venda",
             valor: (
               <button type="button" onClick={() => router.push(`/pedidos-venda/${detalhe.pedidoVenda!.id}`)}
                 className="inline-flex items-center gap-1 text-info hover:underline font-medium">

@@ -40,6 +40,8 @@ interface DataTableProps<T> {
   // Substantivo do contador de linhas (singular; pluraliza com "s").
   // Ex.: "título" → "101 títulos". Padrão: "registro".
   itemLabel?: string;
+  /** Conteúdo à ESQUERDA da barra superior (ex.: blocos de totais). */
+  toolbarLeft?: React.ReactNode;
   // Agrupamento nativo (opcional): retorna o grupo de cada linha. Quando
   // definido, a tabela insere cabeçalhos de grupo e ordena as linhas por grupo
   // (mantendo o sort de coluna dentro do grupo). null desativa por linha.
@@ -60,7 +62,7 @@ function colId<T>(c: ColumnDef<T>): string {
   return c.id ?? String((c as { accessorKey?: string }).accessorKey ?? "");
 }
 
-export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro", groupBy, renderGroupHeader, stickyFirstColumn }: DataTableProps<T>) {
+export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro", toolbarLeft, groupBy, renderGroupHeader, stickyFirstColumn }: DataTableProps<T>) {
   const pathname = usePathname();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -253,6 +255,9 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
             />
           </div>
         )}
+        {/* Slot à esquerda da barra (ex.: blocos de totais do CP/CR) — aproveita
+            a faixa que ficaria em branco ao lado do "N registros / por página". */}
+        {toolbarLeft}
         <div className="ml-auto flex items-center gap-2">
           <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
             {table.getFilteredRowModel().rows.length} {itemLabel}{table.getFilteredRowModel().rows.length === 1 ? "" : "s"}

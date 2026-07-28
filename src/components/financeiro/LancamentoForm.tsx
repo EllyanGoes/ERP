@@ -351,33 +351,47 @@ export default function LancamentoForm({
                 options={condicoes.filter((c) => c.ativo !== false).map((c) => ({ value: c.id, label: c.nome }))}
               />
             </div>
-            {gradePrevia && (
+            {condicaoSel && !gradePrevia && (
               <p className="col-span-2 text-[11px] text-muted-foreground pb-2">
-                {gradePrevia.length > 1
-                  ? <>Serão criados <b>{gradePrevia.length} títulos</b> (um por parcela), a partir do vencimento informado.</>
-                  : <>Parcela única pela condição{gradePrevia[0].dataVencimento ? ` — vence ${formatDate(gradePrevia[0].dataVencimento)}` : " — sem vencimento (a combinar)"}.</>}
+                Informe os valores nas naturezas abaixo para calcular a grade de títulos.
               </p>
             )}
           </div>
-          {gradePrevia && gradePrevia.length > 1 && (
-            <div className="rounded-lg border border-border overflow-hidden">
+          {/* Grade PRÉVIA no padrão da aba Duplicatas do DE: os títulos que
+              serão gerados ao salvar, um por parcela. */}
+          {gradePrevia && (
+            <div className="rounded-xl border border-border overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2 bg-info/5 border-b border-border">
+                <span className="inline-flex items-center rounded-full bg-info/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-info">Prévia</span>
+                <span className="text-xs text-muted-foreground flex-1">
+                  Os títulos abaixo serão gerados ao salvar · {condicaoSel!.nome}
+                </span>
+              </div>
               <table className="w-full text-sm">
-                <thead className="bg-muted">
-                  <tr className="border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
-                    <th className="text-center px-3 py-1.5 w-20">Parcela</th>
-                    <th className="text-left px-3 py-1.5">Vencimento</th>
-                    <th className="text-right px-3 py-1.5">Valor</th>
+                <thead>
+                  <tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
+                    <th className="text-center px-4 py-2 w-24">Parcela</th>
+                    <th className="text-left px-4 py-2">Vencimento</th>
+                    <th className="text-right px-4 py-2">Valor</th>
                   </tr>
                 </thead>
                 <tbody>
                   {gradePrevia.map((p, i) => (
                     <tr key={i} className="border-b border-border last:border-0">
-                      <td className="px-3 py-1.5 text-center text-muted-foreground">{p.parcelaNumero}/{p.parcelaTotal}</td>
-                      <td className="px-3 py-1.5">{p.dataVencimento ? formatDate(p.dataVencimento) : "A combinar"}</td>
-                      <td className="px-3 py-1.5 text-right font-medium">{formatBRL(p.valor)}</td>
+                      <td className="px-4 py-2 text-center text-muted-foreground">{p.parcelaTotal ? `${p.parcelaNumero}/${p.parcelaTotal}` : "Única"}</td>
+                      <td className="px-4 py-2">{p.dataVencimento ? formatDate(p.dataVencimento) : "A combinar"}</td>
+                      <td className="px-4 py-2 text-right font-medium">{formatBRL(p.valor)}</td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-muted/60 border-t border-border font-semibold">
+                    <td className="px-4 py-2 text-xs text-muted-foreground uppercase" colSpan={2}>
+                      {gradePrevia.length} parcela(s)
+                    </td>
+                    <td className="px-4 py-2 text-right">{formatBRL(gradePrevia.reduce((s, p) => s + p.valor, 0))}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           )}
