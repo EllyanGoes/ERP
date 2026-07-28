@@ -26,14 +26,29 @@ export async function GET(req: NextRequest) {
   if (!natureza) return NextResponse.json({ error: "Natureza não encontrada" }, { status: 404 });
 
   const periodo = { gte: inicio, lt: fim };
+  // Mesmo critério do relatório: o título entra se a natureza está no RATEIO
+  // (split) ou, sem split, na natureza única. O valor exibido é o da fatia da
+  // natureza no rateio (não o título inteiro).
+  const whereNat = {
+    status: { notIn: ["CANCELADA" as const] }, dataVencimento: periodo,
+    OR: [
+      { naturezaFinanceiraId: naturezaId, naturezas: { none: {} } },
+      { naturezas: { some: { naturezaFinanceiraId: naturezaId } } },
+    ],
+  };
+  const valorDaNatureza = (c: { valorOriginal: unknown; naturezas: { naturezaFinanceiraId: string; valor: unknown }[] }) =>
+    c.naturezas.length > 0
+      ? c.naturezas.filter((n) => n.naturezaFinanceiraId === naturezaId).reduce((s, n) => s + Number(n.valor), 0)
+      : Number(c.valorOriginal);
 
   let lancamentos;
   if (natureza.tipo === "ENTRADA") {
     const cr = await prisma.contaReceber.findMany({
-      where: { naturezaFinanceiraId: naturezaId, status: { notIn: ["CANCELADA"] }, dataVencimento: periodo },
+      where: whereNat,
       select: {
         id: true, numero: true, descricao: true, valorOriginal: true, valorPago: true,
         dataVencimento: true, status: true,
+        naturezas: { select: { naturezaFinanceiraId: true, valor: true } },
         cliente: { select: { razaoSocial: true } },
         pedidoVenda: { select: { numero: true } },
       },
@@ -41,7 +56,7 @@ export async function GET(req: NextRequest) {
     });
     lancamentos = cr.map((c) => ({
       id: c.id, numero: c.numero, descricao: c.descricao,
-      valor: Number(c.valorOriginal), valorPago: Number(c.valorPago),
+      valor: valorDaNatureza(c), valorPago: Number(c.valorPago),
       dataVencimento: c.dataVencimento, status: c.status,
       favorecido: c.cliente?.razaoSocial ?? null,
       ref: c.pedidoVenda?.numero ?? null,
@@ -49,17 +64,18 @@ export async function GET(req: NextRequest) {
     }));
   } else {
     const cp = await prisma.contaPagar.findMany({
-      where: { naturezaFinanceiraId: naturezaId, status: { notIn: ["CANCELADA"] }, dataVencimento: periodo },
+      where: whereNat,
       select: {
         id: true, numero: true, descricao: true, valorOriginal: true, valorPago: true,
         dataVencimento: true, status: true,
+        naturezas: { select: { naturezaFinanceiraId: true, valor: true } },
         fornecedor: { select: { razaoSocial: true } },
       },
       orderBy: { dataVencimento: "asc" },
     });
     lancamentos = cp.map((c) => ({
       id: c.id, numero: c.numero, descricao: c.descricao,
-      valor: Number(c.valorOriginal), valorPago: Number(c.valorPago),
+      valor: valorDaNatureza(c), valorPago: Number(c.valorPago),
       dataVencimento: c.dataVencimento, status: c.status,
       favorecido: c.fornecedor?.razaoSocial ?? null,
       ref: null,

@@ -30,12 +30,20 @@ export async function GET(req: NextRequest) {
       orderBy: { nome: "asc" },
     }),
     prisma.contaReceber.findMany({
-      where: { status: { notIn: ["CANCELADA"] }, naturezaFinanceiraId: { not: null }, dataVencimento: { gte: inicio, lt: fim } },
-      select: { naturezaFinanceiraId: true, dataVencimento: true, valorOriginal: true },
+      // Título com natureza única OU com rateio por natureza (split) — o split
+      // pode existir mesmo sem a natureza principal preenchida.
+      where: {
+        status: { notIn: ["CANCELADA"] }, dataVencimento: { gte: inicio, lt: fim },
+        OR: [{ naturezaFinanceiraId: { not: null } }, { naturezas: { some: {} } }],
+      },
+      select: { naturezaFinanceiraId: true, dataVencimento: true, valorOriginal: true, naturezas: { select: { naturezaFinanceiraId: true, valor: true } } },
     }),
     prisma.contaPagar.findMany({
-      where: { status: { notIn: ["CANCELADA"] }, naturezaFinanceiraId: { not: null }, dataVencimento: { gte: inicio, lt: fim } },
-      select: { naturezaFinanceiraId: true, dataVencimento: true, valorOriginal: true },
+      where: {
+        status: { notIn: ["CANCELADA"] }, dataVencimento: { gte: inicio, lt: fim },
+        OR: [{ naturezaFinanceiraId: { not: null } }, { naturezas: { some: {} } }],
+      },
+      select: { naturezaFinanceiraId: true, dataVencimento: true, valorOriginal: true, naturezas: { select: { naturezaFinanceiraId: true, valor: true } } },
     }),
   ]);
 
@@ -47,15 +55,19 @@ export async function GET(req: NextRequest) {
     arr[venc.getMonth()] += parseFloat(valor.toString());
     porNatureza.set(natId, arr);
   };
-  for (const c of cr) acumula(c.naturezaFinanceiraId, c.dataVencimento, c.valorOriginal);
-  for (const c of cp) acumula(c.naturezaFinanceiraId, c.dataVencimento, c.valorOriginal);
+  // RATEIO por natureza (split da baixa/criação) manda quando existe — cada
+  // linha vai para a própria natureza; sem split, a natureza única do título.
+  for (const c of [...cr, ...cp]) {
+    if (c.naturezas.length > 0) for (const l of c.naturezas) acumula(l.naturezaFinanceiraId, c.dataVencimento, l.valor);
+    else acumula(c.naturezaFinanceiraId, c.dataVencimento, c.valorOriginal);
+  }
 
   // valor com sinal: ENTRADA soma, SAIDA subtrai. AMBOS (transferências/contas
   // de terceiros) agrega pelo lado do título, mas neste mapa por natureza a
   // magnitude entra positiva — trata como entrada (neutra no líquido do par).
   const sinal = (tipo: "ENTRADA" | "SAIDA" | "AMBOS") => (tipo === "SAIDA" ? -1 : 1);
 
-  type NatNode = { id: string; nome: string; tipo: "ENTRADA" | "SAIDA" | "AMBOS"; meses: number[]; total: number; temMovimento: boolean };
+  type NatNode = { id: string; nome: string; tipo: "ENTRADA" | "SAIDA" | "AMBOS"; ativo: boolean; meses: number[]; total: number; temMovimento: boolean };
   type SubNode = { id: string | null; nome: string | null; naturezas: NatNode[] };
   type GrupoNode = { grupo: Grupo; meses: number[]; total: number; subgrupos: SubNode[] };
 
@@ -63,18 +75,22 @@ export async function GET(req: NextRequest) {
     const mag = porNatureza.get(n.id) ?? z12();
     const meses = mag.map((v) => v * sinal(n.tipo));
     const total = meses.reduce((s, v) => s + v, 0);
-    return { id: n.id, nome: n.nome, tipo: n.tipo, meses, total, temMovimento: mag.some((v) => v !== 0) };
+    return { id: n.id, nome: n.nome, tipo: n.tipo, ativo: n.ativo, meses, total, temMovimento: mag.some((v) => v !== 0) };
   };
+  // Exibe a natureza se está ATIVA no plano ou se tem movimento no ano — as
+  // inativas paradas (plano antigo, mesmo nome da sucessora) ficam de fora,
+  // senão a lista mostra "repetidas".
+  const exibe = (n: NatNode) => n.ativo || n.temMovimento;
 
   const grupos: GrupoNode[] = GRUPOS.map((g) => {
     const natsDoGrupo = naturezas.filter((n) => n.grupo === g);
     const subs = subgrupos.filter((s) => s.grupo === g);
     const subgruposNode: SubNode[] = [];
     for (const s of subs) {
-      const nats = natsDoGrupo.filter((n) => n.subgrupoId === s.id).map(natNode).filter((n) => n.temMovimento || n.tipo);
+      const nats = natsDoGrupo.filter((n) => n.subgrupoId === s.id).map(natNode).filter(exibe);
       subgruposNode.push({ id: s.id, nome: s.nome, naturezas: nats });
     }
-    const semSub = natsDoGrupo.filter((n) => !n.subgrupoId).map(natNode);
+    const semSub = natsDoGrupo.filter((n) => !n.subgrupoId).map(natNode).filter(exibe);
     if (semSub.length) subgruposNode.push({ id: null, nome: null, naturezas: semSub });
     const meses = z12();
     for (const sub of subgruposNode) for (const n of sub.naturezas) for (let m = 0; m < 12; m++) meses[m] += n.meses[m];
