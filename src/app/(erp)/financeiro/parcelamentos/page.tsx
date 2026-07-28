@@ -8,7 +8,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import PageHeader from "@/components/shared/PageHeader";
 import DataTable from "@/components/shared/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import EmpresaTag from "@/components/shared/EmpresaTag";
@@ -170,13 +169,40 @@ export default function ParcelamentosPage() {
       cell: ({ row }) => <SituacaoBadge situacao={row.original.situacao} /> },
   ];
 
+
+  // Blocos de TOTAIS (padrão CP): parcelas em aberto VENCIDAS e as A VENCER no
+  // mês corrente — contagem + saldo, na barra da tabela (toolbarLeft).
+  const blocosTotais = (() => {
+    const agora = new Date();
+    const mesIni = new Date(agora.getFullYear(), agora.getMonth(), 1);
+    const mesFim = new Date(agora.getFullYear(), agora.getMonth() + 1, 1);
+    let vencidasQtd = 0, vencidasVal = 0, mesQtd = 0, mesVal = 0;
+    for (const g of parcelamentos) {
+      for (const par of g.parcelas) {
+        if (par.status !== "ABERTA" && par.status !== "PARCIAL") continue;
+        const saldo = Math.max(0, par.valorOriginal - par.valorPago);
+        if (par.vencida) { vencidasQtd++; vencidasVal += saldo; continue; }
+        const d = par.dataVencimento ? new Date(par.dataVencimento) : null;
+        if (d && d >= mesIni && d < mesFim) { mesQtd++; mesVal += saldo; }
+      }
+    }
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-1.5">
+          <span className="text-xs font-medium text-danger">Vencidas · {vencidasQtd}</span>
+          <span className="text-sm font-bold text-danger tabular-nums">{formatBRL(vencidasVal)}</span>
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-lg bg-sky-500/10 px-3 py-1.5">
+          <span className="text-xs font-medium text-sky-700 dark:text-sky-300">A vencer no mês · {mesQtd}</span>
+          <span className="text-sm font-bold text-sky-700 dark:text-sky-300 tabular-nums">{formatBRL(mesVal)}</span>
+        </span>
+      </div>
+    );
+  })();
+
   return (
     <div>
-      <PageHeader
-        title="Parcelamentos"
-        breadcrumbs={[{ label: "Financeiro" }, { label: "Parcelamentos" }]}
-      />
-      <div className="px-8 pb-8 space-y-3">
+      <div className="px-8 pt-4 pb-8 space-y-2">
         {/* Toolbar: busca + funil de filtros + contador */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1 max-w-sm">
@@ -188,10 +214,9 @@ export default function ParcelamentosPage() {
               className="pl-9"
             />
           </div>
+          <div className="flex-1" />
+          {/* Funil à direita (padrão CP): mostra/esconde os chips de filtro. */}
           <FilterBarToggle bar={bar} chips={chips} />
-          <span className="ml-auto text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-            {filtrados.length} parcelamento{filtrados.length === 1 ? "" : "s"}
-          </span>
         </div>
         <FilterBarChips bar={bar} chips={chips} />
 
@@ -207,6 +232,7 @@ export default function ParcelamentosPage() {
             hideSearch
             columnConfig
             itemLabel="parcelamento"
+            toolbarLeft={blocosTotais}
             containerClassName="shadow-md rounded-xl"
             headerClassName="bg-muted"
             getRowId={(x) => x.grupoId}
