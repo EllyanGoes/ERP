@@ -569,7 +569,9 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     {
       id: "emissao",
       header: "Emissão",
-      meta: { className: "whitespace-nowrap" },
+      // accessorFn dá o VALOR à coluna (sem ele o tanstack não tem o que ordenar).
+      accessorFn: (c) => c.dataEmissao ?? null,
+      meta: { className: "whitespace-nowrap", sortTipo: "data" },
       cell: ({ row }) => {
         const d = row.original.dataEmissao ?? null;
         return d ? <span className="text-muted-foreground">{formatDate(d)}</span> : <span className="text-muted-foreground/60">—</span>;
@@ -578,15 +580,15 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     {
       accessorKey: "dataVencimento",
       header: "Vencimento",
-      meta: { className: "whitespace-nowrap" },
+      meta: { className: "whitespace-nowrap", sortTipo: "data" },
       cell: ({ row }) => {
         if (!row.original.dataVencimento) return <span className="text-muted-foreground italic">A combinar</span>;
         const vencida = isVencida(row.original.dataVencimento, row.original.dataPagamento);
         return <span className={vencida ? "text-danger font-medium" : "text-muted-foreground"}>{formatDate(row.original.dataVencimento)}</span>;
       },
     },
-    { accessorKey: "valorOriginal", header: "Valor", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
-    { accessorKey: "valorPago", header: "Pago", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="text-success">{formatBRL(decimalToNumber(row.original.valorPago))}</span> },
+    { accessorKey: "valorOriginal", header: "Valor", meta: { className: "whitespace-nowrap", sortTipo: "numero" }, cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
+    { accessorKey: "valorPago", header: "Pago", meta: { className: "whitespace-nowrap", sortTipo: "numero" }, cell: ({ row }) => <span className="text-success">{formatBRL(decimalToNumber(row.original.valorPago))}</span> },
     { accessorKey: "status", header: "Status", cell: ({ row }) => {
       // Status colorido pela MESMA categoria dos blocos: ABERTO vira Sem
       // vencimento (violeta) / Vencida (vermelho) / A vencer (azul).

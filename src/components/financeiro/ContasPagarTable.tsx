@@ -721,7 +721,9 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     {
       id: "emissao",
       header: "Emissão",
-      meta: { className: "whitespace-nowrap" },
+      // accessorFn dá o VALOR à coluna (sem ele o tanstack não tem o que ordenar).
+      accessorFn: (c) => c.dataEmissao ?? c.conferencia?.dtEmissao ?? null,
+      meta: { className: "whitespace-nowrap", sortTipo: "data" },
       // Emissão do próprio título; sem ela (compra), cai na emissão do DE.
       cell: ({ row }) => {
         const d = row.original.dataEmissao ?? row.original.conferencia?.dtEmissao ?? null;
@@ -731,14 +733,14 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     {
       accessorKey: "dataVencimento",
       header: "Vencimento",
-      meta: { className: "whitespace-nowrap" },
+      meta: { className: "whitespace-nowrap", sortTipo: "data" },
       cell: ({ row }) => {
         if (!row.original.dataVencimento) return <span className="text-muted-foreground italic">A combinar</span>;
         const vencida = isVencida(row.original.dataVencimento, row.original.dataPagamento);
         return <span className={vencida ? "text-danger font-medium" : "text-muted-foreground"}>{formatDate(row.original.dataVencimento)}</span>;
       },
     },
-    { accessorKey: "valorOriginal", header: "Valor", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
+    { accessorKey: "valorOriginal", header: "Valor", meta: { className: "whitespace-nowrap", sortTipo: "numero" }, cell: ({ row }) => <span className="font-medium">{formatBRL(decimalToNumber(row.original.valorOriginal))}</span> },
     { accessorKey: "status", header: "Status", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => {
       // Status colorido pela MESMA categoria dos blocos de totais: título ABERTO
       // vira Sem vencimento (violeta) / Vencida (vermelho) / A vencer (azul).

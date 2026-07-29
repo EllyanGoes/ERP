@@ -64,6 +64,22 @@ function colId<T>(c: ColumnDef<T>): string {
   return c.id ?? String((c as { accessorKey?: string }).accessorKey ?? "");
 }
 
+// Valor → timestamp p/ ordenar datas (Date, ISO ou dd/mm/aaaa; vazio = +∞,
+// então "sem data" cai no fim do crescente).
+function tsData(v: unknown): number {
+  if (v == null || v === "") return Infinity;
+  if (v instanceof Date) return v.getTime();
+  const s = String(v);
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  const t = br ? new Date(`${br[3]}-${br[2]}-${br[1]}`).getTime() : new Date(s).getTime();
+  return Number.isFinite(t) ? t : Infinity;
+}
+
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro", toolbarLeft, groupBy, renderGroupHeader, stickyFirstColumn }: DataTableProps<T>) {
   const pathname = usePathname();
   // Ordenação persistida por tela (padrão do sistema) — compartilhada entre o
@@ -96,9 +112,27 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
     ? [...(visiveisOrdenadas.length > 0 ? visiveisOrdenadas : configuraveis), ...fixas]
     : columns;
 
+  // Colunas com meta.sortTipo ganham sortingFn adequada: "data" compara por
+  // timestamp (aceita Date | ISO | dd/mm/aaaa; vazio vai pro fim no crescente)
+  // e "numero" compara numericamente (aceita Decimal serializado em string).
+  const colunasComSort = colunasAtivas.map((c) => {
+    const tipo = (c.meta as { sortTipo?: string } | undefined)?.sortTipo;
+    if (c.sortingFn || (tipo !== "data" && tipo !== "numero")) return c;
+    if (tipo === "data") {
+      return {
+        ...c,
+        sortingFn: (a: Row<T>, b: Row<T>, id: string) => tsData(a.getValue(id)) - tsData(b.getValue(id)),
+      };
+    }
+    return {
+      ...c,
+      sortingFn: (a: Row<T>, b: Row<T>, id: string) => num(a.getValue(id)) - num(b.getValue(id)),
+    };
+  });
+
   const table = useReactTable({
     data,
-    columns: colunasAtivas,
+    columns: colunasComSort,
     state: { sorting, globalFilter },
     ...(globalFilterFn ? { globalFilterFn } : {}),
     ...(getRowId ? { getRowId: (orig: T) => getRowId(orig) } : {}),

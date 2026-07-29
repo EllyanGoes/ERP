@@ -78,6 +78,9 @@ export function FilterBarChips({ bar, chips }: { bar: FilterBarState; chips: Fil
   const mostrados = disponiveis.filter((c) => bar.visiveis.includes(c.key) || c.ativo);
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {/* Slot do chip de ORDENAÇÃO (estilo Notion: ordenação junto dos filtros).
+          O SortControl da DataTable portala o chip pra cá quando há ordenação. */}
+      <span id="erp-sort-slot" className="contents" />
       {mostrados.map((c) => (
         <span key={c.key} className="inline-flex items-center gap-0.5">
           {c.render()}

@@ -2130,24 +2130,6 @@ export default function NovoDocumentoEntradaPage() {
                   </span>
                 </button>
 
-                {/* Importar XML da NF-e */}
-                <button
-                  type="button"
-                  disabled={xmlImporting}
-                  onClick={() => xmlInputRef.current?.click()}
-                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-success/30 bg-success/10 hover:bg-success/15 text-left transition-colors disabled:opacity-60"
-                >
-                  <FileUp className="w-5 h-5 text-success mt-0.5 shrink-0" />
-                  <span>
-                    <span className="block text-sm font-semibold text-success">
-                      {xmlImporting ? "Importando XML…" : "Importar XML da NF-e"}
-                    </span>
-                    <span className="block text-xs text-success mt-0.5">
-                      Lê o XML da nota e preenche fornecedor, itens, valores e duplicatas automaticamente.
-                    </span>
-                  </span>
-                </button>
-
                 {/* Avulso */}
                 <button
                   type="button"
