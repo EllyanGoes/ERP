@@ -1982,6 +1982,7 @@ export default function NovoDocumentoEntradaPage() {
                       onChange={setFormaPagoAntecipadoId}
                       noneLabel="—"
                       triggerClassName="h-9 rounded-md"
+                      menuMinWidth={340}
                       options={formasPagamento.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA").map((f) => ({ value: f.id, label: f.nome }))}
                     />
                   </div>
@@ -1992,6 +1993,7 @@ export default function NovoDocumentoEntradaPage() {
                       onChange={setContaPagoAntecipadoId}
                       noneLabel="—"
                       triggerClassName={cn("h-9 rounded-md", parseFloat(valorPagoAntecipado) > 0 && !contaPagoAntecipadoId && "border-red-400 bg-danger/10")}
+                      menuMinWidth={340}
                       options={contasBancarias.map((c) => ({ value: c.id, label: c.nome }))}
                     />
                   </div>

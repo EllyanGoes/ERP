@@ -14,7 +14,7 @@ import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { useRouter } from "next/navigation";
-import { ShieldAlert, Save, Loader2, Trash2, LinkIcon, Pencil, Info } from "lucide-react";
+import { ShieldAlert, Save, Loader2, Trash2, LinkIcon, Pencil } from "lucide-react";
 import InfoHint from "@/components/shared/InfoHint";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
@@ -2329,6 +2329,7 @@ export default function DocumentoEntradaDetailPage() {
                       noneLabel="—"
                       disabled={!nfEditable}
                       triggerClassName="h-9 rounded-md"
+                      menuMinWidth={340}
                       options={formasPagamento.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA").map((f) => ({ value: f.id, label: f.nome }))}
                     />
                   </div>
@@ -2340,6 +2341,7 @@ export default function DocumentoEntradaDetailPage() {
                       noneLabel="—"
                       disabled={!nfEditable}
                       triggerClassName={cn("h-9 rounded-md", parseFloat(valorPagoAntecipado) > 0 && !contaPagoAntecipadoId && "border-red-400 bg-danger/10")}
+                      menuMinWidth={340}
                       options={contasBancarias.map((c) => ({ value: c.id, label: c.nome }))}
                     />
                   </div>

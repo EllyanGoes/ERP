@@ -13,6 +13,7 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, ArrowUpDown, ArrowUp, ArrowDown, EyeOff } from "lucide-react";
 import ColumnConfigurator from "@/components/shared/ColumnConfigurator";
+import SortControl, { type SortColumnOpt } from "@/components/shared/SortControl";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 const LINHAS_OPCOES = [10, 20, 50, 100, 200];
@@ -65,7 +66,9 @@ function colId<T>(c: ColumnDef<T>): string {
 
 export default function DataTable<T>({ data, columns, searchPlaceholder = "Buscar...", isLoading, onRowClick, globalFilterFn, focusId, getRowId, hideSearch, containerClassName, headerClassName, columnConfig, itemLabel = "registro", toolbarLeft, groupBy, renderGroupHeader, stickyFirstColumn }: DataTableProps<T>) {
   const pathname = usePathname();
-  const [sorting, setSorting] = useState<SortingState>([]);
+  // Ordenação persistida por tela (padrão do sistema) — compartilhada entre o
+  // clique no cabeçalho e o controle "Ordenar" estilo Notion da barra.
+  const [sorting, setSorting] = usePersistedState<SortingState>(`datatable:${pathname}:sort`, []);
   const [globalFilter, setGlobalFilter] = useState("");
   const [highlightId, setHighlightId] = useState<string | null>(null);
   // Linhas por página: escolha do usuário persistida por tela (padrão do sistema).
@@ -263,6 +266,15 @@ export default function DataTable<T>({ data, columns, searchPlaceholder = "Busca
           <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
             {table.getFilteredRowModel().rows.length} {itemLabel}{table.getFilteredRowModel().rows.length === 1 ? "" : "s"}
           </span>
+          <SortControl
+            columns={configuraveis.map((c): SortColumnOpt => ({
+              id: colId(c),
+              label: String(c.header),
+              tipo: (c.meta as { sortTipo?: SortColumnOpt["tipo"] } | undefined)?.sortTipo,
+            }))}
+            sorting={sorting}
+            onChange={setSorting}
+          />
           {seletorLinhas}
           {columnConfig && (
             <ColumnConfigurator
