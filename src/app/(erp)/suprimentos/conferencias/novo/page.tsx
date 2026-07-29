@@ -13,7 +13,7 @@ import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
-import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText, ChevronRight } from "lucide-react";
+import { Link2, X, Plus, Trash2, Search, ExternalLink, AlertTriangle, FileText, ChevronRight, FileUp } from "lucide-react";
 import InfoHint from "@/components/shared/InfoHint";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -33,6 +33,35 @@ type Fornecedor = {
   razaoSocial: string;
   nomeFantasia: string | null;
   cpfCnpj: string | null;
+};
+
+// Resposta de /api/suprimentos/conferencias/importar-xml (NF-e parseada + matches)
+type NfeImportItem = {
+  nItem: number;
+  cProd: string;
+  cEAN: string | null;
+  xProd: string;
+  ncm: string | null;
+  cfop: string | null;
+  uCom: string;
+  qCom: number;
+  vUnCom: number;
+  vProd: number;
+  vDesc: number;
+  vIPI: number;
+  vICMS: number;
+  match: { itemId: string; codigo: string; descricao: string; unidadeMedida: string; confianca: string } | null;
+};
+type NfeImportData = {
+  chave: string | null;
+  numero: string;
+  serie: string;
+  emissao: string | null;
+  emitente: { cnpj: string; nome: string; fantasia: string | null; ie: string | null; uf: string | null };
+  fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
+  itens: NfeImportItem[];
+  totais: { vProd: number; vFrete: number; vSeg: number; vDesc: number; vOutro: number; vIPI: number; vICMS: number; vNF: number };
+  duplicatas: { numero: string | null; vencimento: string | null; valor: number }[];
 };
 
 type Produto = {
@@ -343,6 +372,18 @@ export default function NovoDocumentoEntradaPage() {
   const [contasBancarias, setContasBancarias] = useState<{ id: string; nome: string }[]>([]);
   // Grade manual de duplicatas (null = automática pela condição).
   const [parcelasCustom, setParcelasCustom] = useState<ParcelaCustomRow[] | null>(null);
+
+  // ── Importação de XML da NF-e ──────────────────────────────────────────────
+  const xmlInputRef = useRef<HTMLInputElement | null>(null);
+  const [xmlImporting, setXmlImporting] = useState(false);
+  const [xmlInfo, setXmlInfo] = useState<{
+    numero: string;
+    emitente: string;
+    cnpj: string;
+    fornecedorOk: boolean;
+    matched: number;
+    total: number;
+  } | null>(null);
 
   // Form state
   const [submitting, setSubmitting] = useState(false);
@@ -800,6 +841,94 @@ export default function NovoDocumentoEntradaPage() {
     });
   }
 
+  // ── Importar XML da NF-e: preenche cabeçalho, fornecedor, itens e duplicatas.
+  // Itens sem match ficam com a busca de produto pré-preenchida com a descrição
+  // da NF para o usuário vincular manualmente.
+  function aplicarNfe(data: NfeImportData) {
+    setTipoDocumento("NF");
+    if (data.numero) setNumeroNF(data.numero);
+    setSerie(data.serie || "1");
+    if (data.emissao) setDtEmissao(data.emissao);
+    if (data.emitente.uf && UF_LIST.includes(data.emitente.uf)) setUfOrigem(data.emitente.uf);
+    if (data.fornecedor) setFornecedorId(data.fornecedor.id);
+
+    setFrete(data.totais.vFrete > 0 ? data.totais.vFrete.toFixed(2) : "");
+    setSeguro(data.totais.vSeg > 0 ? data.totais.vSeg.toFixed(2) : "");
+    setDespesas(data.totais.vOutro > 0 ? data.totais.vOutro.toFixed(2) : "");
+    setDesconto(data.totais.vDesc > 0 ? data.totais.vDesc.toFixed(2) : "");
+
+    const rows = data.itens.map((det) => {
+      const r = emptyRow();
+      if (modoLocalEstoque === "GLOBAL") r.localEstoqueId = localEstoqueGlobalId;
+      if (modoTes === "GLOBAL" && tesGlobalId) {
+        r.tesId = tesGlobalId;
+        r.compoeCusto = tesList.find((t) => t.id === tesGlobalId)?.compoeCusto ?? null;
+      }
+      if (modoCentro === "GLOBAL" && centroGlobalId) r.centroCustoId = centroGlobalId;
+      if (modoNatureza === "GLOBAL" && naturezaFinanceiraId) r.naturezaFinanceiraId = naturezaFinanceiraId;
+      if (det.match) {
+        r.itemId = det.match.itemId;
+        r.codigo = det.match.codigo;
+        r.descricao = det.match.descricao;
+        r.unidadeMedida = det.match.unidadeMedida;
+      }
+      r.quantidadePedida = String(det.qCom);
+      r.quantidadeRecebida = String(det.qCom);
+      r.vlrUnitario = det.vUnCom > 0 ? String(det.vUnCom) : "";
+      // vDesc da NF é R$; a coluna de desconto do form é % sobre o bruto.
+      if (det.vDesc > 0 && det.vProd > 0) r.desconto = ((det.vDesc / det.vProd) * 100).toFixed(4);
+      r.vlrTotal = (det.vProd - det.vDesc).toFixed(2);
+      if (det.vIPI > 0) r.vlrIPI = det.vIPI.toFixed(2);
+      if (det.vICMS > 0) r.vlrICMS = det.vICMS.toFixed(2);
+      if (det.cfop) r.codFiscal = det.cfop;
+      return r;
+    });
+    setItens(rows);
+    setProdSearchMap(
+      Object.fromEntries(rows.map((r, i) => [r._key, r.descricao || data.itens[i].xProd]))
+    );
+
+    if (data.duplicatas.length > 0) {
+      setParcelasCustom(
+        data.duplicatas.map((d) => ({ valor: d.valor, dataVencimento: d.vencimento }))
+      );
+    }
+
+    setXmlInfo({
+      numero: data.numero,
+      emitente: data.emitente.nome,
+      cnpj: data.emitente.cnpj,
+      fornecedorOk: !!data.fornecedor,
+      matched: data.itens.filter((d) => d.match).length,
+      total: data.itens.length,
+    });
+    closeChoice();
+  }
+
+  async function handleXmlFile(file: File) {
+    setXmlImporting(true);
+    setError("");
+    try {
+      const xml = await file.text();
+      const res = await fetch("/api/suprimentos/conferencias/importar-xml", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ xml }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error || "Falha ao importar o XML.");
+        return;
+      }
+      aplicarNfe(json.data as NfeImportData);
+    } catch {
+      setError("Falha ao ler o arquivo XML.");
+    } finally {
+      setXmlImporting(false);
+      if (xmlInputRef.current) xmlInputRef.current.value = "";
+    }
+  }
+
   // Computed totals — componentes (filhos) fora: decompõem o preço do pai.
   const vlrMercadoria = itens.filter((r) => !r.paiKey).reduce((s, r) => s + (parseFloat(r.vlrTotal) || 0), 0);
   const freteNum    = parseFloat(frete)    || 0;
@@ -982,7 +1111,31 @@ export default function NovoDocumentoEntradaPage() {
           { label: "Novo" },
         ]}
         action={
-          /* ── Botão Vincular PC ─────────────────────────────────────────── */
+          <div className="flex items-center gap-2">
+            {/* ── Importar XML da NF-e ─────────────────────────────────────── */}
+            <input
+              ref={xmlInputRef}
+              type="file"
+              accept=".xml,text/xml,application/xml"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleXmlFile(f);
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={xmlImporting}
+              onClick={() => xmlInputRef.current?.click()}
+              className="gap-1.5"
+            >
+              <FileUp className="w-3.5 h-3.5" />
+              {xmlImporting ? "Importando…" : "Importar XML"}
+            </Button>
+
+          {/* ── Botão Vincular PC ─────────────────────────────────────────── */}
           <div className="relative" ref={pcPopoverRef}>
             <Button
               type="button"
@@ -1058,6 +1211,7 @@ export default function NovoDocumentoEntradaPage() {
               </div>
             )}
           </div>
+          </div>
         }
       />
 
@@ -1065,6 +1219,27 @@ export default function NovoDocumentoEntradaPage() {
         {error && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+
+        {/* ── Resumo da importação do XML ─────────────────────────────────── */}
+        {xmlInfo && (
+          <div className="bg-success/10 border border-success/30 rounded-lg px-4 py-3 text-sm space-y-1">
+            <p className="text-success font-medium flex items-center gap-1.5">
+              <FileUp className="w-4 h-4" />
+              XML importado: NF {xmlInfo.numero} — {xmlInfo.emitente}
+            </p>
+            <p className="text-xs text-success">
+              {xmlInfo.matched} de {xmlInfo.total} {xmlInfo.total === 1 ? "item vinculado" : "itens vinculados"} automaticamente ao cadastro.
+              {xmlInfo.matched < xmlInfo.total &&
+                " Vincule os itens restantes na coluna Produto (a descrição da nota já está na busca)."}
+            </p>
+            {!xmlInfo.fornecedorOk && (
+              <p className="text-xs text-warning flex items-center gap-1">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Nenhum fornecedor cadastrado com o CNPJ {xmlInfo.cnpj} — selecione ou cadastre o fornecedor manualmente.
+              </p>
+            )}
           </div>
         )}
 
@@ -1949,6 +2124,24 @@ export default function NovoDocumentoEntradaPage() {
                     </span>
                     <span className="block text-xs text-info mt-0.5">
                       Puxa fornecedor e itens do PC e dá baixa automática na Solicitação e no Pedido ao concluir.
+                    </span>
+                  </span>
+                </button>
+
+                {/* Importar XML da NF-e */}
+                <button
+                  type="button"
+                  disabled={xmlImporting}
+                  onClick={() => xmlInputRef.current?.click()}
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-success/30 bg-success/10 hover:bg-success/15 text-left transition-colors disabled:opacity-60"
+                >
+                  <FileUp className="w-5 h-5 text-success mt-0.5 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-semibold text-success">
+                      {xmlImporting ? "Importando XML…" : "Importar XML da NF-e"}
+                    </span>
+                    <span className="block text-xs text-success mt-0.5">
+                      Lê o XML da nota e preenche fornecedor, itens, valores e duplicatas automaticamente.
                     </span>
                   </span>
                 </button>
