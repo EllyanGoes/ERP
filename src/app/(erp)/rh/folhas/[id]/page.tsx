@@ -9,6 +9,7 @@ import { Loader2, Sparkles, Lock, FileText, AlertCircle, Trash2, Plus, CopyCheck
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import InssConfigDialog, { calcularInssProgressivo, type FaixaInss } from "@/components/rh/InssConfigDialog";
 import FolhaCalculoExpandido, { type Detalhe } from "@/components/rh/FolhaCalculoExpandido";
+import PagamentosRhSection from "@/components/rh/PagamentosRhSection";
 import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
 
@@ -18,6 +19,8 @@ type Item = {
   colaboradorId: string | null; classificacao: Classif;
   bruto: string; liquido: string; inssRetido: string; inssPatronal: string; irrf: string; fgts: string;
   rubricas?: Detalhe;
+  // Pagamento individual (folha fechada)
+  dataPagamento?: string | null; contaBancariaId?: string | null; valorPago?: string | null;
 };
 type Folha = {
   id: string; empresaId: string; competencia: string; status: "EM_REVISAO" | "FECHADA" | "CANCELADA";
@@ -468,6 +471,20 @@ export default function FolhaDetalhePage() {
               {salvando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Salvar revisão
             </Button>
           </div>
+        )}
+
+        {/* Folha fechada: pagamento por colaborador (baixa o título único). */}
+        {folha.status === "FECHADA" && (
+          <PagamentosRhSection
+            endpoint={`/api/rh/folhas/${id}/pagamentos`}
+            onDone={load}
+            itens={folha.itens.map((i) => ({
+              id: i.id, nome: i.nome, valor: N(i.liquido),
+              dataPagamento: i.dataPagamento ?? null,
+              contaBancariaId: i.contaBancariaId ?? null,
+              valorPago: i.valorPago != null ? N(String(i.valorPago)) : null,
+            }))}
+          />
         )}
 
         <Autoria criadoPor={folha.criadoPor} criadoEm={folha.createdAt} atualizadoPor={folha.atualizadoPor} atualizadoEm={folha.updatedAt} />

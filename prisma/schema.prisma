@@ -370,6 +370,12 @@ model FolhaItem {
   fgts            Decimal            @default(0) @db.Decimal(15, 2)
   outrosDescontos Decimal            @default(0) @db.Decimal(15, 2)
   rubricas        Json? // detalhamento bruto da IA (proventos/descontos por código)
+  // Pagamento individual (módulo da folha): carimbo do pagamento do LÍQUIDO
+  // deste colaborador — baixa parcial no título único da folha + lançamento
+  // D conta do colaborador (2.1.6.x) / C banco (origemId folhaitem-<id>).
+  dataPagamento   DateTime?
+  contaBancariaId String?
+  valorPago       Decimal?           @db.Decimal(15, 2)
   folha           FolhaPagamento     @relation(fields: [folhaId], references: [id], onDelete: Cascade)
   colaborador     Colaborador?       @relation(fields: [colaboradorId], references: [id])
 
@@ -398,6 +404,7 @@ model DiariaFolha {
   updatedAt   DateTime      @updatedAt
   empresa     Empresa       @relation(fields: [empresaId], references: [id])
   grupos      DiariaGrupo[]
+  contasPagar ContaPagar[]
 
   @@index([empresaId, data])
 }
@@ -433,6 +440,11 @@ model DiariaItem {
   valor         Decimal     @default(0) @db.Decimal(15, 2)
   valorTotal    Decimal     @default(0) @db.Decimal(15, 2)
   ordem         Int         @default(0)
+  // Pagamento individual (módulo de diárias): espelho do padrão da folha —
+  // baixa parcial no título único da diária + D conta do colaborador / C banco.
+  dataPagamento   DateTime?
+  contaBancariaId String?
+  valorPago       Decimal?  @db.Decimal(15, 2)
   grupo         DiariaGrupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
   colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
 
@@ -709,6 +721,13 @@ model ContaPagar {
   // folha — a contabilização do título posta SÓ a liquidação (D passivo / C banco).
   semProvisao           Boolean                @default(false)
   folhaId               String?
+  // Título único de diárias: liga o CP à folha de diárias que o gerou.
+  diariaFolhaId         String?
+  diariaFolha           DiariaFolha?           @relation(fields: [diariaFolhaId], references: [id])
+  // Título único de RH (folha/diárias): TODO o contábil (provisão E baixa) é
+  // postado pelo módulo de origem, por colaborador — contabilizarTituloPagar
+  // pula o título inteiro. Diferente de semProvisao, que ainda posta a baixa.
+  contabilizacaoExterna Boolean                @default(false)
   // Pagamento antecipado (PA): título nascido no PEDIDO (adiantamento a fornecedor).
   // Ao ser pago, debita "Adiantamento a Fornecedores" (ativo 1.1.7), nunca despesa/
   // custo; a entrada depois liquida o adiantamento. Dirige a tag "PA" na tela.
@@ -1234,6 +1253,7 @@ enum OrigemLancamento {
   ENCERRAMENTO // encerramento do exercício (zera Resultado contra o PL)
   RECEITA_ENTREGA // reconhecimento de receita na entrega (D Material a Entregar / C Receita)
   FOLHA_PAGAMENTO // apropriação da folha (D PEP-MOD/CIF/Despesa / C Salários, INSS, IRRF, FGTS)
+  DIARIA // apropriação/pagamento de diárias (D PEP-MOD/CIF/Despesa / C conta do colaborador)
   COMPENSACAO_AJUSTE // ajuste (juros/multa/desconto) por título no Encontro de Contas
   BAIXA_IMOBILIZADO // baixa do componente velho numa troca (CPC 27): D Deprec.Acum + Perda / C Imobilizado
   DEVOLUCAO // devolução de venda: estorno de receita + retorno do estoque ao custo

@@ -122,46 +122,24 @@ export async function gerarContasPagarFolha(folhaId: string) {
   const empresaId = folha.empresaId;
   const venc = folha.dataVencimento ?? folha.dataPagamento ?? folha.competencia;
   const mesAno = mesAnoDe(folha.competencia);
-  const { inssId, irrfId, fgtsId, outrosId } = await garantirContasFolha(empresaId);
 
-  type Titulo = { descricao: string; valor: number; beneficiarioId?: string; contaPassivoId?: string | null };
-  const titulos: Titulo[] = [];
-
-  const liqPorColab = new Map<string, { liq: number; nome: string }>();
-  let totInss = 0, totIrrf = 0, totFgts = 0, totOutros = 0;
-  for (const it of folha.itens) {
-    totInss += n(it.inssRetido) + n(it.inssPatronal);
-    totIrrf += n(it.irrf);
-    totFgts += n(it.fgts);
-    totOutros += round(n(it.bruto) - n(it.liquido) - n(it.inssRetido) - n(it.irrf));
-    if (it.colaboradorId) {
-      const cur = liqPorColab.get(it.colaboradorId) ?? { liq: 0, nome: it.nome };
-      cur.liq += n(it.liquido);
-      liqPorColab.set(it.colaboradorId, cur);
-    }
-  }
-  for (const [colabId, { liq, nome }] of Array.from(liqPorColab.entries())) {
-    if (round(liq) > 0) titulos.push({ descricao: `Salário ${mesAno} — ${nome}`, valor: round(liq), beneficiarioId: colabId });
-  }
-  if (round(totInss) > 0 && inssId) titulos.push({ descricao: `INSS ${mesAno}`, valor: round(totInss), contaPassivoId: inssId });
-  if (round(totIrrf) > 0 && irrfId) titulos.push({ descricao: `IRRF ${mesAno}`, valor: round(totIrrf), contaPassivoId: irrfId });
-  if (round(totFgts) > 0 && fgtsId) titulos.push({ descricao: `FGTS ${mesAno}`, valor: round(totFgts), contaPassivoId: fgtsId });
-  if (round(totOutros) > 0 && outrosId) titulos.push({ descricao: `Retenções/consignados ${mesAno}`, valor: round(totOutros), contaPassivoId: outrosId });
-
-  for (const t of titulos) {
-    const numero = generateSimpleDocNumber("CP", await proximaSequenciaDaEmpresa(empresaId, "CP"));
-    await prismaSemEscopo.contaPagar.create({
-      data: {
-        empresaId, numero, descricao: t.descricao, valorOriginal: t.valor,
-        dataVencimento: venc, dataCompetencia: folha.competencia,
-        categoria: "Folha de Pagamento", status: "ABERTA",
-        semProvisao: true, folhaId: folha.id,
-        beneficiarioTipo: t.beneficiarioId ? "COLABORADOR" : null,
-        beneficiarioId: t.beneficiarioId ?? null,
-        contaPassivoId: t.contaPassivoId ?? null,
-      },
-    });
-  }
+  // TÍTULO ÚNICO do líquido da folha: uma linha no financeiro representando o
+  // que falta pagar; o pagamento é feito POR COLABORADOR no módulo da folha
+  // (aba Pagamentos), que baixa este título parcialmente e posta o contábil
+  // por pessoa (D 2.1.6.x / C banco) — por isso contabilizacaoExterna.
+  // Impostos (INSS/IRRF/FGTS) ficam provisionados nas contas a Recolher e virarão
+  // títulos quando as GUIAS forem importadas (não nascem mais no fechamento).
+  const liquidoTotal = round(folha.itens.reduce((s, it) => s + n(it.liquido), 0));
+  if (liquidoTotal <= 0) return;
+  const numero = generateSimpleDocNumber("CP", await proximaSequenciaDaEmpresa(empresaId, "CP"));
+  await prismaSemEscopo.contaPagar.create({
+    data: {
+      empresaId, numero, descricao: `Folha de pagamento ${mesAno} (líquido)`, valorOriginal: liquidoTotal,
+      dataVencimento: venc, dataCompetencia: folha.competencia,
+      categoria: "Folha de Pagamento", status: "ABERTA",
+      semProvisao: true, contabilizacaoExterna: true, folhaId: folha.id,
+    },
+  });
 }
 
 // ── Extração por IA (Claude) ────────────────────────────────────────────────

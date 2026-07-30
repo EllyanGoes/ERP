@@ -57,8 +57,15 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   }
 
   const folha = await prisma.$transaction(async (tx) => {
-    const existe = await tx.diariaFolha.findUnique({ where: { id: params.id }, select: { id: true } });
+    const existe = await tx.diariaFolha.findUnique({ where: { id: params.id }, select: { id: true, status: true } });
     if (!existe) return null;
+
+    // Folha FECHADA é imutável por aqui: o salvar substitui grupos/itens (ids
+    // novos) e apagaria os carimbos de pagamento — feche/reabra pela rota
+    // dedicada (/fechar), que também cuida da provisão e do título único.
+    if (existe.status === "FECHADA") {
+      throw new Error("FOLHA_FECHADA");
+    }
 
     await tx.diariaGrupo.deleteMany({ where: { folhaId: params.id } }); // cascade nos itens
 
@@ -68,7 +75,8 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
         ...(b.data ? { data: new Date(`${String(b.data).slice(0, 10)}T12:00:00`) } : {}),
         ...(b.turno === "DIA" || b.turno === "NOITE" ? { turno: b.turno } : {}),
         observacoes: b.observacoes?.trim() || null,
-        ...(b.status ? { status: b.status } : {}),
+        // status NÃO muda por aqui — fechar/reabrir têm rota própria (provisão
+        // contábil + título único andam junto com o status).
         total,
       },
     });
@@ -93,8 +101,14 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
       }
     }
     return tx.diariaFolha.findUnique({ where: { id: params.id } });
+  }).catch((e) => {
+    if (e instanceof Error && e.message === "FOLHA_FECHADA") return "FECHADA" as const;
+    throw e;
   });
 
+  if (folha === "FECHADA") {
+    return NextResponse.json({ error: "A folha está FECHADA — reabra pela ação Reabrir antes de editar." }, { status: 409 });
+  }
   if (!folha) return NextResponse.json({ error: "Folha não encontrada" }, { status: 404 });
   return NextResponse.json({ data: folha });
 }
@@ -102,6 +116,12 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 export async function DELETE(_: NextRequest, { params }: Ctx) {
   const auth = await requireModulo("rh");
   if (!auth.ok) return auth.response;
+  // Fechada tem provisão contábil e título no financeiro — reabrir primeiro
+  // (a reabertura estorna tudo e é bloqueada se houver pagamento).
+  const f = await prisma.diariaFolha.findUnique({ where: { id: params.id }, select: { status: true } });
+  if (f?.status === "FECHADA") {
+    return NextResponse.json({ error: "A folha está FECHADA — reabra antes de excluir." }, { status: 409 });
+  }
   await prisma.diariaFolha.delete({ where: { id: params.id } }).catch(() => {});
   return NextResponse.json({ data: { ok: true } });
 }

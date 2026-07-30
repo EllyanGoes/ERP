@@ -12,6 +12,7 @@ import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users, Upload, FileCheck2, Rows3, List } from "lucide-react";
+import PagamentosRhSection from "@/components/rh/PagamentosRhSection";
 
 type ItemRow = { _key: string; colaboradorId: string; manha: string; tarde: string; horasExcedente: string; servico: string; valor: string };
 type GrupoRow = { _key: string; tipo: string; setor: string; turno: string; itens: ItemRow[] };
@@ -92,6 +93,9 @@ export default function DiariaDetailPage() {
   const [arquivoAssinado, setArquivoAssinado] = useState<string | null>(null);
   const [enviandoArquivo, setEnviandoArquivo] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Itens com id do banco (p/ a seção de Pagamentos da folha FECHADA).
+  const [pagItens, setPagItens] = useState<{ id: string; nome: string; valor: number; dataPagamento: string | null; contaBancariaId: string | null; valorPago: number | null }[]>([]);
+  const [erroAcao, setErroAcao] = useState("");
 
   const carregar = useCallback(async () => {
     const [rf, rc, rs] = await Promise.all([
@@ -118,6 +122,17 @@ export default function DiariaDetailPage() {
           })),
         })),
       );
+      // Itens crus (com id) p/ a seção de Pagamentos — a edição acima usa keys
+      // próprias e substitui os ids ao salvar, então esta lista vem SEMPRE do GET.
+      type ItemApi = { id: string; valor: string; valorTotal: string | null; dataPagamento: string | null; contaBancariaId: string | null; valorPago: string | null; colaborador?: { nome: string } | null };
+      const flat: ItemApi[] = (f.grupos ?? []).flatMap((g: { itens?: ItemApi[] }) => g.itens ?? []);
+      setPagItens(flat.map((it) => ({
+        id: it.id, nome: it.colaborador?.nome ?? "—",
+        valor: (parseFloat(String(it.valorTotal ?? "")) || parseFloat(String(it.valor ?? "")) || 0),
+        dataPagamento: it.dataPagamento ?? null,
+        contaBancariaId: it.contaBancariaId ?? null,
+        valorPago: it.valorPago != null ? parseFloat(String(it.valorPago)) : null,
+      })));
     }
     if (rc.ok) {
       const jc = await rc.json();
@@ -290,6 +305,32 @@ export default function DiariaDetailPage() {
     const res = await fetch(`/api/rh/diaristas/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setSalvando(false);
     if (res.ok && novoStatus) setStatus(novoStatus);
+    return res.ok;
+  }
+
+  // Fechar = provisão contábil (custeio pela classificação do colaborador) +
+  // título único no Contas a Pagar. Reabrir estorna (bloqueado se houver
+  // pagamento registrado). O PUT não muda mais status — rota dedicada.
+  async function fechar() {
+    setSalvando(true); setErroAcao("");
+    try {
+      if (!(await salvar())) { setErroAcao("Falha ao salvar a folha antes de fechar."); return; }
+      const r = await fetch(`/api/rh/diaristas/${id}/fechar`, { method: "POST" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErroAcao(j.error || "Falha ao fechar a folha."); return; }
+      await carregar();
+    } finally { setSalvando(false); }
+  }
+
+  async function reabrir() {
+    if (!confirm("Reabrir a folha? A provisão contábil será estornada e o título removido do Contas a Pagar.")) return;
+    setSalvando(true); setErroAcao("");
+    try {
+      const r = await fetch(`/api/rh/diaristas/${id}/fechar`, { method: "DELETE" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErroAcao(j.error || "Falha ao reabrir a folha."); return; }
+      await carregar();
+    } finally { setSalvando(false); }
   }
 
   if (loading) return <div className="flex items-center justify-center py-24 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>;
@@ -315,16 +356,30 @@ export default function DiariaDetailPage() {
             {!bloqueado ? (
               <>
                 <Button variant="outline" onClick={() => salvar()} disabled={salvando} className="gap-2">{salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar</Button>
-                <Button onClick={() => salvar("FECHADA")} disabled={salvando} className="gap-2"><Lock className="h-4 w-4" /> Fechar folha</Button>
+                <Button onClick={fechar} disabled={salvando} className="gap-2" title="Fecha a folha: provisão contábil + título único no Contas a Pagar"><Lock className="h-4 w-4" /> Fechar folha</Button>
               </>
             ) : (
-              <Button variant="outline" onClick={() => salvar("ABERTA")} disabled={salvando} className="gap-2"><LockOpen className="h-4 w-4" /> Reabrir</Button>
+              <Button variant="outline" onClick={reabrir} disabled={salvando} className="gap-2" title="Estorna a provisão e remove o título (bloqueado se houver pagamento)"><LockOpen className="h-4 w-4" /> Reabrir</Button>
             )}
           </div>
         }
       />
 
       <div className="px-8 pb-10 space-y-5">
+        {erroAcao && (
+          <div className="px-4 py-3 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm">{erroAcao}</div>
+        )}
+
+        {/* Folha fechada: pagamento por diarista (baixa o título único). */}
+        {bloqueado && pagItens.length > 0 && (
+          <PagamentosRhSection
+            endpoint={`/api/rh/diaristas/${id}/pagamentos`}
+            onDone={carregar}
+            rotulo="diarista"
+            itens={pagItens}
+          />
+        )}
+
         {/* Alternância de visualização — logo abaixo dos botões do header */}
         <div className="flex justify-end -mt-2">
           <div className="inline-flex rounded-lg border border-border overflow-hidden">

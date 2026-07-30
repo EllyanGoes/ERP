@@ -127,6 +127,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { dataPagamento, valorMulta, valorJuros } = parsed.data;
   const { linhas } = normalizarLinhasPagamento(parsed.data);
 
+  // Título único de RH (folha/diárias): a baixa manual aqui só mexeria no
+  // financeiro — o contábil por colaborador sai do módulo de RH. Bloqueia e
+  // aponta o caminho certo.
+  const rh = await prisma.contaPagar.findUnique({
+    where: { id: params.id },
+    select: { contabilizacaoExterna: true, folhaId: true },
+  });
+  if (rh?.contabilizacaoExterna) {
+    return NextResponse.json(
+      { error: `Este título é pago pelo módulo de RH (${rh.folhaId ? "Folha de Pagamento" : "Diárias"}) — registre o pagamento por lá, colaborador a colaborador.` },
+      { status: 422 },
+    );
+  }
+
   // Leitura e escrita na MESMA transação, com guard otimista (baixarTitulo): um
   // duplo clique no "Baixar" não soma o mesmo pagamento duas vezes.
   const result = await prisma.$transaction((tx) =>

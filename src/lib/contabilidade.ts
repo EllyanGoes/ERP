@@ -20,7 +20,7 @@ export type OrigemIn =
   | "ESTOQUE_ENTRADA" | "ESTOQUE_SAIDA"
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
   | "DEPRECIACAO" | "ENCERRAMENTO" | "RECEITA_ENTREGA"
-  | "FOLHA_PAGAMENTO" | "COMPENSACAO_AJUSTE" | "BAIXA_IMOBILIZADO"
+  | "FOLHA_PAGAMENTO" | "COMPENSACAO_AJUSTE" | "BAIXA_IMOBILIZADO" | "DIARIA"
   | "DEVOLUCAO" | "TRANSFERENCIA_CAIXA" | "MANUAL" | "ESTORNO";
 
 export type PartidaIn = {
@@ -527,9 +527,12 @@ export async function contabilizarTituloReceber(crId: string) {
 export async function contabilizarTituloPagar(cpId: string) {
   const cp = await prismaSemEscopo.contaPagar.findUnique({
     where: { id: cpId },
-    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, antecipado: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, valorTaxa: true, taxaNaturezaId: true, valorJuros: true, valorMulta: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, empresa: { select: { industrializa: true } } },
+    select: { id: true, empresaId: true, fornecedorId: true, beneficiarioTipo: true, beneficiarioId: true, naturezaFinanceiraId: true, naturezaFinanceira: { select: { cif: true } }, contaBancariaId: true, intragrupo: true, pedidoCompraId: true, antecipado: true, compensacaoOrigemId: true, numero: true, descricao: true, status: true, valorOriginal: true, valorPago: true, valorTaxa: true, taxaNaturezaId: true, valorJuros: true, valorMulta: true, dataCompetencia: true, dataPagamento: true, createdAt: true, semProvisao: true, contaPassivoId: true, contabilizacaoExterna: true, empresa: { select: { industrializa: true } } },
   });
   if (!cp || cp.status === "CANCELADA") return;
+  // Título único de RH (folha/diárias): provisão E baixa são postadas pelo
+  // módulo de origem, POR COLABORADOR — nada a contabilizar aqui.
+  if (cp.contabilizacaoExterna) return;
 
   // Histórico contábil usa a descrição do próprio título (mais claro do que só o
   // número); cai no número quando o título não tem descrição.
