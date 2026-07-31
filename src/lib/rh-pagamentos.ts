@@ -197,6 +197,92 @@ export async function pagarItensDiaria(diariaFolhaId: string, input: PagamentoIn
   return { pagos: pagos.length, total: r2(pagos.reduce((s, p) => s + p.valor, 0)) };
 }
 
+/**
+ * Pagamento AGRUPADO POR PESSOA: paga diárias pendentes de várias folhas
+ * (FECHADAS) de uma vez — o diarista acumula dias e recebe o total. Para cada
+ * folha envolvida, baixa o título único proporcionalmente à soma dos itens
+ * daquela folha; folha fechada ANTES da integração financeira (sem título)
+ * ganha provisão + título na hora (fecharDiariaFolha é idempotente).
+ */
+export async function pagarDiariasAgrupadas(input: PagamentoInput) {
+  const dataPag = new Date(`${input.dataPagamento.slice(0, 10)}T12:00:00`);
+
+  // Folhas dos itens selecionados; as fechadas sem título ganham o financeiro
+  // retroativo AGORA (provisão + CP) — fora da transação de pagamento.
+  const prev = await prismaSemEscopo.diariaItem.findMany({
+    where: { id: { in: input.itemIds } },
+    select: { grupo: { select: { folha: { select: { id: true, status: true } } } } },
+  });
+  const folhaIds = Array.from(new Set(prev.map((i) => i.grupo.folha.id)));
+  for (const fid of folhaIds) {
+    const temTitulo = await prismaSemEscopo.contaPagar.count({
+      where: { diariaFolhaId: fid, status: { not: "CANCELADA" } },
+    });
+    if (temTitulo === 0) await fecharDiariaFolha(fid);
+  }
+
+  const { empresaId, contaBancoId, pagos } = await prismaSemEscopo.$transaction(async (tx) => {
+    const itens = await tx.diariaItem.findMany({
+      where: { id: { in: input.itemIds } },
+      select: {
+        id: true, colaboradorId: true, valor: true, valorTotal: true, dataPagamento: true,
+        colaborador: { select: { nome: true } },
+        grupo: { select: { folha: { select: { id: true, empresaId: true, status: true } } } },
+      },
+    });
+    if (itens.length === 0) throw new RhPagamentoErro("Nenhuma diária selecionada.");
+    const empresaId = itens[0].grupo.folha.empresaId;
+    if (itens.some((i) => i.grupo.folha.empresaId !== empresaId)) {
+      throw new RhPagamentoErro("Selecione diárias de uma única empresa por pagamento.");
+    }
+    const jaPago = itens.find((i) => i.dataPagamento);
+    if (jaPago) throw new RhPagamentoErro(`${jaPago.colaborador.nome} tem diária já paga na seleção — recarregue a tela.`, 409);
+    const aberta = itens.find((i) => i.grupo.folha.status !== "FECHADA");
+    if (aberta) throw new RhPagamentoErro("Há diária de folha ainda ABERTA na seleção — feche a folha antes de pagar.");
+
+    const { contaBanco } = await contasDoPagamento(empresaId, input.contaBancariaId);
+
+    const itensPagar = itens
+      .map((i) => ({
+        id: i.id, colaboradorId: i.colaboradorId, nome: i.colaborador.nome, folhaId: i.grupo.folha.id,
+        valor: r2(decimalToNumber(i.valorTotal ?? 0) || decimalToNumber(i.valor)),
+      }))
+      .filter((i) => i.valor > 0);
+    if (itensPagar.length === 0) throw new RhPagamentoErro("Os itens selecionados não têm valor a pagar.");
+
+    // Uma baixa POR FOLHA envolvida (cada título recebe a soma dos seus itens).
+    const porFolha = new Map<string, number>();
+    for (const i of itensPagar) porFolha.set(i.folhaId, r2((porFolha.get(i.folhaId) ?? 0) + i.valor));
+    for (const [fid, soma] of Array.from(porFolha.entries())) {
+      const titulo = await tx.contaPagar.findFirst({
+        where: { diariaFolhaId: fid, contabilizacaoExterna: true, status: { not: "CANCELADA" } },
+        select: { id: true },
+      });
+      if (!titulo) throw new RhPagamentoErro("Título único de uma das folhas não foi encontrado — recarregue e tente de novo.");
+      const baixa = await baixarTitulo(tx, {
+        tipo: "PAGAR", tituloId: titulo.id, dataPagamento: dataPag,
+        linhas: [{ forma: null, contaBancariaId: input.contaBancariaId, valor: soma }],
+      });
+      if (baixa.erro) throw new RhPagamentoErro(baixa.erro.msg, baixa.erro.status);
+    }
+
+    for (const i of itensPagar) {
+      await tx.diariaItem.update({
+        where: { id: i.id },
+        data: { dataPagamento: dataPag, contaBancariaId: input.contaBancariaId, valorPago: i.valor },
+      });
+    }
+
+    return {
+      empresaId, contaBancoId: contaBanco.id,
+      pagos: itensPagar.map((i): ItemPago => ({ origemId: `diariaitem-${i.id}`, colaboradorId: i.colaboradorId, nome: i.nome, valor: i.valor })),
+    };
+  });
+
+  await contabilizarPagamentos(empresaId, dataPag, contaBancoId, pagos, "diária");
+  return { pagos: pagos.length, total: r2(pagos.reduce((s, p) => s + p.valor, 0)) };
+}
+
 // ── Fechamento / reabertura da folha de diárias ─────────────────────────────
 
 /**

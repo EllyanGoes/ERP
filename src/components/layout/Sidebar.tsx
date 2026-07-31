@@ -33,6 +33,7 @@ import {
   MapPin,
   ArrowLeftRight,
   CalendarDays,
+  Banknote,
   FileSearch,
   PackageCheck,
   PanelLeftClose,
@@ -370,6 +371,7 @@ const mainModules: Module[] = [
         items: [
           { href: "/rh/folhas", label: "Folhas de Pagamento", icon: FileText },
           { href: "/rh/diaristas", label: "Diárias", icon: CalendarDays },
+          { href: "/rh/diaristas/pagamentos", label: "Pagamento de Diárias", icon: Banknote },
         ],
       },
       {

@@ -161,6 +161,7 @@ export const ROUTES: RouteEntry[] = [
 
   { href: "/rh/folhas",                            label: "Folhas de Pagamento",     group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "folha pagamento salário rh gestão de pessoas holerite inss fgts irrf colaborador" },
   { href: "/rh/diaristas",                         label: "Diárias",                 group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "diária diarista diárias lançamento rh gestão de pessoas pagamento mão de obra produção fábrica turno" },
+  { href: "/rh/diaristas/pagamentos",              label: "Pagamento de Diárias",    group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "pagamento diária diarista acumulado por pessoa pagar rh gestão de pessoas caixa banco" },
   { href: "/rh/horarios",                          label: "Horários de Trabalho",    group: "Gestão de Pessoas", section: "Cadastros",        icon: Users, keywords: "horário escala trabalho turno jornada expediente rh gestão de pessoas" },
   { href: "/rh/relatorios",                        label: "Folha & Diárias (Relatório)", group: "Gestão de Pessoas", section: "Relatórios",   icon: BarChart3, keywords: "relatório gráfico folha pagamento diárias custo pessoal rh mensal por dia" },
 

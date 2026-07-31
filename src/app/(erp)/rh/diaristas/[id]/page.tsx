@@ -11,8 +11,7 @@ import { Autoria } from "@/components/shared/Autoria";
 import { cn, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users, Upload, FileCheck2, Rows3, List } from "lucide-react";
-import PagamentosRhSection from "@/components/rh/PagamentosRhSection";
+import { Loader2, Plus, Trash2, Save, Printer, Lock, LockOpen, X, Users, Upload, FileCheck2, Rows3, List, Banknote } from "lucide-react";
 
 type ItemRow = { _key: string; colaboradorId: string; manha: string; tarde: string; horasExcedente: string; servico: string; valor: string };
 type GrupoRow = { _key: string; tipo: string; setor: string; turno: string; itens: ItemRow[] };
@@ -370,15 +369,26 @@ export default function DiariaDetailPage() {
           <div className="px-4 py-3 rounded-xl bg-danger/10 border border-danger/30 text-danger text-sm">{erroAcao}</div>
         )}
 
-        {/* Folha fechada: pagamento por diarista (baixa o título único). */}
-        {bloqueado && pagItens.length > 0 && (
-          <PagamentosRhSection
-            endpoint={`/api/rh/diaristas/${id}/pagamentos`}
-            onDone={carregar}
-            rotulo="diarista"
-            itens={pagItens}
-          />
-        )}
+        {/* Folha fechada: o pagamento é POR PESSOA (total acumulado de várias
+            folhas) no módulo Pagamento de Diárias — aqui só o status. */}
+        {bloqueado && pagItens.length > 0 && (() => {
+          const pagos = pagItens.filter((i) => i.dataPagamento).length;
+          return (
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 rounded-xl border border-border bg-card text-sm">
+              <Banknote className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">
+                Pagamentos: <b className="text-foreground">{pagos}/{pagItens.length}</b> diárias pagas
+                {" · "}pendente {formatBRL(pagItens.filter((i) => !i.dataPagamento).reduce((s, i) => s + i.valor, 0))}
+              </span>
+              <button
+                onClick={() => router.push("/rh/diaristas/pagamentos")}
+                className="ml-auto text-info hover:underline font-medium"
+              >
+                Pagar no módulo Pagamento de Diárias →
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Alternância de visualização — logo abaixo dos botões do header */}
         <div className="flex justify-end -mt-2">
