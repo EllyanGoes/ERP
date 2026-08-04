@@ -23,6 +23,17 @@ export function hasModulo(modulos: string[], modulo: string): boolean {
 }
 
 /**
+ * Verifica uma AÇÃO granular ("comercial.minutas.editar") do usuário, lida do
+ * banco. ADMIN ("*") passa; uma permissão de nível mais alto ("comercial" ou
+ * "comercial.minutas") também concede a ação.
+ */
+export async function temPermissao(userId: string, chave: string): Promise<boolean> {
+  const modulos = await getUserModulos(userId);
+  if (modulos.includes("*")) return true;
+  return modulos.some((m) => m === chave || chave.startsWith(m + "."));
+}
+
+/**
  * Guard de Route Handler: exige sessão E acesso ao módulo (mesmo critério do
  * canAccess do front — chave exata, prefixo granular ou "*" de ADMIN).
  *

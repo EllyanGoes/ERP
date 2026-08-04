@@ -17,7 +17,7 @@ type Props = {
 export default function MinutaActionsMenu({ id, numero, status }: Props) {
   const router = useRouter();
   const { replaceCurrentTab } = useTabsContext();
-  const { user } = useSession();
+  const { user, canAccess } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -49,9 +49,10 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
   }, [open]);
 
   // Editar: liberado para qualquer minuta e qualquer usuário, EXCETO as já
-  // ENTREGUE — essas só ADMIN edita (reconcilia estoque já baixado). A edição
-  // abre a tela completa, que reconcilia o estoque pelo delta.
-  const canEdit = status !== "ENTREGUE" || isAdmin;
+  // ENTREGUE — essas exigem a permissão de EDIÇÃO de minutas (reconciliam
+  // estoque já baixado). A edição abre a tela completa, que reconcilia o
+  // estoque pelo delta.
+  const canEdit = status !== "ENTREGUE" || canAccess("comercial.minutas.editar");
   // Excluir: minutas PENDENTE (qualquer usuário) ou qualquer status para ADMIN.
   // Em minutas já movimentadas, a API exige ADMIN e ESTORNA o estoque.
   const canDelete = status === "PENDENTE" || isAdmin;

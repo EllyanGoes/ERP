@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireModulo } from "@/lib/permissions";
+import { requireModulo, temPermissao } from "@/lib/permissions";
 import { minutaItensSchema } from "@/lib/validations/minuta";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
@@ -162,11 +162,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // empresa da venda e conclui a venda original — ver src/lib/venda-ordem.ts.
     const entregaAOrdem = !!minuta.pedidoVenda?.pedidoVendaOrigemId;
 
-    // Editar uma minuta já ENTREGUE (entrega/retirada concluída) é privilégio de
-    // ADMIN — reconcilia estoque já baixado. Usuários comuns não alteram entregas
-    // finalizadas.
+    // Editar uma minuta já ENTREGUE (entrega/retirada concluída) reconcilia
+    // estoque já baixado — exige a permissão de EDIÇÃO de minutas (ADMIN passa
+    // direto), não basta o acesso de leitura ao módulo.
     if (minuta.status === "ENTREGUE" && Array.isArray(body.itens) && auth.session.perfil !== "ADMIN") {
-      return NextResponse.json({ error: "Apenas administradores podem editar uma minuta já entregue." }, { status: 403 });
+      const podeEditar = await temPermissao(auth.session.sub, "comercial.minutas.editar");
+      if (!podeEditar) {
+        return NextResponse.json({ error: "Você não tem permissão de edição de minutas." }, { status: 403 });
+      }
     }
 
     const STATUS_VALIDOS = ["PENDENTE", "SAIU_PARA_ENTREGA", "ENTREGUE", "CANCELADA"] as const;
