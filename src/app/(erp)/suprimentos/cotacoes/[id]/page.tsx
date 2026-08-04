@@ -615,7 +615,7 @@ export default function CotacaoDetailPage() {
           </div>
         )}
 
-        {/* ── Itens da cotação (collapsible) ─────────────────────────────── */}
+        {/* ── Itens da cotação × propostas dos fornecedores (matriz) ──────── */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
           <button
             type="button"
@@ -625,176 +625,239 @@ export default function CotacaoDetailPage() {
             <span className="font-semibold text-sm text-foreground">Itens da cotação</span>
             {itensOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
           </button>
-          {itensOpen && (
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Código</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Descrição</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Quantidade</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {Array.from(allItemsMap.entries()).map(([itemId, item]) => (
-                  <tr key={itemId} className="hover:bg-muted">
-                    <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{item.codigo}</td>
-                    <td className="px-4 py-2 text-foreground">{item.descricao}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{item.unidadeMedida}</td>
-                    <td className="px-4 py-2 text-right text-foreground">
-                      {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                    </td>
-                  </tr>
-                ))}
-                {allItemsMap.size === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-4 text-center text-muted-foreground text-sm">
-                      Nenhum item na cotação
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
+          {itensOpen && (() => {
+            const fornecedores = cotacao.fornecedores;
+            // Menor preço válido por item (entre propostas respondidas que cotam o
+            // item) para destacar a melhor opção de cada linha.
+            const menorPrecoPorItem = new Map<string, number>();
+            fornecedores.forEach((cf) => {
+              if (cf.status !== "RESPONDIDA") return;
+              cf.itens.forEach((i) => {
+                if (i.situacao === "NAO_CONSIDERA") return;
+                const preco = decimalToNumber(i.precoUnitario);
+                if (preco <= 0) return;
+                const atual = menorPrecoPorItem.get(i.itemId);
+                if (atual === undefined || preco < atual) menorPrecoPorItem.set(i.itemId, preco);
+              });
+            });
+            const totaisValidos = fornecedores
+              .filter((cf) => cf.status === "RESPONDIDA")
+              .map((cf) => decimalToNumber(cf.totalCalculado))
+              .filter((t) => t > 0);
+            const menorTotal = totaisValidos.length > 0 ? Math.min(...totaisValidos) : null;
 
-        {/* ── Supplier cards ─────────────────────────────────────────────── */}
-        <div className="space-y-4">
-          {cotacao.fornecedores.length === 0 && (
-            <p className="text-sm text-muted-foreground italic text-center py-8">
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted border-b border-border">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground align-bottom">Código</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground align-bottom">Descrição</th>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground align-bottom">U.M.</th>
+                      <th className="text-right px-4 py-2 font-medium text-muted-foreground align-bottom">Qtd</th>
+                      {fornecedores.map((cf) => {
+                        const badge = STATUS_RESP_BADGE[cf.status] ?? { label: cf.status, cls: "bg-muted text-muted-foreground" };
+                        const fornNome = cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial;
+                        const melhor = cf.melhorOpcao && cf.status === "RESPONDIDA";
+                        return (
+                          <th
+                            key={cf.id}
+                            className={cn(
+                              "px-4 py-2.5 align-bottom min-w-[190px] border-l border-border",
+                              melhor && "bg-success/5"
+                            )}
+                          >
+                            <div className="flex flex-col items-end gap-1.5 text-right">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap", badge.cls)}>
+                                  {badge.label}
+                                </span>
+                                {melhor && (
+                                  <span className="text-[11px] font-semibold text-success bg-success/15 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    Melhor preço
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className="font-semibold text-foreground leading-tight"
+                                title={`${cf.fornecedor.razaoSocial}${cf.fornecedor.cpfCnpj ? ` — ${cf.fornecedor.cpfCnpj}` : ""}`}
+                              >
+                                {fornNome}
+                              </span>
+                              <div className="flex items-center justify-end gap-1">
+                                {canEdit && cf.status === "AGUARDANDO" && (
+                                  <Button
+                                    size="sm"
+                                    className="h-7 px-2.5 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                                    onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
+                                  >
+                                    Preencher
+                                  </Button>
+                                )}
+                                {canEdit && cf.status === "RESPONDIDA" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2.5 text-xs"
+                                    onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
+                                  >
+                                    Atualizar
+                                  </Button>
+                                )}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger>
+                                    <Button size="sm" variant="outline" className="h-7 w-7 p-0">
+                                      <ChevronDown className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
+                                    >
+                                      Visualizar proposta
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openHistorico(cf.id, fornNome)}>
+                                      Histórico de propostas
+                                    </DropdownMenuItem>
+                                    {canEdit && cf.status !== "RECUSADA" && (
+                                      <DropdownMenuItem
+                                        className="text-warning"
+                                        onClick={() => desqualificarFornecedor(cf.id)}
+                                      >
+                                        Desqualificar
+                                      </DropdownMenuItem>
+                                    )}
+                                    {canEdit && (
+                                      <DropdownMenuItem
+                                        className="text-danger"
+                                        onClick={() => excluirFornecedor(cf.id)}
+                                      >
+                                        Excluir proposta
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {Array.from(allItemsMap.entries()).map(([itemId, item]) => (
+                      <tr key={itemId} className="hover:bg-muted">
+                        <td className="px-4 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{item.codigo}</td>
+                        <td className="px-4 py-2 text-foreground">{item.descricao}</td>
+                        <td className="px-4 py-2 text-muted-foreground">{item.unidadeMedida}</td>
+                        <td className="px-4 py-2 text-right text-foreground">
+                          {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                        </td>
+                        {fornecedores.map((cf) => {
+                          const melhorCol = cf.melhorOpcao && cf.status === "RESPONDIDA";
+                          const cfItem = cf.itens.find((i) => i.itemId === itemId);
+                          const preco = cfItem ? decimalToNumber(cfItem.precoUnitario) : 0;
+                          const naoCota = cfItem?.situacao === "NAO_CONSIDERA";
+                          const respondida = cf.status === "RESPONDIDA";
+                          const menorDoItem = menorPrecoPorItem.get(itemId);
+                          const ehMenor = respondida && !naoCota && preco > 0 && preco === menorDoItem;
+                          return (
+                            <td
+                              key={cf.id}
+                              className={cn(
+                                "px-4 py-2 text-right whitespace-nowrap border-l border-border",
+                                melhorCol && "bg-success/5",
+                                ehMenor ? "text-success font-semibold" : "text-foreground"
+                              )}
+                            >
+                              {naoCota
+                                ? <span className="text-xs text-muted-foreground/70 italic font-normal">Não cota</span>
+                                : respondida && preco > 0
+                                  ? formatBRL(preco)
+                                  : <span className="text-muted-foreground/60 font-normal">—</span>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                    {allItemsMap.size === 0 && (
+                      <tr>
+                        <td colSpan={4 + fornecedores.length} className="px-4 py-4 text-center text-muted-foreground text-sm">
+                          Nenhum item na cotação
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {fornecedores.length > 0 && (
+                    <tfoot className="border-t border-border bg-muted/50">
+                      <tr className="border-b border-border/60">
+                        <td colSpan={4} className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">
+                          Total da proposta
+                        </td>
+                        {fornecedores.map((cf) => {
+                          const melhorCol = cf.melhorOpcao && cf.status === "RESPONDIDA";
+                          const total = decimalToNumber(cf.totalCalculado);
+                          const ehMenorTotal = cf.status === "RESPONDIDA" && total > 0 && total === menorTotal;
+                          return (
+                            <td
+                              key={cf.id}
+                              className={cn(
+                                "px-4 py-2 text-right font-semibold whitespace-nowrap border-l border-border",
+                                melhorCol && "bg-success/5",
+                                ehMenorTotal ? "text-success" : "text-foreground"
+                              )}
+                            >
+                              {cf.status === "RESPONDIDA" && total > 0 ? formatBRL(total) : "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      <tr className="border-b border-border/60">
+                        <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                          Prazo de entrega
+                        </td>
+                        {fornecedores.map((cf) => (
+                          <td
+                            key={cf.id}
+                            className={cn(
+                              "px-4 py-1.5 text-right text-xs text-foreground whitespace-nowrap border-l border-border",
+                              cf.melhorOpcao && cf.status === "RESPONDIDA" && "bg-success/5"
+                            )}
+                          >
+                            {cf.prazoEntregaDias ? `${cf.prazoEntregaDias} dias` : "—"}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                          Itens preenchidos
+                        </td>
+                        {fornecedores.map((cf) => {
+                          const preenchidos = cf.itens.filter((i) => Number(i.precoUnitario) > 0).length;
+                          return (
+                            <td
+                              key={cf.id}
+                              className={cn(
+                                "px-4 py-1.5 text-right text-xs text-foreground whitespace-nowrap border-l border-border",
+                                cf.melhorOpcao && cf.status === "RESPONDIDA" && "bg-success/5"
+                              )}
+                            >
+                              {cf.status === "RESPONDIDA" ? `${preenchidos}/${cf.itens.length}` : `0/${cf.itens.length}`}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            );
+          })()}
+          {cotacao.fornecedores.length === 0 && itensOpen && (
+            <p className="text-sm text-muted-foreground italic text-center py-4 border-t border-border">
               Nenhum fornecedor vinculado a esta cotação.
             </p>
           )}
-
-          {cotacao.fornecedores.map((cf, idx) => {
-            const badge = STATUS_RESP_BADGE[cf.status] ?? { label: cf.status, cls: "bg-muted text-muted-foreground" };
-            const fornNome = cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial;
-            const codigoForn = cf.fornecedor.id.slice(-8).toUpperCase();
-            const propostaNum = `PROPOSTA ${String(idx + 1).padStart(2, "0")}`;
-            const totalItens = cf.itens.length;
-            const itensComPreco = cf.itens.filter((i) => Number(i.precoUnitario) > 0).length;
-            const total = decimalToNumber(cf.totalCalculado);
-
-            return (
-              <div
-                key={cf.id}
-                className={cn(
-                  "bg-card rounded-xl border shadow-sm overflow-hidden",
-                  cf.melhorOpcao && cf.status === "RESPONDIDA" ? "border-green-400" : "border-border"
-                )}
-              >
-                {/* Card header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted">
-                  <div className="flex items-center gap-3">
-                    <span className={cn("text-xs font-medium px-2.5 py-0.5 rounded-full", badge.cls)}>
-                      {badge.label}
-                    </span>
-                    <span className="font-semibold text-foreground">{fornNome}</span>
-                    <span className="text-xs text-muted-foreground font-mono">{propostaNum}</span>
-                    {cf.melhorOpcao && cf.status === "RESPONDIDA" && (
-                      <span className="text-xs font-semibold text-success bg-success/15 px-2 py-0.5 rounded-full">
-                        Melhor preço
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {canEdit && cf.status === "AGUARDANDO" && (
-                      <Button
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
-                      >
-                        Preencher proposta
-                      </Button>
-                    )}
-                    {canEdit && cf.status === "RESPONDIDA" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
-                      >
-                        Atualizar proposta
-                      </Button>
-                    )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger>
-                        <Button size="sm" variant="outline" className="gap-1">
-                          Outras ações <ChevronDown className="w-3.5 h-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
-                        >
-                          Visualizar
-                        </DropdownMenuItem>
-                        {canEdit && cf.status !== "RECUSADA" && (
-                          <DropdownMenuItem
-                            className="text-warning"
-                            onClick={() => desqualificarFornecedor(cf.id)}
-                          >
-                            Desqualificar
-                          </DropdownMenuItem>
-                        )}
-                        {canEdit && (
-                          <DropdownMenuItem
-                            className="text-danger"
-                            onClick={() => excluirFornecedor(cf.id)}
-                          >
-                            Excluir proposta
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-
-                {/* Card body */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 px-4 py-3 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Código fornecedor</p>
-                    <p className="font-mono font-medium text-foreground">{codigoForn}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">CPF/CNPJ</p>
-                    <p className="font-medium text-foreground">{cf.fornecedor.cpfCnpj || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Moeda</p>
-                    <p className="font-medium text-foreground">REAL</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Total da cotação</p>
-                    <p className="font-semibold text-foreground">
-                      {cf.status === "RESPONDIDA" ? formatBRL(total) : "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Itens preenchidos</p>
-                    <p className="font-medium text-foreground">
-                      {cf.status === "RESPONDIDA" ? `${itensComPreco}/${totalItens}` : `0/${totalItens}`}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-0.5">Prazo entrega</p>
-                    <p className="font-medium text-foreground">
-                      {cf.prazoEntregaDias ? `${cf.prazoEntregaDias} dias` : "—"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* History link */}
-                <div className="mt-3 pt-2 border-t text-center">
-                  <button
-                    onClick={() => openHistorico(cf.id, fornNome)}
-                    className="text-xs text-info hover:underline"
-                  >
-                    Exibir histórico de propostas
-                  </button>
-                </div>
-              </div>
-            );
-          })}
         </div>
 
         {/* ── Concluída: pedidos gerados ────────────────────────────────── */}
