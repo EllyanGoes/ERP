@@ -1,0 +1,845 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useFormPersist } from "@/lib/form-persist";
+import { useDirtyForm } from "@/lib/dirty-form-context";
+import { useRouter } from "next/navigation";
+import PageHeader from "@/components/shared/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useTabTitle } from "@/lib/tabs-context";
+import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
+import { Loader2, ChevronDown, Save, X, Plus } from "lucide-react";
+import AnexosSection from "@/components/shared/AnexosSection";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+type ItemForm = {
+  id: string;
+  itemId: string;
+  quantidade: number;
+  precoUnitario: string;
+  desconto: string;
+  situacao: string;
+  item: {
+    id: string;
+    codigo: string;
+    descricao: string;
+    unidadeMedida: string;
+  };
+};
+
+type PropostaData = {
+  id: string;
+  status: "AGUARDANDO" | "RESPONDIDA" | "RECUSADA";
+  prazoEntregaDias: number | null;
+  condicoesPagamento: string | null;
+  observacao: string | null;
+  totalCalculado: unknown;
+  frete: unknown;
+  tipoFrete: string | null;
+  desconto: unknown;
+  vrDesconto: unknown;
+  despesas: unknown;
+  seguro: unknown;
+  fornecedor: {
+    id: string;
+    razaoSocial: string;
+    nomeFantasia: string | null;
+    cpfCnpj: string | null;
+    email: string | null;
+    contato: string | null;
+  };
+  itens: Array<{
+    id: string;
+    itemId: string;
+    quantidade: unknown;
+    precoUnitario: unknown;
+    subtotal: unknown;
+    disponivel: boolean;
+    situacao: string | null;
+    desconto: unknown;
+    item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
+  }>;
+  cotacao: {
+    id: string;
+    numero: string;
+    nome: string | null;
+  };
+  propostaNumero: number; // sequential index among all fornecedores
+};
+
+const TIPO_FRETE_OPTIONS = [
+  { value: "C", label: "C-CIF" },
+  { value: "F", label: "F-FOB" },
+  { value: "T", label: "T-CIF/FOB" },
+  { value: "O", label: "Outro" },
+];
+
+type FormSnapshot = {
+  contato: string; email: string; condicoesPagamento: string;
+  frete: string; tipoFrete: string; desconto: string; vrDescontoInput: string;
+  despesas: string; seguro: string;
+  itens: ItemForm[]; // ItemForm already includes desconto
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
+// Formulário da proposta do fornecedor — usado pela rota
+// /suprimentos/cotacoes/[id]/proposta/[cfId] (mode="page") e pelo popup da
+// tela da cotação (mode="modal").
+export default function PropostaForm({
+  cotacaoId,
+  cfId,
+  mode = "page",
+  onClose,
+  onSaved,
+}: {
+  cotacaoId: string;
+  cfId: string;
+  mode?: "page" | "modal";
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const router = useRouter();
+
+  const [data, setData] = useState<PropostaData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [saveError, setSaveError] = useState("");
+
+  // ── Form state ────────────────────────────────────────────────────────────
+  const [contato, setContato] = useState("");
+  const [email, setEmail] = useState("");
+  const [condicoesPagamento, setCondicoesPagamento] = useState("");
+  const [condicoesList, setCondicoesList] = useState<{ id: string; nome: string }[]>([]);
+  const [frete, setFrete] = useState("");
+  const [tipoFrete, setTipoFrete] = useState("");
+  const [desconto, setDesconto] = useState("");
+  const [vrDescontoInput, setVrDescontoInput] = useState("");
+  const [despesas, setDespesas] = useState("");
+  const [seguro, setSeguro] = useState("");
+  const [itens, setItens] = useState<ItemForm[]>([]);
+
+  // ── Dirty tracking ────────────────────────────────────────────────────────
+  const [isDirty, setIsDirty] = useState(false);
+  const baselineRef = useRef<string | null>(null);
+
+  // ── Persistência entre abas ───────────────────────────────────────────────
+  const { save: saveForm, load: loadForm, clear: clearForm } =
+    useFormPersist<FormSnapshot>(`proposta:${cfId}`);
+  const dataLoadedRef = useRef(false);
+
+  // ── Load ──────────────────────────────────────────────────────────────────
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Fetch the cotacao + specific fornecedor
+      const res = await fetch(`/api/suprimentos/cotacoes/${cotacaoId}`);
+      const json = await res.json();
+      if (!res.ok) { setError(json.error || "Erro"); return; }
+
+      const cotacao = json.data;
+      const cfIndex = cotacao.fornecedores.findIndex((f: { id: string }) => f.id === cfId);
+      const cf = cotacao.fornecedores[cfIndex];
+      if (!cf) { setError("Proposta não encontrada"); return; }
+
+      const combined: PropostaData = {
+        ...cf,
+        cotacao: { id: cotacao.id, numero: cotacao.numero, nome: cotacao.nome },
+        propostaNumero: cfIndex + 1,
+      };
+      setData(combined);
+
+      // Build API-derived item list first
+      const apiItens: ItemForm[] = cf.itens.map((i: PropostaData["itens"][0]) => ({
+        id: i.id, itemId: i.itemId,
+        quantidade: decimalToNumber(i.quantidade),
+        precoUnitario: i.precoUnitario != null ? decimalToNumber(i.precoUnitario).toString() : "",
+        desconto: i.desconto != null ? decimalToNumber(i.desconto).toString() : "",
+        situacao: i.situacao ?? "CONSIDERA",
+        item: i.item,
+      }));
+
+      // Prefer cached values (user may have typed unsaved data)
+      const cached = loadForm();
+      let resolvedContato: string;
+      let resolvedEmail: string;
+      let resolvedCondicoes: string;
+      let resolvedFrete: string;
+      let resolvedTipoFrete: string;
+      let resolvedDesconto: string;
+      let resolvedVrDesconto: string;
+      let resolvedDespesas: string;
+      let resolvedSeguro: string;
+      let resolvedItens: ItemForm[];
+
+      if (cached && !dataLoadedRef.current) {
+        resolvedContato = cached.contato ?? cf.fornecedor.contato ?? "";
+        resolvedEmail = cached.email ?? cf.fornecedor.email ?? "";
+        resolvedCondicoes = cached.condicoesPagamento ?? cf.condicoesPagamento ?? "";
+        resolvedFrete = cached.frete ?? (cf.frete != null ? decimalToNumber(cf.frete).toString() : "");
+        resolvedTipoFrete = cached.tipoFrete ?? cf.tipoFrete ?? "";
+        resolvedDesconto = cached.desconto ?? (cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "");
+        resolvedVrDesconto = cached.vrDescontoInput ?? (cf.vrDesconto != null ? decimalToNumber(cf.vrDesconto).toString() : "");
+        resolvedDespesas = cached.despesas ?? (cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "");
+        resolvedSeguro = cached.seguro ?? (cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "");
+        const sameItems = cached.itens?.length === apiItens.length &&
+          cached.itens.every((ci, idx) => ci.id === apiItens[idx]?.id);
+        resolvedItens = sameItems ? cached.itens : apiItens;
+      } else {
+        resolvedContato = cf.fornecedor.contato ?? "";
+        resolvedEmail = cf.fornecedor.email ?? "";
+        resolvedCondicoes = cf.condicoesPagamento ?? "";
+        resolvedFrete = cf.frete != null ? decimalToNumber(cf.frete).toString() : "";
+        resolvedTipoFrete = cf.tipoFrete ?? "";
+        resolvedDesconto = cf.desconto != null ? decimalToNumber(cf.desconto).toString() : "";
+        resolvedVrDesconto = cf.vrDesconto != null ? decimalToNumber(cf.vrDesconto).toString() : "";
+        resolvedDespesas = cf.despesas != null ? decimalToNumber(cf.despesas).toString() : "";
+        resolvedSeguro = cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "";
+        resolvedItens = apiItens;
+      }
+
+      setContato(resolvedContato);
+      setEmail(resolvedEmail);
+      setCondicoesPagamento(resolvedCondicoes);
+      setFrete(resolvedFrete);
+      setTipoFrete(resolvedTipoFrete);
+      setDesconto(resolvedDesconto);
+      setVrDescontoInput(resolvedVrDesconto);
+      setDespesas(resolvedDespesas);
+      setSeguro(resolvedSeguro);
+      setItens(resolvedItens);
+
+      // Capture baseline for dirty tracking
+      baselineRef.current = JSON.stringify({
+        contato: resolvedContato,
+        email: resolvedEmail,
+        condicoesPagamento: resolvedCondicoes,
+        frete: resolvedFrete,
+        tipoFrete: resolvedTipoFrete,
+        desconto: resolvedDesconto,
+        vrDescontoInput: resolvedVrDesconto,
+        despesas: resolvedDespesas,
+        seguro: resolvedSeguro,
+        itens: resolvedItens,
+      });
+      setIsDirty(false);
+
+      dataLoadedRef.current = true;
+    } catch {
+      setError("Erro ao carregar proposta");
+    } finally {
+      setLoading(false);
+    }
+  }, [cotacaoId, cfId, loadForm]);
+
+  // ── Auto-save ao mudar qualquer campo do formulário ───────────────────────
+  useEffect(() => {
+    if (loading) return;
+    saveForm({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, vrDescontoInput, despesas, seguro, itens });
+  }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, vrDescontoInput, despesas, seguro, itens, loading, saveForm]);
+
+  // ── Dirty state tracking ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (baselineRef.current === null || loading) return;
+    const current = JSON.stringify({ contato, email, condicoesPagamento, frete, tipoFrete, desconto, vrDescontoInput, despesas, seguro, itens });
+    setIsDirty(current !== baselineRef.current);
+  }, [contato, email, condicoesPagamento, frete, tipoFrete, desconto, vrDescontoInput, despesas, seguro, itens, loading]);
+
+  useDirtyForm(isDirty, async () => { await handleSave(); });
+
+  useEffect(() => { load(); }, [load]);
+
+  // ── Load condições de pagamento ───────────────────────────────────────────
+  const loadCondicoes = useCallback(async () => {
+    try {
+      const r = await fetch("/api/suprimentos/condicoes-pagamento");
+      const list = await r.json();
+      if (Array.isArray(list)) setCondicoesList(list);
+    } catch {}
+  }, []);
+  useEffect(() => { loadCondicoes(); }, [loadCondicoes]);
+
+  // ── Modal nova condição de pagamento ──────────────────────────────────────
+  const [showNovaCondicao, setShowNovaCondicao] = useState(false);
+  const [novaCondicaoNome, setNovaCondicaoNome] = useState("");
+  const [novaCondicaoDesc, setNovaCondicaoDesc] = useState("");
+  const [savingCondicao, setSavingCondicao] = useState(false);
+  const [erroCondicao, setErroCondicao] = useState("");
+
+  async function handleCriarCondicao() {
+    if (!novaCondicaoNome.trim()) { setErroCondicao("Nome é obrigatório"); return; }
+    setSavingCondicao(true); setErroCondicao("");
+    try {
+      const res = await fetch("/api/suprimentos/condicoes-pagamento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: novaCondicaoNome.trim(), descricao: novaCondicaoDesc.trim() || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setErroCondicao(json.error || "Erro ao criar"); return; }
+      await loadCondicoes();
+      setCondicoesPagamento(json.nome);
+      setShowNovaCondicao(false);
+      setNovaCondicaoNome("");
+      setNovaCondicaoDesc("");
+    } catch { setErroCondicao("Erro de conexão"); }
+    finally { setSavingCondicao(false); }
+  }
+
+  useTabTitle(mode === "page" && data ? `Proposta ${data.fornecedor.nomeFantasia || data.fornecedor.razaoSocial}` : null);
+
+  // ── Computed values ───────────────────────────────────────────────────────
+  const totalItens = itens.reduce((s, i) => s + i.quantidade, 0);
+
+  const subtotalItens = itens
+    .filter((i) => i.situacao === "CONSIDERA")
+    .reduce((s, i) => {
+      const p = parseFloat(i.precoUnitario) || 0;
+      return s + p * i.quantidade;
+    }, 0);
+
+  const descontoTotalItens = itens
+    .filter((i) => i.situacao === "CONSIDERA")
+    .reduce((s, i) => {
+      const p = parseFloat(i.precoUnitario) || 0;
+      const pct = parseFloat(i.desconto) || 0;
+      return s + (p * i.quantidade * pct) / 100;
+    }, 0);
+
+  const subtotalAposDescontoItens = subtotalItens - descontoTotalItens;
+
+  const freteVal = parseFloat(frete) || 0;
+  const despesasVal = parseFloat(despesas) || 0;
+  const seguroVal = parseFloat(seguro) || 0;
+  // vrDesconto is the source of truth; % is kept in sync
+  const vrDescontoCalc = parseFloat(vrDescontoInput) || 0;
+  const totalCotacao = subtotalAposDescontoItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
+
+  // ── Discount two-way sync handlers ────────────────────────────────────────
+  function handleDescontoPctChange(val: string) {
+    setDesconto(val);
+    const pct = parseFloat(val) || 0;
+    const nominal = (pct * subtotalItens) / 100;
+    setVrDescontoInput(nominal > 0 || val !== "" ? nominal.toFixed(2) : "");
+  }
+
+  function handleVrDescontoChange(val: string) {
+    setVrDescontoInput(val);
+    const nominal = parseFloat(val) || 0;
+    const pct = subtotalItens > 0 ? (nominal / subtotalItens) * 100 : 0;
+    setDesconto(pct > 0 || val !== "" ? pct.toFixed(4).replace(/\.?0+$/, "") : "");
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  async function handleSave() {
+    setSaving(true);
+    setSaveError("");
+    try {
+      const body = {
+        status: "RESPONDIDA",
+        condicoesPagamento: condicoesPagamento || null,
+        frete: freteVal || null,
+        tipoFrete: tipoFrete || null,
+        desconto: parseFloat(desconto) || null,
+        vrDesconto: vrDescontoCalc || null,
+        despesas: despesasVal || null,
+        seguro: seguroVal || null,
+        itens: itens.map((i) => ({
+          id: i.id,
+          quantidade: i.quantidade,
+          precoUnitario: parseFloat(i.precoUnitario) || 0,
+          desconto: parseFloat(i.desconto) || null,
+          disponivel: i.situacao === "CONSIDERA",
+          situacao: i.situacao,
+        })),
+      };
+
+      const res = await fetch(`/api/suprimentos/cotacoes/${cotacaoId}/fornecedores/${cfId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) { setSaveError(json.error || "Erro ao salvar"); return; }
+
+      clearForm();
+      setIsDirty(false);
+      baselineRef.current = null;
+      router.refresh(); // invalida o cache do Next.js para que a cotação recarregue os dados atualizados
+      onSaved();
+    } catch {
+      setSaveError("Erro de conexão");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div className="flex items-center justify-center py-24">
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+
+  if (!data) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
+
+  const fornNome = data.fornecedor.nomeFantasia || data.fornecedor.razaoSocial;
+  const codigoForn = data.fornecedor.id.slice(-8).toUpperCase();
+  const propostaLabel = `PROPOSTA ${String(data.propostaNumero).padStart(2, "0")}`;
+
+  const actionButtons = (
+    <div className="flex items-center gap-2">
+      {mode === "page" && (
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <Button variant="outline" className="gap-1">
+              Outras Ações <ChevronDown className="w-3.5 h-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => router.push(`/suprimentos/cotacoes/${cotacaoId}`)}>
+              Visualizar cotação
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+      <Button variant="outline" onClick={onClose}>
+        <X className="w-4 h-4 mr-2" />
+        Cancelar
+      </Button>
+      <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+        {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+        Confirmar
+      </Button>
+    </div>
+  );
+
+  return (
+    <div>
+      {mode === "page" ? (
+        <PageHeader
+          title={`Editar Cotação - ${data.cotacao.numero} - ${fornNome}`}
+          breadcrumbs={[
+            { label: "Suprimentos" },
+            { label: "Cotações", href: "/suprimentos/cotacoes" },
+            { label: `Editar cotação`, href: `/suprimentos/cotacoes/${cotacaoId}` },
+            { label: "Proposta" },
+          ]}
+          action={actionButtons}
+        />
+      ) : (
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-4 px-6 py-4 border-b border-border bg-card rounded-t-2xl">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-foreground truncate">
+              Proposta — {fornNome}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {data.cotacao.numero}{data.cotacao.nome ? ` · ${data.cotacao.nome}` : ""}
+            </p>
+          </div>
+          {actionButtons}
+        </div>
+      )}
+
+      <div className={cn("space-y-6", mode === "page" ? "px-8 pb-8 max-w-5xl" : "px-6 py-5")}>
+        {saveError && (
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{saveError}</div>
+        )}
+
+        {/* ── Seção Fornecedor ─────────────────────────────────────────── */}
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Fornecedor</h2>
+          </div>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Código fornecedor</Label>
+              <Input value={codigoForn} readOnly className="font-mono bg-muted" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Loja</Label>
+              <Input value="01" readOnly className="bg-muted" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Nome Fornecedor</Label>
+              <Input value={fornNome} readOnly className="bg-muted" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Contato</Label>
+              <Input
+                value={contato}
+                onChange={(e) => setContato(e.target.value)}
+                placeholder="Nome do contato"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">E-mail</Label>
+              <Input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@fornecedor.com"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Proposta</Label>
+              <Input value={propostaLabel} readOnly className="bg-muted font-mono" />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Itens da cotação ──────────────────────────────────────────── */}
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Itens da cotação</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted border-b border-border">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Produto</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Descrição</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
+                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Quantidade</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-36">Preço Unitário</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-24">% Desc.</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Total Item</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {itens.map((item, idx) => {
+                  const preco = parseFloat(item.precoUnitario) || 0;
+                  const pctDesc = parseFloat(item.desconto) || 0;
+                  const bruto = preco * item.quantidade;
+                  const totalItem = item.situacao === "CONSIDERA" ? bruto - (bruto * pctDesc) / 100 : 0;
+                  const isNaoConsidera = item.situacao === "NAO_CONSIDERA";
+
+                  return (
+                    <tr key={item.id} className={cn("hover:bg-muted", isNaoConsidera && "opacity-50")}>
+                      <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
+                      <td className="px-4 py-2 text-foreground">{item.item.descricao}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{item.item.unidadeMedida}</td>
+                      <td className="px-4 py-2">
+                        <Select
+                          value={item.situacao}
+                          onValueChange={(v) =>
+                            setItens((prev) =>
+                              prev.map((it, i) => (i === idx ? { ...it, situacao: v } : it))
+                            )
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CONSIDERA">Considera</SelectItem>
+                            <SelectItem value="NAO_CONSIDERA">Não Considera</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-4 py-2 text-right text-foreground">
+                        {item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                      </td>
+                      <td className="px-4 py-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          disabled={isNaoConsidera}
+                          value={item.precoUnitario}
+                          onChange={(e) =>
+                            setItens((prev) =>
+                              prev.map((it, i) =>
+                                i === idx ? { ...it, precoUnitario: e.target.value } : it
+                              )
+                            )
+                          }
+                          className="text-right h-8"
+                          placeholder="0,00"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            disabled={isNaoConsidera}
+                            value={item.desconto}
+                            onChange={(e) =>
+                              setItens((prev) =>
+                                prev.map((it, i) =>
+                                  i === idx ? { ...it, desconto: e.target.value } : it
+                                )
+                              )
+                            }
+                            className="text-right h-8 pr-6"
+                            placeholder="0"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right font-medium text-foreground">
+                        {isNaoConsidera ? "—" : formatBRL(totalItem)}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {itens.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-4 text-center text-muted-foreground text-sm">
+                      Nenhum item na proposta
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot className="border-t-2 border-border bg-muted">
+                {descontoTotalItens > 0 && (
+                  <tr className="text-sm">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
+                      Desconto Total Itens
+                    </td>
+                    <td />
+                    <td className="px-4 py-1.5 text-right text-danger font-medium">
+                      -{formatBRL(descontoTotalItens)}
+                    </td>
+                  </tr>
+                )}
+                {vrDescontoCalc > 0 && (
+                  <tr className="text-sm">
+                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
+                      Desconto Global Total
+                    </td>
+                    <td />
+                    <td className="px-4 py-1.5 text-right text-danger font-medium">
+                      -{formatBRL(vrDescontoCalc)}
+                    </td>
+                  </tr>
+                )}
+                <tr>
+                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
+                    Total da cotação
+                  </td>
+                  <td />
+                  <td className="px-4 py-2 text-right font-bold text-foreground">
+                    {formatBRL(totalCotacao)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        {/* ── Seção Cotação ─────────────────────────────────────────────── */}
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Cotação</h2>
+          </div>
+          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Total itens</Label>
+              <Input
+                value={totalItens.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                readOnly
+                className="bg-muted text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Total Cotação</Label>
+              <Input
+                value={formatBRL(totalCotacao)}
+                readOnly
+                className="bg-muted text-right font-semibold"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">% Desconto</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={desconto}
+                  onChange={(e) => handleDescontoPctChange(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right pr-7"
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Vr Desconto</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={vrDescontoInput}
+                onChange={(e) => handleVrDescontoChange(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Frete</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={frete}
+                onChange={(e) => setFrete(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Tipo Frete</Label>
+              <Select value={tipoFrete} onValueChange={setTipoFrete}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPO_FRETE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Condição pagamento</Label>
+                <button
+                  type="button"
+                  onClick={() => { setShowNovaCondicao(true); setNovaCondicaoNome(""); setNovaCondicaoDesc(""); setErroCondicao(""); }}
+                  className="flex items-center gap-0.5 text-xs text-info hover:text-info font-medium"
+                  title="Nova condição de pagamento"
+                >
+                  <Plus className="w-3 h-3" /> Nova
+                </button>
+              </div>
+              <Select
+                value={condicoesPagamento || "__none__"}
+                onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Selecionar condição..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                  {condicoesList.map((c) => (
+                    <SelectItem key={c.id} value={c.nome}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Despesas</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={despesas}
+                onChange={(e) => setDespesas(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Seguro</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={seguro}
+                onChange={(e) => setSeguro(e.target.value)}
+                placeholder="0,00"
+                className="text-right"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Anexos ────────────────────────────────────────────────────────── */}
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted">
+            <h2 className="font-semibold text-sm text-foreground">Documentos da Proposta</h2>
+          </div>
+          <div className="p-4">
+            <AnexosSection
+              apiBase={`/api/suprimentos/cotacoes/${cotacaoId}/fornecedores/${cfId}/anexos`}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Modal Nova Condição de Pagamento ─────────────────────────────────── */}
+      {showNovaCondicao && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-sm flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
+              <h2 className="font-semibold text-foreground">Nova Condição de Pagamento</h2>
+              <button onClick={() => setShowNovaCondicao(false)} className="text-muted-foreground hover:text-muted-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5 space-y-4">
+              {erroCondicao && (
+                <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{erroCondicao}</p>
+              )}
+              <div className="space-y-1.5">
+                <Label>Nome <span className="text-red-500">*</span></Label>
+                <Input
+                  autoFocus
+                  value={novaCondicaoNome}
+                  onChange={(e) => setNovaCondicaoNome(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCriarCondicao()}
+                  placeholder="Ex: 30/60/90 dias"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground">Descrição <span className="text-muted-foreground text-xs font-normal">(opcional)</span></Label>
+                <Input
+                  value={novaCondicaoDesc}
+                  onChange={(e) => setNovaCondicaoDesc(e.target.value)}
+                  placeholder="Detalhes da condição..."
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-border bg-muted rounded-b-2xl flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowNovaCondicao(false)}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={handleCriarCondicao} disabled={savingCondicao}>
+                {savingCondicao ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                Criar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

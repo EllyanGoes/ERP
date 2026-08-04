@@ -23,6 +23,7 @@ import {
   Plus, ArrowLeft, BarChart3, X, Pencil, Search, Trash2,
 } from "lucide-react";
 import { useSession } from "@/lib/session-context";
+import PropostaForm from "@/components/suprimentos/PropostaForm";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type FornecedorOption = {
@@ -51,6 +52,11 @@ type CotacaoFornecedor = {
   observacao: string | null;
   totalCalculado: unknown;
   melhorOpcao: boolean;
+  desconto: unknown;
+  vrDesconto: unknown;
+  frete: unknown;
+  despesas: unknown;
+  seguro: unknown;
   fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null; cpfCnpj: string | null };
   itens: CotacaoFornecedorItem[];
 };
@@ -123,6 +129,9 @@ export default function CotacaoDetailPage() {
   const [actioning, setActioning] = useState(false);
   const [actionError, setActionError] = useState("");
   const [showSemPropostaModal, setShowSemPropostaModal] = useState(false);
+
+  // Proposta em popup central (Preencher/Atualizar/Visualizar)
+  const [propostaTarget, setPropostaTarget] = useState<string | null>(null);
 
   const [historicoTarget, setHistoricoTarget] = useState<{ cfId: string; fornNome: string } | null>(null);
   const [historicoData, setHistoricoData] = useState<HistoricoEntry[]>([]);
@@ -689,7 +698,7 @@ export default function CotacaoDetailPage() {
                                   <Button
                                     size="sm"
                                     className="h-7 px-2.5 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                                    onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
+                                    onClick={() => setPropostaTarget(cf.id)}
                                   >
                                     Preencher
                                   </Button>
@@ -699,7 +708,7 @@ export default function CotacaoDetailPage() {
                                     size="sm"
                                     variant="outline"
                                     className="h-7 px-2.5 text-xs"
-                                    onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
+                                    onClick={() => setPropostaTarget(cf.id)}
                                   >
                                     Atualizar
                                   </Button>
@@ -711,9 +720,7 @@ export default function CotacaoDetailPage() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                      onClick={() => router.push(`/suprimentos/cotacoes/${id}/proposta/${cf.id}`)}
-                                    >
+                                    <DropdownMenuItem onClick={() => setPropostaTarget(cf.id)}>
                                       Visualizar proposta
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => openHistorico(cf.id, fornNome)}>
@@ -747,8 +754,24 @@ export default function CotacaoDetailPage() {
                   <tbody className="divide-y divide-border">
                     {Array.from(allItemsMap.entries()).map(([itemId, item]) => (
                       <tr key={itemId} className="hover:bg-muted">
-                        <td className="px-4 py-2 font-mono text-xs text-muted-foreground whitespace-nowrap">{item.codigo}</td>
-                        <td className="px-4 py-2 text-foreground">{item.descricao}</td>
+                        <td className="px-4 py-2 font-mono text-xs whitespace-nowrap">
+                          <Link
+                            href={`/suprimentos/produtos/${itemId}?tab=compras`}
+                            className="text-muted-foreground hover:text-info hover:underline"
+                            title="Ver histórico de compras do produto"
+                          >
+                            {item.codigo}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2">
+                          <Link
+                            href={`/suprimentos/produtos/${itemId}?tab=compras`}
+                            className="text-foreground hover:text-info hover:underline"
+                            title="Ver histórico de compras do produto"
+                          >
+                            {item.descricao}
+                          </Link>
+                        </td>
                         <td className="px-4 py-2 text-muted-foreground">{item.unidadeMedida}</td>
                         <td className="px-4 py-2 text-right text-foreground">
                           {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
@@ -790,6 +813,115 @@ export default function CotacaoDetailPage() {
                   </tbody>
                   {fornecedores.length > 0 && (
                     <tfoot className="border-t border-border bg-muted/50">
+                      {/* Composição do total: subtotal − desconto + frete (+ despesas/seguro) */}
+                      <tr className="border-b border-border/60">
+                        <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                          Subtotal dos itens
+                        </td>
+                        {fornecedores.map((cf) => {
+                          const subtotal = cf.itens.reduce(
+                            (sum, i) => sum + (i.disponivel === false ? 0 : decimalToNumber(i.subtotal)), 0
+                          );
+                          return (
+                            <td
+                              key={cf.id}
+                              className={cn(
+                                "px-4 py-1.5 text-right text-xs text-foreground whitespace-nowrap border-l border-border",
+                                cf.melhorOpcao && cf.status === "RESPONDIDA" && "bg-success/5"
+                              )}
+                            >
+                              {cf.status === "RESPONDIDA" && subtotal > 0 ? formatBRL(subtotal) : "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      <tr className="border-b border-border/60">
+                        <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                          Desconto
+                        </td>
+                        {fornecedores.map((cf) => {
+                          const vrDesconto = decimalToNumber(cf.vrDesconto);
+                          const percDesconto = decimalToNumber(cf.desconto);
+                          return (
+                            <td
+                              key={cf.id}
+                              className={cn(
+                                "px-4 py-1.5 text-right text-xs whitespace-nowrap border-l border-border",
+                                cf.melhorOpcao && cf.status === "RESPONDIDA" && "bg-success/5",
+                                vrDesconto > 0 ? "text-success" : "text-muted-foreground/60"
+                              )}
+                            >
+                              {cf.status === "RESPONDIDA" && vrDesconto > 0
+                                ? `− ${formatBRL(vrDesconto)}${percDesconto > 0 ? ` (${percDesconto.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)` : ""}`
+                                : "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      <tr className="border-b border-border/60">
+                        <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                          Frete
+                        </td>
+                        {fornecedores.map((cf) => {
+                          const frete = decimalToNumber(cf.frete);
+                          return (
+                            <td
+                              key={cf.id}
+                              className={cn(
+                                "px-4 py-1.5 text-right text-xs whitespace-nowrap border-l border-border",
+                                cf.melhorOpcao && cf.status === "RESPONDIDA" && "bg-success/5",
+                                frete > 0 ? "text-foreground" : "text-muted-foreground/60"
+                              )}
+                            >
+                              {cf.status === "RESPONDIDA" && frete > 0 ? `+ ${formatBRL(frete)}` : "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {fornecedores.some((cf) => decimalToNumber(cf.despesas) > 0) && (
+                        <tr className="border-b border-border/60">
+                          <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                            Despesas
+                          </td>
+                          {fornecedores.map((cf) => {
+                            const despesas = decimalToNumber(cf.despesas);
+                            return (
+                              <td
+                                key={cf.id}
+                                className={cn(
+                                  "px-4 py-1.5 text-right text-xs whitespace-nowrap border-l border-border",
+                                  cf.melhorOpcao && cf.status === "RESPONDIDA" && "bg-success/5",
+                                  despesas > 0 ? "text-foreground" : "text-muted-foreground/60"
+                                )}
+                              >
+                                {cf.status === "RESPONDIDA" && despesas > 0 ? `+ ${formatBRL(despesas)}` : "—"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )}
+                      {fornecedores.some((cf) => decimalToNumber(cf.seguro) > 0) && (
+                        <tr className="border-b border-border/60">
+                          <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                            Seguro
+                          </td>
+                          {fornecedores.map((cf) => {
+                            const seguro = decimalToNumber(cf.seguro);
+                            return (
+                              <td
+                                key={cf.id}
+                                className={cn(
+                                  "px-4 py-1.5 text-right text-xs whitespace-nowrap border-l border-border",
+                                  cf.melhorOpcao && cf.status === "RESPONDIDA" && "bg-success/5",
+                                  seguro > 0 ? "text-foreground" : "text-muted-foreground/60"
+                                )}
+                              >
+                                {cf.status === "RESPONDIDA" && seguro > 0 ? `+ ${formatBRL(seguro)}` : "—"}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      )}
                       <tr className="border-b border-border/60">
                         <td colSpan={4} className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">
                           Total da proposta
@@ -1115,6 +1247,21 @@ export default function CotacaoDetailPage() {
           </div>
         );
       })()}
+
+      {/* ── Proposta em popup central ──────────────────────────────────────────── */}
+      {propostaTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto">
+            <PropostaForm
+              cotacaoId={id}
+              cfId={propostaTarget}
+              mode="modal"
+              onClose={() => setPropostaTarget(null)}
+              onSaved={async () => { setPropostaTarget(null); await load(); }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── History modal ──────────────────────────────────────────────────────── */}
       {historicoTarget && (

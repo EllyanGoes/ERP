@@ -185,7 +185,17 @@ export default function ProdutoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
-  const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio" | "unidades" | "custo-producao">("dados");
+  // Aba inicial via ?tab= (ex.: link "histórico de compras" vindo da cotação).
+  // Lido de window.location p/ não exigir Suspense do useSearchParams.
+  const [tab, setTab] = useState<"dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio" | "unidades" | "custo-producao">(() => {
+    if (typeof window !== "undefined") {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      if (t && ["dados", "fornecedores", "estoques", "movimentacoes", "compras", "relatorio", "unidades", "custo-producao"].includes(t)) {
+        return t as "dados" | "fornecedores" | "estoques" | "movimentacoes" | "compras" | "relatorio" | "unidades" | "custo-producao";
+      }
+    }
+    return "dados";
+  });
   const [empresaEstoqueId, setEmpresaEstoqueId] = useState(""); // "" = todas as empresas
   const [periodoDias, setPeriodoDias] = useState<30 | 90 | 180 | 365>(90);
   const [item, setItem] = useState<Item | null>(null);
@@ -356,6 +366,15 @@ export default function ProdutoDetailPage() {
       .then((d) => { setCompras(d); setComprasLoaded(true); })
       .finally(() => setComprasLoading(false));
   }
+
+  // Entrando direto numa aba lazy via ?tab= — dispara o carregamento que o
+  // clique na aba faria.
+  useEffect(() => {
+    if (tab === "compras") loadCompras();
+    if (tab === "custo-producao") loadCustoHist();
+    if (tab === "unidades" && !unidadesLoaded) loadItemUnidades();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function loadCustoHist() {
     if (custoHistLoaded) return;
