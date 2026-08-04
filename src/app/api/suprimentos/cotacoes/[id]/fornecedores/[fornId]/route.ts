@@ -34,8 +34,12 @@ export async function PATCH(
       const preco = item.precoUnitario != null ? parseFloat(String(item.precoUnitario)) : null;
       const qtd = item.quantidade != null ? parseFloat(String(item.quantidade)) : undefined;
       const pctDesc = item.desconto != null ? parseFloat(String(item.desconto)) : 0;
+      const pctIpi = item.ipi != null ? parseFloat(String(item.ipi)) || 0 : 0;
+      const vlIcmsSt = item.valorIcmsSt != null ? parseFloat(String(item.valorIcmsSt)) || 0 : 0;
       const bruto = preco != null && qtd != null ? preco * qtd : null;
-      const subtotal = bruto != null ? bruto * (1 - pctDesc / 100) : null;
+      // Total do item: (bruto − desconto%) + IPI% + ICMS ST. ICMS % é só
+      // informativo (embutido no preço), não entra na conta.
+      const subtotal = bruto != null ? bruto * (1 - pctDesc / 100) * (1 + pctIpi / 100) + vlIcmsSt : null;
 
       await prisma.cotacaoFornecedorItem.update({
         where: { id: item.id },
@@ -46,6 +50,9 @@ export async function PATCH(
           ...(item.situacao !== undefined ? { situacao: item.situacao } : {}),
           ...(item.qtdDisponivel != null ? { qtdDisponivel: parseFloat(String(item.qtdDisponivel)) } : {}),
           ...(item.desconto !== undefined ? { desconto: pctDesc || null } : {}),
+          ...(item.ipi !== undefined ? { ipi: pctIpi || null } : {}),
+          ...(item.icms !== undefined ? { icms: item.icms != null ? parseFloat(String(item.icms)) || null : null } : {}),
+          ...(item.valorIcmsSt !== undefined ? { valorIcmsSt: vlIcmsSt || null } : {}),
           subtotal: item.disponivel !== false ? subtotal : 0,
         },
       });

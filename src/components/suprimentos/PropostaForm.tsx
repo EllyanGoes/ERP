@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
-import { Loader2, ChevronDown, Save, X, Plus } from "lucide-react";
+import { Loader2, ChevronDown, Save, X, Plus, Paperclip } from "lucide-react";
 import AnexosSection from "@/components/shared/AnexosSection";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -33,6 +33,11 @@ type ItemForm = {
   quantidade: number;
   precoUnitario: string;
   desconto: string;
+  // Impostos do orçamento do fornecedor: IPI soma ao total, ICMS ST (valor)
+  // soma, ICMS % é informativo (embutido no preço).
+  ipi: string;
+  icms: string;
+  valorIcmsSt: string;
   situacao: string;
   item: {
     id: string;
@@ -72,6 +77,9 @@ type PropostaData = {
     disponivel: boolean;
     situacao: string | null;
     desconto: unknown;
+    ipi: unknown;
+    icms: unknown;
+    valorIcmsSt: unknown;
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
   }>;
   cotacao: {
@@ -170,6 +178,9 @@ export default function PropostaForm({
         quantidade: decimalToNumber(i.quantidade),
         precoUnitario: i.precoUnitario != null ? decimalToNumber(i.precoUnitario).toString() : "",
         desconto: i.desconto != null ? decimalToNumber(i.desconto).toString() : "",
+        ipi: i.ipi != null ? decimalToNumber(i.ipi).toString() : "",
+        icms: i.icms != null ? decimalToNumber(i.icms).toString() : "",
+        valorIcmsSt: i.valorIcmsSt != null ? decimalToNumber(i.valorIcmsSt).toString() : "",
         situacao: i.situacao ?? "CONSIDERA",
         item: i.item,
       }));
@@ -199,7 +210,10 @@ export default function PropostaForm({
         resolvedSeguro = cached.seguro ?? (cf.seguro != null ? decimalToNumber(cf.seguro).toString() : "");
         const sameItems = cached.itens?.length === apiItens.length &&
           cached.itens.every((ci, idx) => ci.id === apiItens[idx]?.id);
-        resolvedItens = sameItems ? cached.itens : apiItens;
+        // Cache antigo pode não ter os campos de imposto — normaliza p/ string
+        resolvedItens = (sameItems ? cached.itens : apiItens).map((it) => ({
+          ...it, ipi: it.ipi ?? "", icms: it.icms ?? "", valorIcmsSt: it.valorIcmsSt ?? "",
+        }));
       } else {
         resolvedContato = cf.fornecedor.contato ?? "";
         resolvedEmail = cf.fornecedor.email ?? "";
@@ -274,6 +288,9 @@ export default function PropostaForm({
   }, []);
   useEffect(() => { loadCondicoes(); }, [loadCondicoes]);
 
+  // ── Modal de anexos (Documentos da Proposta) ──────────────────────────────
+  const [showAnexos, setShowAnexos] = useState(false);
+
   // ── Modal nova condição de pagamento ──────────────────────────────────────
   const [showNovaCondicao, setShowNovaCondicao] = useState(false);
   const [novaCondicaoNome, setNovaCondicaoNome] = useState("");
@@ -323,12 +340,25 @@ export default function PropostaForm({
 
   const subtotalAposDescontoItens = subtotalItens - descontoTotalItens;
 
+  // Impostos que somam ao total: IPI % sobre o líquido do item + ICMS ST (valor).
+  // ICMS % é informativo — já embutido no preço.
+  const impostosTotalItens = itens
+    .filter((i) => i.situacao === "CONSIDERA")
+    .reduce((s, i) => {
+      const p = parseFloat(i.precoUnitario) || 0;
+      const pctDesc = parseFloat(i.desconto) || 0;
+      const pctIpi = parseFloat(i.ipi) || 0;
+      const st = parseFloat(i.valorIcmsSt) || 0;
+      const liquido = p * i.quantidade * (1 - pctDesc / 100);
+      return s + (liquido * pctIpi) / 100 + st;
+    }, 0);
+
   const freteVal = parseFloat(frete) || 0;
   const despesasVal = parseFloat(despesas) || 0;
   const seguroVal = parseFloat(seguro) || 0;
   // vrDesconto is the source of truth; % is kept in sync
   const vrDescontoCalc = parseFloat(vrDescontoInput) || 0;
-  const totalCotacao = subtotalAposDescontoItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
+  const totalCotacao = subtotalAposDescontoItens + impostosTotalItens - vrDescontoCalc + freteVal + despesasVal + seguroVal;
 
   // ── Discount two-way sync handlers ────────────────────────────────────────
   function handleDescontoPctChange(val: string) {
@@ -364,6 +394,9 @@ export default function PropostaForm({
           quantidade: i.quantidade,
           precoUnitario: parseFloat(i.precoUnitario) || 0,
           desconto: parseFloat(i.desconto) || null,
+          ipi: parseFloat(i.ipi) || null,
+          icms: parseFloat(i.icms) || null,
+          valorIcmsSt: parseFloat(i.valorIcmsSt) || null,
           disponivel: i.situacao === "CONSIDERA",
           situacao: i.situacao,
         })),
@@ -418,6 +451,14 @@ export default function PropostaForm({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      <Button
+        variant="outline"
+        onClick={() => setShowAnexos(true)}
+        title="Documentos da Proposta (anexos)"
+        className="px-3"
+      >
+        <Paperclip className="w-4 h-4" />
+      </Button>
       <Button variant="outline" onClick={onClose}>
         <X className="w-4 h-4 mr-2" />
         Cancelar
@@ -517,6 +558,9 @@ export default function PropostaForm({
                   <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground">Quantidade</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground w-36">Preço Unitário</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Vlr ICMS ST</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-20">IPI %</th>
+                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-20">ICMS %</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground w-24">% Desc.</th>
                   <th className="text-right px-4 py-2 font-medium text-muted-foreground">Total Item</th>
                 </tr>
@@ -525,8 +569,11 @@ export default function PropostaForm({
                 {itens.map((item, idx) => {
                   const preco = parseFloat(item.precoUnitario) || 0;
                   const pctDesc = parseFloat(item.desconto) || 0;
+                  const pctIpi = parseFloat(item.ipi) || 0;
+                  const vlSt = parseFloat(item.valorIcmsSt) || 0;
                   const bruto = preco * item.quantidade;
-                  const totalItem = item.situacao === "CONSIDERA" ? bruto - (bruto * pctDesc) / 100 : 0;
+                  const liquido = bruto - (bruto * pctDesc) / 100;
+                  const totalItem = item.situacao === "CONSIDERA" ? liquido * (1 + pctIpi / 100) + vlSt : 0;
                   const isNaoConsidera = item.situacao === "NAO_CONSIDERA";
 
                   return (
@@ -574,6 +621,69 @@ export default function PropostaForm({
                         />
                       </td>
                       <td className="px-4 py-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          disabled={isNaoConsidera}
+                          value={item.valorIcmsSt}
+                          onChange={(e) =>
+                            setItens((prev) =>
+                              prev.map((it, i) =>
+                                i === idx ? { ...it, valorIcmsSt: e.target.value } : it
+                              )
+                            )
+                          }
+                          className="text-right h-8"
+                          placeholder="0,00"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            disabled={isNaoConsidera}
+                            value={item.ipi}
+                            onChange={(e) =>
+                              setItens((prev) =>
+                                prev.map((it, i) =>
+                                  i === idx ? { ...it, ipi: e.target.value } : it
+                                )
+                              )
+                            }
+                            className="text-right h-8 pr-6"
+                            placeholder="0"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            disabled={isNaoConsidera}
+                            value={item.icms}
+                            onChange={(e) =>
+                              setItens((prev) =>
+                                prev.map((it, i) =>
+                                  i === idx ? { ...it, icms: e.target.value } : it
+                                )
+                              )
+                            }
+                            className="text-right h-8 pr-6"
+                            placeholder="0"
+                            title="Informativo — já embutido no preço"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
                         <div className="relative">
                           <Input
                             type="number"
@@ -603,7 +713,7 @@ export default function PropostaForm({
                 })}
                 {itens.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-4 text-center text-muted-foreground text-sm">
+                    <td colSpan={11} className="px-4 py-4 text-center text-muted-foreground text-sm">
                       Nenhum item na proposta
                     </td>
                   </tr>
@@ -612,7 +722,7 @@ export default function PropostaForm({
               <tfoot className="border-t-2 border-border bg-muted">
                 {descontoTotalItens > 0 && (
                   <tr className="text-sm">
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
+                    <td colSpan={9} className="px-4 py-1.5 text-right text-muted-foreground">
                       Desconto Total Itens
                     </td>
                     <td />
@@ -621,9 +731,20 @@ export default function PropostaForm({
                     </td>
                   </tr>
                 )}
+                {impostosTotalItens > 0 && (
+                  <tr className="text-sm">
+                    <td colSpan={9} className="px-4 py-1.5 text-right text-muted-foreground">
+                      Impostos (IPI + ICMS ST)
+                    </td>
+                    <td />
+                    <td className="px-4 py-1.5 text-right text-foreground font-medium">
+                      +{formatBRL(impostosTotalItens)}
+                    </td>
+                  </tr>
+                )}
                 {vrDescontoCalc > 0 && (
                   <tr className="text-sm">
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
+                    <td colSpan={9} className="px-4 py-1.5 text-right text-muted-foreground">
                       Desconto Global Total
                     </td>
                     <td />
@@ -633,7 +754,7 @@ export default function PropostaForm({
                   </tr>
                 )}
                 <tr>
-                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
+                  <td colSpan={9} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
                     Total da cotação
                   </td>
                   <td />
@@ -777,18 +898,34 @@ export default function PropostaForm({
           </div>
         </div>
 
-        {/* ── Anexos ────────────────────────────────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Documentos da Proposta</h2>
-          </div>
-          <div className="p-4">
-            <AnexosSection
-              apiBase={`/api/suprimentos/cotacoes/${cotacaoId}/fornecedores/${cfId}/anexos`}
-            />
+      </div>
+
+      {/* ── Modal Documentos da Proposta (anexos) ────────────────────────────── */}
+      {showAnexos && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-muted-foreground" />
+                <h2 className="font-semibold text-foreground">Documentos da Proposta</h2>
+              </div>
+              <button onClick={() => setShowAnexos(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 overflow-y-auto">
+              <AnexosSection
+                apiBase={`/api/suprimentos/cotacoes/${cotacaoId}/fornecedores/${cfId}/anexos`}
+              />
+            </div>
+            <div className="px-6 py-4 border-t border-border bg-muted rounded-b-2xl flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowAnexos(false)}>
+                Fechar
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Modal Nova Condição de Pagamento ─────────────────────────────────── */}
       {showNovaCondicao && (

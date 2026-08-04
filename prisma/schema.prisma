@@ -1534,6 +1534,12 @@ model CotacaoFornecedorItem {
   qtdDisponivel       Decimal?          @db.Decimal(15, 3)
   situacao            String?           @default("CONSIDERA")
   desconto            Decimal?          @db.Decimal(15, 4)
+  // Impostos informados pelo fornecedor (como no orçamento impresso):
+  // IPI soma ao total do item; ICMS ST (valor) soma; ICMS % é informativo
+  // (já embutido no preço).
+  ipi                 Decimal?          @db.Decimal(5, 2)
+  icms                Decimal?          @db.Decimal(5, 2)
+  valorIcmsSt         Decimal?          @db.Decimal(15, 2)
   cotacaoFornecedor   CotacaoFornecedor @relation(fields: [cotacaoFornecedorId], references: [id], onDelete: Cascade)
   item                Item              @relation(fields: [itemId], references: [id])
 }

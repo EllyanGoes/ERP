@@ -960,6 +960,23 @@ export default function CotacaoDetailPage() {
                           </td>
                         ))}
                       </tr>
+                      <tr className="border-b border-border/60">
+                        <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
+                          Condição de pagamento
+                        </td>
+                        {fornecedores.map((cf) => (
+                          <td
+                            key={cf.id}
+                            className={cn(
+                              "px-4 py-1.5 text-right text-xs text-foreground border-l border-border",
+                              cf.melhorOpcao && cf.status === "RESPONDIDA" && "bg-success/5"
+                            )}
+                            title={cf.condicoesPagamento ?? undefined}
+                          >
+                            {cf.condicoesPagamento || "—"}
+                          </td>
+                        ))}
+                      </tr>
                       <tr>
                         <td colSpan={4} className="px-4 py-1.5 text-right text-xs font-medium text-muted-foreground">
                           Itens preenchidos
@@ -1250,7 +1267,14 @@ export default function CotacaoDetailPage() {
 
       {/* ── Proposta em popup central ──────────────────────────────────────────── */}
       {propostaTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onMouseDown={(e) => {
+            // Fecha ao clicar no backdrop (fora do card). O que foi digitado fica
+            // no cache do formulário e volta ao reabrir.
+            if (e.target === e.currentTarget) setPropostaTarget(null);
+          }}
+        >
           <div className="bg-background rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto">
             <PropostaForm
               cotacaoId={id}
