@@ -38,6 +38,7 @@ type Aprovacao = {
   status: "PENDENTE" | "APROVADO" | "REPROVADO";
   observacao: string | null; respondidoEm: string | null;
   createdAt: string; waMsgId: string | null;
+  solicitadoPorNome: string | null;
   necessidade: SC | null;
   cotacao: Cotacao | null;
 };
@@ -122,6 +123,11 @@ function AprovacaoCard({
               {venceTotal != null && <> · <span className="tabular-nums">{venceTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span></>}
             </>
           ) : "Aprovar gera o Pedido de Compras a partir do fornecedor vencedor."}
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          {item.solicitadoPorNome && <>Encaminhada por <span className="font-medium text-foreground">{item.solicitadoPorNome}</span> em </>}
+          {!item.solicitadoPorNome && <>Encaminhada em </>}
+          {new Date(item.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
         </div>
 
         {showObs && isPendente && (

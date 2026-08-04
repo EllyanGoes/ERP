@@ -78,5 +78,19 @@ export async function GET(req: NextRequest) {
     ? total
     : await prisma.aprovacaoSC.count({ where: { aprovadorId: session.sub, status: "PENDENTE" } });
 
-  return NextResponse.json({ data: items, total, page, limit, pendingCount });
+  // solicitadoPor guarda só o id do usuário — resolve os nomes p/ o card
+  // mostrar quem encaminhou p/ aprovação.
+  const solicitanteIds = Array.from(
+    new Set(items.map((i) => i.solicitadoPor).filter((v): v is string => !!v))
+  );
+  const solicitantes = solicitanteIds.length > 0
+    ? await prisma.usuario.findMany({ where: { id: { in: solicitanteIds } }, select: { id: true, nome: true } })
+    : [];
+  const nomePorId = new Map(solicitantes.map((u) => [u.id, u.nome]));
+  const data = items.map((i) => ({
+    ...i,
+    solicitadoPorNome: i.solicitadoPor ? nomePorId.get(i.solicitadoPor) ?? null : null,
+  }));
+
+  return NextResponse.json({ data, total, page, limit, pendingCount });
 }
