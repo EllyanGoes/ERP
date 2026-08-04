@@ -14,6 +14,7 @@ import { enviarPermitindoSaldoNegativo } from "@/lib/saldo-negativo-retry";
 import { buildMinutaEscPos } from "@/lib/escpos-minuta";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { printMinutaViaDialog } from "@/lib/print-minuta-dialog";
+import EscClose from "@/components/shared/EscClose";
 
 type StatusMinuta = "PENDENTE" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADA";
 
@@ -243,6 +244,7 @@ export default function MinutaDetailPage() {
       {/* SAIDA modal — choose local if not set */}
       {showSaidaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => setShowSaidaModal(false)} />
           <div className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-sm w-full space-y-4">
             <h3 className="font-bold text-foreground">Selecionar Local de Estoque</h3>
             <p className="text-sm text-muted-foreground">

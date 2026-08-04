@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -185,6 +186,7 @@ function OSDetailPanel({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-stretch justify-end">
+      <EscClose onClose={onClose} />
       {/* Scrim */}
       <div className="flex-1 bg-black/20" onClick={onClose} />
 
@@ -339,6 +341,7 @@ function DrillModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
+      <EscClose onClose={onClose} />
       <div className="bg-card rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">

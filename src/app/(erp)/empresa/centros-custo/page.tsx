@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Autoria } from "@/components/shared/Autoria";
+import EscClose from "@/components/shared/EscClose";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
 
 const COLLAPSE_KEY = "empresa:centros-custo:collapsed";
@@ -580,6 +581,7 @@ export default function CentrosCustoPage() {
       {/* ── Create Modal ───────────────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => setShowCreate(false)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -658,6 +660,7 @@ export default function CentrosCustoPage() {
       {/* ── Edit Modal ─────────────────────────────────────────────────────────── */}
       {editItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => setEditItem(null)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-foreground">Editar centro de custo</h3>
@@ -744,6 +747,7 @@ export default function CentrosCustoPage() {
       {/* ── Delete Modal ───────────────────────────────────────────────────────── */}
       {deleteItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteLoading) setDeleteItem(null); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

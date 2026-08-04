@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "@/lib/session-context";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -455,6 +456,7 @@ export default function SuportePage() {
       {/* ── CREATE MODAL ──────────────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <EscClose onClose={() => { setShowCreate(false); resetCreate(); }} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
@@ -599,6 +601,7 @@ export default function SuportePage() {
       {/* ── DETAIL PANEL ──────────────────────────────────────────────────────── */}
       {selected && (
         <div className="fixed inset-0 z-50 flex">
+          <EscClose onClose={() => setSelected(null)} />
           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setSelected(null)} />
           <div className="w-full max-w-lg bg-card shadow-2xl flex flex-col overflow-hidden">
             {/* Panel header */}

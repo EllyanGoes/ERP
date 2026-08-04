@@ -17,6 +17,7 @@ import { useSession } from "@/lib/session-context";
 import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, CheckCircle2, XCircle, Clock, MessageCircle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
+import EscClose from "@/components/shared/EscClose";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -974,6 +975,7 @@ export default function NecessidadeDetailPage() {
       {/* Approve modal */}
       {showApproveForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <EscClose onClose={() => { if (!actioning) setShowApproveForm(false); }} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-success/15 flex items-center justify-center shrink-0">
@@ -1002,6 +1004,7 @@ export default function NecessidadeDetailPage() {
       {/* Reject modal */}
       {showRejectForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <EscClose onClose={() => { if (!actioning) setShowRejectForm(false); }} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
@@ -1031,6 +1034,7 @@ export default function NecessidadeDetailPage() {
       {/* Cancel modal — soft-cancel da SC com motivo obrigatório (estado final) */}
       {showCancelForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <EscClose onClose={() => { if (!actioning) setShowCancelForm(false); }} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
@@ -1064,6 +1068,7 @@ export default function NecessidadeDetailPage() {
       {/* Delete confirm modal */}
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteLoading) setShowDelete(false); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

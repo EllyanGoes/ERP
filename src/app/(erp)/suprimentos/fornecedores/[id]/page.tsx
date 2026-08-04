@@ -21,6 +21,7 @@ function maskCpfCnpj(value: string, tipo: string): string {
 }
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import { Autoria } from "@/components/shared/Autoria";
 import { lookupParceiro, type ParceiroLookup } from "@/lib/parceiro-lookup";
 import { Button } from "@/components/ui/button";
@@ -727,6 +728,7 @@ export default function FornecedorDetailPage() {
             {/* Add contato modal */}
             {showAddContato && typeof window !== "undefined" && createPortal(
               <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+                <EscClose onClose={() => setShowAddContato(false)} />
                 <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-5">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-foreground text-base">Adicionar Contato</h3>
@@ -931,6 +933,7 @@ export default function FornecedorDetailPage() {
             {/* Product link dialog */}
             {showAddProd && typeof window !== "undefined" && createPortal(
               <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+                <EscClose onClose={() => setShowAddProd(false)} />
                 <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-xl space-y-5 max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-foreground text-base">Vincular Produto</h3>
@@ -1277,6 +1280,7 @@ export default function FornecedorDetailPage() {
       {/* ── Delete confirmation modal ─────────────────────────────────────── */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <EscClose onClose={() => { if (!deleting) { setDeleteConfirm(false); setDeleteError(""); } }} />
           <div className="bg-card rounded-2xl shadow-xl border border-border w-full max-w-md mx-4 p-6">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center">

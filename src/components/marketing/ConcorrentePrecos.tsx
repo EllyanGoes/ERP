@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatBRL, cn } from "@/lib/utils";
 import { Plus, Trash2, Loader2, TrendingUp, TrendingDown, Minus, Truck, Store, X } from "lucide-react";
+import EscClose from "@/components/shared/EscClose";
 
 export type PrecoConcorrente = {
   id: string;
@@ -213,6 +214,7 @@ export default function ConcorrentePrecos({
       {/* Popup — novo preço de competidor */}
       {aberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAberto(false)}>
+          <EscClose onClose={() => setAberto(false)} />
           <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><Plus className="h-5 w-5 text-blue-600" /> Novo preço de competidor</h3>

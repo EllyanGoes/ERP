@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import EscClose from "@/components/shared/EscClose";
 
 interface Campo {
   key: string;
@@ -163,6 +164,7 @@ export default function CadastroSimples({
       {/* ── New Record Dialog ─────────────────────────────────────────── */}
       {showDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => { if (!newSaving) setShowDialog(false); }} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
               <h2 className="font-semibold text-foreground">Novo registro — {title}</h2>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
 import Dica from "@/components/shared/Dica";
+import EscClose from "@/components/shared/EscClose";
 import { corArea, iconeArea } from "@/lib/pcp/area-visual";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
@@ -295,6 +296,7 @@ export default function RelatorioProducaoPage() {
           const tituloPeriodo = d ? `${d}/${m}/${y}` : m ? `${m}/${y}` : y;
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDiaPopup(null)}>
+              <EscClose onClose={() => setDiaPopup(null)} />
               <div className="w-full max-w-3xl rounded-xl border border-border bg-card p-5 shadow-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-base font-semibold text-foreground flex items-center gap-2">

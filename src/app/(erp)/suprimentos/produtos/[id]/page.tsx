@@ -23,6 +23,7 @@ import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
 import EstadosWipMultiSelect from "@/components/shared/EstadosWipMultiSelect";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
 import DatePicker from "@/components/shared/DatePicker";
+import EscClose from "@/components/shared/EscClose";
 import MovimentacoesDiariasChart from "@/components/suprimentos/MovimentacoesDiariasChart";
 import { cn, formatBRL, decimalToNumber, formatDate } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -1513,6 +1514,7 @@ export default function ProdutoDetailPage() {
             {/* ── Fornecedor dialog ──────────────────────────────────────────── */}
             {showAddForn && typeof window !== "undefined" && createPortal(
               <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+                <EscClose onClose={() => setShowAddForn(false)} />
                 <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-foreground text-base">Vincular Fornecedor</h3>
@@ -3058,6 +3060,7 @@ export default function ProdutoDetailPage() {
           const saidas = doDia.filter((m) => m.tipo === "SAIDA");
           return (
             <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => setMovDiaDetalhe(null)}>
+              <EscClose onClose={() => setMovDiaDetalhe(null)} />
               <div className="bg-card rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between p-6 pb-4">
                   <div>
@@ -3098,6 +3101,7 @@ export default function ProdutoDetailPage() {
       {/* ── Edit movimentação dialog ─────────────────────────────────────── */}
       {editMov && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setEditMov(null)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -3281,6 +3285,7 @@ export default function ProdutoDetailPage() {
       {/* ── Delete movimentação confirm dialog ───────────────────────────────── */}
       {deleteMovConfirm && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => { if (!deletingMovId) setDeleteMovConfirm(null); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0 mt-0.5">
@@ -3326,6 +3331,7 @@ export default function ProdutoDetailPage() {
       {/* ── Modal: Inserir Saldo Inicial ──────────────────────────────── */}
       {showSaldoDialog && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowSaldoDialog(false)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-lg space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -3518,6 +3524,7 @@ export default function ProdutoDetailPage() {
       {/* ── Modal: Nova Necessidade de Compra ──────────────────────── */}
       {showNecessidade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowNecessidade(false)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -3603,6 +3610,7 @@ export default function ProdutoDetailPage() {
         <>
           <div className="fixed inset-0 z-[9200] bg-black/40 backdrop-blur-sm" onClick={() => setUnidadeModal(null)} />
           <div className="fixed inset-0 z-[9201] flex items-center justify-center p-4 pointer-events-none">
+            <EscClose onClose={() => setUnidadeModal(null)} />
             <div
               className="w-full max-w-sm bg-card rounded-2xl shadow-2xl border border-border overflow-hidden pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
@@ -3714,6 +3722,7 @@ export default function ProdutoDetailPage() {
         <>
           <div className="fixed inset-0 z-[9300] bg-black/40 backdrop-blur-sm" onClick={() => setConfirmPrincipal(null)} />
           <div className="fixed inset-0 z-[9301] flex items-center justify-center p-4 pointer-events-none">
+            <EscClose onClose={() => setConfirmPrincipal(null)} />
             <div
               className="w-full max-w-sm bg-card rounded-2xl shadow-2xl border border-border overflow-hidden pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
@@ -3752,6 +3761,7 @@ export default function ProdutoDetailPage() {
 
       {showMovDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowMovDialog(false)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-md space-y-5">
             {/* Header */}
             <div className="flex items-center justify-between">

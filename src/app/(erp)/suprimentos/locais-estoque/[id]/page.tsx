@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import EscClose from "@/components/shared/EscClose";
 import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL } from "@/lib/utils";
@@ -816,6 +817,7 @@ export default function LocalEstoqueDetailPage() {
       {/* ── Delete local confirm ──────────────────────────────────────────────── */}
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteLoading) setShowDelete(false); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
@@ -847,6 +849,7 @@ export default function LocalEstoqueDetailPage() {
       {/* ── Delete endereço confirm ───────────────────────────────────────────── */}
       {deleteEndId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteEndLoading) setDeleteEndId(null); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

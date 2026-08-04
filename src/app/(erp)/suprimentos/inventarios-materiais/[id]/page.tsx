@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import EscClose from "@/components/shared/EscClose";
 import DatePicker from "@/components/shared/DatePicker";
 import { Autoria } from "@/components/shared/Autoria";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -380,6 +381,7 @@ export default function InventarioDetailPage() {
 
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <EscClose onClose={() => setShowDelete(false)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-80 space-y-4">
             <h3 className="text-base font-semibold text-foreground">Excluir inventário?</h3>
             <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita.</p>

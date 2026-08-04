@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useColumnOrder } from "@/lib/use-column-order";
 import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
+import EscClose from "@/components/shared/EscClose";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -167,6 +168,7 @@ function FilialModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <EscClose onClose={onClose} />
       <div className="bg-card rounded-2xl shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
@@ -510,6 +512,7 @@ export default function FiliaisPage() {
 
       {deleteItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteLoading) setDeleteItem(null); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

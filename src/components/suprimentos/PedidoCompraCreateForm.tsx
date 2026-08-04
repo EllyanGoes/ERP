@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -943,6 +944,7 @@ export default function PedidoCompraCreateForm() {
       {/* ── Popup: novos vínculos fornecedor × produto ───────────────────────── */}
       {vinculoPopup && (
         <div className="fixed inset-0 z-[9200] flex items-center justify-center">
+          <EscClose onClose={() => setVinculoPopup(null)} />
           <div className="absolute inset-0 bg-black/40" onClick={() => setVinculoPopup(null)} />
           <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
             {/* Header */}
@@ -986,6 +988,15 @@ export default function PedidoCompraCreateForm() {
       {/* ── Popup de escolha (vincular a uma Cotação ou avulso) ───────────── */}
       {choiceOpen && (
         <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/40 p-4">
+          <EscClose
+            onClose={() => {
+              // Mesmo comportamento do X do cabeçalho: no passo de escolha
+              // fecha a página; no passo de vínculo volta um nível.
+              if (choiceStep === "choose") closeCurrentTab();
+              else if (selectedSc) setSelectedSc(null);
+              else { setChoiceStep("choose"); setScSearch(""); }
+            }}
+          />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">

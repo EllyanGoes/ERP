@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePersistedFilters } from "@/lib/use-persisted-filters";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import { useSession } from "@/lib/session-context";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
 import DateRangePicker, { DateRange } from "@/components/shared/DateRangePicker";
@@ -979,6 +980,7 @@ export default function MovimentacoesPage() {
       {/* ── Modal Editar Movimentação ─────────────────────────────────────────── */}
       {editMov && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setEditMov(null)} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-sm">
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
               <div>
@@ -1029,6 +1031,7 @@ export default function MovimentacoesPage() {
       {/* ── Modal Excluir Movimentação ────────────────────────────────────────── */}
       {deleteMov && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => { if (!deleteMovLoading) setDeleteMov(null); }} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
@@ -1060,6 +1063,7 @@ export default function MovimentacoesPage() {
       {/* ── Modal Nova Movimentação ────────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowModal(false)} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border shrink-0">

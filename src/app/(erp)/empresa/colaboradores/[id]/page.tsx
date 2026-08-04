@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn, formatDate, formatBRL } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
+import EscClose from "@/components/shared/EscClose";
 import {
   Pencil, Trash2, Loader2, AlertTriangle, Save, X, Phone, UserCheck, Share2, Search,
 } from "lucide-react";
@@ -969,6 +970,7 @@ export default function ColaboradorDetailPage() {
       {/* Delete modal */}
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteLoading) setShowDelete(false); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

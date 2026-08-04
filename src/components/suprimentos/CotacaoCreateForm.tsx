@@ -12,6 +12,7 @@ import { useCreateDrawer, useVoltarCriacao } from "@/components/shared/CreateDra
 import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
 import DatePicker from "@/components/shared/DatePicker";
+import EscClose from "@/components/shared/EscClose";
 import {
   CheckSquare, Square, ChevronRight, Loader2, Search,
   X, Building2, AlertTriangle, SlidersHorizontal, EyeOff,
@@ -874,6 +875,7 @@ export default function CotacaoCreateForm() {
       {/* ── Item-in-cotação warning modal ─────────────────────────────────── */}
       {showItemWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowItemWarning(false)} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg p-6">
             <div className="flex items-start gap-3 mb-4">
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
@@ -912,6 +914,7 @@ export default function CotacaoCreateForm() {
       {/* ── Confirm modal ────────────────────────────────────────────────── */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => { if (!saving) setShowConfirm(false); }} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-start justify-between mb-4">
               <h2 className="text-base font-semibold text-foreground">Solicitação de cotação</h2>

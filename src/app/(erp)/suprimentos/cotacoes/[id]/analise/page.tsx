@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import EscClose from "@/components/shared/EscClose";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { Loader2, ChevronDown, ChevronRight, BarChart3, Sparkles, Search, Download } from "lucide-react";
 
@@ -765,6 +766,7 @@ export default function AnaliseCotacaoPage() {
       {/* Confirm modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <EscClose onClose={() => setShowConfirm(false)} />
           <div className="bg-card rounded-xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Formalizar a cotação</h2>
             <p className="text-muted-foreground mb-6">

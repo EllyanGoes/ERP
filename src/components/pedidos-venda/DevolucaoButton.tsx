@@ -6,6 +6,7 @@ import { Undo2, Loader2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Button } from "@/components/ui/button";
 import ModalPortal from "@/components/shared/ModalPortal";
+import EscClose from "@/components/shared/EscClose";
 import { formatBRL, decimalToNumber, parseDecimal } from "@/lib/utils";
 
 type ItemRow = { id: string; descricao: string; codigo: string; quantidade: number; precoUnitario: number };
@@ -88,6 +89,7 @@ export default function DevolucaoButton({ pedidoVendaId, pedidoNumero, onDone }:
       {open && (
         <ModalPortal>
           <div className="fixed inset-0 z-[9999] flex justify-end bg-black/40" onClick={() => !salvando && setOpen(false)}>
+            <EscClose onClose={() => { if (!salvando) setOpen(false); }} />
             <div className="h-full w-full max-w-xl bg-card shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <h3 className="text-lg font-bold text-foreground">Devolução — {pedidoNumero}</h3>

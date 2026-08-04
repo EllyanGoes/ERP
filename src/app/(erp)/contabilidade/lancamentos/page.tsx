@@ -12,6 +12,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { Loader2, BookText, Plus, Trash2, HelpCircle, X, ShieldCheck, PenLine } from "lucide-react";
 import ModalPortal from "@/components/shared/ModalPortal";
+import EscClose from "@/components/shared/EscClose";
 import BackfillConsistencia from "@/components/contabilidade/BackfillConsistencia";
 
 type Partida = { id: string; tipo: "DEBITO" | "CREDITO"; valor: unknown; conta: { codigo: string; nome: string } };
@@ -96,6 +97,7 @@ export default function LancamentosContabeisPage() {
       {infoAberto && (
         <ModalPortal>
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => setInfoAberto(false)}>
+            <EscClose onClose={() => setInfoAberto(false)} />
             <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start justify-between px-6 py-4 border-b border-border">
                 <div>

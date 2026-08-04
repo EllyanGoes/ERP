@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import PedidoCompraCreateForm from "@/components/suprimentos/PedidoCompraCreateForm";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -1068,6 +1069,7 @@ export default function PedidosCompraPage() {
       {/* ── Confirm dialog (CANCELADO) ─────────────────────────────────────── */}
       {confirmMove && (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center">
+          <EscClose onClose={() => setConfirmMove(null)} />
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirmMove(null)} />
           <div className="relative bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <h3 className="text-base font-semibold text-foreground mb-2">Cancelar pedido?</h3>

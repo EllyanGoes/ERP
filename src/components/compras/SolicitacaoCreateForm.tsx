@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2, ChevronDown, Loader2, Save, X, AlertTriangle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import EscClose from "@/components/shared/EscClose";
 import DatePicker from "@/components/shared/DatePicker";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
@@ -753,6 +754,7 @@ export default function SolicitacaoCreateForm() {
       {/* ── Duplicate Warning Modal ──────────────────────────────────────────── */}
       {showDuplicateWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <EscClose onClose={() => setShowDuplicateWarning(false)} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
             {/* Header */}
             <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-100 bg-warning/10">

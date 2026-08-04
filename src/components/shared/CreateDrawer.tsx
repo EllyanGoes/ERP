@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useDirtyFormContext } from "@/lib/dirty-form-context";
 import { cn } from "@/lib/utils";
+import EscClose from "./EscClose";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CreateDrawer — painel deslizante pela direita para CRIAÇÃO de registros.
@@ -99,7 +100,9 @@ export default function CreateDrawer({
           className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
           onClick={() => handleOpenChange(false)}
           aria-hidden
-        />
+        >
+          <EscClose onClose={() => handleOpenChange(false)} />
+        </div>
       )}
       <Sheet open={open} onOpenChange={handleOpenChange} modal={false}>
         <SheetContent

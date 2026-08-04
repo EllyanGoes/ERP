@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import EscClose from "@/components/shared/EscClose";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Unidade = { id: string; sigla: string; nome: string; ativo: boolean };
@@ -443,6 +444,7 @@ export default function UnidadesPage() {
       {/* ── Modal: Create unit ───────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => setShowCreate(false)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-foreground">Nova Unidade de Medida</h3>
@@ -486,6 +488,7 @@ export default function UnidadesPage() {
       {/* ── Modal: Edit unit ────────────────────────────────────────────────── */}
       {editUnit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => setEditUnit(null)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-foreground">Editar Unidade</h3>
@@ -525,6 +528,7 @@ export default function UnidadesPage() {
       {/* ── Modal: Delete unit ──────────────────────────────────────────────── */}
       {deleteUnit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteLoading) setDeleteUnit(null); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
@@ -551,6 +555,7 @@ export default function UnidadesPage() {
       {/* ── Modal: Delete conversion ────────────────────────────────────────── */}
       {deleteConvId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteConvLoading) setDeleteConvId(null); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

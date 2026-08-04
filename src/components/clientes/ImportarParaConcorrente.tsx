@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Target, Loader2, Building2, Store, HardHat, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import EscClose from "@/components/shared/EscClose";
 
 // Botão "mapear" no detalhe do cliente: abre um diálogo perguntando a categoria
 // (fornecedor / revendedor / construtora / consumidor final) e cria o concorrente
@@ -62,6 +63,7 @@ export default function ImportarParaConcorrente({ clienteId }: { clienteId: stri
 
       {aberto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !loading && setAberto(false)}>
+          <EscClose onClose={() => { if (!loading) setAberto(false); }} />
           <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><Target className="h-4 w-4 text-fuchsia-600" /> Mapear na Inteligência Comercial</h3>

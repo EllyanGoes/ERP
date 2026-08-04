@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import CotacaoCreateForm from "@/components/suprimentos/CotacaoCreateForm";
 import { Button } from "@/components/ui/button";
@@ -779,6 +780,7 @@ export default function CotacoesPage() {
       {/* ── Delete modal ── */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleting) setDeleteTarget(null); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

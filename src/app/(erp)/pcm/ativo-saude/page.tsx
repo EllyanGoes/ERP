@@ -5,6 +5,7 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
 import DetalheOs from "@/components/pcm/DetalheOs";
@@ -323,6 +324,7 @@ export default function AtivoSaudePage() {
           instantâneo. "Período completo" mostra todos empilhados. */}
       {timelineAtivo && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-3" onClick={() => setTimelineAtivo(null)}>
+          <EscClose onClose={() => setTimelineAtivo(null)} />
           <div className="bg-card rounded-2xl shadow-2xl w-[96vw] max-w-[1600px] h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
               <div className="min-w-0">

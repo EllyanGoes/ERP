@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { cn, formatDate } from "@/lib/utils";
 import { useRelatorioCache } from "@/lib/use-relatorio-cache";
@@ -148,6 +149,7 @@ export default function QuadroOsPage() {
       {/* ── Popup de detalhe da O.S. ─────────────────────────────────────────── */}
       {detalhe && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setDetalhe(null)}>
+          <EscClose onClose={() => setDetalhe(null)} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 min-w-0">

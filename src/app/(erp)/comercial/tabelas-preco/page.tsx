@@ -10,6 +10,7 @@ import { Plus, Search, Tag, CheckCircle2, XCircle, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import EmpresaTag from "@/components/shared/EmpresaTag";
+import EscClose from "@/components/shared/EscClose";
 
 type TabelaPreco = {
   id: string;
@@ -201,6 +202,7 @@ export default function TabelasPrecoPage() {
       {/* Create modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowCreate(false)} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-md">
             <div className="px-6 pt-5 pb-4 border-b border-border">
               <h2 className="font-semibold text-foreground">Nova Tabela de Preço</h2>

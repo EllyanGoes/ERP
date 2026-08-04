@@ -5,6 +5,7 @@ import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
 import { useParams, useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -773,6 +774,7 @@ export default function NovaParticipantePage() {
       {/* ── Modal Nova Condição de Pagamento ─────────────────────────────────── */}
       {showNovaCondicao && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowNovaCondicao(false)} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-sm flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">

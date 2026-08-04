@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CANAIS_AQUISICAO, labelCanal, ehCanalLocal } from "@/lib/canais-aquisicao";
+import EscClose from "@/components/shared/EscClose";
 import {
   Plus, Trash2, Loader2, X, Share2, Pencil, ExternalLink, CheckCircle2,
   MessageCircle, Send, Camera, ThumbsUp, Globe, Mail, Phone, Store, MapPin, ShoppingBag, Users, Link2,
@@ -221,6 +222,7 @@ export default function ConcorrenteCanais({
       {/* Popup novo/editar canal — 3 colunas: Tipo · Formulário · Mapa */}
       {editando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditando(null)}>
+          <EscClose onClose={() => setEditando(null)} />
           <div className={cn("w-full rounded-xl border border-border bg-card shadow-xl max-h-[92vh] flex flex-col", temCol3 ? "max-w-6xl" : "max-w-3xl")} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <h3 className="text-base font-semibold text-foreground flex items-center gap-2"><IconeCanal tipo={editando.tipo} /> {editando.id ? "Editar canal" : "Novo canal"}</h3>

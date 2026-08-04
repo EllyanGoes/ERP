@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { CreateModalArgs } from "./ComboboxWithCreate";
+import EscClose from "./EscClose";
 
 // ── Shell ─────────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,7 @@ function DialogShell({
 }) {
   return createPortal(
     <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/40 p-4">
+      <EscClose onClose={onClose} />
       <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">

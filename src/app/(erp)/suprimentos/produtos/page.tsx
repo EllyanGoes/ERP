@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import FilterDropdown, { FilterOption } from "@/components/shared/FilterDropdown";
+import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus, Search, X, Loader2, AlertTriangle, Trash2, MoreHorizontal } from "lucide-react";
@@ -242,6 +243,7 @@ export default function ProdutosPage() {
         {/* Delete confirmation dialog */}
         {deleteId && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <EscClose onClose={() => { if (!deleting) { setDeleteId(null); setDeleteError(null); } }} />
             <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

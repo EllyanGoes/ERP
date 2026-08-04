@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import EscClose from "@/components/shared/EscClose";
 
 type DirtyCtx = {
   isDirty: boolean;
@@ -97,6 +98,7 @@ export function DirtyFormProvider({ children }: { children: React.ReactNode }) {
 
   const modal = showModal && mounted ? createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+      <EscClose onClose={() => { setShowModal(false); pendingRef.current = null; }} />
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <div className="flex items-start gap-4 mb-6">
           <div className="text-5xl select-none leading-none">⚠️</div>

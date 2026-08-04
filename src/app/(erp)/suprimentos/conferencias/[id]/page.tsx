@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1071,6 +1072,7 @@ export default function DocumentoEntradaDetailPage() {
       {/* ── Local de Estoque — pop-up de aviso ──────────────────────────────── */}
       {showLocalAlert && (
         <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30">
+          <EscClose onClose={() => setLocalAlertDismissed(true)} />
           <div className="bg-card rounded-2xl shadow-2xl border border-danger/30 max-w-md w-full mx-4 p-6">
             <div className="flex items-start gap-4">
               <div className="shrink-0 w-10 h-10 bg-danger/15 rounded-full flex items-center justify-center">
@@ -1115,6 +1117,7 @@ export default function DocumentoEntradaDetailPage() {
 
         return (
           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/30">
+            <EscClose onClose={() => setShowDivergenciaConfirm(false)} />
             <div className="bg-card rounded-2xl shadow-2xl border border-warning/30 max-w-lg w-full mx-4 p-6">
               <div className="flex items-start gap-4 mb-4">
                 <div className="shrink-0 w-10 h-10 bg-warning/15 rounded-full flex items-center justify-center">

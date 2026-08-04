@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import EscClose from "@/components/shared/EscClose";
 import { MapPin, Package, Plus, Pencil, Trash2, Loader2, AlertTriangle, X, Check, Save, Building2, GitBranch, Scale, Layers } from "lucide-react";
 import { formatBRL, cn } from "@/lib/utils";
 import { useSession } from "@/lib/session-context";
@@ -481,6 +482,7 @@ export default function LocaisEstoquePage() {
       {/* ── Create Modal ───────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => setShowCreate(false)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -551,6 +553,7 @@ export default function LocaisEstoquePage() {
       {/* ── Edit Modal ─────────────────────────────────────────────────── */}
       {editItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => setEditItem(null)} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-foreground">Editar Local de Estoque</h3>
@@ -623,6 +626,7 @@ export default function LocaisEstoquePage() {
       {/* ── Delete Modal ───────────────────────────────────────────────── */}
       {deleteItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteLoading) setDeleteItem(null); }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">

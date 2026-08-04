@@ -7,6 +7,7 @@ import { MoreHorizontal, Pencil, Trash2, Loader2 } from "lucide-react";
 import { useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
+import EscClose from "@/components/shared/EscClose";
 
 type Props = {
   id: string;
@@ -163,6 +164,7 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
       {/* Confirm delete modal */}
       {mounted && showConfirm && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => { if (!deleting) setShowConfirm(false); }} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-9 h-9 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
@@ -210,6 +212,7 @@ export default function MinutaActionsMenu({ id, numero, status }: Props) {
       {/* Confirm edit modal */}
       {mounted && showEditConfirm && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowEditConfirm(false)} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <div className="flex items-start gap-3 mb-4">
               <div className="w-9 h-9 rounded-full bg-info/15 flex items-center justify-center shrink-0">

@@ -7,6 +7,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, AlertTriangle, Users, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import EscClose from "@/components/shared/EscClose";
 
 type PerfilAcesso = {
   id: string;
@@ -55,6 +56,7 @@ export default function PerfisPage() {
       {/* Delete modal */}
       {deleteId && typeof window !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => { if (!deleting) { setDeleteId(null); setDeleteError(""); } }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm text-center space-y-4">
             <div className="flex justify-center">
               <div className="w-12 h-12 rounded-full bg-danger/15 flex items-center justify-center">

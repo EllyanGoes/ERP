@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -304,6 +305,7 @@ export default function EstoqueTerceirosPage() {
       {/* ── Modal de reclassificação ─────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4" onClick={() => !salvando && setShowModal(false)}>
+          <EscClose onClose={() => { if (!salvando) setShowModal(false); }} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">

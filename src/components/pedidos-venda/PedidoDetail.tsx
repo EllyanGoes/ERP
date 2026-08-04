@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ModalPortal from "@/components/shared/ModalPortal";
+import EscClose from "@/components/shared/EscClose";
 import StatusDimBadges, { EntregaBadge, FinanceiroBadge } from "@/components/pedidos-venda/StatusDimBadges";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Autoria } from "@/components/shared/Autoria";
@@ -1282,6 +1283,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setBalcaoOpen(false)}
         >
+          <EscClose onClose={() => { if (!loading) setBalcaoOpen(false); }} />
           <div
             className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
@@ -1332,6 +1334,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setRecebOpen(false)}
         >
+          <EscClose onClose={() => { if (!loading) setRecebOpen(false); }} />
           <div
             className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
@@ -1368,6 +1371,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setSaidaOpen(false)}
         >
+          <EscClose onClose={() => { if (!loading) setSaidaOpen(false); }} />
           <div
             className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
@@ -1446,6 +1450,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
 
       {crAlvo && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => !loading && setCrAlvo(null)}>
+          <EscClose onClose={() => { if (!loading) setCrAlvo(null); }} />
           <div className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
             <div>
               <h3 className="font-bold text-foreground">Receber título {crAlvo.numero}</h3>
@@ -1491,6 +1496,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setConcluirOpen(false)}
         >
+          <EscClose onClose={() => { if (!loading) setConcluirOpen(false); }} />
           <div
             className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
@@ -1565,6 +1571,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => !loading && setExcluirOpen(false)}
         >
+          <EscClose onClose={() => { if (!loading) setExcluirOpen(false); }} />
           <div
             className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
@@ -1597,6 +1604,7 @@ export default function PedidoDetail({ pedido, itensComodato, movimentacoesComod
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
           onClick={() => setBlockModal(null)}
         >
+          <EscClose onClose={() => setBlockModal(null)} />
           <div
             className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}

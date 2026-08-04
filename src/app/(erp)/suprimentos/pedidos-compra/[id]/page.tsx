@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1143,6 +1144,7 @@ async function openWAModal() {
       {/* ── WA Modal ─────────────────────────────────────────────────────────── */}
       {showWAModal && pedido && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowWAModal(false)} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
 
             {/* Header */}
@@ -1279,6 +1281,7 @@ async function openWAModal() {
       {cpAlvo && (
         <ModalPortal>
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={() => !actioning && setCpAlvo(null)}>
+            <EscClose onClose={() => { if (!actioning) setCpAlvo(null); }} />
             <div className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4" onClick={(e) => e.stopPropagation()}>
               <div>
                 <h3 className="font-bold text-foreground">Pagar título {cpAlvo.numero}</h3>

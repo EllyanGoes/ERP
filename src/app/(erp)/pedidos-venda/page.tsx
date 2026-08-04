@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "rea
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
+import EscClose from "@/components/shared/EscClose";
 import NovoPedidoButton from "@/components/pedidos-venda/NovoPedidoButton";
 import StatusBadge from "@/components/shared/StatusBadge";
 import StatusDimBadges from "@/components/pedidos-venda/StatusDimBadges";
@@ -1119,6 +1120,7 @@ export default function PedidosVendaPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setBlockModal(null)}
         >
+          <EscClose onClose={() => setBlockModal(null)} />
           <div
             className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
@@ -1171,6 +1173,7 @@ export default function PedidosVendaPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onClick={() => { if (!deleting) setDelTarget(null); }}
         >
+          <EscClose onClose={() => { if (!deleting) setDelTarget(null); }} />
           <div
             className="bg-card rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4"
             onClick={(e) => e.stopPropagation()}
