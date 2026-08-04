@@ -25,6 +25,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { Loader2, ChevronDown, Save, X, Plus, Paperclip } from "lucide-react";
 import AnexosSection from "@/components/shared/AnexosSection";
+import EscClose from "@/components/shared/EscClose";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ItemForm = {
@@ -377,6 +378,10 @@ export default function PropostaForm({
 
   // ── Save ──────────────────────────────────────────────────────────────────
   async function handleSave() {
+    if (!condicoesPagamento) {
+      setSaveError("Informe a condição de pagamento da proposta.");
+      return;
+    }
     setSaving(true);
     setSaveError("");
     try {
@@ -497,7 +502,7 @@ export default function PropostaForm({
         </div>
       )}
 
-      <div className={cn("space-y-6", mode === "page" ? "px-8 pb-8 max-w-5xl" : "px-6 py-5")}>
+      <div className={cn("space-y-6", mode === "page" ? "px-8 pb-8 max-w-7xl" : "px-6 py-5")}>
         {saveError && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{saveError}</div>
         )}
@@ -844,7 +849,7 @@ export default function PropostaForm({
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Condição pagamento</Label>
+                <Label className="text-xs text-muted-foreground">Condição pagamento <span className="text-red-500">*</span></Label>
                 <button
                   type="button"
                   onClick={() => { setShowNovaCondicao(true); setNovaCondicaoNome(""); setNovaCondicaoDesc(""); setErroCondicao(""); }}
@@ -858,7 +863,7 @@ export default function PropostaForm({
                 value={condicoesPagamento || "__none__"}
                 onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
               >
-                <SelectTrigger className="h-9 text-sm">
+                <SelectTrigger className={cn("h-9 text-sm", !condicoesPagamento && saveError ? "border-red-400" : "")}>
                   <SelectValue placeholder="Selecionar condição..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -903,6 +908,7 @@ export default function PropostaForm({
       {/* ── Modal Documentos da Proposta (anexos) ────────────────────────────── */}
       {showAnexos && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowAnexos(false)} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[80vh]">
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
               <div className="flex items-center gap-2">
@@ -930,6 +936,7 @@ export default function PropostaForm({
       {/* ── Modal Nova Condição de Pagamento ─────────────────────────────────── */}
       {showNovaCondicao && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <EscClose onClose={() => setShowNovaCondicao(false)} />
           <div className="bg-card rounded-2xl shadow-xl w-full max-w-sm flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">

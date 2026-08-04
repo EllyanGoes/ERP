@@ -16,6 +16,19 @@ export async function PATCH(
     frete, tipoFrete, desconto, vrDesconto, despesas, seguro,
   } = body;
 
+  // Registrar a proposta (RESPONDIDA) exige condição de pagamento — usa a do
+  // body se veio, senão a já gravada.
+  if (status === "RESPONDIDA") {
+    const atual = await prisma.cotacaoFornecedor.findUnique({
+      where: { id: params.fornId },
+      select: { condicoesPagamento: true },
+    });
+    const efetiva = condicoesPagamento !== undefined ? condicoesPagamento : atual?.condicoesPagamento;
+    if (!efetiva) {
+      return NextResponse.json({ error: "Informe a condição de pagamento da proposta." }, { status: 400 });
+    }
+  }
+
   const updateData: Record<string, unknown> = {};
   if (status !== undefined) updateData.status = status;
   if (prazoEntregaDias !== undefined) updateData.prazoEntregaDias = prazoEntregaDias ? Number(prazoEntregaDias) : null;

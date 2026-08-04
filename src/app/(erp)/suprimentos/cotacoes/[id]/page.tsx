@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import PropostaForm from "@/components/suprimentos/PropostaForm";
+import EscClose from "@/components/shared/EscClose";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type FornecedorOption = {
@@ -1033,6 +1034,7 @@ export default function CotacaoDetailPage() {
       {/* ── Edit cotação modal ─────────────────────────────────────────────────── */}
       {showEditModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <EscClose onClose={() => setShowEditModal(false)} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
@@ -1147,6 +1149,7 @@ export default function CotacaoDetailPage() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <EscClose onClose={() => setShowAddModal(false)} />
             <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
               {/* Header */}
               <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
@@ -1275,7 +1278,8 @@ export default function CotacaoDetailPage() {
             if (e.target === e.currentTarget) setPropostaTarget(null);
           }}
         >
-          <div className="bg-background rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto">
+          <EscClose onClose={() => setPropostaTarget(null)} />
+          <div className="bg-background rounded-2xl shadow-2xl w-full max-w-7xl max-h-[92vh] overflow-y-auto">
             <PropostaForm
               cotacaoId={id}
               cfId={propostaTarget}
@@ -1290,6 +1294,7 @@ export default function CotacaoDetailPage() {
       {/* ── History modal ──────────────────────────────────────────────────────── */}
       {historicoTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <EscClose onClose={() => setHistoricoTarget(null)} />
           <div className="bg-card rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
@@ -1386,6 +1391,7 @@ export default function CotacaoDetailPage() {
       {/* ── Modal: sem proposta para analisar ─────────────────────────────────── */}
       {showSemPropostaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <EscClose onClose={() => setShowSemPropostaModal(false)} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm flex flex-col">
             <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center gap-3">
               <div className="w-12 h-12 rounded-full bg-warning/15 flex items-center justify-center">
@@ -1416,6 +1422,7 @@ export default function CotacaoDetailPage() {
       {/* Modal — Excluir cotação (admin) */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
+          <EscClose onClose={() => { if (!deleteLoading) setShowDeleteModal(false); }} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md mx-4">
             <div className="px-6 py-5">
               <p className="font-semibold text-foreground">Excluir cotação {cotacao.numero}?</p>
