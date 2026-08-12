@@ -69,6 +69,9 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
     doc.text(`Melhor preço: ${nomeForn(vencedor.fornecedor)}${vencedor.fornecedor.cpfCnpj ? ` · CNPJ ${vencedor.fornecedor.cpfCnpj}` : ""}`, M, y + 4.5);
     y += 4.5;
   }
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...CINZA_TXT);
+  doc.text("Cada célula mostra o preço unitário e, abaixo, o subtotal do item (qtd × unitário).", M, y + 4);
+  y += 4;
 
   // ── Matriz: itens nas linhas, um fornecedor por coluna ─────────────────────
   type ItemInfo = { codigo: string; descricao: string; um: string; qtd: number };
@@ -111,7 +114,9 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
       const preco = it ? decimalToNumber(it.precoUnitario) : 0;
       const naoCota = it?.situacao === "NAO_CONSIDERA";
       flags.push(!naoCota && preco > 0 && preco === menorPreco.get(itemId));
-      row.push(naoCota ? "Não cota" : preco > 0 ? brl(preco) : "—");
+      // Célula: preço unitário + SUBTOTAL do item (qtd × unitário) na 2ª linha.
+      const sub = it ? (decimalToNumber(it.subtotal) || preco * decimalToNumber(it.quantidade)) : 0;
+      row.push(naoCota ? "Não cota" : preco > 0 ? `${brl(preco)}\nSubt. ${brl(sub)}` : "—");
     });
     ehMenorFlag.push(flags);
     return row;
