@@ -17,6 +17,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     select: {
       id: true, nome: true, descricao: true, cor: true, icone: true,
       visibilidade: true, status: true, donoId: true,
+      // Sem estes dois o diálogo de configurações abre com "Geral"/"Em
+      // andamento" e o salvar SOBRESCREVE o que estava gravado.
+      empresaId: true, situacao: true,
       dono: { select: { id: true, nome: true } },
       membros: {
         select: { id: true, usuarioId: true, papel: true, favorito: true, usuario: { select: { id: true, nome: true, email: true } } },
