@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import EscClose from "@/components/shared/EscClose";
 import { useSession } from "@/lib/session-context";
 import { Loader2, X, Trash2, Archive, Plus, Shield, ShieldOff } from "lucide-react";
-import { AvatarUsuario } from "./comum";
+import { AvatarUsuario, SITUACOES_PROJETO } from "./comum";
 import SelectMenu from "@/components/shared/SelectMenu";
 import { ProjetoBoardDTO, CORES_PROJETO } from "./tipos";
 
@@ -33,6 +33,7 @@ export default function ProjetoConfigDialog({
   const [publico, setPublico] = useState(board.visibilidade === "PUBLICO");
   // Projeto por empresa (ou geral) — mesmas opções do criar.
   const [empresaId, setEmpresaId] = useState(board.empresaId ?? "");
+  const [situacao, setSituacao] = useState(board.situacao ?? "EM_ANDAMENTO");
   const empresasSessao = user?.empresas ?? [];
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
@@ -40,6 +41,16 @@ export default function ProjetoConfigDialog({
   const [novoMembro, setNovoMembro] = useState("");
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
+
+  // O campo Nome vinha focado com o texto todo selecionado ao abrir (foco
+  // automático do primeiro input) — um Enter/tecla apagaria o nome sem querer.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const ativo = document.activeElement as HTMLElement | null;
+      if (ativo && ativo.tagName === "INPUT") ativo.blur();
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     fetch("/api/projetos/usuarios")
@@ -54,7 +65,7 @@ export default function ProjetoConfigDialog({
     const res = await fetch(`/api/projetos/${board.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nome.trim(), descricao: descricao.trim() || null, cor, visibilidade: publico ? "PUBLICO" : "PRIVADO", empresaId: empresaId || null }),
+      body: JSON.stringify({ nome: nome.trim(), descricao: descricao.trim() || null, cor, visibilidade: publico ? "PUBLICO" : "PRIVADO", empresaId: empresaId || null, situacao }),
     }).catch(() => null);
     setSalvando(false);
     if (!res?.ok) {
@@ -149,6 +160,16 @@ export default function ProjetoConfigDialog({
             <input type="checkbox" checked={publico} onChange={(e) => setPublico(e.target.checked)} className="rounded" />
             Público — qualquer pessoa com o módulo pode ver (só membros editam)
           </label>
+
+          {/* Situação de andamento (badge da home/quadro) */}
+          <div className="space-y-1.5">
+            <Label>Situação</Label>
+            <SelectMenu
+              value={situacao}
+              onChange={setSituacao}
+              options={Object.entries(SITUACOES_PROJETO).map(([k, v]) => ({ value: k, label: v.label }))}
+            />
+          </div>
 
           {/* Empresa do projeto (ou Geral) — só p/ quem enxerga 2+ empresas */}
           {empresasSessao.length > 1 && (

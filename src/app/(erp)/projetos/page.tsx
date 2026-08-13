@@ -12,8 +12,9 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2, MoreHorizontal, ExternalLink, Trash2, LayoutGrid, List, Settings2 } from "lucide-react";
-import { AvatarUsuario } from "@/components/projetos/comum";
-import { ProjetoHomeDTO, CORES_PROJETO } from "@/components/projetos/tipos";
+import { AvatarUsuario, SituacaoBadge } from "@/components/projetos/comum";
+import { ProjetoHomeDTO, CORES_PROJETO, ProjetoBoardDTO } from "@/components/projetos/tipos";
+import ProjetoConfigDialog from "@/components/projetos/ProjetoConfigDialog";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import SelectMenu from "@/components/shared/SelectMenu";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -76,6 +77,21 @@ export default function ProjetosHomePage() {
     } catch { /* ignore */ }
     load(temCache);
   }, [load]);
+
+  // Configurações direto da home (menu ⋯): abre o popup aqui mesmo, sem
+  // navegar p/ o quadro. Busca o payload completo (membros etc.) sob demanda.
+  const [configBoard, setConfigBoard] = useState<ProjetoBoardDTO | null>(null);
+  async function abrirConfig(projetoId: string) {
+    const res = await fetch(`/api/projetos/${projetoId}`).catch(() => null);
+    if (res?.ok) setConfigBoard((await res.json()).data);
+  }
+  async function recarregarConfig() {
+    load(true);
+    if (configBoard) {
+      const res = await fetch(`/api/projetos/${configBoard.id}`).catch(() => null);
+      if (res?.ok) setConfigBoard((await res.json()).data);
+    }
+  }
 
   async function abrirCreate() {
     setNovoNome(""); setNovaDescricao(""); setNovaCor(CORES_PROJETO[0]);
@@ -211,7 +227,7 @@ export default function ProjetosHomePage() {
               <span role="button" onClick={(e) => { toggleFavorito(p, e); setMenuProjeto(null); }} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">
                 <Star className="w-3.5 h-3.5" /> {p.favorito ? "Remover dos favoritos" : "Favoritar"}
               </span>
-              <span role="button" onClick={() => router.push(`/projetos/${p.id}?config=1`)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">
+              <span role="button" onClick={() => abrirConfig(p.id)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">
                 <Settings2 className="w-3.5 h-3.5" /> Configurações
               </span>
               {dono && (
@@ -255,18 +271,17 @@ export default function ProjetosHomePage() {
             <MenuAcoes p={p} />
           </div>
           {p.descricao && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.descricao}</p>}
-          {/* Tag da empresa (ou "Geral") — só faz sentido p/ quem vê 2+ empresas. */}
-          {multiEmpresa && (
-            <div className="mt-2">
-              {p.empresaId ? (
-                <EmpresaTag empresaId={p.empresaId} compact={false} />
-              ) : (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground text-[10px] font-medium">
-                  <Users className="w-3 h-3" /> Geral
-                </span>
-              )}
-            </div>
-          )}
+          {/* Situação + tag da empresa (ou "Geral" p/ quem vê 2+ empresas). */}
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            <SituacaoBadge situacao={p.situacao} small />
+            {multiEmpresa && (p.empresaId ? (
+              <EmpresaTag empresaId={p.empresaId} compact={false} />
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground text-[10px] font-medium">
+                <Users className="w-3 h-3" /> Geral
+              </span>
+            ))}
+          </div>
           <div className="flex items-center justify-between mt-3">
             <div className="flex -space-x-1.5">
               {p.membros.slice(0, 4).map((m) => <AvatarUsuario key={m.id} nome={m.nome} size="sm" />)}
@@ -301,6 +316,7 @@ export default function ProjetosHomePage() {
         <ProgressoProjeto p={p} size={16} />
         <span className="font-medium text-sm text-foreground truncate">{p.nome}</span>
         {p.favorito && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
+        <SituacaoBadge situacao={p.situacao} small />
         {multiEmpresa && (
           p.empresaId
             ? <EmpresaTag empresaId={p.empresaId} />
@@ -513,6 +529,14 @@ export default function ProjetosHomePage() {
             </div>
           </div>
         </div>
+      )}
+      {configBoard && (
+        <ProjetoConfigDialog
+          board={configBoard}
+          onFechar={() => setConfigBoard(null)}
+          onMudou={recarregarConfig}
+          onExcluido={() => { setConfigBoard(null); load(true); }}
+        />
       )}
     </div>
   );
