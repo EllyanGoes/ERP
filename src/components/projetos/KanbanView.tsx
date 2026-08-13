@@ -1,10 +1,11 @@
 "use client";
 
 // Visão Quadro (kanban) — colunas com drag & drop nativo de cartões e colunas.
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Pencil, X, Clock, AlignLeft, Circle, CheckCircle2 } from "lucide-react";
 import EscClose from "@/components/shared/EscClose";
+import { useSession } from "@/lib/session-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,25 +37,47 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
   const [novaColunaNome, setNovaColunaNome] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Edição rápida (lápis no hover ou tecla "e" com o mouse sobre o cartão)
-  const [quickEdit, setQuickEdit] = useState<{ tarefa: TarefaResumoDTO; rect: { top: number; left: number; width: number; right: number } } | null>(null);
+  // Edição rápida (lápis no hover, ou atalhos com o mouse sobre o cartão:
+  // E = editar · M = membros · D = prazo · Espaço = me atribuir/remover)
+  const { user } = useSession();
+  const [quickEdit, setQuickEdit] = useState<{ tarefa: TarefaResumoDTO; rect: { top: number; left: number; width: number; right: number }; submenu?: "membros" | "prazo" } | null>(null);
   const hoverRef = useRef<{ tarefa: TarefaResumoDTO; el: HTMLElement } | null>(null);
+
+  // Espaço (estilo Trello): alterna o USUÁRIO LOGADO como membro do cartão.
+  const toggleMeuMembro = useCallback(async (t: TarefaResumoDTO) => {
+    if (!user) return;
+    const sou = t.membros.some((m) => m.id === user.id);
+    const novos = sou ? t.membros.filter((m) => m.id !== user.id) : [...t.membros, { id: user.id, nome: user.nome }];
+    onAtualizarLocal(t.id, { membros: novos });
+    await fetch(`/api/projetos/tarefas/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ membroIds: novos.map((m) => m.id) }),
+    }).catch(() => onRecarregar());
+  }, [user, onAtualizarLocal, onRecarregar]);
 
   useEffect(() => {
     if (!podeEditar) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key !== "e" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tecla = e.key === " " ? " " : e.key.toLowerCase();
+      if (![" ", "e", "m", "d"].includes(tecla)) return;
       const alvo = e.target as HTMLElement;
       if (alvo.tagName === "INPUT" || alvo.tagName === "TEXTAREA" || alvo.tagName === "SELECT" || alvo.isContentEditable) return;
       const hov = hoverRef.current;
-      if (!hov) return;
+      if (!hov || hov.tarefa.id.startsWith("temp-")) return;
       e.preventDefault();
+      if (tecla === " ") { toggleMeuMembro(hov.tarefa); return; }
       const r = hov.el.getBoundingClientRect();
-      setQuickEdit({ tarefa: hov.tarefa, rect: { top: r.top, left: r.left, width: r.width, right: r.right } });
+      setQuickEdit({
+        tarefa: hov.tarefa,
+        rect: { top: r.top, left: r.left, width: r.width, right: r.right },
+        submenu: tecla === "m" ? "membros" : tecla === "d" ? "prazo" : undefined,
+      });
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [podeEditar]);
+  }, [podeEditar, toggleMeuMembro]);
 
   function abrirQuickEdit(tarefa: TarefaResumoDTO, el: HTMLElement) {
     const r = el.getBoundingClientRect();
@@ -472,6 +495,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
           tarefa={quickEdit.tarefa}
           board={board}
           rect={quickEdit.rect}
+          submenuInicial={quickEdit.submenu ?? null}
           onFechar={() => setQuickEdit(null)}
           onAbrir={() => onAbrirTarefa(quickEdit.tarefa.id)}
           onMudou={onRecarregar}

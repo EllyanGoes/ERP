@@ -53,6 +53,15 @@ export default function ProjetoBoardPage() {
   // Cartão aberto via ?tarefa= (link compartilhável)
   const tarefaAberta = searchParams.get("tarefa");
 
+  // ?config=1 (menu ⋯ da home): abre direto as configurações do projeto.
+  useEffect(() => {
+    if (searchParams.get("config") === "1") {
+      setShowConfig(true);
+      router.replace(`/projetos/${id}`, { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const load = useCallback(async (silencioso = false) => {
     if (!silencioso) setLoading(true);
     try {

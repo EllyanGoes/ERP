@@ -11,7 +11,7 @@ import EscClose from "@/components/shared/EscClose";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2, MoreHorizontal, ExternalLink, Trash2, LayoutGrid, List } from "lucide-react";
+import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2, MoreHorizontal, ExternalLink, Trash2, LayoutGrid, List, Settings2 } from "lucide-react";
 import { AvatarUsuario } from "@/components/projetos/comum";
 import { ProjetoHomeDTO, CORES_PROJETO } from "@/components/projetos/tipos";
 import EmpresaTag from "@/components/shared/EmpresaTag";
@@ -179,6 +179,9 @@ export default function ProjetosHomePage() {
               </span>
               <span role="button" onClick={(e) => { toggleFavorito(p, e); setMenuProjeto(null); }} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">
                 <Star className="w-3.5 h-3.5" /> {p.favorito ? "Remover dos favoritos" : "Favoritar"}
+              </span>
+              <span role="button" onClick={() => router.push(`/projetos/${p.id}?config=1`)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">
+                <Settings2 className="w-3.5 h-3.5" /> Configurações
               </span>
               {dono && (
                 <span role="button" onClick={() => alternarArquivado(p)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">

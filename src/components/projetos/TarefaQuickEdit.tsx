@@ -18,7 +18,7 @@ import { ProjetoBoardDTO, TarefaResumoDTO } from "./tipos";
 type Submenu = null | "membros" | "prazo" | "mover";
 
 export default function TarefaQuickEdit({
-  tarefa, board, rect, onFechar, onAbrir, onMudou,
+  tarefa, board, rect, onFechar, onAbrir, onMudou, submenuInicial = null,
 }: {
   tarefa: TarefaResumoDTO;
   board: ProjetoBoardDTO;
@@ -26,9 +26,11 @@ export default function TarefaQuickEdit({
   onFechar: () => void;
   onAbrir: () => void;
   onMudou: () => void;
+  // Atalhos do board (M = membros, D = prazo) abrem o quick edit já no submenu.
+  submenuInicial?: Submenu;
 }) {
   const [titulo, setTitulo] = useState(tarefa.titulo);
-  const [submenu, setSubmenu] = useState<Submenu>(null);
+  const [submenu, setSubmenu] = useState<Submenu>(submenuInicial);
   const [copiado, setCopiado] = useState(false);
   // Membros do cartão em estado local: o popup de membros (modelo Trello) alterna
   // vários sem fechar — cada clique persiste e atualiza a lista na hora.
@@ -86,10 +88,10 @@ export default function TarefaQuickEdit({
     ? { top: rect.top, right: window.innerWidth - rect.left + 8 }
     : { top: rect.top, left: rect.right + 8 };
 
-  const acoes: Array<{ icone: React.ReactNode; label: string; onClick: () => void; submenu?: Submenu; danger?: boolean }> = [
+  const acoes: Array<{ icone: React.ReactNode; label: string; onClick: () => void; submenu?: Submenu; danger?: boolean; atalho?: string }> = [
     { icone: <CreditCard className="w-3.5 h-3.5" />, label: "Abrir cartão", onClick: () => { onFechar(); onAbrir(); } },
-    { icone: <UserIcon className="w-3.5 h-3.5" />, label: "Alterar membros", onClick: () => setSubmenu(submenu === "membros" ? null : "membros"), submenu: "membros" },
-    { icone: <CalendarDays className="w-3.5 h-3.5" />, label: "Editar prazo", onClick: () => setSubmenu(submenu === "prazo" ? null : "prazo"), submenu: "prazo" },
+    { icone: <UserIcon className="w-3.5 h-3.5" />, label: "Alterar membros", onClick: () => setSubmenu(submenu === "membros" ? null : "membros"), submenu: "membros", atalho: "m" },
+    { icone: <CalendarDays className="w-3.5 h-3.5" />, label: "Editar prazo", onClick: () => setSubmenu(submenu === "prazo" ? null : "prazo"), submenu: "prazo", atalho: "d" },
     { icone: <ArrowRight className="w-3.5 h-3.5" />, label: "Mover", onClick: () => setSubmenu(submenu === "mover" ? null : "mover"), submenu: "mover" },
     { icone: <Copy className="w-3.5 h-3.5" />, label: "Copiar cartão", onClick: copiarCartao },
     { icone: copiado ? <Check className="w-3.5 h-3.5 text-success" /> : <LinkIcon className="w-3.5 h-3.5" />, label: copiado ? "Link copiado!" : "Copiar link", onClick: copiarLink },
@@ -140,7 +142,11 @@ export default function TarefaQuickEdit({
                 a.danger ? "text-danger hover:bg-danger/10" : "text-foreground hover:bg-muted"
               )}
             >
-              {a.icone} {a.label}
+              {a.icone} <span className="flex-1">{a.label}</span>
+              {/* Tag do atalho de teclado (estilo Trello) */}
+              {a.atalho && (
+                <kbd className="px-1.5 py-px rounded bg-muted border border-border text-[10px] font-semibold text-muted-foreground">{a.atalho}</kbd>
+              )}
             </button>
             {submenu === "membros" && a.submenu === "membros" && (() => {
               // Modelo Trello: busca + "Membros do Cartão" (com remover) +
