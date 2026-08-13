@@ -229,7 +229,8 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
               {menuColuna === coluna.id && (
                 <>
                   <div className="fixed inset-0 z-40" onMouseDown={() => setMenuColuna(null)} />
-                  <div className="absolute right-1 top-full mt-1 z-50 w-64 bg-card border border-border rounded-xl shadow-xl text-sm overflow-hidden">
+                  {/* À DIREITA da coluna (não por cima dos cartões), como no Trello. */}
+                  <div className="absolute left-full top-1 ml-1.5 z-50 w-64 bg-card border border-border rounded-xl shadow-xl text-sm overflow-hidden">
                     <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
                       <span className="w-4" />
                       <span className="text-xs font-semibold text-muted-foreground">Ações da lista</span>
