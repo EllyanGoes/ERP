@@ -997,8 +997,10 @@ export default function Sidebar() {
                   <span className="font-semibold text-foreground text-sm">{openModule.label}</span>
                 </div>
 
-                {/* Nav sections */}
-                <nav className="flex-1 overflow-y-auto py-3 px-3">
+                {/* Nav sections — overflow-x escondido: rótulos longos truncam
+                    (ex.: "Engenharia do Pro…") e não podem criar scroll horizontal
+                    na base do menu. */}
+                <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-3">
                   {openModule.sections.map((section) => (
                     <div key={section.kind} className="mb-4">
                       <p className={cn("text-[10px] font-bold uppercase tracking-widest px-2 mb-1", kindStyle[section.kind])}>
