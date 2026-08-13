@@ -785,6 +785,21 @@ export default function Sidebar() {
   useEffect(() => { if (hydrated) localStorage.setItem("sidebar-panel-w", String(panelWidth)); }, [panelWidth, hydrated]);
   useEffect(() => { if (hydrated) localStorage.setItem("sidebar-collapsed", stripCollapsed ? "1" : "0"); }, [stripCollapsed, hydrated]);
 
+  // Janela estreita (Safari costuma abrir ~1200px): painel aberto + conteúdo
+  // não cabem — colapsa o painel automaticamente ao cruzar o limiar.
+  useEffect(() => {
+    const LIMIAR = 1100;
+    let estreitoAnterior = window.innerWidth < LIMIAR;
+    if (estreitoAnterior) setOpenId(null);
+    function aoRedimensionar() {
+      const estreito = window.innerWidth < LIMIAR;
+      if (estreito && !estreitoAnterior) setOpenId(null);
+      estreitoAnterior = estreito;
+    }
+    window.addEventListener("resize", aoRedimensionar);
+    return () => window.removeEventListener("resize", aoRedimensionar);
+  }, []);
+
   // ⌘B shortcut
   useEffect(() => {
     function handler(e: KeyboardEvent) {

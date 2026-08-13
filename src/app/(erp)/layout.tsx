@@ -38,12 +38,12 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
           <div className="flex h-screen bg-background">
             <Sidebar />
             <div
-              className="flex flex-col flex-1 overflow-hidden transition-[margin-left] duration-200"
+              className="flex flex-col flex-1 min-w-0 overflow-hidden transition-[margin-left] duration-200"
               style={{ marginLeft: "var(--sidebar-width, 64px)" }}
             >
               <TabBar />
               <ScrollRestorer />
-              <main id="erp-main" className="flex-1 overflow-y-auto">
+              <main id="erp-main" className="flex-1 min-h-0 overflow-y-auto [&>*]:min-w-0">
                 {children}
               </main>
             </div>

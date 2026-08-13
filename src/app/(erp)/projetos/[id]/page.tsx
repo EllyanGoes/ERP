@@ -126,7 +126,7 @@ export default function ProjetoBoardPage() {
   });
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)]">
+    <div className="flex flex-col h-full min-h-0">
       {/* ── Cabeçalho do quadro ─────────────────────────────────────────── */}
       <div className="px-6 pt-4 pb-3 border-b border-border shrink-0 space-y-3" style={{ borderTopColor: board.cor ?? undefined }}>
         <div className="flex items-center gap-3 flex-wrap">
