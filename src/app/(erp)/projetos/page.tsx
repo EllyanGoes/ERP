@@ -11,9 +11,10 @@ import EscClose from "@/components/shared/EscClose";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search } from "lucide-react";
+import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2 } from "lucide-react";
 import { AvatarUsuario } from "@/components/projetos/comum";
 import { ProjetoHomeDTO, CORES_PROJETO } from "@/components/projetos/tipos";
+import EmpresaTag from "@/components/shared/EmpresaTag";
 
 type UsuarioOption = { id: string; nome: string };
 
@@ -27,6 +28,10 @@ export default function ProjetosHomePage() {
   const [error, setError] = useState("");
   const [aba, setAba] = useState<"ativos" | "arquivados">("ativos");
   const [busca, setBusca] = useState("");
+  // Filtro por empresa: "TODAS" | "GERAL" (sem empresa) | empresaId.
+  const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
+  const empresasSessao = user?.empresas ?? [];
+  const multiEmpresa = empresasSessao.length > 1;
 
   // Novo projeto
   const [showCreate, setShowCreate] = useState(false);
@@ -34,6 +39,7 @@ export default function ProjetosHomePage() {
   const [novaDescricao, setNovaDescricao] = useState("");
   const [novaCor, setNovaCor] = useState(CORES_PROJETO[0]);
   const [novoPublico, setNovoPublico] = useState(false);
+  const [novaEmpresaId, setNovaEmpresaId] = useState(""); // "" = geral (sem empresa)
   const [novosMembros, setNovosMembros] = useState<Set<string>>(new Set());
   const [usuarios, setUsuarios] = useState<UsuarioOption[]>([]);
   const [salvando, setSalvando] = useState(false);
@@ -56,7 +62,7 @@ export default function ProjetosHomePage() {
 
   async function abrirCreate() {
     setNovoNome(""); setNovaDescricao(""); setNovaCor(CORES_PROJETO[0]);
-    setNovoPublico(false); setNovosMembros(new Set()); setCreateError("");
+    setNovoPublico(false); setNovaEmpresaId(""); setNovosMembros(new Set()); setCreateError("");
     setShowCreate(true);
     if (usuarios.length === 0) {
       try {
@@ -79,6 +85,7 @@ export default function ProjetosHomePage() {
           descricao: novaDescricao.trim() || null,
           cor: novaCor,
           visibilidade: novoPublico ? "PUBLICO" : "PRIVADO",
+          empresaId: novaEmpresaId || null,
           membroIds: Array.from(novosMembros),
         }),
       });
@@ -105,7 +112,11 @@ export default function ProjetosHomePage() {
 
   const visiveis = projetos
     .filter((p) => (aba === "ativos" ? p.status === "ATIVO" : p.status === "ARQUIVADO"))
-    .filter((p) => !busca || p.nome.toLowerCase().includes(busca.toLowerCase()));
+    .filter((p) => !busca || p.nome.toLowerCase().includes(busca.toLowerCase()))
+    .filter((p) =>
+      filtroEmpresa === "TODAS" ? true
+      : filtroEmpresa === "GERAL" ? !p.empresaId
+      : p.empresaId === filtroEmpresa);
   const favoritos = visiveis.filter((p) => p.favorito);
   const meus = visiveis.filter((p) => !p.favorito && p.souMembro);
   const publicos = visiveis.filter((p) => !p.favorito && !p.souMembro);
@@ -133,6 +144,18 @@ export default function ProjetosHomePage() {
             </span>
           </div>
           {p.descricao && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.descricao}</p>}
+          {/* Tag da empresa (ou "Geral") — só faz sentido p/ quem vê 2+ empresas. */}
+          {multiEmpresa && (
+            <div className="mt-2">
+              {p.empresaId ? (
+                <EmpresaTag empresaId={p.empresaId} compact={false} />
+              ) : (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground text-[10px] font-medium">
+                  <Users className="w-3 h-3" /> Geral
+                </span>
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-between mt-3">
             <div className="flex -space-x-1.5">
               {p.membros.slice(0, 4).map((m) => <AvatarUsuario key={m.id} nome={m.nome} size="sm" />)}
@@ -185,6 +208,21 @@ export default function ProjetosHomePage() {
                 className="pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
               />
             </div>
+            {/* Filtro por empresa (projetos podem ser de uma empresa ou gerais) */}
+            {multiEmpresa && (
+              <select
+                value={filtroEmpresa}
+                onChange={(e) => setFiltroEmpresa(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-card px-2 text-sm text-foreground"
+                title="Filtrar por empresa"
+              >
+                <option value="TODAS">Todas as empresas</option>
+                <option value="GERAL">Gerais (sem empresa)</option>
+                {empresasSessao.map((e) => (
+                  <option key={e.id} value={e.id}>{e.nome}</option>
+                ))}
+              </select>
+            )}
             <div className="flex rounded-lg border border-border overflow-hidden text-sm">
               <button
                 onClick={() => setAba("ativos")}
@@ -262,6 +300,21 @@ export default function ProjetosHomePage() {
                 <input type="checkbox" checked={novoPublico} onChange={(e) => setNovoPublico(e.target.checked)} className="rounded" />
                 Público — qualquer pessoa com o módulo pode ver (só membros editam)
               </label>
+              {multiEmpresa && (
+                <div className="space-y-1.5">
+                  <Label className="inline-flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Empresa</Label>
+                  <select
+                    value={novaEmpresaId}
+                    onChange={(e) => setNovaEmpresaId(e.target.value)}
+                    className="w-full h-9 rounded-lg border border-border bg-card px-2 text-sm text-foreground"
+                  >
+                    <option value="">Geral (sem empresa)</option>
+                    {empresasSessao.map((e) => (
+                      <option key={e.id} value={e.id}>{e.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Membros</Label>
                 <div className="max-h-44 overflow-y-auto border border-border rounded-lg divide-y divide-border">

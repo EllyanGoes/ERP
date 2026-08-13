@@ -65,6 +65,8 @@ export type ProjetoHomeDTO = {
   status: "ATIVO" | "ARQUIVADO";
   donoId: string;
   donoNome: string;
+  // Projeto por empresa (null = geral do grupo) — tag e filtro na home.
+  empresaId: string | null;
   souMembro: boolean;
   favorito: boolean;
   membros: { id: string; nome: string; papel: string }[];

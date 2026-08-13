@@ -74,6 +74,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data.nome = nome;
   }
   if (body.descricao !== undefined) data.descricao = body.descricao?.trim() || null;
+  // Projeto por empresa (ou geral, null) — tag/filtro na home.
+  if (body.empresaId !== undefined) data.empresaId = body.empresaId || null;
   if (body.cor !== undefined) data.cor = body.cor || null;
   if (body.icone !== undefined) data.icone = body.icone || null;
   if (body.visibilidade !== undefined) data.visibilidade = body.visibilidade === "PUBLICO" ? "PUBLICO" : "PRIVADO";

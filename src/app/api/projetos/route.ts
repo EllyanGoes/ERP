@@ -23,7 +23,7 @@ export async function GET() {
         },
     select: {
       id: true, nome: true, descricao: true, cor: true, icone: true,
-      visibilidade: true, status: true, donoId: true, updatedAt: true,
+      visibilidade: true, status: true, donoId: true, updatedAt: true, empresaId: true,
       dono: { select: { id: true, nome: true } },
       membros: { select: { usuarioId: true, favorito: true, papel: true, usuario: { select: { id: true, nome: true } } } },
       _count: { select: { tarefas: { where: { arquivada: false, concluidaEm: null } } } },
@@ -45,6 +45,7 @@ export async function GET() {
     status: p.status,
     donoId: p.donoId,
     donoNome: p.dono.nome,
+    empresaId: p.empresaId,
     souMembro: p.donoId === userId || p.membros.some((m) => m.usuarioId === userId),
     favorito: p.membros.find((m) => m.usuarioId === userId)?.favorito ?? false,
     membros: p.membros.map((m) => ({ id: m.usuario.id, nome: m.usuario.nome, papel: m.papel })),
@@ -74,6 +75,8 @@ export async function POST(req: NextRequest) {
       cor: body.cor || null,
       icone: body.icone || null,
       visibilidade: body.visibilidade === "PUBLICO" ? "PUBLICO" : "PRIVADO",
+      // Projeto de UMA empresa do grupo ou geral (null).
+      empresaId: typeof body.empresaId === "string" && body.empresaId ? body.empresaId : null,
       donoId: auth.session.sub,
       colunas: {
         create: [
