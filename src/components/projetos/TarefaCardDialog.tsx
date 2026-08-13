@@ -13,6 +13,7 @@ import {
   MoreHorizontal, AlignLeft, Paperclip, MessageSquare,
 } from "lucide-react";
 import { AvatarUsuario, EtiquetaChip } from "./comum";
+import SelectMenu from "@/components/shared/SelectMenu";
 import { MembrosPopover, DatasPopover, EtiquetasPopover } from "./popovers";
 import { ProjetoBoardDTO, PRIORIDADES } from "./tipos";
 
@@ -298,15 +299,14 @@ export default function TarefaCardDialog({
     <div className="flex flex-col">
       {/* ── Barra do topo: coluna à esquerda, ações à direita ─────────────── */}
       <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-3">
-        <select
+        <SelectMenu
           value={card.colunaId}
-          onChange={(e) => mover(e.target.value)}
+          onChange={(v) => mover(v)}
           disabled={!podeEditar}
-          className="text-sm font-medium border border-border rounded-lg bg-muted px-2.5 py-1.5 text-foreground cursor-pointer"
           title="Mover para outra coluna"
-        >
-          {board.colunas.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.concluiTarefa ? " ✓" : ""}</option>)}
-        </select>
+          triggerClassName="h-8 bg-muted font-medium w-auto"
+          options={board.colunas.map((c) => ({ value: c.id, label: `${c.nome}${c.concluiTarefa ? " ✓" : ""}` }))}
+        />
         <div className="flex items-center gap-1 relative">
           {podeEditar && (
             <button
@@ -458,14 +458,13 @@ export default function TarefaCardDialog({
 
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-1.5">Prioridade</p>
-              <select
+              <SelectMenu
                 value={card.prioridade}
-                onChange={(e) => patch({ prioridade: e.target.value })}
+                onChange={(v) => patch({ prioridade: v })}
                 disabled={!podeEditar}
-                className="text-sm border border-border rounded-lg bg-card px-2 py-1.5 text-foreground"
-              >
-                {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
+                triggerClassName="h-8 w-auto"
+                options={Object.entries(PRIORIDADES).map(([k, v]) => ({ value: k, label: v.label }))}
+              />
             </div>
 
           </div>

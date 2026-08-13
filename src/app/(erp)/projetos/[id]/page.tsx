@@ -13,6 +13,7 @@ import {
   GanttChartSquare, Activity, Search, X,
 } from "lucide-react";
 import { AvatarUsuario } from "@/components/projetos/comum";
+import SelectMenu from "@/components/shared/SelectMenu";
 import { ProjetoBoardDTO, TarefaResumoDTO } from "@/components/projetos/tipos";
 import KanbanView from "@/components/projetos/KanbanView";
 import ListaView from "@/components/projetos/ListaView";
@@ -158,8 +159,8 @@ export default function ProjetoBoardPage() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             {podeGerenciar && (
-              <Button size="sm" variant="outline" onClick={() => setShowConfig(true)}>
-                <Settings2 className="w-4 h-4 mr-1.5" /> Configurar
+              <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} title="Configurações do projeto" className="px-2.5">
+                <Settings2 className="w-4 h-4" />
               </Button>
             )}
           </div>
@@ -194,23 +195,25 @@ export default function ProjetoBoardPage() {
               className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
             />
           </div>
-          <select
+          <SelectMenu
             value={filtroResp}
-            onChange={(e) => setFiltroResp(e.target.value)}
-            className="text-sm border border-border rounded-lg bg-card px-2 py-1.5 text-foreground"
-          >
-            <option value="">Todos os responsáveis</option>
-            <option value="__sem__">Sem responsável</option>
-            {board.membros.map((m) => <option key={m.usuarioId} value={m.usuarioId}>{m.usuario.nome}</option>)}
-          </select>
-          <select
+            onChange={setFiltroResp}
+            className="w-48"
+            options={[
+              { value: "", label: "Todos os responsáveis" },
+              { value: "__sem__", label: "Sem responsável" },
+              ...board.membros.map((m) => ({ value: m.usuarioId, label: m.usuario.nome })),
+            ]}
+          />
+          <SelectMenu
             value={filtroEtiqueta}
-            onChange={(e) => setFiltroEtiqueta(e.target.value)}
-            className="text-sm border border-border rounded-lg bg-card px-2 py-1.5 text-foreground"
-          >
-            <option value="">Todas as etiquetas</option>
-            {board.etiquetas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
-          </select>
+            onChange={setFiltroEtiqueta}
+            className="w-44"
+            options={[
+              { value: "", label: "Todas as etiquetas" },
+              ...board.etiquetas.map((e) => ({ value: e.id, label: e.nome })),
+            ]}
+          />
           {(filtroResp || filtroEtiqueta || filtroBusca) && (
             <button
               onClick={() => { setFiltroResp(""); setFiltroEtiqueta(""); setFiltroBusca(""); }}

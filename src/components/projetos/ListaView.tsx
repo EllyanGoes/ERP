@@ -4,6 +4,7 @@
 import { cn } from "@/lib/utils";
 import { CheckSquare, Paperclip, MessageSquare } from "lucide-react";
 import { AvatarUsuario, EtiquetaChip } from "./comum";
+import SelectMenu from "@/components/shared/SelectMenu";
 import { ProjetoBoardDTO, TarefaResumoDTO, prazoInfo, PRIORIDADES } from "./tipos";
 
 export default function ListaView({
@@ -56,14 +57,13 @@ export default function ListaView({
                         </div>
                       </td>
                       <td className="px-3 py-2 w-36" onClick={(e) => e.stopPropagation()}>
-                        <select
+                        <SelectMenu
                           value={t.prioridade}
                           disabled={!podeEditar}
-                          onChange={(e) => patchRapido(t.id, { prioridade: e.target.value })}
-                          className="w-full text-xs border border-transparent hover:border-border rounded-md bg-transparent px-1 py-1 text-foreground"
-                        >
-                          {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                        </select>
+                          onChange={(v) => patchRapido(t.id, { prioridade: v })}
+                          triggerClassName="h-7 text-xs border-transparent bg-transparent hover:border-border px-1"
+                          options={Object.entries(PRIORIDADES).map(([k, v]) => ({ value: k, label: v.label }))}
+                        />
                       </td>
                       <td className="px-3 py-2 w-32">
                         <span className="flex -space-x-1">

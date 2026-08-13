@@ -11,10 +11,12 @@ import EscClose from "@/components/shared/EscClose";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2 } from "lucide-react";
+import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2, MoreHorizontal, ExternalLink, Trash2, LayoutGrid, List } from "lucide-react";
 import { AvatarUsuario } from "@/components/projetos/comum";
 import { ProjetoHomeDTO, CORES_PROJETO } from "@/components/projetos/tipos";
 import EmpresaTag from "@/components/shared/EmpresaTag";
+import SelectMenu from "@/components/shared/SelectMenu";
+import { usePersistedState } from "@/lib/use-persisted-state";
 
 type UsuarioOption = { id: string; nome: string };
 
@@ -32,6 +34,10 @@ export default function ProjetosHomePage() {
   const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
   const empresasSessao = user?.empresas ?? [];
   const multiEmpresa = empresasSessao.length > 1;
+  // Visualização: cards (padrão) ou lista — persiste por usuário.
+  const [vista, setVista] = usePersistedState<"cards" | "lista">("projetos:home:vista", "cards");
+  // Menu ⋯ de ações rápidas do card (id do projeto aberto).
+  const [menuProjeto, setMenuProjeto] = useState<string | null>(null);
 
   // Novo projeto
   const [showCreate, setShowCreate] = useState(false);
@@ -110,6 +116,32 @@ export default function ProjetosHomePage() {
     }).catch(() => {});
   }
 
+  // ── Ações rápidas do ⋯ do card ────────────────────────────────────────────
+  async function alternarArquivado(p: ProjetoHomeDTO) {
+    setMenuProjeto(null);
+    const res = await fetch(`/api/projetos/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: p.status === "ARQUIVADO" ? "ATIVO" : "ARQUIVADO" }),
+    }).catch(() => null);
+    if (res && !res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setError(j.error || "Não foi possível arquivar.");
+    }
+    await load();
+  }
+
+  async function excluirProjeto(p: ProjetoHomeDTO) {
+    setMenuProjeto(null);
+    if (!confirm(`Excluir "${p.nome}" com todas as tarefas? Vai para a Lixeira do sistema (retenção 90 dias).`)) return;
+    const res = await fetch(`/api/projetos/${p.id}`, { method: "DELETE" }).catch(() => null);
+    if (res && !res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setError(j.error || "Não foi possível excluir.");
+    }
+    await load();
+  }
+
   const visiveis = projetos
     .filter((p) => (aba === "ativos" ? p.status === "ATIVO" : p.status === "ARQUIVADO"))
     .filter((p) => !busca || p.nome.toLowerCase().includes(busca.toLowerCase()))
@@ -122,16 +154,59 @@ export default function ProjetosHomePage() {
   const publicos = visiveis.filter((p) => !p.favorito && !p.souMembro);
   const nArquivados = projetos.filter((p) => p.status === "ARQUIVADO").length;
 
+  // Menu ⋯ de ações rápidas (compartilhado entre card e linha da lista).
+  function MenuAcoes({ p }: { p: ProjetoHomeDTO }) {
+    const dono = p.donoId === user?.id || user?.perfil === "ADMIN";
+    return (
+      <span className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
+        <span
+          role="button"
+          onClick={() => setMenuProjeto(menuProjeto === p.id ? null : p.id)}
+          className={cn(
+            "p-1 rounded-md transition-colors cursor-pointer shrink-0 text-muted-foreground/40 hover:text-foreground hover:bg-muted",
+            menuProjeto === p.id ? "opacity-100 text-foreground" : "opacity-0 group-hover:opacity-100"
+          )}
+          title="Ações do projeto"
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </span>
+        {menuProjeto === p.id && (
+          <>
+            <span className="fixed inset-0 z-40" onClick={() => setMenuProjeto(null)} />
+            <span className="absolute right-0 top-7 z-50 w-52 bg-card border border-border rounded-xl shadow-xl py-1 text-sm flex flex-col">
+              <span role="button" onClick={() => router.push(`/projetos/${p.id}`)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">
+                <ExternalLink className="w-3.5 h-3.5" /> Abrir projeto
+              </span>
+              <span role="button" onClick={(e) => { toggleFavorito(p, e); setMenuProjeto(null); }} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">
+                <Star className="w-3.5 h-3.5" /> {p.favorito ? "Remover dos favoritos" : "Favoritar"}
+              </span>
+              {dono && (
+                <span role="button" onClick={() => alternarArquivado(p)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground">
+                  <Archive className="w-3.5 h-3.5" /> {p.status === "ARQUIVADO" ? "Reativar projeto" : "Arquivar projeto"}
+                </span>
+              )}
+              {dono && (
+                <span role="button" onClick={() => excluirProjeto(p)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-danger/10 cursor-pointer text-danger">
+                  <Trash2 className="w-3.5 h-3.5" /> Excluir projeto
+                </span>
+              )}
+            </span>
+          </>
+        )}
+      </span>
+    );
+  }
+
   function CardProjeto({ p }: { p: ProjetoHomeDTO }) {
     return (
       <button
         onClick={() => router.push(`/projetos/${p.id}`)}
-        className="text-left bg-card rounded-xl border border-border hover:border-blue-400 hover:shadow-md transition-all overflow-hidden group"
+        className="text-left bg-card rounded-xl border border-border hover:border-blue-400 hover:shadow-md transition-all group"
       >
-        <div className="h-2" style={{ backgroundColor: p.cor ?? "#64748b" }} />
+        <div className="h-2 rounded-t-xl" style={{ backgroundColor: p.cor ?? "#64748b" }} />
         <div className="p-4">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold text-foreground leading-snug line-clamp-2">{p.nome}</p>
+          <div className="flex items-start justify-between gap-1">
+            <p className="font-semibold text-foreground leading-snug line-clamp-2 flex-1">{p.nome}</p>
             <span
               onClick={(e) => toggleFavorito(p, e)}
               className={cn(
@@ -142,6 +217,7 @@ export default function ProjetosHomePage() {
             >
               <Star className="w-4 h-4" fill={p.favorito ? "currentColor" : "none"} />
             </span>
+            <MenuAcoes p={p} />
           </div>
           {p.descricao && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.descricao}</p>}
           {/* Tag da empresa (ou "Geral") — só faz sentido p/ quem vê 2+ empresas. */}
@@ -179,6 +255,40 @@ export default function ProjetosHomePage() {
     );
   }
 
+  // Linha da visualização em LISTA — mesmas infos do card, densas.
+  function LinhaProjeto({ p }: { p: ProjetoHomeDTO }) {
+    return (
+      <div
+        role="button"
+        onClick={() => router.push(`/projetos/${p.id}`)}
+        className="group flex items-center gap-3 px-4 py-2.5 bg-card hover:bg-muted cursor-pointer transition-colors"
+      >
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.cor ?? "#64748b" }} />
+        <span className="font-medium text-sm text-foreground truncate">{p.nome}</span>
+        {p.favorito && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
+        {multiEmpresa && (
+          p.empresaId
+            ? <EmpresaTag empresaId={p.empresaId} />
+            : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground text-[10px] font-medium shrink-0"><Users className="w-3 h-3" /> Geral</span>
+        )}
+        {p.descricao && <span className="text-xs text-muted-foreground truncate hidden md:inline">{p.descricao}</span>}
+        <span className="ml-auto flex items-center gap-3 shrink-0">
+          {p.tarefasAtrasadas > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-xs text-danger font-medium"><AlertTriangle className="w-3 h-3" /> {p.tarefasAtrasadas}</span>
+          )}
+          <span className="text-xs text-muted-foreground">{p.tarefasAbertas} aberta{p.tarefasAbertas === 1 ? "" : "s"}</span>
+          <span className="flex -space-x-1.5">
+            {p.membros.slice(0, 4).map((m) => <AvatarUsuario key={m.id} nome={m.nome} size="sm" />)}
+            {p.membros.length > 4 && (
+              <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground text-[9px] font-semibold inline-flex items-center justify-center">+{p.membros.length - 4}</span>
+            )}
+          </span>
+          <MenuAcoes p={p} />
+        </span>
+      </div>
+    );
+  }
+
   function Secao({ titulo, icone, lista }: { titulo: string; icone: React.ReactNode; lista: ProjetoHomeDTO[] }) {
     if (lista.length === 0) return null;
     return (
@@ -186,9 +296,15 @@ export default function ProjetosHomePage() {
         <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           {icone} {titulo}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {lista.map((p) => <CardProjeto key={p.id} p={p} />)}
-        </div>
+        {vista === "lista" ? (
+          <div className="rounded-xl border border-border divide-y divide-border overflow-visible">
+            {lista.map((p) => <LinhaProjeto key={p.id} p={p} />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {lista.map((p) => <CardProjeto key={p.id} p={p} />)}
+          </div>
+        )}
       </div>
     );
   }
@@ -210,19 +326,35 @@ export default function ProjetosHomePage() {
             </div>
             {/* Filtro por empresa (projetos podem ser de uma empresa ou gerais) */}
             {multiEmpresa && (
-              <select
+              <SelectMenu
                 value={filtroEmpresa}
-                onChange={(e) => setFiltroEmpresa(e.target.value)}
-                className="h-9 rounded-lg border border-border bg-card px-2 text-sm text-foreground"
+                onChange={setFiltroEmpresa}
                 title="Filtrar por empresa"
-              >
-                <option value="TODAS">Todas as empresas</option>
-                <option value="GERAL">Gerais (sem empresa)</option>
-                {empresasSessao.map((e) => (
-                  <option key={e.id} value={e.id}>{e.nome}</option>
-                ))}
-              </select>
+                className="w-48"
+                options={[
+                  { value: "TODAS", label: "Todas as empresas" },
+                  { value: "GERAL", label: "Gerais (sem empresa)" },
+                  ...empresasSessao.map((e) => ({ value: e.id, label: e.nome })),
+                ]}
+              />
             )}
+            {/* Visualização: cards ou lista */}
+            <div className="flex rounded-lg border border-border overflow-hidden text-sm">
+              <button
+                onClick={() => setVista("cards")}
+                title="Cards"
+                className={cn("px-2.5 py-2 transition-colors", vista === "cards" ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setVista("lista")}
+                title="Lista"
+                className={cn("px-2.5 py-2 transition-colors", vista === "lista" ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
             <div className="flex rounded-lg border border-border overflow-hidden text-sm">
               <button
                 onClick={() => setAba("ativos")}
@@ -303,16 +435,14 @@ export default function ProjetosHomePage() {
               {multiEmpresa && (
                 <div className="space-y-1.5">
                   <Label className="inline-flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Empresa</Label>
-                  <select
+                  <SelectMenu
                     value={novaEmpresaId}
-                    onChange={(e) => setNovaEmpresaId(e.target.value)}
-                    className="w-full h-9 rounded-lg border border-border bg-card px-2 text-sm text-foreground"
-                  >
-                    <option value="">Geral (sem empresa)</option>
-                    {empresasSessao.map((e) => (
-                      <option key={e.id} value={e.id}>{e.nome}</option>
-                    ))}
-                  </select>
+                    onChange={setNovaEmpresaId}
+                    options={[
+                      { value: "", label: "Geral (sem empresa)" },
+                      ...empresasSessao.map((e) => ({ value: e.id, label: e.nome })),
+                    ]}
+                  />
                 </div>
               )}
               <div className="space-y-1.5">

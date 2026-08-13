@@ -11,6 +11,7 @@ import EscClose from "@/components/shared/EscClose";
 import { useSession } from "@/lib/session-context";
 import { Loader2, X, Trash2, Archive, Plus, Shield, ShieldOff } from "lucide-react";
 import { AvatarUsuario } from "./comum";
+import SelectMenu from "@/components/shared/SelectMenu";
 import { ProjetoBoardDTO, CORES_PROJETO } from "./tipos";
 
 type UsuarioOption = { id: string; nome: string };
@@ -30,6 +31,9 @@ export default function ProjetoConfigDialog({
   const [descricao, setDescricao] = useState(board.descricao ?? "");
   const [cor, setCor] = useState(board.cor ?? CORES_PROJETO[0]);
   const [publico, setPublico] = useState(board.visibilidade === "PUBLICO");
+  // Projeto por empresa (ou geral) — mesmas opções do criar.
+  const [empresaId, setEmpresaId] = useState(board.empresaId ?? "");
+  const empresasSessao = user?.empresas ?? [];
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [usuarios, setUsuarios] = useState<UsuarioOption[]>([]);
@@ -50,7 +54,7 @@ export default function ProjetoConfigDialog({
     const res = await fetch(`/api/projetos/${board.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nome.trim(), descricao: descricao.trim() || null, cor, visibilidade: publico ? "PUBLICO" : "PRIVADO" }),
+      body: JSON.stringify({ nome: nome.trim(), descricao: descricao.trim() || null, cor, visibilidade: publico ? "PUBLICO" : "PRIVADO", empresaId: empresaId || null }),
     }).catch(() => null);
     setSalvando(false);
     if (!res?.ok) {
@@ -146,6 +150,21 @@ export default function ProjetoConfigDialog({
             Público — qualquer pessoa com o módulo pode ver (só membros editam)
           </label>
 
+          {/* Empresa do projeto (ou Geral) — só p/ quem enxerga 2+ empresas */}
+          {empresasSessao.length > 1 && (
+            <div className="space-y-1.5">
+              <Label>Empresa</Label>
+              <SelectMenu
+                value={empresaId}
+                onChange={setEmpresaId}
+                options={[
+                  { value: "", label: "Geral (sem empresa)" },
+                  ...empresasSessao.map((e) => ({ value: e.id, label: e.nome })),
+                ]}
+              />
+            </div>
+          )}
+
           {/* Membros */}
           <div className="space-y-1.5">
             <Label>Membros ({board.membros.length})</Label>
@@ -176,14 +195,13 @@ export default function ProjetoConfigDialog({
               ))}
             </div>
             <div className="flex gap-2">
-              <select
+              <SelectMenu
                 value={novoMembro}
-                onChange={(e) => setNovoMembro(e.target.value)}
-                className="flex-1 text-sm border border-border rounded-lg bg-card px-2 py-2 text-foreground"
-              >
-                <option value="">Adicionar membro...</option>
-                {candidatos.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-              </select>
+                onChange={setNovoMembro}
+                placeholder="Adicionar membro..."
+                className="flex-1"
+                options={candidatos.map((u) => ({ value: u.id, label: u.nome }))}
+              />
               <Button size="sm" variant="outline" onClick={adicionarMembro} disabled={!novoMembro}>
                 <Plus className="w-4 h-4" />
               </Button>

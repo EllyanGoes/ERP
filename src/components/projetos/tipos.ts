@@ -41,6 +41,7 @@ export type ProjetoBoardDTO = {
   id: string;
   nome: string;
   descricao: string | null;
+  empresaId?: string | null;
   cor: string | null;
   icone: string | null;
   visibilidade: "PRIVADO" | "PUBLICO";
