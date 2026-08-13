@@ -879,7 +879,7 @@ export default function Sidebar() {
       )}
 
       <aside
-        className="fixed left-0 top-0 h-screen z-30 flex overflow-hidden transition-[width] duration-200"
+        className="relative h-screen z-30 flex shrink-0 overflow-hidden transition-[width] duration-200"
         style={{ width: sidebarW }}
       >
         {/* ── Icon strip ─────────────────────────────────────────────── */}

@@ -37,10 +37,9 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
         <DirtyFormProvider>
           <div className="flex h-screen bg-background">
             <Sidebar />
-            <div
-              className="flex flex-col flex-1 min-w-0 overflow-hidden transition-[margin-left] duration-200"
-              style={{ marginLeft: "var(--sidebar-width, 64px)" }}
-            >
+            {/* A sidebar participa do fluxo (sem fixed+margin): em qualquer zoom
+                o conteúdo começa exatamente depois dela — Safari incluso. */}
+            <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
               <TabBar />
               <ScrollRestorer />
               <main id="erp-main" className="flex-1 min-h-0 overflow-y-auto [&>*]:min-w-0">
