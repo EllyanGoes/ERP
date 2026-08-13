@@ -12,7 +12,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2, MoreHorizontal, ExternalLink, Trash2, LayoutGrid, List, Settings2 } from "lucide-react";
-import { AvatarUsuario, SituacaoBadge } from "@/components/projetos/comum";
+import { AvatarUsuario, SituacaoBadge, SITUACOES_PROJETO } from "@/components/projetos/comum";
 import { ProjetoHomeDTO, CORES_PROJETO, ProjetoBoardDTO } from "@/components/projetos/tipos";
 import ProjetoConfigDialog from "@/components/projetos/ProjetoConfigDialog";
 import EmpresaTag from "@/components/shared/EmpresaTag";
@@ -37,6 +37,8 @@ export default function ProjetosHomePage() {
   const multiEmpresa = empresasSessao.length > 1;
   // Visualização: cards (padrão) ou lista — persiste por usuário.
   const [vista, setVista] = usePersistedState<"cards" | "lista">("projetos:home:vista", "cards");
+  // Agrupamento das seções: padrão (favoritos/meus/públicos), situação ou empresa.
+  const [agrupar, setAgrupar] = usePersistedState<"padrao" | "situacao" | "empresa">("projetos:home:agrupar", "padrao");
   // Menu ⋯ de ações rápidas do card (id do projeto aberto).
   const [menuProjeto, setMenuProjeto] = useState<string | null>(null);
   // Atalhos com o mouse sobre um projeto: E = ações rápidas (⋯), C = configurações.
@@ -417,6 +419,18 @@ export default function ProjetosHomePage() {
                 ]}
               />
             )}
+            {/* Agrupamento das seções */}
+            <SelectMenu
+              value={agrupar}
+              onChange={(v) => setAgrupar(v as "padrao" | "situacao" | "empresa")}
+              title="Agrupar projetos por"
+              className="w-44"
+              options={[
+                { value: "padrao", label: "Agrupar: padrão" },
+                { value: "situacao", label: "Agrupar: situação" },
+                ...(multiEmpresa ? [{ value: "empresa", label: "Agrupar: empresa" }] : []),
+              ]}
+            />
             {/* Visualização: cards ou lista */}
             <div className="flex rounded-lg border border-border overflow-hidden text-sm">
               <button
@@ -466,9 +480,34 @@ export default function ProjetosHomePage() {
           </div>
         ) : (
           <>
-            <Secao titulo="Favoritos" icone={<Star className="w-4 h-4" />} lista={favoritos} />
-            <Secao titulo="Meus projetos" icone={<FolderKanban className="w-4 h-4" />} lista={meus} />
-            <Secao titulo="Públicos" icone={<Users className="w-4 h-4" />} lista={publicos} />
+            {agrupar === "padrao" && (
+              <>
+                <Secao titulo="Favoritos" icone={<Star className="w-4 h-4" />} lista={favoritos} />
+                <Secao titulo="Meus projetos" icone={<FolderKanban className="w-4 h-4" />} lista={meus} />
+                <Secao titulo="Públicos" icone={<Users className="w-4 h-4" />} lista={publicos} />
+              </>
+            )}
+            {agrupar === "situacao" && Object.entries(SITUACOES_PROJETO).map(([k, s]) => (
+              <Secao
+                key={k}
+                titulo={s.label}
+                icone={<span className={cn("w-2.5 h-2.5 rounded-full", s.cls.split(" ")[0])} />}
+                lista={visiveis.filter((p) => (p.situacao ?? "EM_ANDAMENTO") === k)}
+              />
+            ))}
+            {agrupar === "empresa" && (
+              <>
+                {empresasSessao.map((e) => (
+                  <Secao
+                    key={e.id}
+                    titulo={e.nome}
+                    icone={<Building2 className="w-4 h-4" />}
+                    lista={visiveis.filter((p) => p.empresaId === e.id)}
+                  />
+                ))}
+                <Secao titulo="Gerais (sem empresa)" icone={<Users className="w-4 h-4" />} lista={visiveis.filter((p) => !p.empresaId)} />
+              </>
+            )}
           </>
         )}
       </div>
