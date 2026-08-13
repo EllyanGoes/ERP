@@ -19,7 +19,13 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
   const cot = await prismaSemEscopo.cotacaoCompra.findUnique({
     where: { id: cotacaoId },
     include: {
-      necessidade: { select: { numero: true } },
+      necessidade: {
+        select: {
+          numero: true, solicitante: true, motivo: true, justificativa: true,
+          colaborador: { select: { nome: true } },
+          setor: { select: { nome: true, pai: { select: { nome: true } } } },
+        },
+      },
       fornecedores: {
         where: { status: "RESPONDIDA" },
         include: {
@@ -72,6 +78,23 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
   doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...CINZA_TXT);
   doc.text("Cada célula mostra o preço unitário e, abaixo, o subtotal do item (qtd × unitário).", M, y + 4);
   y += 4;
+
+  // ── Dados da solicitação (SC): quem pediu, de onde e por quê ───────────────
+  if (cot.necessidade) {
+    const sc = cot.necessidade;
+    const setorLabel = sc.setor ? [sc.setor.pai?.nome, sc.setor.nome].filter(Boolean).join(" / ") : null;
+    const partes = [
+      `SC: ${sc.numero}`,
+      setorLabel ? `Setor: ${setorLabel}` : null,
+      (sc.colaborador?.nome || sc.solicitante) ? `Solicitante: ${sc.colaborador?.nome || sc.solicitante}` : null,
+      sc.motivo ? `Motivo: ${sc.motivo}` : null,
+      sc.justificativa ? `Descrição: ${sc.justificativa}` : null,
+    ].filter(Boolean).join("   ·   ");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...TINTA);
+    const linhas = doc.splitTextToSize(partes, pageW - 2 * M) as string[];
+    doc.text(linhas, M, y + 4.5);
+    y += 4.5 + (linhas.length - 1) * 3.5;
+  }
 
   // ── Matriz: itens nas linhas, um fornecedor por coluna ─────────────────────
   type ItemInfo = { codigo: string; descricao: string; um: string; qtd: number };

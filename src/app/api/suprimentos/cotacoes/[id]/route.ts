@@ -17,6 +17,12 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         select: {
           id: true,
           numero: true,
+          // Dados da SC exibidos no cabeçalho da cotação e no PDF de aprovação.
+          solicitante: true,
+          motivo: true,
+          justificativa: true,
+          colaborador: { select: { nome: true } },
+          setor: { select: { nome: true, pai: { select: { nome: true } } } },
           itens: {
             include: {
               item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } },

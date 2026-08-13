@@ -80,7 +80,12 @@ type Cotacao = {
   infoEntrega: string | null;
   criadoPor?: string | null;
   atualizadoPor?: string | null;
-  necessidade: { id: string; numero: string; itens: SCItem[] } | null;
+  necessidade: {
+    id: string; numero: string; itens: SCItem[];
+    solicitante?: string | null; motivo?: string | null; justificativa?: string | null;
+    colaborador?: { nome: string } | null;
+    setor?: { nome: string; pai?: { nome: string } | null } | null;
+  } | null;
   fornecedores: CotacaoFornecedor[];
   pedidos: Array<{ id: string; numero: string; status: string; conferencia: { id: string } | null }>;
   aprovacoes?: Array<{
@@ -587,6 +592,46 @@ export default function CotacaoDetailPage() {
               </p>
             </div>
           </div>
+          {/* ── Dados da solicitação (SC): setor, solicitante, motivo e descrição ── */}
+          {cotacao.necessidade && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mt-4 pt-3 border-t border-border">
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">SC</p>
+                <Link
+                  href={`/compras/necessidades/${cotacao.necessidade.id}`}
+                  className="font-mono text-sm font-semibold text-info hover:underline"
+                >
+                  {cotacao.necessidade.numero}
+                </Link>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Setor</p>
+                <p className="text-foreground text-xs">
+                  {cotacao.necessidade.setor
+                    ? [cotacao.necessidade.setor.pai?.nome, cotacao.necessidade.setor.nome].filter(Boolean).join(" / ")
+                    : <span className="text-muted-foreground/60">—</span>}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Solicitante</p>
+                <p className="text-foreground text-xs truncate">
+                  {cotacao.necessidade.colaborador?.nome || cotacao.necessidade.solicitante || <span className="text-muted-foreground/60">—</span>}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Motivo</p>
+                <p className="text-foreground text-xs">
+                  {cotacao.necessidade.motivo || <span className="text-muted-foreground/60">—</span>}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Descrição</p>
+                <p className="text-foreground text-xs line-clamp-2 whitespace-pre-wrap">
+                  {cotacao.necessidade.justificativa || <span className="text-muted-foreground/60">—</span>}
+                </p>
+              </div>
+            </div>
+          )}
           <Autoria criadoPor={cotacao.criadoPor} atualizadoPor={cotacao.atualizadoPor} className="mt-3" />
         </div>
 
