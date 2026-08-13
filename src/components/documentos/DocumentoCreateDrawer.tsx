@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import DatePicker from "@/components/shared/DatePicker";
 import EscClose from "@/components/shared/EscClose";
 import { Loader2, X, UploadCloud, Lock } from "lucide-react";
+import SelectMenu from "@/components/shared/SelectMenu";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 
 type Opcao = { id: string; nome: string };
 type Categoria = { id: string; nome: string; diasAlerta: number; exigeValidade: boolean };
@@ -130,10 +132,12 @@ export default function DocumentoCreateDrawer({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Categoria <span className="text-red-500">*</span></Label>
-              <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className="w-full text-sm border border-border rounded-lg bg-card px-2 py-2 text-foreground">
-                <option value="">Selecionar...</option>
-                {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
+              <SelectMenu
+                value={categoriaId}
+                onChange={setCategoriaId}
+                placeholder="Selecionar..."
+                options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Número</Label>
@@ -145,10 +149,14 @@ export default function DocumentoCreateDrawer({
             </div>
             <div className="space-y-1.5">
               <Label>Responsável (recebe alertas)</Label>
-              <select value={responsavelId} onChange={(e) => setResponsavelId(e.target.value)} className="w-full text-sm border border-border rounded-lg bg-card px-2 py-2 text-foreground">
-                <option value="">— Ninguém —</option>
-                {(lookups?.usuarios ?? []).map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-              </select>
+              <ComboboxWithCreate
+                value={responsavelId}
+                onChange={setResponsavelId}
+                noneLabel="— Ninguém —"
+                triggerClassName="h-9 rounded-lg"
+                menuMinWidth={300}
+                options={(lookups?.usuarios ?? []).map((u) => ({ value: u.id, label: u.nome }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Emissão</Label>
@@ -164,26 +172,31 @@ export default function DocumentoCreateDrawer({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Vincular a</Label>
-              <select
+              <SelectMenu
                 value={vincTipo}
-                onChange={(e) => { setVincTipo(e.target.value); setVincId(""); }}
+                onChange={(v) => { setVincTipo(v); setVincId(""); }}
                 disabled={!!vinculo}
-                className="w-full text-sm border border-border rounded-lg bg-card px-2 py-2 text-foreground"
-              >
-                <option value="">— Nada —</option>
-                <option value="fornecedor">Fornecedor</option>
-                <option value="cliente">Cliente</option>
-                <option value="colaborador">Colaborador</option>
-                <option value="imobilizado">Bem / Veículo</option>
-              </select>
+                options={[
+                  { value: "", label: "— Nada —" },
+                  { value: "fornecedor", label: "Fornecedor" },
+                  { value: "cliente", label: "Cliente" },
+                  { value: "colaborador", label: "Colaborador" },
+                  { value: "imobilizado", label: "Bem / Veículo" },
+                ]}
+              />
             </div>
             {vincTipo && (
               <div className="space-y-1.5">
                 <Label>Registro</Label>
-                <select value={vincId} onChange={(e) => setVincId(e.target.value)} disabled={!!vinculo} className="w-full text-sm border border-border rounded-lg bg-card px-2 py-2 text-foreground">
-                  <option value="">Selecionar...</option>
-                  {opcoesVinculo.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-                </select>
+                <ComboboxWithCreate
+                  value={vincId}
+                  onChange={setVincId}
+                  disabled={!!vinculo}
+                  noneLabel="Selecionar..."
+                  triggerClassName="h-9 rounded-lg"
+                  menuMinWidth={320}
+                  options={opcoesVinculo.map((o) => ({ value: o.id, label: o.nome }))}
+                />
               </div>
             )}
           </div>

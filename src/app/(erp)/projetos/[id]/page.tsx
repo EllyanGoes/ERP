@@ -277,7 +277,7 @@ export default function ProjetoBoardPage() {
           onMouseDown={(e) => { if (e.target === e.currentTarget) fecharTarefa(); }}
         >
           <EscClose onClose={fecharTarefa} />
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-3xl my-6">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-5xl my-6">
             <TarefaCardDialog
               tarefaId={tarefaAberta}
               board={board}

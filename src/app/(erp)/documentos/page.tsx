@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, Plus, Search, FileArchive, AlertTriangle, RefreshCw } from "lucide-react";
 import { DocumentoListaDTO, StatusDocBadge, ValidadeCell, IconesDoc, entidadeVinculada } from "@/components/documentos/comum";
 import DocumentoCreateDrawer from "@/components/documentos/DocumentoCreateDrawer";
+import SelectMenu from "@/components/shared/SelectMenu";
 
 type Categoria = { id: string; nome: string };
 
@@ -90,14 +91,15 @@ export default function DocumentosPage() {
                 className="pl-9 pr-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-72"
               />
             </div>
-            <select
+            <SelectMenu
               value={fCategoria}
-              onChange={(e) => setFCategoria(e.target.value)}
-              className="text-sm border border-border rounded-lg bg-card px-2 py-2 text-foreground"
-            >
-              <option value="">Todas as categorias</option>
-              {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </select>
+              onChange={setFCategoria}
+              className="w-52"
+              options={[
+                { value: "", label: "Todas as categorias" },
+                ...categorias.map((c) => ({ value: c.id, label: c.nome })),
+              ]}
+            />
             <Button onClick={() => setShowCreate(true)} className="bg-blue-600 hover:bg-blue-700">
               <Plus className="w-4 h-4 mr-2" /> Novo documento
             </Button>
