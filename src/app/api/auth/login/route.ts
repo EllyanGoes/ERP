@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
     include: { permissoes: true },
   });
 
-  if (!user || !user.ativo) {
+  // Convidado (membro de projeto sem acesso) não faz login.
+  if (!user || !user.ativo || user.convidado) {
     registraFalha(chave);
     return NextResponse.json({ error: "Credenciais inválidas" }, { status: 401 });
   }

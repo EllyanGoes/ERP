@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,25 @@ export default function ProjetosHomePage() {
   const [vista, setVista] = usePersistedState<"cards" | "lista">("projetos:home:vista", "cards");
   // Menu ⋯ de ações rápidas do card (id do projeto aberto).
   const [menuProjeto, setMenuProjeto] = useState<string | null>(null);
+  // Atalhos com o mouse sobre um projeto: E = ações rápidas (⋯), C = configurações.
+  const hoverProjeto = useRef<ProjetoHomeDTO | null>(null);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key.toLowerCase();
+      if (k !== "e" && k !== "c") return;
+      const alvo = e.target as HTMLElement;
+      if (alvo.tagName === "INPUT" || alvo.tagName === "TEXTAREA" || alvo.isContentEditable) return;
+      const p = hoverProjeto.current;
+      if (!p) return;
+      e.preventDefault();
+      if (k === "e") setMenuProjeto((cur) => (cur === p.id ? null : p.id));
+      else abrirConfig(p.id);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Novo projeto
   const [showCreate, setShowCreate] = useState(false);
@@ -251,6 +270,8 @@ export default function ProjetosHomePage() {
     return (
       <button
         onClick={() => router.push(`/projetos/${p.id}`)}
+        onMouseEnter={() => { hoverProjeto.current = p; }}
+        onMouseLeave={() => { if (hoverProjeto.current?.id === p.id) hoverProjeto.current = null; }}
         className="text-left bg-card rounded-xl border border-border hover:border-blue-400 hover:shadow-md transition-all group"
       >
         <div className="h-2 rounded-t-xl" style={{ backgroundColor: p.cor ?? "#64748b" }} />
@@ -311,6 +332,8 @@ export default function ProjetosHomePage() {
       <div
         role="button"
         onClick={() => router.push(`/projetos/${p.id}`)}
+        onMouseEnter={() => { hoverProjeto.current = p; }}
+        onMouseLeave={() => { if (hoverProjeto.current?.id === p.id) hoverProjeto.current = null; }}
         className="group flex items-center gap-3 px-4 py-2.5 bg-card hover:bg-muted cursor-pointer transition-colors"
       >
         <ProgressoProjeto p={p} size={16} />

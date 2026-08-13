@@ -204,7 +204,28 @@ export default function TarefaQuickEdit({
                           <span className="flex-1 truncate">{m.usuario.nome}</span>
                         </button>
                       ))}
-                      {doQuadro.length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">Nenhum membro encontrado.</p>}
+                      {doQuadro.length === 0 && !buscaMembro.trim() && <p className="text-xs text-muted-foreground px-1 py-1">Nenhum membro encontrado.</p>}
+                      {/* Convidado: pessoa sem usuário — cria, vira membro do quadro e do cartão. */}
+                      {doQuadro.length === 0 && buscaMembro.trim() && (
+                        <button
+                          className="w-full text-left px-2 py-1.5 rounded-md text-[13px] text-info hover:bg-info/10"
+                          onClick={async () => {
+                            const nome = buscaMembro.trim();
+                            const res = await fetch("/api/projetos/usuarios", {
+                              method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }),
+                            }).catch(() => null);
+                            const j = await res?.json().catch(() => ({}));
+                            if (!res?.ok || !j?.data?.id) return;
+                            await fetch(`/api/projetos/${board.id}/membros`, {
+                              method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioIds: [j.data.id] }),
+                            }).catch(() => {});
+                            alternar(j.data.id, j.data.nome);
+                            setBuscaMembro("");
+                          }}
+                        >
+                          + Adicionar convidado “{buscaMembro.trim()}”
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

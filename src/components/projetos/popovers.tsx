@@ -30,14 +30,17 @@ function Shell({ titulo, onFechar, children, largura = "w-80" }: { titulo: strin
 
 // ── Membros ─────────────────────────────────────────────────────────────────
 export function MembrosPopover({
-  board, membros, onToggle, onFechar,
+  board, membros, onToggle, onFechar, onCriarConvidado,
 }: {
   board: ProjetoBoardDTO;
   membros: { id: string; nome: string }[];
   onToggle: (usuarioId: string) => void;
   onFechar: () => void;
+  /** Cria um membro CONVIDADO (sem usuário) com o texto da busca e o adiciona. */
+  onCriarConvidado?: (nome: string) => Promise<void>;
 }) {
   const [busca, setBusca] = useState("");
+  const [criando, setCriando] = useState(false);
   const noCartao = new Set(membros.map((m) => m.id));
   const doQuadro = board.membros
     .filter((m) => !noCartao.has(m.usuarioId))
@@ -83,6 +86,16 @@ export function MembrosPopover({
               </button>
             ))}
             {doQuadro.length === 0 && <p className="text-xs text-muted-foreground px-2 py-2">Nenhum membro encontrado.</p>}
+            {/* Convidado: pessoa sem usuário no sistema (não faz login). */}
+            {onCriarConvidado && busca.trim() && doQuadro.length === 0 && (
+              <button
+                disabled={criando}
+                onClick={async () => { setCriando(true); try { await onCriarConvidado(busca.trim()); setBusca(""); } finally { setCriando(false); } }}
+                className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm text-info hover:bg-info/10 disabled:opacity-60"
+              >
+                + Adicionar convidado “{busca.trim()}”
+              </button>
+            )}
           </div>
         </div>
       </div>

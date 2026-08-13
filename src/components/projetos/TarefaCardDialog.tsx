@@ -194,6 +194,21 @@ export default function TarefaCardDialog({
     await patch({ membroIds: novos });
   }
 
+  // Convidado (sem usuário no sistema): cria, vira membro do projeto e já
+  // entra como responsável do cartão.
+  async function criarConvidado(nome: string) {
+    if (!card) return;
+    const res = await fetch("/api/projetos/usuarios", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }),
+    }).catch(() => null);
+    const j = await res?.json().catch(() => ({}));
+    if (!res?.ok || !j?.data?.id) return;
+    await fetch(`/api/projetos/${card.projetoId}/membros`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioIds: [j.data.id] }),
+    }).catch(() => {});
+    await patch({ membroIds: [...card.membros.map((m) => m.id), j.data.id] });
+  }
+
   async function editarEtiqueta(etiquetaId: string, nome: string, cor: string) {
     if (!card) return;
     await fetch(`/api/projetos/${card.projetoId}/etiquetas/${etiquetaId}`, {
@@ -389,7 +404,7 @@ export default function TarefaCardDialog({
                 )}
               </div>
               {showMembros && podeEditar && (
-                <MembrosPopover board={board} membros={card.membros} onToggle={toggleMembro} onFechar={() => setShowMembros(false)} />
+                <MembrosPopover board={board} membros={card.membros} onToggle={toggleMembro} onFechar={() => setShowMembros(false)} onCriarConvidado={criarConvidado} />
               )}
             </div>
 

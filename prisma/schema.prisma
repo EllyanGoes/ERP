@@ -2725,6 +2725,9 @@ model Usuario {
   senha              String
   perfil             PerfilUsuario      @default(USUARIO)
   ativo              Boolean            @default(true)
+  // Membro CONVIDADO (projetos): pessoa sem acesso ao sistema — aparece nos
+  // pickers de membro/responsável, mas o login é bloqueado.
+  convidado          Boolean            @default(false)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   perfilAcessoId     String?

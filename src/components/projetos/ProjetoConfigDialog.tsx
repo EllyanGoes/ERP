@@ -39,6 +39,8 @@ export default function ProjetoConfigDialog({
   const [erro, setErro] = useState("");
   const [usuarios, setUsuarios] = useState<UsuarioOption[]>([]);
   const [novoMembro, setNovoMembro] = useState("");
+  const [criandoConvidado, setCriandoConvidado] = useState(false);
+  const [nomeConvidado, setNomeConvidado] = useState("");
   const [confirmaExcluir, setConfirmaExcluir] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
 
@@ -85,6 +87,26 @@ export default function ProjetoConfigDialog({
       body: JSON.stringify({ usuarioIds: [novoMembro] }),
     }).catch(() => {});
     setNovoMembro("");
+    onMudou();
+  }
+
+  async function adicionarConvidado() {
+    const nome = nomeConvidado.trim();
+    if (!nome) return;
+    const res = await fetch("/api/projetos/usuarios", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome }),
+    }).catch(() => null);
+    const j = await res?.json().catch(() => ({}));
+    if (!res?.ok || !j?.data?.id) { setErro(j?.error || "Não foi possível criar o convidado."); return; }
+    await fetch(`/api/projetos/${board.id}/membros`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuarioIds: [j.data.id] }),
+    }).catch(() => {});
+    setCriandoConvidado(false); setNomeConvidado("");
+    setUsuarios((prev) => (prev.some((u) => u.id === j.data.id) ? prev : [...prev, j.data]));
     onMudou();
   }
 
@@ -227,6 +249,28 @@ export default function ProjetoConfigDialog({
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
+            {/* Convidado: pessoa SEM usuário no sistema — entra como membro
+                (aparece nos pickers), mas nunca faz login. */}
+            {criandoConvidado ? (
+              <div className="flex gap-2">
+                <Input
+                  autoFocus
+                  value={nomeConvidado}
+                  onChange={(e) => setNomeConvidado(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && adicionarConvidado()}
+                  placeholder="Nome do convidado"
+                  className="h-9"
+                />
+                <Button size="sm" variant="outline" onClick={adicionarConvidado} disabled={!nomeConvidado.trim()}>
+                  Adicionar
+                </Button>
+                <button className="text-xs text-muted-foreground" onClick={() => { setCriandoConvidado(false); setNomeConvidado(""); }}>Cancelar</button>
+              </div>
+            ) : (
+              <button onClick={() => setCriandoConvidado(true)} className="text-xs text-info hover:underline inline-flex items-center gap-1">
+                <Plus className="w-3 h-3" /> Adicionar convidado (sem usuário no sistema)
+              </button>
+            )}
           </div>
 
           {erro && <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{erro}</p>}
