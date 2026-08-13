@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Search } from "lucide-react";
+import MinhasTarefasWidget from "@/components/layout/MinhasTarefasWidget";
 import { useTabsContext, type Tab } from "@/lib/tabs-context";
 import { useDirtyFormContext } from "@/lib/dirty-form-context";
 import { routeColor } from "@/lib/route-registry";
@@ -157,6 +158,7 @@ export default function TabBar() {
         >
           <Search className="w-[18px] h-[18px]" />
         </button>
+        <MinhasTarefasWidget />
         <NotificationCenter />
         <EmpresaSelector />
       </div>
