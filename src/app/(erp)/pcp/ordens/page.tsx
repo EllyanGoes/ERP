@@ -235,10 +235,17 @@ export default function OrdensBoardPage() {
   };
   // Abre o modal de apontar com o form pré-preenchido (real = planejado; vagões do plano).
   function abrirApontar(o: BoardOP) {
+    // Perda obrigatória travava a Preparação/Mistura: nessas áreas SEM estado de
+    // WIP (produzem em lote, sem vagão/descarregamento) não existe perda a
+    // calcular — pré-preenche 0 (editável) e o botão Apontar já nasce habilitado.
+    // No Embalar e demais áreas com WIP a exigência continua (incidente PLT).
+    const areaDaOp = (o.areaNodeId ? areas.find((a) => a.nodeId === o.areaNodeId) : null) ?? area;
+    const perdaZerada = areaDaOp ? !areaDaOp.estadoSaida : false;
     setApontar(o);
     setApForm({
       reais: Object.fromEntries(o.produtos.map((p) => [p.itemId, Number(p.planejada) ? fmtQtd(p.planejada) : ""])),
-      perdas: {}, paletes: {}, consumos: {},
+      perdas: perdaZerada ? Object.fromEntries(o.produtos.map((p) => [p.itemId, "0"])) : {},
+      paletes: {}, consumos: {},
       pcPlt: Object.fromEntries(o.produtos.map((p) => [p.itemId, p.pecasPorPalete ? String(p.pecasPorPalete) : ""])),
       perda: "", biomassa: "",
       vagoes: vagoesDoPlano(o, "VAGAO"), vagonetas: vagoesDoPlano(o, "VAGONETA"),
