@@ -1,6 +1,7 @@
 # PRD — Módulo de Gestão de Projetos (estilo Trello/Asana/ClickUp)
 
-> Status: proposta (planejamento). Implementação pendente.
+> Status: implementado (F1–F4 numa entrega, 13/08/2026). Ficaram de fora por ora: templates de
+> projeto, limite WIP e atalhos de teclado (refinos da F4); tempo real segue por refetch no foco.
 > Princípio central: **um gerenciador de projetos completo e autônomo dentro do ERP** — quadros,
 > tarefas, kanban, comentários e visões múltiplas, no padrão dos apps famosos (Trello, Asana,
 > ClickUp, Monday). **Sem integração com os demais módulos** (decisão do dono, 13/08/2026): nada de

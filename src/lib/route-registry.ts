@@ -10,6 +10,7 @@
 
 import {
   LayoutDashboard,
+  FolderKanban, ListTodo,
   GitBranch, UserCheck, Layers, Users,
   Package, Tag, Ruler, MapPin,
   Truck, CalendarDays, CreditCard, CircleDot,
@@ -164,6 +165,10 @@ export const ROUTES: RouteEntry[] = [
   { href: "/rh/diaristas/pagamentos",              label: "Pagamento de Diárias",    group: "Gestão de Pessoas", section: "Processos",        icon: Users, keywords: "pagamento diária diarista acumulado por pessoa pagar rh gestão de pessoas caixa banco" },
   { href: "/rh/horarios",                          label: "Horários de Trabalho",    group: "Gestão de Pessoas", section: "Cadastros",        icon: Users, keywords: "horário escala trabalho turno jornada expediente rh gestão de pessoas" },
   { href: "/rh/relatorios",                        label: "Folha & Diárias (Relatório)", group: "Gestão de Pessoas", section: "Relatórios",   icon: BarChart3, keywords: "relatório gráfico folha pagamento diárias custo pessoal rh mensal por dia" },
+
+  // ── Projetos ──
+  { href: "/projetos",                             label: "Meus Projetos",           group: "Projetos",       section: "Geral",            icon: FolderKanban, keywords: "projetos quadro kanban board tarefas trello gestão projeto" },
+  { href: "/projetos/minhas-tarefas",              label: "Minhas Tarefas",          group: "Projetos",       section: "Geral",            icon: ListTodo, keywords: "minhas tarefas pendentes atrasadas prazo hoje semana projeto kanban" },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },

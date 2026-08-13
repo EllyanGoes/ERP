@@ -79,6 +79,8 @@ import {
   Filter,
   UserPlus,
   Globe,
+  FolderKanban,
+  ListTodo,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -437,6 +439,20 @@ const mainModules: Module[] = [
         kind: "Outros" as SubSection["kind"],
         items: [
           { href: "/pcp/planejamento",     label: "Planejamento (MPS/MRP)", icon: Calculator },
+        ],
+      },
+    ],
+  },
+  {
+    id: "projetos",
+    label: "Projetos",
+    icon: FolderKanban,
+    sections: [
+      {
+        kind: "Geral",
+        items: [
+          { href: "/projetos", label: "Meus Projetos", icon: FolderKanban, exact: true },
+          { href: "/projetos/minhas-tarefas", label: "Minhas Tarefas", icon: ListTodo },
         ],
       },
     ],
