@@ -44,8 +44,10 @@ export async function proximaSequenciaDaEmpresa(empresaId: string, prefixo: stri
  * use empresasVisiveis — este helper não filtra por permissão.
  */
 export async function empresasDoGrupo(): Promise<EmpresaResumo[]> {
+  // Empresas RESTRITAS ficam fora do grupo operacional (venda à ordem etc.) —
+  // elas só existem para quem tem vínculo explícito (ver empresasVisiveis).
   const ativas = await prismaSemEscopo.empresa.findMany({
-    where: { ativo: true },
+    where: { ativo: true, restrita: false },
     select: { id: true, razaoSocial: true, nomeFantasia: true, slug: true },
     orderBy: { createdAt: "asc" },
   });
@@ -65,7 +67,7 @@ export async function empresasVisiveis(
 ): Promise<EmpresaResumo[]> {
   const ativas = await prismaSemEscopo.empresa.findMany({
     where: { ativo: true },
-    select: { id: true, razaoSocial: true, nomeFantasia: true, slug: true },
+    select: { id: true, razaoSocial: true, nomeFantasia: true, slug: true, restrita: true },
     orderBy: { createdAt: "asc" },
   });
   const resumo = (e: (typeof ativas)[number]): EmpresaResumo => ({
@@ -74,13 +76,15 @@ export async function empresasVisiveis(
     slug: e.slug,
   });
 
-  if (perfil === "ADMIN") return ativas.map(resumo);
-
   const vinculos = await prismaSemEscopo.usuarioEmpresa.findMany({
     where: { usuarioId },
     select: { empresaId: true },
   });
   const vinculadas = new Set(vinculos.map((v) => v.empresaId));
+
+  // ADMIN vê todas as não-restritas; RESTRITA exige vínculo explícito (p/ todos).
+  if (perfil === "ADMIN") return ativas.filter((e) => !e.restrita || vinculadas.has(e.id)).map(resumo);
+
   const visiveis = ativas.filter((e) => vinculadas.has(e.id));
   if (visiveis.length > 0) return visiveis.map(resumo);
 

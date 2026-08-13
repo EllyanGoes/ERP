@@ -214,6 +214,7 @@ model Cliente {
   empresa                Empresa?
   criadoPor              String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor          String? // autoria: última edição manual (proxy de sessão)
+  documentos             Documento[]
 
   @@index([cpfCnpj])
   @@index([status])
@@ -265,6 +266,7 @@ model Colaborador {
   requisicoesComoAlmoxarife  RequisicaoMaterial[]  @relation("RM_Almoxarife")
   inventarios                InventarioMaterial[]
   escalas                    ColaboradorEscala[]
+  documentos                 Documento[]
 }
 
 // ── Escala de trabalho ───────────────────────────────────────────────────────
@@ -1390,6 +1392,7 @@ model Imobilizado {
   rmItensComponente           RequisicaoMaterialItem[] @relation("RmItemComponente")
   criadoPor                   String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor               String? // autoria: última edição manual (proxy de sessão)
+  documentos                  Documento[]
 
   @@index([empresaId])
 }
@@ -1565,6 +1568,10 @@ model Empresa {
   // Fábrica/indústria: se true, a baixa de produto acabado na venda vira CPV;
   // se false (só revenda, ex.: Cimento e Mix), toda baixa vira CMV.
   industrializa                 Boolean                   @default(false)
+  // Empresa RESTRITA: fora do grupo operacional — só aparece (inclusive p/
+  // ADMIN) para usuários com vínculo explícito em UsuarioEmpresa. Também fica
+  // fora de empresasDoGrupo (venda à ordem etc.).
+  restrita                      Boolean                   @default(false)
   // vínculo intragrupo (Fase 4): a empresa como cliente/fornecedor das irmãs
   clienteId                     String?                   @unique
   fornecedorId                  String?                   @unique
@@ -1627,6 +1634,7 @@ model Empresa {
   campanhas                     Campanha[]
   leadsMarketing                Lead[]
   lancamentosMetrica            LancamentoManualMetrica[]
+  empresaDrive                  EmpresaDrive?
 }
 
 model EnderecoEstoque {
@@ -1757,6 +1765,7 @@ model Fornecedor {
   empresa             Empresa?
   criadoPor           String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor       String? // autoria: última edição manual (proxy de sessão)
+  documentos          Documento[]
 }
 
 model FornecedorContato {
@@ -2736,6 +2745,9 @@ model Usuario {
   tarefasMembro      TarefaMembro[]
   comentariosTarefa  TarefaComentario[]
   atividadesTarefa   TarefaAtividade[]
+  documentosResp     Documento[]        @relation("DocumentoResponsavel")
+  documentosAcesso   DocumentoAcesso[]
+  documentosLog      DocumentoLog[]
 }
 
 // Sessão/dispositivo logado de um usuário. id = jti embutido no JWT. Permite
@@ -4673,4 +4685,119 @@ model TarefaAtividade {
 
   @@index([tarefaId, createdAt])
   @@index([projetoId, createdAt])
+}
+
+// ── Gestão de Documentos Importantes (GED + Google Drive — docs/documentos-prd.md) ──
+// Arquivos vivem no Drive Compartilhado (Service Account) com fallback Vercel
+// Blob; o ERP guarda metadados, validade/alertas, confidencialidade e auditoria.
+
+enum StatusDocumento {
+  VIGENTE
+  VENCE_EM_BREVE
+  VENCIDO
+  EM_RENOVACAO
+  ARQUIVADO
+}
+
+model DocumentoCategoria {
+  id            String      @id @default(cuid())
+  nome          String
+  slug          String      @unique
+  diasAlerta    Int         @default(30)
+  exigeValidade Boolean     @default(false)
+  ordem         Int         @default(0)
+  ativo         Boolean     @default(true)
+  documentos    Documento[]
+}
+
+model Documento {
+  id              String             @id @default(cuid())
+  empresaId       String
+  categoriaId     String
+  titulo          String
+  descricao       String?
+  numero          String?
+  emissor         String?
+  emissao         DateTime?
+  validade        DateTime?
+  diasAlerta      Int?
+  status          StatusDocumento    @default(VIGENTE)
+  confidencial    Boolean            @default(false)
+  responsavelId   String?
+  fornecedorId    String?
+  clienteId       String?
+  colaboradorId   String?
+  imobilizadoId   String?
+  versaoVigenteId String?            @unique
+  tags            String[]           @default([])
+  arquivoOk       Boolean            @default(true) // false: cron achou o arquivo movido/apagado no Drive
+  criadoPor       String?
+  atualizadoPor   String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  categoria       DocumentoCategoria @relation(fields: [categoriaId], references: [id])
+  responsavel     Usuario?           @relation("DocumentoResponsavel", fields: [responsavelId], references: [id])
+  fornecedor      Fornecedor?        @relation(fields: [fornecedorId], references: [id])
+  cliente         Cliente?           @relation(fields: [clienteId], references: [id])
+  colaborador     Colaborador?       @relation(fields: [colaboradorId], references: [id])
+  imobilizado     Imobilizado?       @relation(fields: [imobilizadoId], references: [id])
+  versaoVigente   DocumentoVersao?   @relation("VersaoVigente", fields: [versaoVigenteId], references: [id])
+  versoes         DocumentoVersao[]  @relation("VersoesDoDocumento")
+  acessos         DocumentoAcesso[]
+  logs            DocumentoLog[]
+
+  @@index([empresaId, categoriaId])
+  @@index([validade])
+  @@index([fornecedorId])
+  @@index([clienteId])
+  @@index([colaboradorId])
+  @@index([imobilizadoId])
+}
+
+model DocumentoVersao {
+  id          String     @id @default(cuid())
+  documentoId String
+  versao      Int
+  provider    String     @default("BLOB") // DRIVE | BLOB
+  driveFileId String?
+  url         String?
+  nome        String
+  mime        String
+  tamanho     Int
+  observacao  String?
+  criadoPor   String?
+  createdAt   DateTime   @default(now())
+  documento   Documento  @relation("VersoesDoDocumento", fields: [documentoId], references: [id], onDelete: Cascade)
+  vigenteDe   Documento? @relation("VersaoVigente")
+
+  @@unique([documentoId, versao])
+}
+
+model DocumentoAcesso {
+  documentoId String
+  usuarioId   String
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@id([documentoId, usuarioId])
+}
+
+model DocumentoLog {
+  id          String    @id @default(cuid())
+  documentoId String
+  usuarioId   String
+  acao        String // VISUALIZOU | BAIXOU | UPLOAD_VERSAO | EDITOU | RENOVOU
+  createdAt   DateTime  @default(now())
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id])
+
+  @@index([documentoId, createdAt])
+}
+
+model EmpresaDrive {
+  id              String  @id @default(cuid())
+  empresaId       String  @unique
+  drivePastaId    String
+  pastasCategoria Json    @default("{}")
+  empresa         Empresa @relation(fields: [empresaId], references: [id])
 }
