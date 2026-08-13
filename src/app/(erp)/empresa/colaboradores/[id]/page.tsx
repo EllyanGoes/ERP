@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import DocumentosDaEntidade from "@/components/documentos/DocumentosDaEntidade";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
@@ -113,7 +114,7 @@ export default function ColaboradorDetailPage() {
   const [error,   setError]           = useState("");
 
   // Abas (mesmo padrão do cadastro de produtos)
-  const [tab, setTab] = useState<"pessoais" | "funcionais" | "escala" | "diarias" | "aprovacoes" | "observacoes">("pessoais");
+  const [tab, setTab] = useState<"pessoais" | "funcionais" | "escala" | "diarias" | "aprovacoes" | "observacoes" | "documentos">("pessoais");
 
   // Escala de trabalho (vigências: a partir de <data>, segue <horário>)
   const [escalas, setEscalas] = useState<Escala[]>([]);
@@ -379,6 +380,7 @@ export default function ColaboradorDetailPage() {
     { key: "diarias",     label: `Diárias (${diarias.length})` },
     { key: "aprovacoes",  label: `Aprovações (${colaborador.etapasAprovacao?.length ?? 0})` },
     { key: "observacoes", label: "Observações" },
+    { key: "documentos",  label: "Documentos (GED)" },
   ] as const;
 
   return (
@@ -880,6 +882,10 @@ export default function ColaboradorDetailPage() {
         )}
 
         {/* Aba: Observações */}
+        {tab === "documentos" && (
+          <DocumentosDaEntidade tipo="colaborador" id={colaborador.id} />
+        )}
+
         {tab === "observacoes" && (
           <Card>
             <CardContent className="pt-6">

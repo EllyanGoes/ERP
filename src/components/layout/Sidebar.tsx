@@ -81,6 +81,7 @@ import {
   Globe,
   FolderKanban,
   ListTodo,
+  FileArchive,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -453,6 +454,20 @@ const mainModules: Module[] = [
         items: [
           { href: "/projetos", label: "Meus Projetos", icon: FolderKanban, exact: true },
           { href: "/projetos/minhas-tarefas", label: "Minhas Tarefas", icon: ListTodo },
+        ],
+      },
+    ],
+  },
+  {
+    id: "documentos",
+    label: "Documentos",
+    icon: FileArchive,
+    sections: [
+      {
+        kind: "Geral",
+        items: [
+          { href: "/documentos", label: "Acervo", icon: FileArchive, exact: true },
+          { href: "/documentos/vencimentos", label: "Vencimentos", icon: CalendarClock },
         ],
       },
     ],

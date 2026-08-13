@@ -68,6 +68,8 @@ const MODELOS_ESCOPADOS = new Set<string>([
   // é cadastro compartilhado (sem empresaId); NotaFiscalItem/Evento escopam via nota.
   "EmpresaFiscal", "SerieFiscal", "NotaFiscal", "InutilizacaoNumeracao",
   "DocumentoFiscalRecebido", "OperacaoFiscal", "RegraTributacao",
+  // GED — docs/documentos-prd.md (DocumentoCategoria é compartilhada; filhos escopam via Documento)
+  "Documento", "EmpresaDrive",
 ])
 
 // Mapas montados uma vez a partir do dmmf:

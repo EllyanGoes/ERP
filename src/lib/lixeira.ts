@@ -14,7 +14,8 @@ export type TipoLixeira =
   | "CONFERENCIA_COMPRA"
   | "ORDEM_PRODUCAO"
   | "CONTA_BANCARIA"
-  | "PROJETO";
+  | "PROJETO"
+  | "DOCUMENTO";
 
 type Db = Pick<Prisma.TransactionClient, "lixeira">;
 

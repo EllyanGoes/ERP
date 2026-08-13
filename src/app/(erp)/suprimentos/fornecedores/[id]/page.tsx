@@ -21,6 +21,7 @@ function maskCpfCnpj(value: string, tipo: string): string {
 }
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import DocumentosDaEntidade from "@/components/documentos/DocumentosDaEntidade";
 import EscClose from "@/components/shared/EscClose";
 import { Autoria } from "@/components/shared/Autoria";
 import { lookupParceiro, type ParceiroLookup } from "@/lib/parceiro-lookup";
@@ -172,7 +173,7 @@ const CONTA_STATUS_COLOR: Record<string, string> = {
   PARCIAL:   "bg-warning/15 text-warning",
 };
 
-type PageTab = "dados" | "produtos" | "pedidos" | "contatos" | "documentos" | "contas";
+type PageTab = "dados" | "produtos" | "pedidos" | "contatos" | "documentos" | "contas" | "arquivos";
 
 type ProdutoItem = { id: string; codigo: string; descricao: string };
 
@@ -429,6 +430,7 @@ export default function FornecedorDetailPage() {
     { key: "pedidos",   label: "Pedidos de Compra", count: fornecedor.pedidosCompra?.length ?? 0 },
     { key: "documentos", label: "Documentos de Entrada", count: fornecedor.documentosEntrada?.length ?? 0 },
     { key: "contas",    label: "Contas a Pagar", count: fornecedor.contasPagar?.length ?? 0 },
+    { key: "arquivos",  label: "Documentos (GED)" },
   ];
 
   return (
@@ -1228,6 +1230,10 @@ export default function FornecedorDetailPage() {
         )}
 
         {/* ── Contas a Pagar ────────────────────────────────────────────── */}
+        {activeTab === "arquivos" && (
+          <DocumentosDaEntidade tipo="fornecedor" id={fornecedor.id} />
+        )}
+
         {activeTab === "contas" && (
           <div className="max-w-5xl">
             <Card>

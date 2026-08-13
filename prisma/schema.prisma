@@ -1572,6 +1572,7 @@ model Empresa {
   // ADMIN) para usuários com vínculo explícito em UsuarioEmpresa. Também fica
   // fora de empresasDoGrupo (venda à ordem etc.).
   restrita                      Boolean                   @default(false)
+  projetos                      Projeto[]
   // vínculo intragrupo (Fase 4): a empresa como cliente/fornecedor das irmãs
   clienteId                     String?                   @unique
   fornecedorId                  String?                   @unique
@@ -4532,6 +4533,10 @@ model Projeto {
   visibilidade  VisibilidadeProjeto @default(PRIVADO)
   status        StatusProjeto       @default(ATIVO)
   donoId        String
+  // Projeto pode ser DE UMA EMPRESA do grupo ou GERAL (null) — tag e filtro na
+  // home; não escopa consultas (projetos são por usuário/visibilidade).
+  empresaId     String?
+  empresa       Empresa?            @relation(fields: [empresaId], references: [id])
   criadoPor     String?
   atualizadoPor String?
   createdAt     DateTime            @default(now())
@@ -4545,6 +4550,7 @@ model Projeto {
 
   @@index([status])
   @@index([donoId])
+  @@index([empresaId])
 }
 
 model ProjetoMembro {

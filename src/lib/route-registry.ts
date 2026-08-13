@@ -10,7 +10,7 @@
 
 import {
   LayoutDashboard,
-  FolderKanban, ListTodo,
+  FolderKanban, ListTodo, FileArchive,
   GitBranch, UserCheck, Layers, Users,
   Package, Tag, Ruler, MapPin,
   Truck, CalendarDays, CreditCard, CircleDot,
@@ -169,6 +169,10 @@ export const ROUTES: RouteEntry[] = [
   // ── Projetos ──
   { href: "/projetos",                             label: "Meus Projetos",           group: "Projetos",       section: "Geral",            icon: FolderKanban, keywords: "projetos quadro kanban board tarefas trello gestão projeto" },
   { href: "/projetos/minhas-tarefas",              label: "Minhas Tarefas",          group: "Projetos",       section: "Geral",            icon: ListTodo, keywords: "minhas tarefas pendentes atrasadas prazo hoje semana projeto kanban" },
+
+  // ── Documentos ──
+  { href: "/documentos",                           label: "Documentos (Acervo)",     group: "Documentos",     section: "Geral",            icon: FileArchive, keywords: "documentos ged certidão licença alvará contrato apólice seguro procuração drive arquivo acervo" },
+  { href: "/documentos/vencimentos",               label: "Vencimentos de Documentos", group: "Documentos",   section: "Geral",            icon: FileArchive, keywords: "vencimento validade certidão vencida renovar documentos agenda" },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },
   { href: "/admin/perfis",                         label: "Perfis de Acesso",        group: "Administração",  section: "Sistema",          icon: ShieldCheck },
