@@ -114,7 +114,7 @@ export default function ProjetoBoardPage() {
   const podeGerenciar = board.meuNivel === "DONO" || board.meuNivel === "ADMIN";
 
   const tarefasFiltradas = board.tarefas.filter((t) => {
-    if (filtroResp === "__sem__" ? t.responsavel : filtroResp && t.responsavel?.id !== filtroResp) return false;
+    if (filtroResp === "__sem__" ? t.membros.length > 0 : filtroResp && !t.membros.some((m) => m.id === filtroResp)) return false;
     if (filtroEtiqueta && !t.etiquetas.some((e) => e.id === filtroEtiqueta)) return false;
     if (filtroBusca && !t.titulo.toLowerCase().includes(filtroBusca.toLowerCase())) return false;
     return true;
@@ -167,12 +167,14 @@ export default function ProjetoBoardPage() {
               <button
                 key={v.key}
                 onClick={() => setVisao(v.key)}
+                title={v.label}
+                aria-label={v.label}
                 className={cn(
-                  "px-2.5 py-1.5 inline-flex items-center gap-1.5 transition-colors",
-                  visao === v.key ? "bg-info/10 text-info font-medium" : "text-muted-foreground hover:bg-muted"
+                  "px-3 py-1.5 inline-flex items-center transition-colors",
+                  visao === v.key ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted"
                 )}
               >
-                <v.icon className="w-3.5 h-3.5" /> {v.label}
+                <v.icon className="w-4 h-4" />
               </button>
             ))}
           </div>

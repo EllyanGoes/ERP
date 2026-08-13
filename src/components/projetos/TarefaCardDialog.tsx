@@ -6,7 +6,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import DatePicker from "@/components/shared/DatePicker";
 import AnexosSection from "@/components/shared/AnexosSection";
 import {
   Loader2, X, Trash2, Archive, CheckSquare, Square, Plus, Send,
@@ -14,6 +13,7 @@ import {
   MoreHorizontal, AlignLeft, Paperclip, MessageSquare,
 } from "lucide-react";
 import { AvatarUsuario, EtiquetaChip } from "./comum";
+import { MembrosPopover, DatasPopover, EtiquetasPopover } from "./popovers";
 import { ProjetoBoardDTO, PRIORIDADES } from "./tipos";
 
 type CardDTO = {
@@ -29,7 +29,7 @@ type CardDTO = {
   arquivada: boolean;
   criadoPor: string | null;
   createdAt: string;
-  responsavel: { id: string; nome: string } | null;
+  membros: { id: string; nome: string }[];
   coluna: { id: string; nome: string; concluiTarefa: boolean };
   etiquetas: { id: string; nome: string; cor: string }[];
   checklist: { id: string; texto: string; feito: boolean; ordem: number }[];
@@ -67,7 +67,8 @@ export default function TarefaCardDialog({
   const [novoComentario, setNovoComentario] = useState("");
   const [enviandoComentario, setEnviandoComentario] = useState(false);
   const [showEtiquetas, setShowEtiquetas] = useState(false);
-  const [novaEtiqueta, setNovaEtiqueta] = useState("");
+  const [showMembros, setShowMembros] = useState(false);
+  const [showDatas, setShowDatas] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const comentarioRef = useRef<HTMLTextAreaElement>(null);
@@ -154,22 +155,39 @@ export default function TarefaCardDialog({
     const novas = atuais.includes(etiquetaId) ? atuais.filter((i) => i !== etiquetaId) : [...atuais, etiquetaId];
     await patch({ etiquetaIds: novas });
   }
-  async function criarEtiqueta() {
-    const nome = novaEtiqueta.trim();
-    if (!nome || !card) return;
-    setNovaEtiqueta("");
-    const cores = ["#2563eb", "#7c3aed", "#db2777", "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0d9488"];
+  async function toggleMembro(usuarioId: string) {
+    if (!card) return;
+    const atuais = card.membros.map((m) => m.id);
+    const novos = atuais.includes(usuarioId) ? atuais.filter((i) => i !== usuarioId) : [...atuais, usuarioId];
+    await patch({ membroIds: novos });
+  }
+
+  async function editarEtiqueta(etiquetaId: string, nome: string, cor: string) {
+    if (!card) return;
+    await fetch(`/api/projetos/${card.projetoId}/etiquetas/${etiquetaId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, cor }),
+    }).catch(() => {});
+    await load(); onMudou();
+  }
+
+  async function excluirEtiqueta(etiquetaId: string) {
+    if (!card) return;
+    await fetch(`/api/projetos/${card.projetoId}/etiquetas/${etiquetaId}`, { method: "DELETE" }).catch(() => {});
+    await load(); onMudou();
+  }
+
+  async function criarEtiquetaCor(nome: string, cor: string) {
+    if (!card) return;
     const res = await fetch(`/api/projetos/${card.projetoId}/etiquetas`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome, cor: cores[Math.floor(nome.length % cores.length)] }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, cor }),
     }).catch(() => null);
     if (res?.ok) {
       const json = await res.json();
       await patch({ etiquetaIds: [...card.etiquetas.map((e) => e.id), json.data.id] });
-      onMudou(); // etiqueta nova aparece no board
+      onMudou();
     }
   }
+
 
   // Concluir/reabrir pelo círculo do título: move p/ a primeira coluna de
   // conclusão (ou de volta p/ a primeira coluna normal).
@@ -306,74 +324,71 @@ export default function TarefaCardDialog({
 
           {/* Linha Membro / Etiquetas / Data / Prioridade (estilo Trello) */}
           <div className="flex items-start gap-6 flex-wrap">
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Responsável</p>
-              <div className="flex items-center gap-1.5">
-                {card.responsavel && <AvatarUsuario nome={card.responsavel.nome} />}
-                <select
-                  value={card.responsavel?.id ?? ""}
-                  onChange={(e) => patch({ responsavelId: e.target.value || null })}
-                  disabled={!podeEditar}
-                  className={cn(
-                    "text-sm border border-border rounded-full bg-card text-foreground cursor-pointer",
-                    card.responsavel ? "px-2 py-1 max-w-36 truncate" : "w-8 h-8 text-center"
-                  )}
-                  title="Alterar responsável"
-                >
-                  <option value="">{card.responsavel ? "— Ninguém —" : "+"}</option>
-                  {board.membros.map((m) => <option key={m.usuarioId} value={m.usuarioId}>{m.usuario.nome}</option>)}
-                </select>
+            <div className="relative">
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Membros</p>
+              <div className="flex items-center gap-1">
+                {card.membros.map((m) => <AvatarUsuario key={m.id} nome={m.nome} />)}
+                {podeEditar && (
+                  <button
+                    onClick={() => setShowMembros(true)}
+                    className="w-7 h-7 rounded-full border border-border bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center"
+                    title="Alterar membros"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
+              {showMembros && podeEditar && (
+                <MembrosPopover board={board} membros={card.membros} onToggle={toggleMembro} onFechar={() => setShowMembros(false)} />
+              )}
             </div>
 
-            <div>
+            <div className="relative">
               <p className="text-xs font-semibold text-muted-foreground mb-1.5">Etiquetas</p>
-              <div className="flex items-center gap-1.5 flex-wrap relative">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {card.etiquetas.map((e) => (
-                  <span key={e.id} onClick={() => podeEditar && toggleEtiqueta(e.id)} className={podeEditar ? "cursor-pointer" : ""}>
+                  <span key={e.id} onClick={() => podeEditar && setShowEtiquetas(true)} className={podeEditar ? "cursor-pointer" : ""}>
                     <EtiquetaChip etiqueta={e} />
                   </span>
                 ))}
                 {podeEditar && (
                   <button
-                    onClick={() => setShowEtiquetas(!showEtiquetas)}
-                    className="w-7 h-7 rounded-full border border-border bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center"
+                    onClick={() => setShowEtiquetas(true)}
+                    className="w-7 h-7 rounded-lg border border-border bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center"
                     title="Editar etiquetas"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 )}
-                {showEtiquetas && podeEditar && (
-                  <div className="absolute left-0 top-full mt-1.5 w-56 bg-card border border-border rounded-xl shadow-lg z-20 p-2 space-y-1">
-                    {board.etiquetas.map((e) => {
-                      const aplicada = card.etiquetas.some((x) => x.id === e.id);
-                      return (
-                        <button key={e.id} onClick={() => toggleEtiqueta(e.id)} className="w-full flex items-center gap-2 text-left rounded-md px-1.5 py-1 hover:bg-muted">
-                          <span className="w-7 h-4 rounded" style={{ backgroundColor: e.cor }} />
-                          <span className="text-xs text-foreground flex-1 truncate">{e.nome}</span>
-                          {aplicada && <CheckSquare className="w-3.5 h-3.5 text-info" />}
-                        </button>
-                      );
-                    })}
-                    <div className="flex items-center gap-1 pt-1 border-t border-border">
-                      <input
-                        value={novaEtiqueta}
-                        onChange={(e) => setNovaEtiqueta(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && criarEtiqueta()}
-                        placeholder="Nova etiqueta..."
-                        className="flex-1 text-xs bg-transparent focus:outline-none text-foreground px-1 py-1"
-                      />
-                      <button onClick={criarEtiqueta} className="text-info"><Plus className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                )}
               </div>
+              {showEtiquetas && podeEditar && (
+                <EtiquetasPopover
+                  board={board}
+                  aplicadas={card.etiquetas.map((e) => e.id)}
+                  podeGerenciar={podeGerenciar}
+                  onToggle={toggleEtiqueta}
+                  onCriar={criarEtiquetaCor}
+                  onEditar={editarEtiqueta}
+                  onExcluir={excluirEtiqueta}
+                  onFechar={() => setShowEtiquetas(false)}
+                />
+              )}
             </div>
 
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Data Entrega</p>
+            <div className="relative">
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Datas</p>
               <div className="flex items-center gap-2">
-                <DatePicker value={card.prazo ? card.prazo.slice(0, 10) : ""} onChange={(v) => podeEditar && patch({ prazo: v || null })} />
+                <button
+                  onClick={() => podeEditar && setShowDatas(true)}
+                  className="text-sm border border-border rounded-lg bg-card px-2.5 py-1.5 text-foreground hover:bg-muted text-left"
+                >
+                  {card.dataInicio || card.prazo
+                    ? [
+                        card.dataInicio ? new Date(card.dataInicio).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : null,
+                        card.prazo ? new Date(card.prazo).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : null,
+                      ].filter(Boolean).join(" → ")
+                    : "Adicionar datas"}
+                </button>
                 {prazoVencido && (
                   <span className="text-[11px] font-semibold text-danger bg-danger/15 px-2 py-0.5 rounded-md whitespace-nowrap">Em Atraso</span>
                 )}
@@ -381,6 +396,14 @@ export default function TarefaCardDialog({
                   <span className="text-[11px] font-semibold text-success bg-success/15 px-2 py-0.5 rounded-md whitespace-nowrap">Concluída</span>
                 )}
               </div>
+              {showDatas && podeEditar && (
+                <DatasPopover
+                  dataInicio={card.dataInicio}
+                  prazo={card.prazo}
+                  onSalvar={(v) => { setShowDatas(false); patch({ dataInicio: v.dataInicio, prazo: v.prazo }); }}
+                  onFechar={() => setShowDatas(false)}
+                />
+              )}
             </div>
 
             <div>
@@ -395,10 +418,6 @@ export default function TarefaCardDialog({
               </select>
             </div>
 
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Início</p>
-              <DatePicker value={card.dataInicio ? card.dataInicio.slice(0, 10) : ""} onChange={(v) => podeEditar && patch({ dataInicio: v || null })} />
-            </div>
           </div>
 
           {/* Descrição */}

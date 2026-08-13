@@ -13,7 +13,7 @@ export async function POST(_: NextRequest, { params }: { params: { tarefaId: str
 
   const original = await prismaSemEscopo.tarefa.findUnique({
     where: { id: params.tarefaId },
-    include: { etiquetas: true, checklist: { orderBy: { ordem: "asc" } } },
+    include: { etiquetas: true, membros: true, checklist: { orderBy: { ordem: "asc" } } },
   });
   if (!original) return NextResponse.json({ error: "Tarefa não encontrada" }, { status: 404 });
   const acesso = await nivelNoProjeto(auth.session, original.projetoId);
@@ -33,7 +33,7 @@ export async function POST(_: NextRequest, { params }: { params: { tarefaId: str
       descricao: original.descricao,
       ordem: (ultima?.ordem ?? original.ordem) + ORDEM_GAP,
       prioridade: original.prioridade,
-      responsavelId: original.responsavelId,
+      membros: { create: original.membros.map((m) => ({ usuarioId: m.usuarioId })) },
       dataInicio: original.dataInicio,
       prazo: original.prazo,
       etiquetas: { create: original.etiquetas.map((e) => ({ etiquetaId: e.etiquetaId })) },

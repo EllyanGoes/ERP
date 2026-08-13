@@ -7,7 +7,7 @@ import { nivelNoProjeto, podeEditarTarefas, registrarAtividade, notificarAtribui
 async function carregarComAcesso(session: { sub: string; perfil: "ADMIN" | "USUARIO" }, tarefaId: string) {
   const tarefa = await prismaSemEscopo.tarefa.findUnique({
     where: { id: tarefaId },
-    select: { id: true, projetoId: true, colunaId: true, titulo: true, responsavelId: true, prazo: true, arquivada: true },
+    select: { id: true, projetoId: true, colunaId: true, titulo: true, prazo: true, arquivada: true, membros: { select: { usuarioId: true } } },
   });
   if (!tarefa) return null;
   const acesso = await nivelNoProjeto(session, tarefa.projetoId);
@@ -28,7 +28,7 @@ export async function GET(_: NextRequest, { params }: { params: { tarefaId: stri
       id: true, projetoId: true, colunaId: true, titulo: true, descricao: true,
       prioridade: true, dataInicio: true, prazo: true, concluidaEm: true, arquivada: true,
       criadoPor: true, createdAt: true,
-      responsavel: { select: { id: true, nome: true } },
+      membros: { select: { usuario: { select: { id: true, nome: true } } } },
       coluna: { select: { id: true, nome: true, concluiTarefa: true } },
       etiquetas: { select: { etiqueta: { select: { id: true, nome: true, cor: true } } } },
       checklist: { orderBy: { ordem: "asc" }, select: { id: true, texto: true, feito: true, ordem: true } },
@@ -45,7 +45,12 @@ export async function GET(_: NextRequest, { params }: { params: { tarefaId: stri
   });
   if (!tarefa) return NextResponse.json({ error: "Tarefa não encontrada" }, { status: 404 });
   return NextResponse.json({
-    data: { ...tarefa, etiquetas: tarefa.etiquetas.map((e) => e.etiqueta), meuNivel: ctx.acesso.nivel },
+    data: {
+      ...tarefa,
+      etiquetas: tarefa.etiquetas.map((e) => e.etiqueta),
+      membros: tarefa.membros.map((m) => m.usuario),
+      meuNivel: ctx.acesso.nivel,
+    },
   });
 }
 
@@ -75,11 +80,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { tarefaId: 
     data.prazo = body.prazo ? new Date(body.prazo) : null;
     atividades.push({ tipo: "PRAZO", detalhe: { prazo: body.prazo ?? null } });
   }
-  if (body.responsavelId !== undefined) {
-    data.responsavelId = body.responsavelId || null;
-    if (body.responsavelId && body.responsavelId !== ctx.tarefa.responsavelId) {
-      atividades.push({ tipo: "ATRIBUIU", detalhe: { responsavelId: body.responsavelId } });
+  let membrosNovos: string[] = [];
+  if (Array.isArray(body.membroIds)) {
+    const atuais = new Set(ctx.tarefa.membros.map((m) => m.usuarioId));
+    const desejados: string[] = body.membroIds.filter((m: unknown) => typeof m === "string");
+    membrosNovos = desejados.filter((id) => !atuais.has(id));
+    await prismaSemEscopo.tarefaMembro.deleteMany({ where: { tarefaId: params.tarefaId } });
+    if (desejados.length > 0) {
+      await prismaSemEscopo.tarefaMembro.createMany({
+        data: desejados.map((usuarioId) => ({ tarefaId: params.tarefaId, usuarioId })),
+        skipDuplicates: true,
+      });
     }
+    if (membrosNovos.length > 0) atividades.push({ tipo: "ATRIBUIU", detalhe: { membros: membrosNovos.length } });
   }
   if (body.arquivada !== undefined) {
     data.arquivada = !!body.arquivada;
@@ -103,9 +116,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { tarefaId: 
   for (const a of atividades) {
     await registrarAtividade({ projetoId: ctx.tarefa.projetoId, tarefaId: params.tarefaId, autorId: auth.session.sub, ...a });
   }
-  if (body.responsavelId && body.responsavelId !== ctx.tarefa.responsavelId) {
+  for (const usuarioId of membrosNovos) {
     await notificarAtribuicao({
-      responsavelId: body.responsavelId,
+      responsavelId: usuarioId,
       autorId: auth.session.sub,
       autorNome: auth.session.nome,
       tarefaId: params.tarefaId,

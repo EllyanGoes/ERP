@@ -41,8 +41,9 @@ export default function TimelineView({
   // Agrupa por responsável
   const grupos = new Map<string, { nome: string; tarefas: typeof comData }>();
   for (const t of comData) {
-    const k = t.responsavel?.id ?? "__sem__";
-    const g = grupos.get(k) ?? { nome: t.responsavel?.nome ?? "Sem responsável", tarefas: [] };
+    const primeiro = t.membros[0];
+    const k = primeiro?.id ?? "__sem__";
+    const g = grupos.get(k) ?? { nome: primeiro?.nome ?? "Sem responsável", tarefas: [] };
     g.tarefas.push(t);
     grupos.set(k, g);
   }

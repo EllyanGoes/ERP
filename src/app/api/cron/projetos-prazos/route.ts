@@ -23,12 +23,13 @@ export async function GET(req: NextRequest) {
     where: {
       arquivada: false,
       concluidaEm: null,
-      responsavelId: { not: null },
+      membros: { some: {} },
       prazo: { lte: fimDeHoje },
       projeto: { status: "ATIVO" },
     },
     select: {
-      id: true, titulo: true, prazo: true, responsavelId: true,
+      id: true, titulo: true, prazo: true,
+      membros: { select: { usuarioId: true } },
       projeto: { select: { id: true, nome: true } },
     },
   });
@@ -36,12 +37,13 @@ export async function GET(req: NextRequest) {
   // Agrupa por responsável → projeto
   const porUsuario = new Map<string, Map<string, { nome: string; qtd: number }>>();
   for (const t of tarefas) {
-    const uid = t.responsavelId!;
-    const projetos = porUsuario.get(uid) ?? new Map();
-    const p = projetos.get(t.projeto.id) ?? { nome: t.projeto.nome, qtd: 0 };
-    p.qtd += 1;
-    projetos.set(t.projeto.id, p);
-    porUsuario.set(uid, projetos);
+    for (const { usuarioId } of t.membros) {
+      const projetos = porUsuario.get(usuarioId) ?? new Map();
+      const p = projetos.get(t.projeto.id) ?? { nome: t.projeto.nome, qtd: 0 };
+      p.qtd += 1;
+      projetos.set(t.projeto.id, p);
+      porUsuario.set(usuarioId, projetos);
+    }
   }
 
   let notificacoes = 0;

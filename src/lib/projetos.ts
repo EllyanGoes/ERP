@@ -140,9 +140,9 @@ export async function renormalizarColuna(colunaId: string): Promise<void> {
 
 /** Payload padrão da tarefa nas listagens (board/lista/minhas-tarefas). */
 export const TAREFA_LISTA_SELECT = {
-  id: true, projetoId: true, colunaId: true, titulo: true, ordem: true,
+  id: true, projetoId: true, colunaId: true, titulo: true, descricao: true, ordem: true,
   prioridade: true, prazo: true, dataInicio: true, concluidaEm: true, arquivada: true,
-  responsavel: { select: { id: true, nome: true } },
+  membros: { select: { usuario: { select: { id: true, nome: true } } } },
   etiquetas: { select: { etiqueta: { select: { id: true, nome: true, cor: true } } } },
   _count: { select: { comentarios: true, anexos: true, checklist: true } },
   checklist: { select: { feito: true } },

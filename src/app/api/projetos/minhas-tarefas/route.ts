@@ -10,7 +10,7 @@ export async function GET() {
 
   const tarefas = await prismaSemEscopo.tarefa.findMany({
     where: {
-      responsavelId: auth.session.sub,
+      membros: { some: { usuarioId: auth.session.sub } },
       arquivada: false,
       concluidaEm: null,
       projeto: { status: "ATIVO" },

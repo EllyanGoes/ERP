@@ -15,6 +15,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json();
   const titulo = String(body.titulo ?? "").trim();
+  const membroIds: string[] = Array.isArray(body.membroIds)
+    ? body.membroIds.filter((m: unknown) => typeof m === "string")
+    : body.responsavelId ? [body.responsavelId] : [];
   if (!titulo) return NextResponse.json({ error: "Informe o título da tarefa." }, { status: 400 });
 
   const coluna = await prismaSemEscopo.projetoColuna.findFirst({
@@ -37,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       descricao: body.descricao?.trim() || null,
       ordem: (ultima?.ordem ?? 0) + ORDEM_GAP,
       prioridade: ["BAIXA", "MEDIA", "ALTA", "URGENTE"].includes(body.prioridade) ? body.prioridade : "MEDIA",
-      responsavelId: body.responsavelId || null,
+      membros: { create: membroIds.map((usuarioId) => ({ usuarioId })) },
       dataInicio: body.dataInicio ? new Date(body.dataInicio) : null,
       prazo: body.prazo ? new Date(body.prazo) : null,
       concluidaEm: coluna.concluiTarefa ? new Date() : null,
@@ -46,14 +49,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
 
   await registrarAtividade({ projetoId: params.id, tarefaId: tarefa.id, autorId: auth.session.sub, tipo: "CRIOU" });
-  await notificarAtribuicao({
-    responsavelId: body.responsavelId,
-    autorId: auth.session.sub,
-    autorNome: auth.session.nome,
-    tarefaId: tarefa.id,
-    tarefaTitulo: tarefa.titulo,
-    projetoId: params.id,
-    projetoNome: acesso.projeto.nome,
-  });
+  for (const usuarioId of membroIds) {
+    await notificarAtribuicao({
+      responsavelId: usuarioId,
+      autorId: auth.session.sub,
+      autorNome: auth.session.nome,
+      tarefaId: tarefa.id,
+      tarefaTitulo: tarefa.titulo,
+      projetoId: params.id,
+      projetoNome: acesso.projeto.nome,
+    });
+  }
   return NextResponse.json({ data: tarefa }, { status: 201 });
 }

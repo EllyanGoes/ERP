@@ -65,23 +65,16 @@ export default function ListaView({
                           {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                         </select>
                       </td>
-                      <td className="px-3 py-2 w-44" onClick={(e) => e.stopPropagation()}>
-                        <select
-                          value={t.responsavel?.id ?? ""}
-                          disabled={!podeEditar}
-                          onChange={(e) => patchRapido(t.id, { responsavelId: e.target.value || null })}
-                          className="w-full text-xs border border-transparent hover:border-border rounded-md bg-transparent px-1 py-1 text-foreground"
-                        >
-                          <option value="">— Ninguém —</option>
-                          {board.membros.map((m) => <option key={m.usuarioId} value={m.usuarioId}>{m.usuario.nome}</option>)}
-                        </select>
+                      <td className="px-3 py-2 w-32">
+                        <span className="flex -space-x-1">
+                          {t.membros.slice(0, 4).map((m) => <AvatarUsuario key={m.id} nome={m.nome} size="sm" />)}
+                          {t.membros.length === 0 && <span className="text-xs text-muted-foreground/50">—</span>}
+                        </span>
                       </td>
                       <td className={cn("px-4 py-2 w-24 text-right text-xs whitespace-nowrap", prazo?.cls ?? "text-muted-foreground/50")}>
                         {prazo?.label ?? "—"}
                       </td>
-                      <td className="px-3 py-2 w-10">
-                        {t.responsavel && <AvatarUsuario nome={t.responsavel.nome} size="sm" />}
-                      </td>
+
                     </tr>
                   );
                 })}

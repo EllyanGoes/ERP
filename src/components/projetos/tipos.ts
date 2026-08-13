@@ -29,7 +29,8 @@ export type TarefaResumoDTO = {
   dataInicio: string | null;
   concluidaEm: string | null;
   arquivada: boolean;
-  responsavel: { id: string; nome: string } | null;
+  temDescricao?: boolean;
+  membros: { id: string; nome: string }[];
   etiquetas: EtiquetaDTO[];
   checklistFeitos: number;
   checklistTotal: number;

@@ -3,7 +3,7 @@
 // Visão Quadro (kanban) — colunas com drag & drop nativo de cartões e colunas.
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Loader2, Pencil, X } from "lucide-react";
+import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Loader2, Pencil, X, Clock, AlignLeft, Circle, CheckCircle2 } from "lucide-react";
 import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,23 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
   function abrirQuickEdit(tarefa: TarefaResumoDTO, el: HTMLElement) {
     const r = el.getBoundingClientRect();
     setQuickEdit({ tarefa, rect: { top: r.top, left: r.left, width: r.width, right: r.right } });
+  }
+
+  const temColunaConclui = board.colunas.some((c) => c.concluiTarefa);
+
+  // Círculo do cartão: concluir move p/ a coluna de conclusão; reabrir volta p/ a primeira
+  async function concluirRapido(t: TarefaResumoDTO) {
+    const destino = t.concluidaEm
+      ? board.colunas.find((c) => !c.concluiTarefa)
+      : board.colunas.find((c) => c.concluiTarefa);
+    if (!destino) return;
+    onAtualizarLocal(t.id, { colunaId: destino.id, concluidaEm: destino.concluiTarefa ? new Date().toISOString() : null });
+    const res = await fetch(`/api/projetos/tarefas/${t.id}/mover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colunaId: destino.id }),
+    }).catch(() => null);
+    if (!res?.ok) onRecarregar(); else onRecarregar();
   }
 
   const porColuna = (colunaId: string) =>
@@ -259,12 +276,37 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                           {t.etiquetas.map((e) => <EtiquetaChip key={e.id} etiqueta={e} small />)}
                         </div>
                       )}
-                      <p className={cn("text-sm text-foreground leading-snug", t.concluidaEm && "line-through text-muted-foreground")}>
-                        {t.titulo}
-                      </p>
+                      <div className="flex items-start gap-1.5">
+                        {podeEditar && temColunaConclui && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); concluirRapido(t); }}
+                            className={cn(
+                              "shrink-0 mt-0.5 transition-all",
+                              t.concluidaEm ? "text-success" : "text-muted-foreground/50 hover:text-success w-0 opacity-0 group-hover/card:w-4 group-hover/card:opacity-100"
+                            )}
+                            title={t.concluidaEm ? "Reabrir" : "Concluir"}
+                          >
+                            {t.concluidaEm ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                          </button>
+                        )}
+                        <p className={cn("text-sm text-foreground leading-snug flex-1", t.concluidaEm && "line-through text-muted-foreground")}>
+                          {t.titulo}
+                        </p>
+                      </div>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <PrioridadeBadge prioridade={t.prioridade} small />
-                        {prazo && <span className={cn("text-[11px]", prazo.cls)}>{prazo.label}</span>}
+                        {prazo && (
+                          <span className={cn(
+                            "inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md",
+                            t.concluidaEm ? "bg-success/15 text-success" :
+                            prazo.cls.includes("text-danger") ? "bg-danger/15 text-danger font-semibold" :
+                            prazo.cls.includes("text-warning") ? "bg-warning/15 text-warning font-semibold" :
+                            "text-muted-foreground"
+                          )}>
+                            <Clock className="w-3 h-3" /> {prazo.label}
+                          </span>
+                        )}
+                        {t.temDescricao && <AlignLeft className="w-3 h-3 text-muted-foreground" />}
                         {t.checklistTotal > 0 && (
                           <span className={cn("inline-flex items-center gap-0.5 text-[11px]", t.checklistFeitos === t.checklistTotal ? "text-success" : "text-muted-foreground")}>
                             <CheckSquare className="w-3 h-3" /> {t.checklistFeitos}/{t.checklistTotal}
@@ -276,7 +318,16 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                         {t._count.comentarios > 0 && (
                           <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground"><MessageSquare className="w-3 h-3" /> {t._count.comentarios}</span>
                         )}
-                        {t.responsavel && <span className="ml-auto"><AvatarUsuario nome={t.responsavel.nome} size="sm" /></span>}
+                        {t.membros.length > 0 && (
+                          <span className="ml-auto flex -space-x-1">
+                            {t.membros.slice(0, 3).map((m) => <AvatarUsuario key={m.id} nome={m.nome} size="sm" />)}
+                            {t.membros.length > 3 && (
+                              <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground text-[9px] font-semibold inline-flex items-center justify-center">
+                                +{t.membros.length - 3}
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -2733,7 +2733,7 @@ model Usuario {
   // Gestão de Projetos
   projetosDono       Projeto[]          @relation("ProjetoDono")
   projetosMembro     ProjetoMembro[]
-  tarefasResponsavel Tarefa[]           @relation("TarefaResponsavel")
+  tarefasMembro      TarefaMembro[]
   comentariosTarefa  TarefaComentario[]
   atividadesTarefa   TarefaAtividade[]
 }
@@ -4581,7 +4581,6 @@ model Tarefa {
   descricao     String?
   ordem         Int
   prioridade    PrioridadeTarefa      @default(MEDIA)
-  responsavelId String?
   dataInicio    DateTime?
   prazo         DateTime?
   concluidaEm   DateTime?
@@ -4592,7 +4591,7 @@ model Tarefa {
   updatedAt     DateTime              @updatedAt
   projeto       Projeto               @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   coluna        ProjetoColuna         @relation(fields: [colunaId], references: [id])
-  responsavel   Usuario?              @relation("TarefaResponsavel", fields: [responsavelId], references: [id])
+  membros       TarefaMembro[]
   etiquetas     TarefaEtiqueta[]
   checklist     TarefaChecklistItem[]
   comentarios   TarefaComentario[]
@@ -4600,7 +4599,6 @@ model Tarefa {
   atividades    TarefaAtividade[]
 
   @@index([projetoId, colunaId, ordem])
-  @@index([responsavelId, prazo])
   @@index([prazo])
 }
 
@@ -4611,6 +4609,16 @@ model TarefaEtiqueta {
   etiqueta   ProjetoEtiqueta @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
 
   @@id([tarefaId, etiquetaId])
+}
+
+model TarefaMembro {
+  tarefaId  String
+  usuarioId String
+  tarefa    Tarefa  @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@id([tarefaId, usuarioId])
+  @@index([usuarioId])
 }
 
 model TarefaChecklistItem {

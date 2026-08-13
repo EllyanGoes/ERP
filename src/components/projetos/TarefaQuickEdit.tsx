@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { ProjetoBoardDTO, TarefaResumoDTO } from "./tipos";
 
-type Submenu = null | "responsavel" | "prazo" | "mover";
+type Submenu = null | "membros" | "prazo" | "mover";
 
 export default function TarefaQuickEdit({
   tarefa, board, rect, onFechar, onAbrir, onMudou,
@@ -83,7 +83,7 @@ export default function TarefaQuickEdit({
 
   const acoes: Array<{ icone: React.ReactNode; label: string; onClick: () => void; submenu?: Submenu; danger?: boolean }> = [
     { icone: <CreditCard className="w-3.5 h-3.5" />, label: "Abrir cartão", onClick: () => { onFechar(); onAbrir(); } },
-    { icone: <UserIcon className="w-3.5 h-3.5" />, label: "Alterar responsável", onClick: () => setSubmenu(submenu === "responsavel" ? null : "responsavel"), submenu: "responsavel" },
+    { icone: <UserIcon className="w-3.5 h-3.5" />, label: "Alterar membros", onClick: () => setSubmenu(submenu === "membros" ? null : "membros"), submenu: "membros" },
     { icone: <CalendarDays className="w-3.5 h-3.5" />, label: "Editar prazo", onClick: () => setSubmenu(submenu === "prazo" ? null : "prazo"), submenu: "prazo" },
     { icone: <ArrowRight className="w-3.5 h-3.5" />, label: "Mover", onClick: () => setSubmenu(submenu === "mover" ? null : "mover"), submenu: "mover" },
     { icone: <Copy className="w-3.5 h-3.5" />, label: "Copiar cartão", onClick: copiarCartao },
@@ -137,20 +137,25 @@ export default function TarefaQuickEdit({
             >
               {a.icone} {a.label}
             </button>
-            {submenu === "responsavel" && a.submenu === "responsavel" && (
+            {submenu === "membros" && a.submenu === "membros" && (
               <div className="mt-1 bg-card border border-border rounded-lg shadow-md p-1 max-h-52 overflow-y-auto">
-                <button className="w-full text-left px-2 py-1.5 text-[13px] rounded-md hover:bg-muted text-muted-foreground" onClick={() => patch({ responsavelId: null })}>
-                  — Ninguém —
-                </button>
-                {board.membros.map((m) => (
-                  <button
-                    key={m.usuarioId}
-                    className={cn("w-full text-left px-2 py-1.5 text-[13px] rounded-md hover:bg-muted", tarefa.responsavel?.id === m.usuarioId ? "text-info font-medium" : "text-foreground")}
-                    onClick={() => patch({ responsavelId: m.usuarioId })}
-                  >
-                    {m.usuario.nome}
-                  </button>
-                ))}
+                {board.membros.map((m) => {
+                  const marcado = tarefa.membros.some((x) => x.id === m.usuarioId);
+                  return (
+                    <button
+                      key={m.usuarioId}
+                      className={cn("w-full flex items-center gap-2 text-left px-2 py-1.5 text-[13px] rounded-md hover:bg-muted", marcado ? "text-info font-medium" : "text-foreground")}
+                      onClick={() => {
+                        const atuais = tarefa.membros.map((x) => x.id);
+                        const novos = marcado ? atuais.filter((i) => i !== m.usuarioId) : [...atuais, m.usuarioId];
+                        patch({ membroIds: novos });
+                      }}
+                    >
+                      <span className="flex-1 truncate">{m.usuario.nome}</span>
+                      {marcado && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                  );
+                })}
               </div>
             )}
             {submenu === "prazo" && a.submenu === "prazo" && (

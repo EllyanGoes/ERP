@@ -12,7 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: { tarefaId: s
 
   const tarefa = await prismaSemEscopo.tarefa.findUnique({
     where: { id: params.tarefaId },
-    select: { id: true, titulo: true, projetoId: true, responsavelId: true, criadoPor: true },
+    select: { id: true, titulo: true, projetoId: true, criadoPor: true, membros: { select: { usuarioId: true } } },
   });
   if (!tarefa) return NextResponse.json({ error: "Tarefa não encontrada" }, { status: 404 });
   const acesso = await nivelNoProjeto(auth.session, tarefa.projetoId);
@@ -37,10 +37,11 @@ export async function POST(req: NextRequest, { params }: { params: { tarefaId: s
     projetoId: tarefa.projetoId,
     projetoNome: acesso.projeto.nome,
   });
-  // Responsável é notificado de comentários na tarefa dele (se não for o autor nem mencionado)
-  if (tarefa.responsavelId && tarefa.responsavelId !== auth.session.sub) {
+  // Membros do cartão são notificados de comentários (menos o autor)
+  for (const { usuarioId } of tarefa.membros) {
+    if (usuarioId === auth.session.sub) continue;
     await notificarUsuario({
-      usuarioId: tarefa.responsavelId,
+      usuarioId,
       tipo: "PROJETO_COMENTARIO",
       titulo: `Comentário em "${tarefa.titulo}"`,
       mensagem: `${auth.session.nome}: ${texto.slice(0, 120)}`,

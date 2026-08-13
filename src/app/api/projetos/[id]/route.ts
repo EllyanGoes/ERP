@@ -43,8 +43,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       tarefas: projeto.tarefas.map((t) => ({
         ...t,
         etiquetas: t.etiquetas.map((e) => e.etiqueta),
+        membros: t.membros.map((m) => m.usuario),
         checklistFeitos: t.checklist.filter((c) => c.feito).length,
         checklistTotal: t.checklist.length,
+        temDescricao: !!t.descricao?.trim(),
+        descricao: undefined,
         checklist: undefined,
       })),
       meuNivel: acesso.nivel,
