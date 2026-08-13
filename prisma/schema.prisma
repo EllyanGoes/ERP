@@ -4532,6 +4532,9 @@ model Projeto {
   icone         String?
   visibilidade  VisibilidadeProjeto @default(PRIVADO)
   status        StatusProjeto       @default(ATIVO)
+  // Situação de andamento (badge/config): NAO_INICIADO | EM_ANDAMENTO |
+  // PAUSADO | CONCLUIDO. Independe de status (ativo/arquivado).
+  situacao      String              @default("EM_ANDAMENTO")
   donoId        String
   // Projeto pode ser DE UMA EMPRESA do grupo ou GERAL (null) — tag e filtro na
   // home; não escopa consultas (projetos são por usuário/visibilidade).

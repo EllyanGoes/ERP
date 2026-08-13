@@ -12,7 +12,7 @@ import {
   Loader2, ArrowLeft, Star, Settings2, LayoutGrid, List, Calendar as CalendarIcon,
   GanttChartSquare, Activity, Search, X,
 } from "lucide-react";
-import { AvatarUsuario } from "@/components/projetos/comum";
+import { AvatarUsuario, ProgressoCirculo, SituacaoBadge } from "@/components/projetos/comum";
 import SelectMenu from "@/components/shared/SelectMenu";
 import { ProjetoBoardDTO, TarefaResumoDTO } from "@/components/projetos/tipos";
 import KanbanView from "@/components/projetos/KanbanView";
@@ -153,8 +153,14 @@ export default function ProjetoBoardPage() {
           <button onClick={() => router.push("/projetos")} className="text-muted-foreground hover:text-foreground" title="Voltar">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: board.cor ?? "#64748b" }} />
+          <ProgressoCirculo
+            concluidas={board.tarefas.filter((t) => t.concluidaEm).length}
+            total={board.tarefas.length}
+            cor={board.cor}
+            size={20}
+          />
           <h1 className="font-bold text-lg text-foreground truncate max-w-md" title={board.nome}>{board.nome}</h1>
+          <SituacaoBadge situacao={board.situacao} small />
           <button
             onClick={toggleFavorito}
             className={cn("p-1 rounded-md", board.meuFavorito ? "text-amber-400" : "text-muted-foreground/50 hover:text-amber-400")}

@@ -42,6 +42,7 @@ export type ProjetoBoardDTO = {
   nome: string;
   descricao: string | null;
   empresaId?: string | null;
+  situacao?: string;
   cor: string | null;
   icone: string | null;
   visibilidade: "PRIVADO" | "PUBLICO";
@@ -64,6 +65,8 @@ export type ProjetoHomeDTO = {
   icone: string | null;
   visibilidade: "PRIVADO" | "PUBLICO";
   status: "ATIVO" | "ARQUIVADO";
+  // Situação de andamento: NAO_INICIADO | EM_ANDAMENTO | PAUSADO | CONCLUIDO.
+  situacao?: string;
   donoId: string;
   donoNome: string;
   // Projeto por empresa (null = geral do grupo) — tag e filtro na home.

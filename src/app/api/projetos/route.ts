@@ -23,7 +23,7 @@ export async function GET() {
         },
     select: {
       id: true, nome: true, descricao: true, cor: true, icone: true,
-      visibilidade: true, status: true, donoId: true, updatedAt: true, empresaId: true,
+      visibilidade: true, status: true, situacao: true, donoId: true, updatedAt: true, empresaId: true,
       dono: { select: { id: true, nome: true } },
       membros: { select: { usuarioId: true, favorito: true, papel: true, usuario: { select: { id: true, nome: true } } } },
       _count: { select: { tarefas: { where: { arquivada: false, concluidaEm: null } } } },
@@ -52,6 +52,7 @@ export async function GET() {
     icone: p.icone,
     visibilidade: p.visibilidade,
     status: p.status,
+    situacao: p.situacao,
     donoId: p.donoId,
     donoNome: p.dono.nome,
     empresaId: p.empresaId,
