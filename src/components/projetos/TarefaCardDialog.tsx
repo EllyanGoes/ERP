@@ -10,8 +10,8 @@ import DatePicker from "@/components/shared/DatePicker";
 import AnexosSection from "@/components/shared/AnexosSection";
 import {
   Loader2, X, Trash2, Archive, CheckSquare, Square, Plus, Send,
-  Tag, User as UserIcon, Flag, CalendarDays, Activity as ActivityIcon,
   Circle, CheckCircle2, Copy, Link as LinkIcon, Check,
+  MoreHorizontal, AlignLeft, Paperclip, MessageSquare,
 } from "lucide-react";
 import { AvatarUsuario, EtiquetaChip } from "./comum";
 import { ProjetoBoardDTO, PRIORIDADES } from "./tipos";
@@ -69,6 +69,7 @@ export default function TarefaCardDialog({
   const [showEtiquetas, setShowEtiquetas] = useState(false);
   const [novaEtiqueta, setNovaEtiqueta] = useState("");
   const [linkCopiado, setLinkCopiado] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const comentarioRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
@@ -217,68 +218,197 @@ export default function TarefaCardDialog({
   const podeGerenciar = card.meuNivel === "DONO" || card.meuNivel === "ADMIN";
   const feitos = card.checklist.filter((i) => i.feito).length;
   const progresso = card.checklist.length > 0 ? Math.round((feitos / card.checklist.length) * 100) : 0;
+  const prazoVencido = card.prazo && !card.concluidaEm && new Date(card.prazo) < new Date();
+
+  // Feed unificado (estilo Trello): comentários + atividade, mais recente no topo
+  const feed = [
+    ...card.comentarios.map((c) => ({ tipo: "comentario" as const, quando: c.createdAt, c })),
+    ...card.atividades.filter((a) => a.tipo !== "COMENTOU").map((a) => ({ tipo: "atividade" as const, quando: a.createdAt, a })),
+  ].sort((x, y) => new Date(y.quando).getTime() - new Date(x.quando).getTime());
 
   return (
     <div className="flex flex-col">
-      {/* Cabeçalho */}
-      <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b border-border">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2">
-          {podeEditar && board.colunas.some((c) => c.concluiTarefa) && (
+      {/* ── Barra do topo: coluna à esquerda, ações à direita ─────────────── */}
+      <div className="flex items-center justify-between gap-2 px-5 pt-4 pb-3">
+        <select
+          value={card.colunaId}
+          onChange={(e) => mover(e.target.value)}
+          disabled={!podeEditar}
+          className="text-sm font-medium border border-border rounded-lg bg-muted px-2.5 py-1.5 text-foreground cursor-pointer"
+          title="Mover para outra coluna"
+        >
+          {board.colunas.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.concluiTarefa ? " ✓" : ""}</option>)}
+        </select>
+        <div className="flex items-center gap-1 relative">
+          {podeEditar && (
             <button
-              onClick={toggleConcluir}
-              className={cn("mt-0.5 shrink-0 transition-colors", card.concluidaEm ? "text-success" : "text-muted-foreground/50 hover:text-success")}
-              title={card.concluidaEm ? "Reabrir tarefa" : "Concluir tarefa"}
+              onClick={() => setShowMenu(!showMenu)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+              title="Mais ações"
             >
-              {card.concluidaEm ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+              <MoreHorizontal className="w-5 h-5" />
             </button>
           )}
-          <div className="flex-1 min-w-0">
-          {editTitulo && podeEditar ? (
-            <input
-              autoFocus
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              onBlur={() => { setEditTitulo(false); if (titulo.trim() && titulo !== card.titulo) patch({ titulo }); }}
-              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-              className="w-full font-bold text-lg text-foreground bg-transparent border-b border-info/50 focus:outline-none"
-            />
-          ) : (
-            <h2
-              className={cn("font-bold text-lg text-foreground leading-snug", podeEditar && "cursor-text hover:bg-muted rounded px-1 -mx-1", card.concluidaEm && "line-through text-muted-foreground")}
-              onClick={() => podeEditar && setEditTitulo(true)}
-            >
-              {card.titulo}
-            </h2>
-          )}
-          <p className="text-xs text-muted-foreground mt-1">
-            em <span className="font-medium">{card.coluna.nome}</span>
-            {card.concluidaEm && <span className="text-success font-medium"> · concluída</span>}
-            {card.arquivada && <span> · arquivada</span>}
-          </p>
-          </div>
-          </div>
-        </div>
-        <button onClick={onFechar} className="text-muted-foreground hover:text-foreground shrink-0"><X className="w-5 h-5" /></button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-0">
-        {/* ── Corpo principal ──────────────────────────────────────────── */}
-        <div className="px-6 py-4 space-y-5 min-w-0">
-          {/* Etiquetas */}
-          {(card.etiquetas.length > 0 || showEtiquetas) && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {card.etiquetas.map((e) => (
-                <span key={e.id} onClick={() => podeEditar && toggleEtiqueta(e.id)} className={podeEditar ? "cursor-pointer" : ""}>
-                  <EtiquetaChip etiqueta={e} />
-                </span>
-              ))}
+          <button onClick={onFechar} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"><X className="w-5 h-5" /></button>
+          {showMenu && podeEditar && (
+            <div className="absolute right-0 top-full mt-1 w-48 bg-card border border-border rounded-xl shadow-lg z-20 overflow-hidden text-sm">
+              <button onClick={() => { setShowMenu(false); copiarCartao(); }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-foreground hover:bg-muted">
+                <Copy className="w-3.5 h-3.5" /> Copiar cartão
+              </button>
+              <button onClick={() => { setShowMenu(false); copiarLink(); }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-foreground hover:bg-muted">
+                {linkCopiado ? <Check className="w-3.5 h-3.5 text-success" /> : <LinkIcon className="w-3.5 h-3.5" />} {linkCopiado ? "Link copiado!" : "Copiar link"}
+              </button>
+              <button onClick={() => { setShowMenu(false); patch({ arquivada: !card.arquivada }); onFechar(); }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-foreground hover:bg-muted">
+                <Archive className="w-3.5 h-3.5" /> {card.arquivada ? "Desarquivar" : "Arquivar"}
+              </button>
+              {podeGerenciar && (
+                <button onClick={() => { setShowMenu(false); excluirTarefa(); }} className="w-full flex items-center gap-2 px-3 py-2 text-left text-danger hover:bg-danger/10 border-t border-border">
+                  <Trash2 className="w-3.5 h-3.5" /> Excluir
+                </button>
+              )}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_320px]">
+        {/* ── Coluna principal ─────────────────────────────────────────────── */}
+        <div className="px-5 pb-5 space-y-5 min-w-0">
+          {/* Título com círculo de concluir */}
+          <div className="flex items-start gap-2.5">
+            {podeEditar && board.colunas.some((c) => c.concluiTarefa) && (
+              <button
+                onClick={toggleConcluir}
+                className={cn("mt-1 shrink-0 transition-colors", card.concluidaEm ? "text-success" : "text-muted-foreground/50 hover:text-success")}
+                title={card.concluidaEm ? "Reabrir tarefa" : "Concluir tarefa"}
+              >
+                {card.concluidaEm ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
+              </button>
+            )}
+            {editTitulo && podeEditar ? (
+              <input
+                autoFocus
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value)}
+                onBlur={() => { setEditTitulo(false); if (titulo.trim() && titulo !== card.titulo) patch({ titulo }); }}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                className="flex-1 font-bold text-2xl text-foreground bg-transparent border-b border-info/50 focus:outline-none"
+              />
+            ) : (
+              <h2
+                className={cn("flex-1 font-bold text-2xl text-foreground leading-snug", podeEditar && "cursor-text", card.concluidaEm && "line-through text-muted-foreground")}
+                onClick={() => podeEditar && setEditTitulo(true)}
+              >
+                {card.titulo}
+              </h2>
+            )}
+          </div>
+
+          {/* Linha Membro / Etiquetas / Data / Prioridade (estilo Trello) */}
+          <div className="flex items-start gap-6 flex-wrap">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Responsável</p>
+              <div className="flex items-center gap-1.5">
+                {card.responsavel && <AvatarUsuario nome={card.responsavel.nome} />}
+                <select
+                  value={card.responsavel?.id ?? ""}
+                  onChange={(e) => patch({ responsavelId: e.target.value || null })}
+                  disabled={!podeEditar}
+                  className={cn(
+                    "text-sm border border-border rounded-full bg-card text-foreground cursor-pointer",
+                    card.responsavel ? "px-2 py-1 max-w-36 truncate" : "w-8 h-8 text-center"
+                  )}
+                  title="Alterar responsável"
+                >
+                  <option value="">{card.responsavel ? "— Ninguém —" : "+"}</option>
+                  {board.membros.map((m) => <option key={m.usuarioId} value={m.usuarioId}>{m.usuario.nome}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Etiquetas</p>
+              <div className="flex items-center gap-1.5 flex-wrap relative">
+                {card.etiquetas.map((e) => (
+                  <span key={e.id} onClick={() => podeEditar && toggleEtiqueta(e.id)} className={podeEditar ? "cursor-pointer" : ""}>
+                    <EtiquetaChip etiqueta={e} />
+                  </span>
+                ))}
+                {podeEditar && (
+                  <button
+                    onClick={() => setShowEtiquetas(!showEtiquetas)}
+                    className="w-7 h-7 rounded-full border border-border bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center"
+                    title="Editar etiquetas"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                {showEtiquetas && podeEditar && (
+                  <div className="absolute left-0 top-full mt-1.5 w-56 bg-card border border-border rounded-xl shadow-lg z-20 p-2 space-y-1">
+                    {board.etiquetas.map((e) => {
+                      const aplicada = card.etiquetas.some((x) => x.id === e.id);
+                      return (
+                        <button key={e.id} onClick={() => toggleEtiqueta(e.id)} className="w-full flex items-center gap-2 text-left rounded-md px-1.5 py-1 hover:bg-muted">
+                          <span className="w-7 h-4 rounded" style={{ backgroundColor: e.cor }} />
+                          <span className="text-xs text-foreground flex-1 truncate">{e.nome}</span>
+                          {aplicada && <CheckSquare className="w-3.5 h-3.5 text-info" />}
+                        </button>
+                      );
+                    })}
+                    <div className="flex items-center gap-1 pt-1 border-t border-border">
+                      <input
+                        value={novaEtiqueta}
+                        onChange={(e) => setNovaEtiqueta(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && criarEtiqueta()}
+                        placeholder="Nova etiqueta..."
+                        className="flex-1 text-xs bg-transparent focus:outline-none text-foreground px-1 py-1"
+                      />
+                      <button onClick={criarEtiqueta} className="text-info"><Plus className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Data Entrega</p>
+              <div className="flex items-center gap-2">
+                <DatePicker value={card.prazo ? card.prazo.slice(0, 10) : ""} onChange={(v) => podeEditar && patch({ prazo: v || null })} />
+                {prazoVencido && (
+                  <span className="text-[11px] font-semibold text-danger bg-danger/15 px-2 py-0.5 rounded-md whitespace-nowrap">Em Atraso</span>
+                )}
+                {card.concluidaEm && (
+                  <span className="text-[11px] font-semibold text-success bg-success/15 px-2 py-0.5 rounded-md whitespace-nowrap">Concluída</span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Prioridade</p>
+              <select
+                value={card.prioridade}
+                onChange={(e) => patch({ prioridade: e.target.value })}
+                disabled={!podeEditar}
+                className="text-sm border border-border rounded-lg bg-card px-2 py-1.5 text-foreground"
+              >
+                {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1.5">Início</p>
+              <DatePicker value={card.dataInicio ? card.dataInicio.slice(0, 10) : ""} onChange={(v) => podeEditar && patch({ dataInicio: v || null })} />
+            </div>
+          </div>
 
           {/* Descrição */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Descrição</p>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-sm font-semibold text-foreground flex items-center gap-2"><AlignLeft className="w-4 h-4 text-muted-foreground" /> Descrição</p>
+              {podeEditar && !editDesc && card.descricao && (
+                <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" onClick={() => setEditDesc(true)}>Editar</Button>
+              )}
+            </div>
             {editDesc && podeEditar ? (
               <div>
                 <textarea
@@ -295,25 +425,20 @@ export default function TarefaCardDialog({
                 </div>
               </div>
             ) : card.descricao ? (
-              <p
-                className={cn("text-sm text-foreground whitespace-pre-wrap rounded-lg", podeEditar && "cursor-text hover:bg-muted px-2 py-1 -mx-2")}
-                onClick={() => podeEditar && setEditDesc(true)}
-              >
-                {card.descricao}
-              </p>
+              <p className="text-sm text-foreground whitespace-pre-wrap pl-6">{card.descricao}</p>
             ) : podeEditar ? (
               <button onClick={() => setEditDesc(true)} className="w-full text-left text-sm text-muted-foreground bg-muted hover:bg-muted/70 rounded-lg px-3 py-2.5">
-                Adicionar uma descrição...
+                Adicionar uma descrição mais detalhada...
               </button>
             ) : (
-              <p className="text-sm text-muted-foreground/60">—</p>
+              <p className="text-sm text-muted-foreground/60 pl-6">—</p>
             )}
           </div>
 
           {/* Checklist */}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Checklist</p>
+              <p className="text-sm font-semibold text-foreground flex items-center gap-2"><CheckSquare className="w-4 h-4 text-muted-foreground" /> Checklist</p>
               {card.checklist.length > 0 && <span className="text-xs text-muted-foreground">{progresso}%</span>}
             </div>
             {card.checklist.length > 0 && (
@@ -352,190 +477,84 @@ export default function TarefaCardDialog({
 
           {/* Anexos */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Anexos</p>
+            <p className="text-sm font-semibold text-foreground flex items-center gap-2 mb-1.5"><Paperclip className="w-4 h-4 text-muted-foreground" /> Anexos</p>
             <AnexosSection apiBase={`/api/projetos/tarefas/${tarefaId}/anexos`} disabled={!podeEditar} />
           </div>
 
-          {/* Comentários */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Comentários</p>
-            <div className="space-y-3">
-              {card.comentarios.map((c) => (
-                <div key={c.id} className="flex gap-2.5 group">
-                  <AvatarUsuario nome={c.autor.nome} size="sm" />
+          <p className="text-[10px] text-muted-foreground">
+            Criada {card.criadoPor ? `por ${card.criadoPor} ` : ""}em {new Date(card.createdAt).toLocaleDateString("pt-BR")}
+          </p>
+        </div>
+
+        {/* ── Painel lateral: Comentários e atividade ──────────────────────── */}
+        <div className="border-t md:border-t-0 md:border-l border-border bg-muted/30 rounded-b-2xl md:rounded-bl-none md:rounded-r-2xl flex flex-col">
+          <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+            <MessageSquare className="w-4 h-4 text-muted-foreground" />
+            <p className="text-sm font-semibold text-foreground">Comentários e atividade</p>
+          </div>
+
+          {podeEditar && (
+            <div className="px-4 pb-3">
+              <textarea
+                ref={comentarioRef}
+                value={novoComentario}
+                onChange={(e) => setNovoComentario(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) comentar(); }}
+                rows={novoComentario ? 3 : 1}
+                placeholder="Escrever um comentário..."
+                className="w-full text-sm border border-border rounded-lg bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+              {novoComentario.trim() && (
+                <Button size="sm" onClick={comentar} disabled={enviandoComentario} className="mt-1.5 bg-blue-600 hover:bg-blue-700 h-7 px-3 text-xs">
+                  {enviandoComentario ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Send className="w-3 h-3 mr-1.5" /> Enviar</>}
+                </Button>
+              )}
+              <p className="text-[10px] text-muted-foreground mt-1">@nome menciona · Ctrl+Enter envia</p>
+            </div>
+          )}
+
+          <div className="px-4 pb-4 space-y-3 overflow-y-auto max-h-[55vh]">
+            {feed.length === 0 && <p className="text-xs text-muted-foreground/70 italic">Nenhuma atividade ainda.</p>}
+            {feed.map((f) =>
+              f.tipo === "comentario" ? (
+                <div key={`c-${f.c.id}`} className="flex gap-2.5 group">
+                  <AvatarUsuario nome={f.c.autor.nome} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-semibold text-foreground">{c.autor.nome}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {new Date(c.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                        {c.editadoEm && " (editado)"}
+                      <span className="text-sm font-semibold text-foreground">{f.c.autor.nome}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(f.c.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        {f.c.editadoEm && " (editado)"}
                       </span>
-                      {(c.autor.id === usuarioId || podeGerenciar) && (
-                        <button onClick={() => excluirComentario(c.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger">
+                      {(f.c.autor.id === usuarioId || podeGerenciar) && podeEditar && (
+                        <button onClick={() => excluirComentario(f.c.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger">
                           <Trash2 className="w-3 h-3" />
                         </button>
                       )}
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{c.texto}</p>
+                    <div className="bg-card border border-border rounded-lg px-2.5 py-1.5 mt-0.5">
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{f.c.texto}</p>
+                    </div>
                   </div>
                 </div>
-              ))}
-              {card.comentarios.length === 0 && <p className="text-xs text-muted-foreground/70 italic">Nenhum comentário ainda.</p>}
-            </div>
-            {podeEditar && (
-              <div className="flex gap-2 mt-3">
-                <textarea
-                  ref={comentarioRef}
-                  value={novoComentario}
-                  onChange={(e) => setNovoComentario(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) comentar(); }}
-                  rows={2}
-                  placeholder="Escreva um comentário... (@nome menciona; Ctrl+Enter envia)"
-                  className="flex-1 text-sm border border-border rounded-lg bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <Button size="sm" onClick={comentar} disabled={enviandoComentario || !novoComentario.trim()} className="self-end bg-blue-600 hover:bg-blue-700 h-8 px-3">
-                  {enviandoComentario ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Atividade */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <ActivityIcon className="w-3.5 h-3.5" /> Atividade
-            </p>
-            <div className="space-y-1.5">
-              {card.atividades.filter((a) => a.tipo !== "COMENTOU").slice(0, 10).map((a) => (
-                <p key={a.id} className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{a.autor.nome}</span>{" "}
-                  {ATIVIDADE_LABEL[a.tipo] ?? a.tipo.toLowerCase()}
-                  {(() => {
-                    const d = a.detalhe as { de?: string; para?: string } | null;
-                    return d?.de && d?.para ? ` de "${d.de}" para "${d.para}"` : "";
-                  })()}
-                  {" · "}
-                  {new Date(a.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                </p>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Lateral: campos ──────────────────────────────────────────── */}
-        <div className="border-t md:border-t-0 md:border-l border-border px-4 py-4 space-y-4 bg-muted/30 rounded-b-2xl md:rounded-bl-none md:rounded-r-2xl">
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1"><UserIcon className="w-3 h-3" /> Responsável</p>
-            <select
-              value={card.responsavel?.id ?? ""}
-              onChange={(e) => patch({ responsavelId: e.target.value || null })}
-              disabled={!podeEditar}
-              className="w-full text-sm border border-border rounded-lg bg-card px-2 py-1.5 text-foreground"
-            >
-              <option value="">— Ninguém —</option>
-              {board.membros.map((m) => <option key={m.usuarioId} value={m.usuarioId}>{m.usuario.nome}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1"><Flag className="w-3 h-3" /> Prioridade</p>
-            <select
-              value={card.prioridade}
-              onChange={(e) => patch({ prioridade: e.target.value })}
-              disabled={!podeEditar}
-              className="w-full text-sm border border-border rounded-lg bg-card px-2 py-1.5 text-foreground"
-            >
-              {Object.entries(PRIORIDADES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Início</p>
-            <DatePicker value={card.dataInicio ? card.dataInicio.slice(0, 10) : ""} onChange={(v) => podeEditar && patch({ dataInicio: v || null })} />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1"><CalendarDays className="w-3 h-3" /> Prazo</p>
-            <DatePicker value={card.prazo ? card.prazo.slice(0, 10) : ""} onChange={(v) => podeEditar && patch({ prazo: v || null })} />
-          </div>
-
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Coluna</p>
-            <select
-              value={card.colunaId}
-              onChange={(e) => mover(e.target.value)}
-              disabled={!podeEditar}
-              className="w-full text-sm border border-border rounded-lg bg-card px-2 py-1.5 text-foreground"
-            >
-              {board.colunas.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.concluiTarefa ? " ✓" : ""}</option>)}
-            </select>
-          </div>
-
-          {/* Etiquetas */}
-          <div>
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1 flex items-center gap-1"><Tag className="w-3 h-3" /> Etiquetas</p>
-            {podeEditar && (
-              <button onClick={() => setShowEtiquetas(!showEtiquetas)} className="w-full text-left text-sm text-muted-foreground bg-card border border-border rounded-lg px-2 py-1.5 hover:bg-muted">
-                {card.etiquetas.length > 0 ? `${card.etiquetas.length} aplicada${card.etiquetas.length > 1 ? "s" : ""}` : "Adicionar..."}
-              </button>
-            )}
-            {showEtiquetas && podeEditar && (
-              <div className="mt-1.5 bg-card border border-border rounded-lg p-2 space-y-1">
-                {board.etiquetas.map((e) => {
-                  const aplicada = card.etiquetas.some((x) => x.id === e.id);
-                  return (
-                    <button key={e.id} onClick={() => toggleEtiqueta(e.id)} className="w-full flex items-center gap-2 text-left rounded-md px-1.5 py-1 hover:bg-muted">
-                      <span className="w-6 h-3.5 rounded" style={{ backgroundColor: e.cor }} />
-                      <span className="text-xs text-foreground flex-1 truncate">{e.nome}</span>
-                      {aplicada && <CheckSquare className="w-3.5 h-3.5 text-info" />}
-                    </button>
-                  );
-                })}
-                <div className="flex items-center gap-1 pt-1 border-t border-border">
-                  <input
-                    value={novaEtiqueta}
-                    onChange={(e) => setNovaEtiqueta(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && criarEtiqueta()}
-                    placeholder="Nova etiqueta..."
-                    className="flex-1 text-xs bg-transparent focus:outline-none text-foreground px-1 py-1"
-                  />
-                  <button onClick={criarEtiqueta} className="text-info"><Plus className="w-3.5 h-3.5" /></button>
+              ) : (
+                <div key={`a-${f.a.id}`} className="flex gap-2.5">
+                  <AvatarUsuario nome={f.a.autor.nome} size="sm" />
+                  <p className="text-xs text-muted-foreground flex-1 min-w-0 pt-1">
+                    <span className="font-semibold text-foreground">{f.a.autor.nome}</span>{" "}
+                    {ATIVIDADE_LABEL[f.a.tipo] ?? f.a.tipo.toLowerCase()}
+                    {(() => {
+                      const d = f.a.detalhe as { de?: string; para?: string } | null;
+                      return d?.de && d?.para ? ` de "${d.de}" para "${d.para}"` : "";
+                    })()}
+                    <span className="block text-[10px]">
+                      {new Date(f.a.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </p>
                 </div>
-              </div>
+              ),
             )}
           </div>
-
-          {/* Ações */}
-          {podeEditar && (
-            <div className="pt-2 border-t border-border space-y-1.5">
-              <button
-                onClick={copiarCartao}
-                className="w-full flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted"
-              >
-                <Copy className="w-3.5 h-3.5" /> Copiar cartão
-              </button>
-              <button
-                onClick={copiarLink}
-                className="w-full flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted"
-              >
-                {linkCopiado ? <Check className="w-3.5 h-3.5 text-success" /> : <LinkIcon className="w-3.5 h-3.5" />}
-                {linkCopiado ? "Link copiado!" : "Copiar link"}
-              </button>
-              <button
-                onClick={() => { patch({ arquivada: !card.arquivada }); onFechar(); }}
-                className="w-full flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted"
-              >
-                <Archive className="w-3.5 h-3.5" /> {card.arquivada ? "Desarquivar" : "Arquivar"}
-              </button>
-              {podeGerenciar && (
-                <button onClick={excluirTarefa} className="w-full flex items-center gap-2 text-sm text-danger hover:bg-danger/10 px-2 py-1.5 rounded-lg">
-                  <Trash2 className="w-3.5 h-3.5" /> Excluir
-                </button>
-              )}
-            </div>
-          )}
-          <p className="text-[10px] text-muted-foreground pt-1">
-            Criada {card.criadoPor ? `por ${card.criadoPor} ` : ""}em {new Date(card.createdAt).toLocaleDateString("pt-BR")}
-          </p>
         </div>
       </div>
     </div>
