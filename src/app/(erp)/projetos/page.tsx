@@ -108,7 +108,12 @@ export default function ProjetosHomePage() {
     load(true);
     if (configBoard) {
       const res = await fetch(`/api/projetos/${configBoard.id}`).catch(() => null);
-      if (res?.ok) setConfigBoard((await res.json()).data);
+      if (res?.ok) {
+        const data = (await res.json()).data;
+        // Só atualiza se o diálogo AINDA estiver aberto — o Salvar fecha e o
+        // refetch assíncrono não pode reabri-lo por cima do usuário.
+        setConfigBoard((cur) => (cur ? data : cur));
+      }
     }
   }
 
