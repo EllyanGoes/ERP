@@ -220,9 +220,9 @@ model Cliente {
 }
 
 model Colaborador {
-  id                         String               @id @default(cuid())
+  id                         String                @id @default(cuid())
   nome                       String
-  cpf                        String?              @unique
+  cpf                        String?               @unique
   // Matrícula na folha — casa a folha ao colaborador automaticamente (aprendida
   // no 1º vínculo, reusada nas próximas competências).
   matricula                  String?
@@ -235,34 +235,34 @@ model Colaborador {
   // Classificação de custo para o fechamento da folha (rateio MOD/MOI/admin).
   classificacaoCusto         ClassificacaoCusto?
   // Valor da hora de trabalho — puxado no lançamento de diárias (editável lá).
-  valorHora                  Decimal?             @db.Decimal(15, 2)
+  valorHora                  Decimal?              @db.Decimal(15, 2)
   // Vínculo: funcionário (folha de pagamento) ou prestador (lançamento de diaristas).
-  tipoColaborador            TipoColaborador      @default(FUNCIONARIO)
+  tipoColaborador            TipoColaborador       @default(FUNCIONARIO)
   dataAdmissao               DateTime?
   dataDemissao               DateTime?
-  usuarioId                  String?              @unique
-  ativo                      Boolean              @default(true)
+  usuarioId                  String?               @unique
+  ativo                      Boolean               @default(true)
   // Áreas de operação (nomes das etapas do fluxo: Preparação, Conformação, …) em que
   // o colaborador pode atuar. Vazio = sem restrição (aparece como responsável em todas).
-  areasOperacao              String[]             @default([])
+  areasOperacao              String[]              @default([])
   observacoes                String?
-  createdAt                  DateTime             @default(now())
-  updatedAt                  DateTime             @updatedAt
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
   etapasAprovacao            AprovacaoEtapa[]
   folhaItens                 FolhaItem[]
   diariaItens                DiariaItem[]
-  ordensProducaoResponsavel  OrdemProducao[]      @relation("OrdemProducaoResponsavel")
+  ordensProducaoResponsavel  OrdemProducao[]       @relation("OrdemProducaoResponsavel")
   ordensProducaoEquipe       OrdemProducaoEquipe[]
-  usuario                    Usuario?             @relation(fields: [usuarioId], references: [id])
+  usuario                    Usuario?              @relation(fields: [usuarioId], references: [id])
   filiais                    Filial[]
   // Empresas em que o colaborador está presente — define onde ele aparece nos
   // lançamentos e onde a conta contábil dele (Salários a Pagar) é criada.
-  empresas                   Empresa[]            @relation("ColaboradorEmpresas")
+  empresas                   Empresa[]             @relation("ColaboradorEmpresas")
   contasContabeis            ContaContabil[]
-  setor                      Setor?               @relation(fields: [setorId], references: [id])
+  setor                      Setor?                @relation(fields: [setorId], references: [id])
   solicitacoesCompra         NecessidadeCompra[]
-  requisicoesComoSolicitante RequisicaoMaterial[] @relation("RM_Solicitante")
-  requisicoesComoAlmoxarife  RequisicaoMaterial[] @relation("RM_Almoxarife")
+  requisicoesComoSolicitante RequisicaoMaterial[]  @relation("RM_Solicitante")
+  requisicoesComoAlmoxarife  RequisicaoMaterial[]  @relation("RM_Almoxarife")
   inventarios                InventarioMaterial[]
   escalas                    ColaboradorEscala[]
 }
@@ -387,24 +387,24 @@ model FolhaItem {
 // Folha de diárias de um dia, organizada em blocos (grupos) por tipo/setor/turno,
 // como o modelo de planilha em papel. Cada item é uma diária paga a um colaborador.
 model DiariaFolha {
-  id          String        @id @default(cuid())
-  empresaId   String        @default("emp_tramontin")
-  data        DateTime      @db.Date
+  id                  String        @id @default(cuid())
+  empresaId           String        @default("emp_tramontin")
+  data                DateTime      @db.Date
   // Turno do lançamento (DIA | NOITE) — pode haver um de cada por data.
-  turno       String        @default("DIA")
-  observacoes String?
-  status      String        @default("ABERTA") // ABERTA | FECHADA
-  total       Decimal       @default(0) @db.Decimal(15, 2)
+  turno               String        @default("DIA")
+  observacoes         String?
+  status              String        @default("ABERTA") // ABERTA | FECHADA
+  total               Decimal       @default(0) @db.Decimal(15, 2)
   // Folha assinada pelos diaristas (PDF/imagem escaneada subida após a coleta
   // das assinaturas — o "Baixar PDF" gera a planilha p/ assinatura).
   arquivoAssinadoUrl  String?
   arquivoAssinadoNome String?
-  criadoPor   String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  empresa     Empresa       @relation(fields: [empresaId], references: [id])
-  grupos      DiariaGrupo[]
-  contasPagar ContaPagar[]
+  criadoPor           String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  empresa             Empresa       @relation(fields: [empresaId], references: [id])
+  grupos              DiariaGrupo[]
+  contasPagar         ContaPagar[]
 
   @@index([empresaId, data])
 }
@@ -426,27 +426,27 @@ model DiariaGrupo {
 }
 
 model DiariaItem {
-  id            String      @id @default(cuid())
-  empresaId     String      @default("emp_tramontin")
-  grupoId       String
-  colaboradorId String
-  servico       String? // descrição do serviço (ex.: "MOTORISTA 120/8*8")
+  id              String      @id @default(cuid())
+  empresaId       String      @default("emp_tramontin")
+  grupoId         String
+  colaboradorId   String
+  servico         String? // descrição do serviço (ex.: "MOTORISTA 120/8*8")
   // Colunas da planilha de assinatura (texto livre, ex.: "08:00 ÀS 12:00")
-  manha          String?
-  tarde          String?
-  horasExcedente String?
+  manha           String?
+  tarde           String?
+  horasExcedente  String?
   // valor = diária base; valorTotal = diária + excedente × valor-hora (é o
   // que soma no total da folha e sai no PDF).
-  valor         Decimal     @default(0) @db.Decimal(15, 2)
-  valorTotal    Decimal     @default(0) @db.Decimal(15, 2)
-  ordem         Int         @default(0)
+  valor           Decimal     @default(0) @db.Decimal(15, 2)
+  valorTotal      Decimal     @default(0) @db.Decimal(15, 2)
+  ordem           Int         @default(0)
   // Pagamento individual (módulo de diárias): espelho do padrão da folha —
   // baixa parcial no título único da diária + D conta do colaborador / C banco.
   dataPagamento   DateTime?
   contaBancariaId String?
-  valorPago       Decimal?  @db.Decimal(15, 2)
-  grupo         DiariaGrupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
-  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  valorPago       Decimal?    @db.Decimal(15, 2)
+  grupo           DiariaGrupo @relation(fields: [grupoId], references: [id], onDelete: Cascade)
+  colaborador     Colaborador @relation(fields: [colaboradorId], references: [id])
 
   @@index([grupoId])
   @@index([colaboradorId])
@@ -502,59 +502,59 @@ model CondicaoPagamento {
 }
 
 model ConferenciaCompra {
-  id                   String                  @id @default(cuid())
-  empresaId            String                  @default("emp_tramontin")
-  numero               String
-  pedidoId             String?                 @unique
-  status               StatusConferenciaCompra @default(PENDENTE)
-  condicaoPagamentoId  String?
+  id                    String                  @id @default(cuid())
+  empresaId             String                  @default("emp_tramontin")
+  numero                String
+  pedidoId              String?                 @unique
+  status                StatusConferenciaCompra @default(PENDENTE)
+  condicaoPagamentoId   String?
   // Forma de pagamento PREVISTA (meio de quitação: PIX, dinheiro, permuta…);
   // a condição estrutura o prazo, a forma define como quita. Carimba os títulos.
-  formaPagamentoId     String?
-  naturezaFinanceiraId String?
-  dataConferencia      DateTime?
-  responsavel          String?
-  observacoes          String?
+  formaPagamentoId      String?
+  naturezaFinanceiraId  String?
+  dataConferencia       DateTime?
+  responsavel           String?
+  observacoes           String?
   // Campos Documento de Entrada (Nota Fiscal)
-  tipoNota             String?                 @default("NORMAL")
-  numeroNF             String?
-  serie                String?
-  dtEmissao            DateTime?
-  ufOrigem             String?
-  espDocumento         String?                 @default("SPED")
-  fornecedorId         String?
-  localEstoqueId       String?
-  modoLocalEstoque     String?                 @default("POR_ITEM")
+  tipoNota              String?                 @default("NORMAL")
+  numeroNF              String?
+  serie                 String?
+  dtEmissao             DateTime?
+  ufOrigem              String?
+  espDocumento          String?                 @default("SPED")
+  fornecedorId          String?
+  localEstoqueId        String?
+  modoLocalEstoque      String?                 @default("POR_ITEM")
   // Financeiro
-  frete                Decimal?                @db.Decimal(15, 2)
-  tipoFrete            String?
-  seguro               Decimal?                @db.Decimal(15, 2)
-  despesas             Decimal?                @db.Decimal(15, 2)
-  desconto             Decimal?                @db.Decimal(15, 2)
-  vrTotal              Decimal?                @db.Decimal(15, 2)
+  frete                 Decimal?                @db.Decimal(15, 2)
+  tipoFrete             String?
+  seguro                Decimal?                @db.Decimal(15, 2)
+  despesas              Decimal?                @db.Decimal(15, 2)
+  desconto              Decimal?                @db.Decimal(15, 2)
+  vrTotal               Decimal?                @db.Decimal(15, 2)
   // Pagamento JÁ REALIZADO antes da conclusão (entrada/sinal da fatura). Na
   // conclusão vira um título QUITADO (baixado na data, pela forma/conta abaixo)
   // e as parcelas da condição incidem só sobre o restante.
-  valorPagoAntecipado  Decimal?                @db.Decimal(15, 2)
-  dataPagoAntecipado   DateTime?
+  valorPagoAntecipado   Decimal?                @db.Decimal(15, 2)
+  dataPagoAntecipado    DateTime?
   formaPagoAntecipadoId String?
   contaPagoAntecipadoId String?
   // Grade de duplicatas EDITADA manualmente (substitui calcularParcelas na
   // conclusão): [{ valor: number, dataVencimento: "YYYY-MM-DD" | null }].
   // null = grade automática pela condição.
-  parcelasCustom       Json?
-  createdAt            DateTime                @default(now())
-  updatedAt            DateTime                @updatedAt
-  pedido               PedidoCompra?           @relation(fields: [pedidoId], references: [id])
-  condicaoPagamentoRef CondicaoPagamento?      @relation("CondPgtoConferencia", fields: [condicaoPagamentoId], references: [id])
-  formaPagamento       FormaPagamento?         @relation("FormaPgtoConferencia", fields: [formaPagamentoId], references: [id])
-  formaPagoAntecipado  FormaPagamento?         @relation("FormaPgtoAntecipadoConf", fields: [formaPagoAntecipadoId], references: [id])
-  contaPagoAntecipado  ContaBancaria?          @relation("ContaPgtoAntecipadoConf", fields: [contaPagoAntecipadoId], references: [id])
-  naturezaFinanceira   NaturezaFinanceira?     @relation(fields: [naturezaFinanceiraId], references: [id])
-  fornecedor           Fornecedor?             @relation(fields: [fornecedorId], references: [id])
-  localEstoque         LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
-  itens                ConferenciaCompraItem[]
-  contasPagar          ContaPagar[]
+  parcelasCustom        Json?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  pedido                PedidoCompra?           @relation(fields: [pedidoId], references: [id])
+  condicaoPagamentoRef  CondicaoPagamento?      @relation("CondPgtoConferencia", fields: [condicaoPagamentoId], references: [id])
+  formaPagamento        FormaPagamento?         @relation("FormaPgtoConferencia", fields: [formaPagamentoId], references: [id])
+  formaPagoAntecipado   FormaPagamento?         @relation("FormaPgtoAntecipadoConf", fields: [formaPagoAntecipadoId], references: [id])
+  contaPagoAntecipado   ContaBancaria?          @relation("ContaPgtoAntecipadoConf", fields: [contaPagoAntecipadoId], references: [id])
+  naturezaFinanceira    NaturezaFinanceira?     @relation(fields: [naturezaFinanceiraId], references: [id])
+  fornecedor            Fornecedor?             @relation(fields: [fornecedorId], references: [id])
+  localEstoque          LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
+  itens                 ConferenciaCompraItem[]
+  contasPagar           ContaPagar[]
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -567,61 +567,61 @@ model ConferenciaCompra {
 }
 
 model ConferenciaCompraItem {
-  id                      String                @id @default(cuid())
-  empresaId               String                @default("emp_tramontin")
+  id                      String                  @id @default(cuid())
+  empresaId               String                  @default("emp_tramontin")
   conferenciaId           String
   itemId                  String
   // Unidade da COMPRA (herdada do pedido; null = base). quantidadeRecebida e
   // vlrUnitario ficam nesta unidade; conversão p/ base ao concluir.
   unidadeId               String?
-  quantidadePedida        Decimal               @db.Decimal(15, 3)
-  quantidadeRecebida      Decimal               @default(0) @db.Decimal(15, 3)
-  divergencia             Boolean               @default(false)
+  quantidadePedida        Decimal                 @db.Decimal(15, 3)
+  quantidadeRecebida      Decimal                 @default(0) @db.Decimal(15, 3)
+  divergencia             Boolean                 @default(false)
   observacao              String?
   // Campos NF item
   localEstoqueId          String?
-  vlrUnitario             Decimal?              @db.Decimal(15, 2)
-  vlrTotal                Decimal?              @db.Decimal(15, 2)
-  vlrIPI                  Decimal?              @db.Decimal(15, 2)
-  vlrICMS                 Decimal?              @db.Decimal(15, 2)
+  vlrUnitario             Decimal?                @db.Decimal(15, 2)
+  vlrTotal                Decimal?                @db.Decimal(15, 2)
+  vlrIPI                  Decimal?                @db.Decimal(15, 2)
+  vlrICMS                 Decimal?                @db.Decimal(15, 2)
   tipoEntrada             String?
   codFiscal               String?
   tpOper                  String?
-  desconto                Decimal?              @db.Decimal(15, 4)
+  desconto                Decimal?                @db.Decimal(15, 4)
   // Centro herdado do pedido (default editável). NÃO classifica destino de custo:
   // a precedência do material (compoe_custo → capitaliza → centro) decide PEP_MD/
   // IMOBILIZADO/CIF/DESPESA na entrada ou na RM, partindo deste centro herdado.
   centroCustoId           String?
-  centroCusto             CentroCusto?          @relation(fields: [centroCustoId], references: [id])
+  centroCusto             CentroCusto?            @relation(fields: [centroCustoId], references: [id])
   // Capitaliza / bem / componente substituído — mesmos atributos da linha da RM
   // (herança/orçamento na entrada; a precedência do material lê a flag). null =
   // herda item.capitaliza. Ver src/lib/pcp/rotear-requisicao.ts.
   capitaliza              Boolean?
   imobilizadoId           String?
-  imobilizado             Imobilizado?          @relation("ConfItemImobilizado", fields: [imobilizadoId], references: [id])
+  imobilizado             Imobilizado?            @relation("ConfItemImobilizado", fields: [imobilizadoId], references: [id])
   componenteSubstituidoId String?
-  componenteSubstituido   Imobilizado?          @relation("ConfItemComponente", fields: [componenteSubstituidoId], references: [id])
+  componenteSubstituido   Imobilizado?            @relation("ConfItemComponente", fields: [componenteSubstituidoId], references: [id])
   // TES da linha + compoeCusto da linha (null = herda item.compoeCusto). O TES
   // preenche as flags; a precedência lê a linha. O TES não decide destino.
   tesId                   String?
-  tes                     TipoOperacao?         @relation(fields: [tesId], references: [id])
+  tes                     TipoOperacao?           @relation(fields: [tesId], references: [id])
   compoeCusto             Boolean?
   // Natureza financeira DA LINHA (como o centro): default preenchido pela
   // sugestão do TES, editável. Alimenta o rateio multi-natureza do CP na
   // conclusão (linhas sem natureza caem no cabeçalho do DE). Filho não usa.
   naturezaFinanceiraId    String?
-  naturezaFinanceira      NaturezaFinanceira?   @relation("ConfItemNatureza", fields: [naturezaFinanceiraId], references: [id])
+  naturezaFinanceira      NaturezaFinanceira?     @relation("ConfItemNatureza", fields: [naturezaFinanceiraId], references: [id])
   // Item COMPONENTE (filho): decompõe o preço da linha pai (ex.: "roda montada"
   // absorve eixo/rolamentos/anéis). Filho NÃO movimenta estoque, NÃO entra no
   // líquido/CP e NÃO mexe em CMPM — é registro da composição. 1 nível só.
   paiId                   String?
   pai                     ConferenciaCompraItem?  @relation("ConfItemComposicao", fields: [paiId], references: [id], onDelete: Cascade)
   filhos                  ConferenciaCompraItem[] @relation("ConfItemComposicao")
-  conferencia             ConferenciaCompra     @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
-  item                    Item                  @relation(fields: [itemId], references: [id])
-  localEstoque            LocalEstoque?         @relation(fields: [localEstoqueId], references: [id])
+  conferencia             ConferenciaCompra       @relation(fields: [conferenciaId], references: [id], onDelete: Cascade)
+  item                    Item                    @relation(fields: [itemId], references: [id])
+  localEstoque            LocalEstoque?           @relation(fields: [localEstoqueId], references: [id])
   movimentacoes           MovimentacaoEstoque[]
-  empresa                 Empresa               @relation(fields: [empresaId], references: [id])
+  empresa                 Empresa                 @relation(fields: [empresaId], references: [id])
 
   @@index([empresaId])
   @@index([centroCustoId])
@@ -656,7 +656,6 @@ model IntegracaoPagamento {
   @@index([empresaId])
 }
 
-
 // Anexos dos TÍTULOS financeiros (fatura, boleto, comprovante…) — um registro
 // por arquivo no Blob; título a pagar OU a receber (uma das FKs preenchida).
 model AnexoTitulo {
@@ -676,90 +675,90 @@ model AnexoTitulo {
 }
 
 model ContaPagar {
-  id                    String                 @id @default(cuid())
-  empresaId             String                 @default("emp_tramontin")
-  numero                String
-  fornecedorId          String?
+  id                       String                 @id @default(cuid())
+  empresaId                String                 @default("emp_tramontin")
+  numero                   String
+  fornecedorId             String?
   // Beneficiário polimórfico do lançamento de SAÍDA: 'FORNECEDOR' | 'COLABORADOR'
   // | null (encargo sem vínculo, ex.: INSS patronal/FGTS). Não interfere na
   // contabilização — quem define as contas é a natureza financeira.
-  beneficiarioTipo      String?
-  beneficiarioId        String?
-  descricao             String
-  categoria             String?
-  centroCustoId         String?
-  contaBancariaId       String?
-  grupoParcelamentoId   String?
-  recorrenciaId         String?
-  pedidoCompraId        String?
-  parcelaNumero         Int?
-  parcelaTotal          Int?
-  valorOriginal         Decimal                @db.Decimal(15, 2)
-  valorPago             Decimal                @default(0) @db.Decimal(15, 2)
-  valorMulta            Decimal                @default(0) @db.Decimal(15, 2)
-  valorJuros            Decimal                @default(0) @db.Decimal(15, 2)
+  beneficiarioTipo         String?
+  beneficiarioId           String?
+  descricao                String
+  categoria                String?
+  centroCustoId            String?
+  contaBancariaId          String?
+  grupoParcelamentoId      String?
+  recorrenciaId            String?
+  pedidoCompraId           String?
+  parcelaNumero            Int?
+  parcelaTotal             Int?
+  valorOriginal            Decimal                @db.Decimal(15, 2)
+  valorPago                Decimal                @default(0) @db.Decimal(15, 2)
+  valorMulta               Decimal                @default(0) @db.Decimal(15, 2)
+  valorJuros               Decimal                @default(0) @db.Decimal(15, 2)
   // Taxa/tarifa RETIDA na baixa (paga/recebe MENOS que o baixado): acumulada aqui;
   // a natureza travada (sistema) do encargo fica em taxaNaturezaId. O título é
   // sempre quitado pelo valorOriginal — a taxa nunca contamina o principal.
-  valorTaxa             Decimal                @default(0) @db.Decimal(15, 2)
-  taxaNaturezaId        String?
-  dataVencimento        DateTime? // null = sem data prevista (ex.: "Faturado")
-  dataPagamento         DateTime?
-  dataCompetencia       DateTime?
+  valorTaxa                Decimal                @default(0) @db.Decimal(15, 2)
+  taxaNaturezaId           String?
+  dataVencimento           DateTime? // null = sem data prevista (ex.: "Faturado")
+  dataPagamento            DateTime?
+  dataCompetencia          DateTime?
   // Data de emissão do documento (NF do fornecedor / lançamento manual). Nos
   // títulos de compra, quando null, a tela cai na emissão do Documento de Entrada.
-  dataEmissao           DateTime?
-  status                StatusConta            @default(ABERTA)
-  formaPagamento        String?
+  dataEmissao              DateTime?
+  status                   StatusConta            @default(ABERTA)
+  formaPagamento           String?
   // Forma PREVISTA de quitação (herdada do Documento de Entrada; ex.: permuta).
   // Distinta de formaPagamento (string-resumo do que foi efetivamente baixado).
   formaPagamentoPrevistaId String?
-  formaPagamentoPrevista   FormaPagamento? @relation("FormaPrevistaCP", fields: [formaPagamentoPrevistaId], references: [id])
-  notaFiscal            String?
-  intragrupo            Boolean                @default(false)
+  formaPagamentoPrevista   FormaPagamento?        @relation("FormaPrevistaCP", fields: [formaPagamentoPrevistaId], references: [id])
+  notaFiscal               String?
+  intragrupo               Boolean                @default(false)
   // Folha de pagamento: quando true, a provisão já foi feita pela apropriação da
   // folha — a contabilização do título posta SÓ a liquidação (D passivo / C banco).
-  semProvisao           Boolean                @default(false)
-  folhaId               String?
+  semProvisao              Boolean                @default(false)
+  folhaId                  String?
   // Título único de diárias: liga o CP à folha de diárias que o gerou.
-  diariaFolhaId         String?
-  diariaFolha           DiariaFolha?           @relation(fields: [diariaFolhaId], references: [id])
+  diariaFolhaId            String?
+  diariaFolha              DiariaFolha?           @relation(fields: [diariaFolhaId], references: [id])
   // Título único de RH (folha/diárias): TODO o contábil (provisão E baixa) é
   // postado pelo módulo de origem, por colaborador — contabilizarTituloPagar
   // pula o título inteiro. Diferente de semProvisao, que ainda posta a baixa.
-  contabilizacaoExterna Boolean                @default(false)
+  contabilizacaoExterna    Boolean                @default(false)
   // Pagamento antecipado (PA): título nascido no PEDIDO (adiantamento a fornecedor).
   // Ao ser pago, debita "Adiantamento a Fornecedores" (ativo 1.1.7), nunca despesa/
   // custo; a entrada depois liquida o adiantamento. Dirige a tag "PA" na tela.
-  antecipado            Boolean                @default(false)
+  antecipado               Boolean                @default(false)
   // Conta de passivo a debitar na liquidação (folha: INSS/IRRF/FGTS a Recolher).
   // Quando null, o passivo vem do colaborador/natureza (comportamento padrão).
-  contaPassivoId        String?
-  contaReceberEspelhoId String?                @unique
-  observacoes           String?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  fornecedor            Fornecedor?            @relation(fields: [fornecedorId], references: [id])
-  centroCusto           CentroCusto?           @relation(fields: [centroCustoId], references: [id])
-  contaBancaria         ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
-  recorrencia           Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
-  contaReceberEspelho   ContaReceber?          @relation("EspelhoIntragrupoCR", fields: [contaReceberEspelhoId], references: [id])
-  pedidoCompra          PedidoCompra?          @relation(fields: [pedidoCompraId], references: [id])
+  contaPassivoId           String?
+  contaReceberEspelhoId    String?                @unique
+  observacoes              String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  fornecedor               Fornecedor?            @relation(fields: [fornecedorId], references: [id])
+  centroCusto              CentroCusto?           @relation(fields: [centroCustoId], references: [id])
+  contaBancaria            ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
+  recorrencia              Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
+  contaReceberEspelho      ContaReceber?          @relation("EspelhoIntragrupoCR", fields: [contaReceberEspelhoId], references: [id])
+  pedidoCompra             PedidoCompra?          @relation(fields: [pedidoCompraId], references: [id])
   // Documento de Entrada que originou o título (compra por pedido OU entrada
   // avulsa) — dá rastreabilidade direta CP → DE no financeiro.
-  conferenciaId         String?
-  conferencia           ConferenciaCompra?     @relation(fields: [conferenciaId], references: [id])
-  naturezaFinanceiraId  String?
-  naturezaFinanceira    NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
-  lancamentos           LancamentoFinanceiro[]
-  naturezas             ContaPagarNatureza[] // rateio gerencial por natureza (definido na baixa)
-  anexos                AnexoTitulo[] // documentos do título (fatura, boleto, comprovante)
+  conferenciaId            String?
+  conferencia              ConferenciaCompra?     @relation(fields: [conferenciaId], references: [id])
+  naturezaFinanceiraId     String?
+  naturezaFinanceira       NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
+  lancamentos              LancamentoFinanceiro[]
+  naturezas                ContaPagarNatureza[] // rateio gerencial por natureza (definido na baixa)
+  anexos                   AnexoTitulo[] // documentos do título (fatura, boleto, comprovante)
   // Título-resíduo nascido de um Encontro de Contas (modo "nova parcela"): a perna
   // de nascimento é um RECLASS contra a conta transitória de compensação (não gera
   // nova despesa). Aponta para a Compensacao que o criou.
-  compensacaoOrigemId   String?
-  compensacaoOrigem     Compensacao?           @relation("CompensacaoResiduoPagar", fields: [compensacaoOrigemId], references: [id])
-  compensacaoItens      CompensacaoItem[]
+  compensacaoOrigemId      String?
+  compensacaoOrigem        Compensacao?           @relation("CompensacaoResiduoPagar", fields: [compensacaoOrigemId], references: [id])
+  compensacaoItens         CompensacaoItem[]
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -970,36 +969,36 @@ model Banco {
 }
 
 model ContaBancaria {
-  id               String                 @id @default(cuid())
-  empresaId        String                 @default("emp_tramontin")
-  nome             String
-  bancoId          String?
-  agencia          String?
-  numero           String?
-  tipo             TipoContaBancaria      @default(CORRENTE)
-  saldoInicial     Decimal                @default(0) @db.Decimal(15, 2)
-  ativo            Boolean                @default(true)
+  id                         String                 @id @default(cuid())
+  empresaId                  String                 @default("emp_tramontin")
+  nome                       String
+  bancoId                    String?
+  agencia                    String?
+  numero                     String?
+  tipo                       TipoContaBancaria      @default(CORRENTE)
+  saldoInicial               Decimal                @default(0) @db.Decimal(15, 2)
+  ativo                      Boolean                @default(true)
   // Conta TRANSITÓRIA de compensação ("Compensações a liquidar"): não é banco de
   // verdade — só serve de contrapartida no Encontro de Contas (AP-AR netting), onde
   // as baixas dos dois lados passam por ela e a zeram. Filtrada de fluxo de caixa,
   // saldos e dropdowns de baixa.
-  compensacao      Boolean                @default(false)
+  compensacao                Boolean                @default(false)
   // Conta de TERCEIROS: dinheiro de 3º sob guarda da empresa. A conta contábil vai
   // p/ "Contas de Terceiros" (1.1.6), não Disponibilidades (1.1.1). terceiroNome = de quem é.
-  ehTerceiro       Boolean                @default(false)
-  terceiroNome     String?
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  banco            Banco?                 @relation(fields: [bancoId], references: [id])
-  lancamentos      LancamentoFinanceiro[]
-  pedidoPagamentos PedidoVendaPagamento[]
-  contasReceber    ContaReceber[]
-  contasPagar      ContaPagar[]
-  recorrencias     Recorrencia[]
-  importacoesOFX   ImportacaoOFX[]
-  contasContabeis  ContaContabil[]
-  compensacoes     Compensacao[]
-  conferenciasPagoAntecipado ConferenciaCompra[] @relation("ContaPgtoAntecipadoConf")
+  ehTerceiro                 Boolean                @default(false)
+  terceiroNome               String?
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  banco                      Banco?                 @relation(fields: [bancoId], references: [id])
+  lancamentos                LancamentoFinanceiro[]
+  pedidoPagamentos           PedidoVendaPagamento[]
+  contasReceber              ContaReceber[]
+  contasPagar                ContaPagar[]
+  recorrencias               Recorrencia[]
+  importacoesOFX             ImportacaoOFX[]
+  contasContabeis            ContaContabil[]
+  compensacoes               Compensacao[]
+  conferenciasPagoAntecipado ConferenciaCompra[]    @relation("ContaPgtoAntecipadoConf")
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -1545,89 +1544,89 @@ model CotacaoFornecedorItem {
 }
 
 model Empresa {
-  id                        String                  @id @default(cuid())
-  razaoSocial               String
-  nomeFantasia              String?
-  cnpj                      String                  @unique
-  ie                        String?
-  im                        String?
-  email                     String?
-  telefone                  String?
-  cep                       String?
-  logradouro                String?
-  numero                    String?
-  complemento               String?
-  bairro                    String?
-  cidade                    String?
-  estado                    String?
+  id                            String                    @id @default(cuid())
+  razaoSocial                   String
+  nomeFantasia                  String?
+  cnpj                          String                    @unique
+  ie                            String?
+  im                            String?
+  email                         String?
+  telefone                      String?
+  cep                           String?
+  logradouro                    String?
+  numero                        String?
+  complemento                   String?
+  bairro                        String?
+  cidade                        String?
+  estado                        String?
   // ── multiempresa: a Empresa é o tenant do grupo ────────────────────────────
-  slug                      String?                 @unique
-  ativo                     Boolean                 @default(true)
+  slug                          String?                   @unique
+  ativo                         Boolean                   @default(true)
   // Fábrica/indústria: se true, a baixa de produto acabado na venda vira CPV;
   // se false (só revenda, ex.: Cimento e Mix), toda baixa vira CMV.
-  industrializa             Boolean                 @default(false)
+  industrializa                 Boolean                   @default(false)
   // vínculo intragrupo (Fase 4): a empresa como cliente/fornecedor das irmãs
-  clienteId                 String?                 @unique
-  fornecedorId              String?                 @unique
-  createdAt                 DateTime                @default(now())
-  updatedAt                 DateTime                @updatedAt
-  cliente                   Cliente?                @relation(fields: [clienteId], references: [id])
-  fornecedor                Fornecedor?             @relation(fields: [fornecedorId], references: [id])
-  colaboradores             Colaborador[]           @relation("ColaboradorEmpresas")
-  conferenciaCompras        ConferenciaCompra[]
-  conferenciaCompraItems    ConferenciaCompraItem[]
-  centrosCusto              CentroCusto[]
-  contaPagars               ContaPagar[]
-  contaRecebers             ContaReceber[]
-  folhasPagamento           FolhaPagamento[]
-  diariaFolhas              DiariaFolha[]
-  naturezasFinanceiras      NaturezaFinanceira[]
-  naturezaSubgrupos         NaturezaSubgrupo[]
-  contaBancarias            ContaBancaria[]
-  administradorasCartao     AdministradoraCartao[]
-  maquinetas                Maquineta[]
-  compensacoes              Compensacao[]
-  recorrencias              Recorrencia[]
-  cotacaoCompras            CotacaoCompra[]
-  estoqueItems              EstoqueItem[]
-  itemCustos                ItemCustoEmpresa[]
-  tabelasPreco              TabelaPreco[]
-  integracoesPagamento      IntegracaoPagamento[]
-  lancamentoFinanceiros     LancamentoFinanceiro[]
-  importacaoOFXs            ImportacaoOFX[]
-  localEstoques             LocalEstoque[]
-  loteMovimentacaos         LoteMovimentacao[]
-  movimentacaoEstoques      MovimentacaoEstoque[]
-  movimentacaoComodatoes    MovimentacaoComodato[]
-  necessidadeCompras        NecessidadeCompra[]
-  pedidoCompras             PedidoCompra[]
-  tiposOperacao             TipoOperacao[]
-  pedidoVendas              PedidoVenda[]           @relation("PedidoVendaEmpresa")
-  pedidoVendasOrigemEstoque PedidoVenda[]           @relation("PedidoVendaEstoqueOrigem")
-  pedidoVendaItensOrigemEstoque PedidoVendaItem[]   @relation("PedidoVendaItemEstoqueOrigem")
-  pedidoVendaItems          PedidoVendaItem[]
-  minutas                   Minuta[]
-  minutaItems               MinutaItem[]
-  sequencias                Sequencia[]
-  ordemProducaos            OrdemProducao[]
-  itemOrdemProducaos        ItemOrdemProducao[]
-  consumoBiomassas          ConsumoBiomassa[]
-  planoMestres              PlanoMestre[]
-  metasProducaoDiaria       MetaProducaoDiaria[]
-  requisicaoMaterials       RequisicaoMaterial[]
-  inventarioMaterials       InventarioMaterial[]
-  usuarioEmpresas           UsuarioEmpresa[]
-  filials                   Filial[]
-  contasContabeis           ContaContabil[]
-  lancamentosContabeis      LancamentoContabil[]
-  partidasContabeis         PartidaContabil[]
-  concorrentes              Concorrente[]
-  concorrentePrecos         ConcorrentePreco[]
-  parametrosCusteio         ParametroCusteio[]
-  funis                     Funil[]
-  campanhas                 Campanha[]
-  leadsMarketing            Lead[]
-  lancamentosMetrica        LancamentoManualMetrica[]
+  clienteId                     String?                   @unique
+  fornecedorId                  String?                   @unique
+  createdAt                     DateTime                  @default(now())
+  updatedAt                     DateTime                  @updatedAt
+  cliente                       Cliente?                  @relation(fields: [clienteId], references: [id])
+  fornecedor                    Fornecedor?               @relation(fields: [fornecedorId], references: [id])
+  colaboradores                 Colaborador[]             @relation("ColaboradorEmpresas")
+  conferenciaCompras            ConferenciaCompra[]
+  conferenciaCompraItems        ConferenciaCompraItem[]
+  centrosCusto                  CentroCusto[]
+  contaPagars                   ContaPagar[]
+  contaRecebers                 ContaReceber[]
+  folhasPagamento               FolhaPagamento[]
+  diariaFolhas                  DiariaFolha[]
+  naturezasFinanceiras          NaturezaFinanceira[]
+  naturezaSubgrupos             NaturezaSubgrupo[]
+  contaBancarias                ContaBancaria[]
+  administradorasCartao         AdministradoraCartao[]
+  maquinetas                    Maquineta[]
+  compensacoes                  Compensacao[]
+  recorrencias                  Recorrencia[]
+  cotacaoCompras                CotacaoCompra[]
+  estoqueItems                  EstoqueItem[]
+  itemCustos                    ItemCustoEmpresa[]
+  tabelasPreco                  TabelaPreco[]
+  integracoesPagamento          IntegracaoPagamento[]
+  lancamentoFinanceiros         LancamentoFinanceiro[]
+  importacaoOFXs                ImportacaoOFX[]
+  localEstoques                 LocalEstoque[]
+  loteMovimentacaos             LoteMovimentacao[]
+  movimentacaoEstoques          MovimentacaoEstoque[]
+  movimentacaoComodatoes        MovimentacaoComodato[]
+  necessidadeCompras            NecessidadeCompra[]
+  pedidoCompras                 PedidoCompra[]
+  tiposOperacao                 TipoOperacao[]
+  pedidoVendas                  PedidoVenda[]             @relation("PedidoVendaEmpresa")
+  pedidoVendasOrigemEstoque     PedidoVenda[]             @relation("PedidoVendaEstoqueOrigem")
+  pedidoVendaItensOrigemEstoque PedidoVendaItem[]         @relation("PedidoVendaItemEstoqueOrigem")
+  pedidoVendaItems              PedidoVendaItem[]
+  minutas                       Minuta[]
+  minutaItems                   MinutaItem[]
+  sequencias                    Sequencia[]
+  ordemProducaos                OrdemProducao[]
+  itemOrdemProducaos            ItemOrdemProducao[]
+  consumoBiomassas              ConsumoBiomassa[]
+  planoMestres                  PlanoMestre[]
+  metasProducaoDiaria           MetaProducaoDiaria[]
+  requisicaoMaterials           RequisicaoMaterial[]
+  inventarioMaterials           InventarioMaterial[]
+  usuarioEmpresas               UsuarioEmpresa[]
+  filials                       Filial[]
+  contasContabeis               ContaContabil[]
+  lancamentosContabeis          LancamentoContabil[]
+  partidasContabeis             PartidaContabil[]
+  concorrentes                  Concorrente[]
+  concorrentePrecos             ConcorrentePreco[]
+  parametrosCusteio             ParametroCusteio[]
+  funis                         Funil[]
+  campanhas                     Campanha[]
+  leadsMarketing                Lead[]
+  lancamentosMetrica            LancamentoManualMetrica[]
 }
 
 model EnderecoEstoque {
@@ -1714,9 +1713,9 @@ model FormaPagamento {
   criadoPor       String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor   String? // autoria: última edição manual (proxy de sessão)
 
-  conferencias         ConferenciaCompra[] @relation("FormaPgtoConferencia")
+  conferencias               ConferenciaCompra[] @relation("FormaPgtoConferencia")
   conferenciasPagoAntecipado ConferenciaCompra[] @relation("FormaPgtoAntecipadoConf")
-  contasPagarPrevistas ContaPagar[]        @relation("FormaPrevistaCP")
+  contasPagarPrevistas       ContaPagar[]        @relation("FormaPrevistaCP")
 }
 
 model Fornecedor {
@@ -1775,18 +1774,18 @@ model FornecedorContato {
 }
 
 model GrupoCentroCusto {
-  id        String        @id @default(cuid())
-  nome      String        @unique
-  ativo     Boolean       @default(true)
+  id               String        @id @default(cuid())
+  nome             String        @unique
+  ativo            Boolean       @default(true)
   // FONTE DA VERDADE do CIF×Despesa: o centro HERDA este flag do grupo
   // (CentroCusto.fabril vira coluna sincronizada — consultas do motor intactas).
-  fabril    Boolean       @default(false)
+  fabril           Boolean       @default(false)
   // Nota de custeio exibida no cabeçalho do grupo (ex.: auxiliares sem rateio
   // secundário — distribuição pelo driver único do pool).
   descricaoCusteio String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  centros   CentroCusto[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  centros          CentroCusto[]
 }
 
 // Destino contábil do consumo de uma requisição (vem das flags do item + centro;
@@ -2360,28 +2359,28 @@ model PedidoVendaPagamento {
 }
 
 model PedidoVendaItem {
-  id                 String                @id @default(cuid())
-  empresaId          String                @default("emp_tramontin")
-  pedidoVendaId      String
-  itemId             String
-  quantidade         Decimal               @db.Decimal(15, 3)
-  precoUnitario      Decimal               @db.Decimal(15, 2)
+  id                     String                @id @default(cuid())
+  empresaId              String                @default("emp_tramontin")
+  pedidoVendaId          String
+  itemId                 String
+  quantidade             Decimal               @db.Decimal(15, 3)
+  precoUnitario          Decimal               @db.Decimal(15, 2)
   // Venda à ordem: preço de compra unitário da empresa da venda com a origem
   // (Cimento ← Tramontin). Valora a entrada/saída-origem e o financeiro intragrupo.
-  precoTransferencia Decimal?              @db.Decimal(15, 2)
+  precoTransferencia     Decimal?              @db.Decimal(15, 2)
   // Venda à ordem POR ITEM: origem do estoque desta linha (sobrepõe a origem
   // padrão do pedido — ex.: tijolo da Tramontin e cimento da Atlas no mesmo
   // pedido). null = usa PedidoVenda.estoqueOrigemEmpresaId.
   estoqueOrigemEmpresaId String?
-  descontoPct        Decimal               @default(0) @db.Decimal(15, 4)
-  desconto           Decimal               @default(0) @db.Decimal(15, 2)
-  valorDesconto      Decimal               @default(0) @db.Decimal(15, 2)
-  valorTotal         Decimal               @db.Decimal(15, 2)
-  movimentacoes      MovimentacaoEstoque[]
-  minutaItens        MinutaItem[]
-  item               Item                  @relation(fields: [itemId], references: [id])
-  pedidoVenda        PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
-  estoqueOrigemEmpresa Empresa?            @relation("PedidoVendaItemEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
+  descontoPct            Decimal               @default(0) @db.Decimal(15, 4)
+  desconto               Decimal               @default(0) @db.Decimal(15, 2)
+  valorDesconto          Decimal               @default(0) @db.Decimal(15, 2)
+  valorTotal             Decimal               @db.Decimal(15, 2)
+  movimentacoes          MovimentacaoEstoque[]
+  minutaItens            MinutaItem[]
+  item                   Item                  @relation(fields: [itemId], references: [id])
+  pedidoVenda            PedidoVenda           @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
+  estoqueOrigemEmpresa   Empresa?              @relation("PedidoVendaItemEstoqueOrigem", fields: [estoqueOrigemEmpresaId], references: [id])
 
   empresa Empresa @relation(fields: [empresaId], references: [id])
 
@@ -2710,27 +2709,33 @@ model UnidadeConversao {
 }
 
 model Usuario {
-  id                 String           @id @default(cuid())
+  id                 String             @id @default(cuid())
   nome               String
-  email              String           @unique
+  email              String             @unique
   senha              String
-  perfil             PerfilUsuario    @default(USUARIO)
-  ativo              Boolean          @default(true)
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  perfil             PerfilUsuario      @default(USUARIO)
+  ativo              Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
   perfilAcessoId     String?
   telefone           String?
   aprovacaoEtapas    AprovacaoEtapa[]
   aprovacoesSC       AprovacaoSC[]
   colaborador        Colaborador?
   permissoes         Permissao[]
-  perfilAcesso       PerfilAcesso?    @relation(fields: [perfilAcessoId], references: [id])
-  ticketsAbertos     SupportTicket[]  @relation("TicketsAbertos")
-  ticketsRespondidos SupportTicket[]  @relation("TicketsRespondidos")
+  perfilAcesso       PerfilAcesso?      @relation(fields: [perfilAcessoId], references: [id])
+  ticketsAbertos     SupportTicket[]    @relation("TicketsAbertos")
+  ticketsRespondidos SupportTicket[]    @relation("TicketsRespondidos")
   empresas           UsuarioEmpresa[]
   vendedor           Vendedor?
   sessoes            UsuarioSessao[]
   notificacoes       Notificacao[]
+  // Gestão de Projetos
+  projetosDono       Projeto[]          @relation("ProjetoDono")
+  projetosMembro     ProjetoMembro[]
+  tarefasResponsavel Tarefa[]           @relation("TarefaResponsavel")
+  comentariosTarefa  TarefaComentario[]
+  atividadesTarefa   TarefaAtividade[]
 }
 
 // Sessão/dispositivo logado de um usuário. id = jti embutido no JWT. Permite
@@ -3866,22 +3871,22 @@ enum StatusFunil {
 }
 
 model Funil {
-  id              String      @id @default(cuid())
-  empresaId       String      @default("emp_tramontin")
+  id              String                    @id @default(cuid())
+  empresaId       String                    @default("emp_tramontin")
   nome            String
   descricao       String?
-  status          StatusFunil @default(RASCUNHO)
+  status          StatusFunil               @default(RASCUNHO)
   // Grafo do React Flow ({ nodes, edges }) — desenho livre, sem joins.
   // O espelho consultável dos nós é FunilNo, sincronizado no save.
-  canvas          Json        @default("{\"nodes\":[],\"edges\":[]}")
+  canvas          Json                      @default("{\"nodes\":[],\"edges\":[]}")
   // Parâmetros globais de forecast (período, volume padrão).
   forecast        Json?
-  ativo           Boolean     @default(true)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  ativo           Boolean                   @default(true)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
   criadoPor       String?
   atualizadoPor   String?
-  empresa         Empresa     @relation(fields: [empresaId], references: [id])
+  empresa         Empresa                   @relation(fields: [empresaId], references: [id])
   nos             FunilNo[]
   leads           Lead[]
   lancamentos     LancamentoManualMetrica[]
@@ -3923,24 +3928,24 @@ model FunilNo {
 // migração — padrão ConcorrenteCanal.tipo. utmCampaign é a chave do matching
 // UTM→campanha na ingestão do tracking (case-insensitive).
 model Campanha {
-  id            String    @id @default(cuid())
-  empresaId     String    @default("emp_tramontin")
+  id            String                  @id @default(cuid())
+  empresaId     String                  @default("emp_tramontin")
   nome          String
   plataforma    String // META | GOOGLE | TIKTOK | ORGANICO | INDICACAO | WHATSAPP | OUTRO
   utmSource     String?
   utmMedium     String?
   utmCampaign   String?
   idExterno     String? // id da campanha na plataforma de ads (Fase 5)
-  orcamento     Decimal?  @db.Decimal(15, 2)
+  orcamento     Decimal?                @db.Decimal(15, 2)
   dataInicio    DateTime?
   dataFim       DateTime?
   observacoes   String?
-  ativo         Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  ativo         Boolean                 @default(true)
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
   criadoPor     String?
   atualizadoPor String?
-  empresa       Empresa   @relation(fields: [empresaId], references: [id])
+  empresa       Empresa                 @relation(fields: [empresaId], references: [id])
   leads         Lead[]
   sessoes       TrackingSessao[]
   metricasAds   MetricaCampanhaDiaria[]
@@ -3968,17 +3973,17 @@ enum StatusLead {
 }
 
 model Lead {
-  id            String     @id @default(cuid())
-  empresaId     String     @default("emp_tramontin")
+  id            String       @id @default(cuid())
+  empresaId     String       @default("emp_tramontin")
   nome          String
   email         String?
   telefone      String?
   empresaNome   String? // empresa do lead (texto livre)
   cidade        String?
   estado        String?
-  status        StatusLead @default(ABERTO)
+  status        StatusLead   @default(ABERTO)
   motivoPerda   String?
-  valorEstimado Decimal?   @db.Decimal(15, 2)
+  valorEstimado Decimal?     @db.Decimal(15, 2)
   // Origem / atribuição
   campanhaId    String?
   utmSource     String?
@@ -3996,9 +4001,9 @@ model Lead {
   visitanteId   String?
   responsavelId String? // Usuario responsável pelo follow-up (sem FK, padrão criadoPor)
   observacoes   String?
-  ativo         Boolean    @default(true)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  ativo         Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   criadoPor     String?
   atualizadoPor String?
   empresa       Empresa      @relation(fields: [empresaId], references: [id])
@@ -4483,4 +4488,181 @@ model RegraTributacao {
   grupoTributacao   GrupoTributacao? @relation(fields: [grupoTributacaoId], references: [id])
 
   @@index([empresaId, operacaoFiscalId])
+}
+
+// ── Gestão de Projetos (módulo standalone estilo Trello/Asana — docs/projetos-prd.md) ──
+// Projetos são do GRUPO (sem empresaId de propósito: ficam fora do escopo
+// automático). Visibilidade por membros; PUBLICO = leitura p/ quem tem o módulo.
+
+enum VisibilidadeProjeto {
+  PRIVADO
+  PUBLICO
+}
+
+enum StatusProjeto {
+  ATIVO
+  ARQUIVADO
+}
+
+enum PrioridadeTarefa {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+model Projeto {
+  id            String              @id @default(cuid())
+  nome          String
+  descricao     String?
+  cor           String?
+  icone         String?
+  visibilidade  VisibilidadeProjeto @default(PRIVADO)
+  status        StatusProjeto       @default(ATIVO)
+  donoId        String
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  dono          Usuario             @relation("ProjetoDono", fields: [donoId], references: [id])
+  colunas       ProjetoColuna[]
+  membros       ProjetoMembro[]
+  etiquetas     ProjetoEtiqueta[]
+  tarefas       Tarefa[]
+  atividades    TarefaAtividade[]
+
+  @@index([status])
+  @@index([donoId])
+}
+
+model ProjetoMembro {
+  id        String  @id @default(cuid())
+  projetoId String
+  usuarioId String
+  papel     String  @default("MEMBRO") // ADMIN | MEMBRO
+  favorito  Boolean @default(false)
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([projetoId, usuarioId])
+  @@index([usuarioId])
+}
+
+model ProjetoColuna {
+  id            String   @id @default(cuid())
+  projetoId     String
+  nome          String
+  ordem         Int
+  cor           String?
+  concluiTarefa Boolean  @default(false)
+  arquivada     Boolean  @default(false)
+  projeto       Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  tarefas       Tarefa[]
+
+  @@index([projetoId, ordem])
+}
+
+model ProjetoEtiqueta {
+  id        String           @id @default(cuid())
+  projetoId String
+  nome      String
+  cor       String
+  projeto   Projeto          @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  tarefas   TarefaEtiqueta[]
+
+  @@index([projetoId])
+}
+
+model Tarefa {
+  id            String                @id @default(cuid())
+  projetoId     String
+  colunaId      String
+  titulo        String
+  descricao     String?
+  ordem         Int
+  prioridade    PrioridadeTarefa      @default(MEDIA)
+  responsavelId String?
+  dataInicio    DateTime?
+  prazo         DateTime?
+  concluidaEm   DateTime?
+  arquivada     Boolean               @default(false)
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  projeto       Projeto               @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  coluna        ProjetoColuna         @relation(fields: [colunaId], references: [id])
+  responsavel   Usuario?              @relation("TarefaResponsavel", fields: [responsavelId], references: [id])
+  etiquetas     TarefaEtiqueta[]
+  checklist     TarefaChecklistItem[]
+  comentarios   TarefaComentario[]
+  anexos        AnexoTarefa[]
+  atividades    TarefaAtividade[]
+
+  @@index([projetoId, colunaId, ordem])
+  @@index([responsavelId, prazo])
+  @@index([prazo])
+}
+
+model TarefaEtiqueta {
+  tarefaId   String
+  etiquetaId String
+  tarefa     Tarefa          @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  etiqueta   ProjetoEtiqueta @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
+
+  @@id([tarefaId, etiquetaId])
+}
+
+model TarefaChecklistItem {
+  id       String  @id @default(cuid())
+  tarefaId String
+  texto    String
+  feito    Boolean @default(false)
+  ordem    Int
+  tarefa   Tarefa  @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  @@index([tarefaId, ordem])
+}
+
+model TarefaComentario {
+  id        String    @id @default(cuid())
+  tarefaId  String
+  autorId   String
+  texto     String
+  createdAt DateTime  @default(now())
+  editadoEm DateTime?
+  tarefa    Tarefa    @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  autor     Usuario   @relation(fields: [autorId], references: [id])
+
+  @@index([tarefaId, createdAt])
+}
+
+model AnexoTarefa {
+  id        String   @id @default(cuid())
+  tarefaId  String
+  nome      String
+  url       String
+  tamanho   Int
+  tipo      String
+  criadoPor String?
+  createdAt DateTime @default(now())
+  tarefa    Tarefa   @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+
+  @@index([tarefaId])
+}
+
+model TarefaAtividade {
+  id        String   @id @default(cuid())
+  projetoId String
+  tarefaId  String?
+  autorId   String
+  tipo      String // CRIOU | MOVEU | ATRIBUIU | COMENTOU | CONCLUIU | REABRIU | PRAZO | EDITOU | ARQUIVOU
+  detalhe   Json?
+  createdAt DateTime @default(now())
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  tarefa    Tarefa?  @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  autor     Usuario  @relation(fields: [autorId], references: [id])
+
+  @@index([tarefaId, createdAt])
+  @@index([projetoId, createdAt])
 }

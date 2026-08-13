@@ -204,6 +204,15 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "projetos",
+    label: "Projetos",
+    group: "Projetos",
+    recursos: [
+      { key: "projetos", label: "Projetos (quadros)", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "tarefas",  label: "Tarefas",            acoes: ["ver", "inserir", "editar", "excluir"] },
+    ],
+  },
+  {
     key: "admin",
     label: "Administração",
     group: "Sistema",
