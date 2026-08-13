@@ -39,6 +39,37 @@ type CardDTO = {
   meuNivel: string;
 };
 
+// Render da descrição: linhas "- ..." viram lista de marcadores; agrupa as
+// consecutivas num <ul>; o resto sai como parágrafo (quebras preservadas).
+function DescricaoRender({ texto }: { texto: string }) {
+  const linhas = texto.split("\n");
+  const blocos: ({ tipo: "ul"; itens: string[] } | { tipo: "p"; linhas: string[] })[] = [];
+  for (const l of linhas) {
+    const m = l.match(/^\s*-\s+(.*)$/);
+    const ultimo = blocos[blocos.length - 1];
+    if (m) {
+      if (ultimo?.tipo === "ul") ultimo.itens.push(m[1]);
+      else blocos.push({ tipo: "ul", itens: [m[1]] });
+    } else {
+      if (ultimo?.tipo === "p") ultimo.linhas.push(l);
+      else blocos.push({ tipo: "p", linhas: [l] });
+    }
+  }
+  return (
+    <div className="text-sm text-foreground pl-6 space-y-1.5">
+      {blocos.map((b, i) =>
+        b.tipo === "ul" ? (
+          <ul key={i} className="list-disc pl-5 space-y-0.5">
+            {b.itens.map((it, j) => <li key={j}>{it}</li>)}
+          </ul>
+        ) : (
+          <p key={i} className="whitespace-pre-wrap">{b.linhas.join("\n")}</p>
+        ),
+      )}
+    </div>
+  );
+}
+
 const ATIVIDADE_LABEL: Record<string, string> = {
   CRIOU: "criou a tarefa", MOVEU: "moveu", CONCLUIU: "concluiu", REABRIU: "reabriu",
   ATRIBUIU: "alterou o responsável", COMENTOU: "comentou", PRAZO: "alterou o prazo",
@@ -225,7 +256,26 @@ export default function TarefaCardDialog({
     }
   }
 
-  if (loading) return <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+  if (loading) {
+    // Abertura IMEDIATA: enquanto o cartão completo carrega, mostra o resumo
+    // que o board já tem (título/etiquetas) em vez de um popup vazio.
+    const resumo = board.tarefas.find((t) => t.id === tarefaId);
+    return (
+      <div className="px-6 py-6 space-y-4">
+        {resumo ? (
+          <>
+            {resumo.etiquetas.length > 0 && (
+              <div className="flex flex-wrap gap-1">{resumo.etiquetas.map((e) => <EtiquetaChip key={e.id} etiqueta={e} small />)}</div>
+            )}
+            <h2 className="text-xl font-bold text-foreground">{resumo.titulo}</h2>
+          </>
+        ) : null}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
+          <Loader2 className="w-4 h-4 animate-spin" /> Carregando cartão…
+        </div>
+      </div>
+    );
+  }
   if (!card) return (
     <div className="p-8 text-center">
       <p className="text-danger text-sm">{erro || "Tarefa não encontrada"}</p>
@@ -434,9 +484,33 @@ export default function TarefaCardDialog({
                   autoFocus
                   value={descricao}
                   onChange={(e) => setDescricao(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Lista de marcadores: Enter numa linha "- ..." continua a
+                    // lista; Enter numa linha "- " vazia encerra (remove o marcador).
+                    if (e.key !== "Enter" || e.shiftKey) return;
+                    const ta = e.currentTarget;
+                    const pos = ta.selectionStart;
+                    const antes = descricao.slice(0, pos);
+                    const linha = antes.slice(antes.lastIndexOf("\n") + 1);
+                    if (/^\s*-\s/.test(linha)) {
+                      e.preventDefault();
+                      const depois = descricao.slice(pos);
+                      if (linha.trim() === "-") {
+                        // linha só com o marcador → encerra a lista
+                        const inicioLinha = antes.lastIndexOf("\n") + 1;
+                        const novo = descricao.slice(0, inicioLinha) + depois;
+                        setDescricao(novo);
+                        requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = inicioLinha; });
+                      } else {
+                        const novo = antes + "\n- " + depois;
+                        setDescricao(novo);
+                        requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = pos + 3; });
+                      }
+                    }
+                  }}
                   rows={4}
                   className="w-full text-sm border border-border rounded-lg bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Detalhe a tarefa..."
+                  placeholder="Detalhe a tarefa...  (dica: comece a linha com “- ” para uma lista)"
                 />
                 <div className="flex gap-2 mt-1.5">
                   <Button size="sm" className="h-7 px-2.5 text-xs bg-blue-600 hover:bg-blue-700" onClick={() => { setEditDesc(false); patch({ descricao }); }}>Salvar</Button>
@@ -444,7 +518,7 @@ export default function TarefaCardDialog({
                 </div>
               </div>
             ) : card.descricao ? (
-              <p className="text-sm text-foreground whitespace-pre-wrap pl-6">{card.descricao}</p>
+              <DescricaoRender texto={card.descricao} />
             ) : podeEditar ? (
               <button onClick={() => setEditDesc(true)} className="w-full text-left text-sm text-muted-foreground bg-muted hover:bg-muted/70 rounded-lg px-3 py-2.5">
                 Adicionar uma descrição mais detalhada...

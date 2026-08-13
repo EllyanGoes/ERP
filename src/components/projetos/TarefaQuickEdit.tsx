@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import DatePicker from "@/components/shared/DatePicker";
 import EscClose from "@/components/shared/EscClose";
 import {
-  CreditCard, User as UserIcon, CalendarDays, ArrowRight, Copy, Link as LinkIcon, Archive, Check,
+  CreditCard, User as UserIcon, CalendarDays, ArrowRight, Copy, Link as LinkIcon, Archive, Check, X,
 } from "lucide-react";
+import { AvatarUsuario } from "./comum";
 import { ProjetoBoardDTO, TarefaResumoDTO } from "./tipos";
 
 type Submenu = null | "membros" | "prazo" | "mover";
@@ -29,6 +30,10 @@ export default function TarefaQuickEdit({
   const [titulo, setTitulo] = useState(tarefa.titulo);
   const [submenu, setSubmenu] = useState<Submenu>(null);
   const [copiado, setCopiado] = useState(false);
+  // Membros do cartão em estado local: o popup de membros (modelo Trello) alterna
+  // vários sem fechar — cada clique persiste e atualiza a lista na hora.
+  const [membrosCartao, setMembrosCartao] = useState(tarefa.membros);
+  const [buscaMembro, setBuscaMembro] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -137,27 +142,64 @@ export default function TarefaQuickEdit({
             >
               {a.icone} {a.label}
             </button>
-            {submenu === "membros" && a.submenu === "membros" && (
-              <div className="mt-1 bg-card border border-border rounded-lg shadow-md p-1 max-h-52 overflow-y-auto">
-                {board.membros.map((m) => {
-                  const marcado = tarefa.membros.some((x) => x.id === m.usuarioId);
-                  return (
-                    <button
-                      key={m.usuarioId}
-                      className={cn("w-full flex items-center gap-2 text-left px-2 py-1.5 text-[13px] rounded-md hover:bg-muted", marcado ? "text-info font-medium" : "text-foreground")}
-                      onClick={() => {
-                        const atuais = tarefa.membros.map((x) => x.id);
-                        const novos = marcado ? atuais.filter((i) => i !== m.usuarioId) : [...atuais, m.usuarioId];
-                        patch({ membroIds: novos });
-                      }}
-                    >
-                      <span className="flex-1 truncate">{m.usuario.nome}</span>
-                      {marcado && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            {submenu === "membros" && a.submenu === "membros" && (() => {
+              // Modelo Trello: busca + "Membros do Cartão" (com remover) +
+              // "Membros do Quadro"; alterna vários sem fechar o popup.
+              const noCartao = new Set(membrosCartao.map((m) => m.id));
+              const doQuadro = board.membros
+                .filter((m) => !noCartao.has(m.usuarioId))
+                .filter((m) => !buscaMembro || m.usuario.nome.toLowerCase().includes(buscaMembro.toLowerCase()));
+              const alternar = (id: string, nome: string) => {
+                const novos = noCartao.has(id)
+                  ? membrosCartao.filter((m) => m.id !== id)
+                  : [...membrosCartao, { id, nome }];
+                setMembrosCartao(novos);
+                patch({ membroIds: novos.map((m) => m.id) }, false);
+              };
+              return (
+                <div className="mt-1 bg-card border border-border rounded-lg shadow-md p-2.5 space-y-2.5 w-64">
+                  <input
+                    autoFocus
+                    value={buscaMembro}
+                    onChange={(e) => setBuscaMembro(e.target.value)}
+                    placeholder="Pesquisar membros"
+                    className="w-full text-[13px] border-2 border-info/60 rounded-lg bg-card px-2.5 py-1.5 text-foreground focus:outline-none"
+                  />
+                  {membrosCartao.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-semibold text-muted-foreground mb-1">Membros do Cartão</p>
+                      <div className="space-y-0.5">
+                        {membrosCartao.map((m) => (
+                          <div key={m.id} className="flex items-center gap-2 bg-muted rounded-md px-2 py-1">
+                            <AvatarUsuario nome={m.nome} size="sm" />
+                            <span className="text-[13px] text-foreground flex-1 truncate">{m.nome}</span>
+                            <button onClick={() => alternar(m.id, m.nome)} className="text-muted-foreground hover:text-danger" title="Remover">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[11px] font-semibold text-muted-foreground mb-1">Membros do Quadro</p>
+                    <div className="space-y-0.5 max-h-44 overflow-y-auto">
+                      {doQuadro.map((m) => (
+                        <button
+                          key={m.usuarioId}
+                          className="w-full flex items-center gap-2 text-left px-2 py-1 text-[13px] rounded-md hover:bg-muted text-foreground"
+                          onClick={() => alternar(m.usuarioId, m.usuario.nome)}
+                        >
+                          <AvatarUsuario nome={m.usuario.nome} size="sm" />
+                          <span className="flex-1 truncate">{m.usuario.nome}</span>
+                        </button>
+                      ))}
+                      {doQuadro.length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">Nenhum membro encontrado.</p>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {submenu === "prazo" && a.submenu === "prazo" && (
               <div className="mt-1 bg-card border border-border rounded-lg shadow-md p-2 space-y-1.5">
                 <DatePicker value={tarefa.prazo ? tarefa.prazo.slice(0, 10) : ""} onChange={(v) => patch({ prazo: v || null })} />

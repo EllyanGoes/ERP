@@ -107,6 +107,11 @@ export default function ProjetoBoardPage() {
     } : prev);
   }, []);
 
+  // Inserção otimista (novo cartão aparece na hora; o POST troca o id depois)
+  const inserirTarefaLocal = useCallback((t: TarefaResumoDTO) => {
+    setBoard((prev) => prev ? { ...prev, tarefas: [...prev.tarefas, t] } : prev);
+  }, []);
+
   if (loading) return <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   if (!board) return <div className="px-8 pt-8 text-danger">{error || "Projeto não encontrado"}</div>;
 
@@ -228,6 +233,7 @@ export default function ProjetoBoardPage() {
             onAbrirTarefa={abrirTarefa}
             onRecarregar={() => load(true)}
             onAtualizarLocal={atualizarTarefaLocal}
+            onInserirLocal={inserirTarefaLocal}
           />
         )}
         {visao === "lista" && (

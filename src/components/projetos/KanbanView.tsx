@@ -3,7 +3,7 @@
 // Visão Quadro (kanban) — colunas com drag & drop nativo de cartões e colunas.
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Loader2, Pencil, X, Clock, AlignLeft, Circle, CheckCircle2 } from "lucide-react";
+import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Pencil, X, Clock, AlignLeft, Circle, CheckCircle2 } from "lucide-react";
 import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,15 +20,17 @@ type Props = {
   onAbrirTarefa: (id: string) => void;
   onRecarregar: () => void;
   onAtualizarLocal: (tarefaId: string, patch: Partial<TarefaResumoDTO>) => void;
+  // Inserção OTIMISTA: o cartão novo entra na coluna na hora (id temporário) e o
+  // POST corre em segundo plano — o id real substitui o temporário na resposta.
+  onInserirLocal: (t: TarefaResumoDTO) => void;
 };
 
-export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, onAbrirTarefa, onRecarregar, onAtualizarLocal }: Props) {
+export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, onAbrirTarefa, onRecarregar, onAtualizarLocal, onInserirLocal }: Props) {
   const [dragTarefaId, setDragTarefaId] = useState<string | null>(null);
   const [dropAlvo, setDropAlvo] = useState<{ colunaId: string; aposTarefaId: string | null } | null>(null);
   const [dragColunaId, setDragColunaId] = useState<string | null>(null);
   const [novaTarefaCol, setNovaTarefaCol] = useState<string | null>(null);
   const [novoTitulo, setNovoTitulo] = useState("");
-  const [criando, setCriando] = useState(false);
   const [menuColuna, setMenuColuna] = useState<string | null>(null);
   const [novaColuna, setNovaColuna] = useState(false);
   const [novaColunaNome, setNovaColunaNome] = useState("");
@@ -122,18 +124,36 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
     onRecarregar();
   }
 
-  async function criarTarefa(colunaId: string) {
+  function criarTarefa(colunaId: string) {
     const titulo = novoTitulo.trim();
-    if (!titulo || criando) return;
-    setCriando(true);
-    const res = await fetch(`/api/projetos/${board.id}/tarefas`, {
+    if (!titulo) return;
+    // Otimista: o cartão aparece NA HORA com id temporário; o POST roda em
+    // segundo plano e troca o id pelo real (falhou → recarrega e o temp some).
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const coluna = board.colunas.find((c) => c.id === colunaId);
+    const ultima = porColuna(colunaId).slice(-1)[0];
+    onInserirLocal({
+      id: tempId, projetoId: board.id, colunaId, titulo,
+      ordem: (ultima?.ordem ?? 0) + 1024,
+      prioridade: "MEDIA", prazo: null, dataInicio: null,
+      concluidaEm: coluna?.concluiTarefa ? new Date().toISOString() : null,
+      arquivada: false, temDescricao: false,
+      membros: [], etiquetas: [], checklistFeitos: 0, checklistTotal: 0,
+      _count: { comentarios: 0, anexos: 0, checklist: 0 },
+    });
+    setNovoTitulo("");
+    inputRef.current?.focus();
+    fetch(`/api/projetos/${board.id}/tarefas`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ colunaId, titulo }),
-    }).catch(() => null);
-    setCriando(false);
-    setNovoTitulo("");
-    if (res?.ok) { onRecarregar(); inputRef.current?.focus(); }
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((j) => {
+        if (j?.data?.id) onAtualizarLocal(tempId, { id: j.data.id });
+        else onRecarregar();
+      })
+      .catch(() => onRecarregar());
   }
 
   async function criarColuna() {
@@ -185,7 +205,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
           >
             {/* Cabeçalho da coluna */}
             <div
-              className="flex items-center gap-2 px-3 py-2.5 shrink-0"
+              className="relative flex items-center gap-2 px-3 py-2.5 shrink-0"
               draggable={podeGerenciar}
               onDragStart={() => setDragColunaId(coluna.id)}
               onDragEnd={() => setDragColunaId(null)}
@@ -203,29 +223,44 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                   <MoreHorizontal className="w-4 h-4" />
                 </button>
               )}
-            </div>
 
-            {/* Menu da coluna */}
-            {menuColuna === coluna.id && (
-              <div className="mx-3 mb-2 bg-card border border-border rounded-lg shadow-lg text-sm overflow-hidden">
-                <button
-                  className="w-full text-left px-3 py-2 hover:bg-muted"
-                  onClick={() => {
-                    const nome = window.prompt("Novo nome da coluna:", coluna.nome);
-                    if (nome?.trim()) acaoColuna(coluna.id, { nome: nome.trim() });
-                    else setMenuColuna(null);
-                  }}
-                >
-                  Renomear
-                </button>
-                <button className="w-full text-left px-3 py-2 hover:bg-muted" onClick={() => acaoColuna(coluna.id, { concluiTarefa: !coluna.concluiTarefa })}>
-                  {coluna.concluiTarefa ? "Deixar de concluir tarefas" : "Marcar como coluna de conclusão"}
-                </button>
-                <button className="w-full text-left px-3 py-2 text-danger hover:bg-danger/10" onClick={() => acaoColuna(coluna.id, { arquivada: true })}>
-                  Arquivar coluna
-                </button>
-              </div>
-            )}
+              {/* Menu da coluna — popover FLUTUANTE por cima do board (estilo
+                  Trello), sem empurrar os cartões para baixo. */}
+              {menuColuna === coluna.id && (
+                <>
+                  <div className="fixed inset-0 z-40" onMouseDown={() => setMenuColuna(null)} />
+                  <div className="absolute right-1 top-full mt-1 z-50 w-64 bg-card border border-border rounded-xl shadow-xl text-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+                      <span className="w-4" />
+                      <span className="text-xs font-semibold text-muted-foreground">Ações da lista</span>
+                      <button onClick={() => setMenuColuna(null)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                    <button
+                      className="w-full text-left px-3 py-2 hover:bg-muted"
+                      onClick={() => { setMenuColuna(null); setNovaTarefaCol(coluna.id); setNovoTitulo(""); }}
+                    >
+                      Adicionar cartão
+                    </button>
+                    <button
+                      className="w-full text-left px-3 py-2 hover:bg-muted"
+                      onClick={() => {
+                        const nome = window.prompt("Novo nome da coluna:", coluna.nome);
+                        if (nome?.trim()) acaoColuna(coluna.id, { nome: nome.trim() });
+                        else setMenuColuna(null);
+                      }}
+                    >
+                      Renomear
+                    </button>
+                    <button className="w-full text-left px-3 py-2 hover:bg-muted" onClick={() => acaoColuna(coluna.id, { concluiTarefa: !coluna.concluiTarefa })}>
+                      {coluna.concluiTarefa ? "Deixar de concluir tarefas" : "Marcar como coluna de conclusão"}
+                    </button>
+                    <button className="w-full text-left px-3 py-2 text-danger hover:bg-danger/10" onClick={() => acaoColuna(coluna.id, { arquivada: true })}>
+                      Arquivar coluna
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Cartões */}
             <div className="px-2 pb-2 space-y-2 overflow-y-auto flex-1 min-h-[6px]">
@@ -253,7 +288,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                       draggable={podeEditar}
                       onDragStart={(e) => { e.stopPropagation(); setDragTarefaId(t.id); }}
                       onDragEnd={() => { setDragTarefaId(null); setDropAlvo(null); }}
-                      onClick={() => onAbrirTarefa(t.id)}
+                      onClick={() => { if (!t.id.startsWith("temp-")) onAbrirTarefa(t.id); }}
                       onMouseEnter={(e) => { hoverRef.current = { tarefa: t, el: e.currentTarget }; }}
                       onMouseLeave={() => { if (hoverRef.current?.tarefa.id === t.id) hoverRef.current = null; }}
                       className={cn(
@@ -372,8 +407,8 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                       className="w-full text-sm bg-card text-foreground rounded-lg border border-border shadow-sm px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-muted-foreground"
                     />
                     <div className="flex items-center gap-2 mt-1.5">
-                      <Button size="sm" className="h-8 px-3 text-sm bg-blue-600 hover:bg-blue-700" onClick={() => criarTarefa(coluna.id)} disabled={criando}>
-                        {criando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Adicionar cartão"}
+                      <Button size="sm" className="h-8 px-3 text-sm bg-blue-600 hover:bg-blue-700" onClick={() => criarTarefa(coluna.id)}>
+                        Adicionar cartão
                       </Button>
                       <button
                         className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
