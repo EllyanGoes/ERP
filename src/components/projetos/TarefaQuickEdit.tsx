@@ -39,9 +39,13 @@ export default function TarefaQuickEdit({
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    // Aberto por atalho (M = membros, D = prazo): o foco vai direto pro
+    // submenu (ex.: busca de membros) — focar/selecionar o título aqui
+    // roubaria o cursor de quem quer digitar o nome do responsável.
+    if (submenuInicial) return;
     taRef.current?.focus();
     taRef.current?.select();
-  }, []);
+  }, [submenuInicial]);
 
   async function patch(data: Record<string, unknown>, fecha = true) {
     await fetch(`/api/projetos/tarefas/${tarefa.id}`, {
