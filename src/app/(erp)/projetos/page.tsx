@@ -51,20 +51,31 @@ export default function ProjetosHomePage() {
   const [salvando, setSalvando] = useState(false);
   const [createError, setCreateError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Cache por aba (stale-while-revalidate): a lista salva aparece NA HORA, sem
+  // spinner, e a busca fresca roda em segundo plano atualizando tela e cache.
+  const CACHE_KEY = "projetos:home:cache";
+  const load = useCallback(async (silencioso = false) => {
+    if (!silencioso) setLoading(true);
     try {
       const res = await fetch("/api/projetos");
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Erro ao carregar"); return; }
       setProjetos(json.data ?? []);
+      try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(json.data ?? [])); } catch { /* storage cheio */ }
     } catch {
       setError("Erro de conexão");
     } finally {
       setLoading(false);
     }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let temCache = false;
+    try {
+      const c = sessionStorage.getItem(CACHE_KEY);
+      if (c) { setProjetos(JSON.parse(c)); setLoading(false); temCache = true; }
+    } catch { /* ignore */ }
+    load(temCache);
+  }, [load]);
 
   async function abrirCreate() {
     setNovoNome(""); setNovaDescricao(""); setNovaCor(CORES_PROJETO[0]);
@@ -154,6 +165,26 @@ export default function ProjetosHomePage() {
   const publicos = visiveis.filter((p) => !p.favorito && !p.souMembro);
   const nArquivados = projetos.filter((p) => p.status === "ARQUIVADO").length;
 
+  // Círculo de progresso (estilo Things): pizza preenchida na proporção de
+  // tarefas concluídas do projeto, na cor dele. Vazio = nada concluído.
+  function ProgressoProjeto({ p, size = 18 }: { p: ProjetoHomeDTO; size?: number }) {
+    const total = p.tarefasAbertas + p.tarefasConcluidas;
+    const pct = total > 0 ? p.tarefasConcluidas / total : 0;
+    const cor = p.cor ?? "#64748b";
+    const r = 4.5, C = 2 * Math.PI * r;
+    return (
+      <svg
+        width={size} height={size} viewBox="0 0 20 20" className="shrink-0 -rotate-90"
+        role="img" aria-label={`${p.tarefasConcluidas} de ${total} concluídas`}
+      >
+        <title>{`${p.tarefasConcluidas} de ${total} concluída${total === 1 ? "" : "s"}`}</title>
+        <circle cx="10" cy="10" r="8" fill="none" stroke={cor} strokeWidth="1.8" />
+        {/* pizza: stroke largo sobre raio pequeno preenche o miolo */}
+        <circle cx="10" cy="10" r={r} fill="none" stroke={cor} strokeWidth="9" strokeDasharray={`${C * pct} ${C}`} />
+      </svg>
+    );
+  }
+
   // Menu ⋯ de ações rápidas (compartilhado entre card e linha da lista).
   function MenuAcoes({ p }: { p: ProjetoHomeDTO }) {
     const dono = p.donoId === user?.id || user?.perfil === "ADMIN";
@@ -209,6 +240,7 @@ export default function ProjetosHomePage() {
         <div className="h-2 rounded-t-xl" style={{ backgroundColor: p.cor ?? "#64748b" }} />
         <div className="p-4">
           <div className="flex items-start justify-between gap-1">
+            <span className="mt-0.5"><ProgressoProjeto p={p} /></span>
             <p className="font-semibold text-foreground leading-snug line-clamp-2 flex-1">{p.nome}</p>
             <span
               onClick={(e) => toggleFavorito(p, e)}
@@ -266,7 +298,7 @@ export default function ProjetosHomePage() {
         onClick={() => router.push(`/projetos/${p.id}`)}
         className="group flex items-center gap-3 px-4 py-2.5 bg-card hover:bg-muted cursor-pointer transition-colors"
       >
-        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.cor ?? "#64748b" }} />
+        <ProgressoProjeto p={p} size={16} />
         <span className="font-medium text-sm text-foreground truncate">{p.nome}</span>
         {p.favorito && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
         {multiEmpresa && (

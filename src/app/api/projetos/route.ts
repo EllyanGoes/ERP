@@ -35,6 +35,15 @@ export async function GET() {
     orderBy: { updatedAt: "desc" },
   });
 
+  // Concluídas por projeto (círculo de progresso da home).
+  const concluidasPorProjeto = new Map(
+    (await prismaSemEscopo.tarefa.groupBy({
+      by: ["projetoId"],
+      where: { projetoId: { in: projetos.map((p) => p.id) }, arquivada: false, concluidaEm: { not: null } },
+      _count: { _all: true },
+    })).map((g) => [g.projetoId, g._count._all]),
+  );
+
   const data = projetos.map((p) => ({
     id: p.id,
     nome: p.nome,
@@ -50,6 +59,7 @@ export async function GET() {
     favorito: p.membros.find((m) => m.usuarioId === userId)?.favorito ?? false,
     membros: p.membros.map((m) => ({ id: m.usuario.id, nome: m.usuario.nome, papel: m.papel })),
     tarefasAbertas: p._count.tarefas,
+    tarefasConcluidas: concluidasPorProjeto.get(p.id) ?? 0,
     tarefasAtrasadas: p.tarefas.length,
     atualizadoEm: p.updatedAt,
   }));

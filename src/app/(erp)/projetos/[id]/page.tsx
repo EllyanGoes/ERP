@@ -62,6 +62,8 @@ export default function ProjetoBoardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Cache por aba (stale-while-revalidate): o quadro salvo abre NA HORA, sem
+  // spinner, e a busca fresca revalida em segundo plano.
   const load = useCallback(async (silencioso = false) => {
     if (!silencioso) setLoading(true);
     try {
@@ -69,13 +71,21 @@ export default function ProjetoBoardPage() {
       const json = await res.json();
       if (!res.ok) { setError(json.error || "Erro ao carregar"); return; }
       setBoard(json.data);
+      try { sessionStorage.setItem(`projetos:board:${id}`, JSON.stringify(json.data)); } catch { /* storage cheio */ }
     } catch {
       setError("Erro de conexão");
     } finally {
       setLoading(false);
     }
   }, [id]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let temCache = false;
+    try {
+      const c = sessionStorage.getItem(`projetos:board:${id}`);
+      if (c) { setBoard(JSON.parse(c)); setLoading(false); temCache = true; }
+    } catch { /* ignore */ }
+    load(temCache);
+  }, [load, id]);
 
   // Recarrega ao voltar o foco (colaboração sem websocket — decisão do PRD)
   useEffect(() => {

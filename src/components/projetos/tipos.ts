@@ -72,6 +72,7 @@ export type ProjetoHomeDTO = {
   favorito: boolean;
   membros: { id: string; nome: string; papel: string }[];
   tarefasAbertas: number;
+  tarefasConcluidas: number;
   tarefasAtrasadas: number;
   atualizadoEm: string;
 };
