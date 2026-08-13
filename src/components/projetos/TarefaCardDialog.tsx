@@ -11,6 +11,7 @@ import AnexosSection from "@/components/shared/AnexosSection";
 import {
   Loader2, X, Trash2, Archive, CheckSquare, Square, Plus, Send,
   Tag, User as UserIcon, Flag, CalendarDays, Activity as ActivityIcon,
+  Circle, CheckCircle2, Copy, Link as LinkIcon, Check,
 } from "lucide-react";
 import { AvatarUsuario, EtiquetaChip } from "./comum";
 import { ProjetoBoardDTO, PRIORIDADES } from "./tipos";
@@ -67,6 +68,7 @@ export default function TarefaCardDialog({
   const [enviandoComentario, setEnviandoComentario] = useState(false);
   const [showEtiquetas, setShowEtiquetas] = useState(false);
   const [novaEtiqueta, setNovaEtiqueta] = useState("");
+  const [linkCopiado, setLinkCopiado] = useState(false);
   const comentarioRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
@@ -168,6 +170,32 @@ export default function TarefaCardDialog({
     }
   }
 
+  // Concluir/reabrir pelo círculo do título: move p/ a primeira coluna de
+  // conclusão (ou de volta p/ a primeira coluna normal).
+  async function toggleConcluir() {
+    if (!card) return;
+    const destino = card.concluidaEm
+      ? board.colunas.find((c) => !c.concluiTarefa)
+      : board.colunas.find((c) => c.concluiTarefa);
+    if (!destino) return;
+    await mover(destino.id);
+  }
+
+  async function copiarCartao() {
+    const res = await fetch(`/api/projetos/tarefas/${tarefaId}/copiar`, { method: "POST" }).catch(() => null);
+    if (res?.ok) onMudou();
+  }
+
+  async function copiarLink() {
+    if (!card) return;
+    const url = `${window.location.origin}/projetos/${card.projetoId}?tarefa=${card.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopiado(true);
+      setTimeout(() => setLinkCopiado(false), 1500);
+    } catch {}
+  }
+
   async function excluirTarefa() {
     if (!window.confirm("Excluir a tarefa definitivamente?")) return;
     const res = await fetch(`/api/projetos/tarefas/${tarefaId}`, { method: "DELETE" }).catch(() => null);
@@ -195,6 +223,17 @@ export default function TarefaCardDialog({
       {/* Cabeçalho */}
       <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-3 border-b border-border">
         <div className="flex-1 min-w-0">
+          <div className="flex items-start gap-2">
+          {podeEditar && board.colunas.some((c) => c.concluiTarefa) && (
+            <button
+              onClick={toggleConcluir}
+              className={cn("mt-0.5 shrink-0 transition-colors", card.concluidaEm ? "text-success" : "text-muted-foreground/50 hover:text-success")}
+              title={card.concluidaEm ? "Reabrir tarefa" : "Concluir tarefa"}
+            >
+              {card.concluidaEm ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+            </button>
+          )}
+          <div className="flex-1 min-w-0">
           {editTitulo && podeEditar ? (
             <input
               autoFocus
@@ -217,6 +256,8 @@ export default function TarefaCardDialog({
             {card.concluidaEm && <span className="text-success font-medium"> · concluída</span>}
             {card.arquivada && <span> · arquivada</span>}
           </p>
+          </div>
+          </div>
         </div>
         <button onClick={onFechar} className="text-muted-foreground hover:text-foreground shrink-0"><X className="w-5 h-5" /></button>
       </div>
@@ -466,6 +507,19 @@ export default function TarefaCardDialog({
           {/* Ações */}
           {podeEditar && (
             <div className="pt-2 border-t border-border space-y-1.5">
+              <button
+                onClick={copiarCartao}
+                className="w-full flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted"
+              >
+                <Copy className="w-3.5 h-3.5" /> Copiar cartão
+              </button>
+              <button
+                onClick={copiarLink}
+                className="w-full flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted"
+              >
+                {linkCopiado ? <Check className="w-3.5 h-3.5 text-success" /> : <LinkIcon className="w-3.5 h-3.5" />}
+                {linkCopiado ? "Link copiado!" : "Copiar link"}
+              </button>
               <button
                 onClick={() => { patch({ arquivada: !card.arquivada }); onFechar(); }}
                 className="w-full flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground px-2 py-1.5 rounded-lg hover:bg-muted"

@@ -5,7 +5,7 @@
 // quem tem o módulo projetos.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ListTodo, AlertTriangle } from "lucide-react";
+import { Inbox, AlertTriangle } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 import { prazoInfo, EtiquetaDTO } from "@/components/projetos/tipos";
@@ -87,7 +87,7 @@ export default function MinhasTarefasWidget() {
         title="Minhas Tarefas"
         aria-label="Minhas Tarefas"
       >
-        <ListTodo className="w-[18px] h-[18px]" />
+        <Inbox className="w-[18px] h-[18px]" />
         {urgentes > 0 && (
           <span className="absolute -top-1 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-danger px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
             {urgentes > 9 ? "9+" : urgentes}

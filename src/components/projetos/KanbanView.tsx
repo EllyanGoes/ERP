@@ -1,15 +1,16 @@
 "use client";
 
 // Visão Quadro (kanban) — colunas com drag & drop nativo de cartões e colunas.
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Loader2 } from "lucide-react";
+import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Loader2, Pencil } from "lucide-react";
 import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AvatarUsuario, EtiquetaChip, PrioridadeBadge } from "./comum";
 import { ProjetoBoardDTO, TarefaResumoDTO, prazoInfo } from "./tipos";
+import TarefaQuickEdit from "./TarefaQuickEdit";
 
 type Props = {
   board: ProjetoBoardDTO;
@@ -32,6 +33,31 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
   const [novaColuna, setNovaColuna] = useState(false);
   const [novaColunaNome, setNovaColunaNome] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Edição rápida (lápis no hover ou tecla "e" com o mouse sobre o cartão)
+  const [quickEdit, setQuickEdit] = useState<{ tarefa: TarefaResumoDTO; rect: { top: number; left: number; width: number; right: number } } | null>(null);
+  const hoverRef = useRef<{ tarefa: TarefaResumoDTO; el: HTMLElement } | null>(null);
+
+  useEffect(() => {
+    if (!podeEditar) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "e" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const alvo = e.target as HTMLElement;
+      if (alvo.tagName === "INPUT" || alvo.tagName === "TEXTAREA" || alvo.tagName === "SELECT" || alvo.isContentEditable) return;
+      const hov = hoverRef.current;
+      if (!hov) return;
+      e.preventDefault();
+      const r = hov.el.getBoundingClientRect();
+      setQuickEdit({ tarefa: hov.tarefa, rect: { top: r.top, left: r.left, width: r.width, right: r.right } });
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [podeEditar]);
+
+  function abrirQuickEdit(tarefa: TarefaResumoDTO, el: HTMLElement) {
+    const r = el.getBoundingClientRect();
+    setQuickEdit({ tarefa, rect: { top: r.top, left: r.left, width: r.width, right: r.right } });
+  }
 
   const porColuna = (colunaId: string) =>
     tarefas.filter((t) => t.colunaId === colunaId).sort((a, b) => a.ordem - b.ordem);
@@ -211,12 +237,23 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                       onDragStart={(e) => { e.stopPropagation(); setDragTarefaId(t.id); }}
                       onDragEnd={() => { setDragTarefaId(null); setDropAlvo(null); }}
                       onClick={() => onAbrirTarefa(t.id)}
+                      onMouseEnter={(e) => { hoverRef.current = { tarefa: t, el: e.currentTarget }; }}
+                      onMouseLeave={() => { if (hoverRef.current?.tarefa.id === t.id) hoverRef.current = null; }}
                       className={cn(
-                        "bg-card rounded-lg border border-border p-2.5 shadow-sm cursor-pointer hover:border-blue-400 transition-colors",
+                        "group/card relative bg-card rounded-lg border border-border p-2.5 shadow-sm cursor-pointer hover:border-blue-400 transition-colors",
                         dragTarefaId === t.id && "opacity-40",
                         t.concluidaEm && "opacity-70"
                       )}
                     >
+                      {podeEditar && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); abrirQuickEdit(t, (e.currentTarget as HTMLElement).closest(".group\\/card") as HTMLElement); }}
+                          className="absolute top-1.5 right-1.5 z-10 p-1.5 rounded-md bg-card/90 border border-border text-muted-foreground opacity-0 group-hover/card:opacity-100 hover:text-foreground hover:bg-muted transition-opacity"
+                          title="Editar cartão (e)"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      )}
                       {t.etiquetas.length > 0 && (
                         <div className="flex flex-wrap gap-1 mb-1.5">
                           {t.etiquetas.map((e) => <EtiquetaChip key={e.id} etiqueta={e} small />)}
@@ -334,6 +371,18 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
             </button>
           )}
         </div>
+      )}
+
+      {/* Edição rápida do cartão */}
+      {quickEdit && (
+        <TarefaQuickEdit
+          tarefa={quickEdit.tarefa}
+          board={board}
+          rect={quickEdit.rect}
+          onFechar={() => setQuickEdit(null)}
+          onAbrir={() => onAbrirTarefa(quickEdit.tarefa.id)}
+          onMudou={onRecarregar}
+        />
       )}
     </div>
   );
