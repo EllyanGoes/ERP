@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Loader2, AlertTriangle, CalendarDays, CalendarClock, Inbox, Check,
-  Link as LinkIcon, Apple, CalendarPlus,
+  Link as LinkIcon, Apple, CalendarPlus, List, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { AvatarUsuario, PrioridadeBadge } from "@/components/projetos/comum";
 import { prazoInfo } from "@/components/projetos/tipos";
@@ -28,6 +28,125 @@ type TarefaAgendaDTO = {
   membros: { id: string; nome: string }[];
 };
 
+const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+function chaveDia(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Grade mensal estilo Google Agenda: eventos como chips na cor do projeto,
+// arrastar para outro dia muda o prazo.
+function AgendaCalendario({
+  tarefas, onAbrir, onMudarPrazo,
+}: {
+  tarefas: TarefaAgendaDTO[];
+  onAbrir: (t: TarefaAgendaDTO) => void;
+  onMudarPrazo: (id: string, novaData: string) => void;
+}) {
+  const hoje = new Date();
+  const [ano, setAno] = useState(hoje.getFullYear());
+  const [mes, setMes] = useState(hoje.getMonth());
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropDia, setDropDia] = useState<string | null>(null);
+
+  const primeiro = new Date(ano, mes, 1);
+  const inicioGrade = new Date(primeiro);
+  inicioGrade.setDate(1 - primeiro.getDay());
+  const dias: Date[] = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(inicioGrade);
+    d.setDate(inicioGrade.getDate() + i);
+    return d;
+  });
+
+  const porDia = new Map<string, TarefaAgendaDTO[]>();
+  for (const t of tarefas) {
+    const k = chaveDia(new Date(t.prazo));
+    porDia.set(k, [...(porDia.get(k) ?? []), t]);
+  }
+
+  function navegar(delta: number) {
+    const d = new Date(ano, mes + delta, 1);
+    setAno(d.getFullYear());
+    setMes(d.getMonth());
+  }
+
+  const chaveHoje = chaveDia(hoje);
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-3">
+        <button onClick={() => navegar(-1)} className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted"><ChevronLeft className="w-4 h-4" /></button>
+        <span className="font-semibold text-foreground capitalize min-w-40 text-center">
+          {new Date(ano, mes).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+        </span>
+        <button onClick={() => navegar(1)} className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted"><ChevronRight className="w-4 h-4" /></button>
+        <button onClick={() => { setAno(hoje.getFullYear()); setMes(hoje.getMonth()); }} className="text-xs text-info hover:underline">Hoje</button>
+        <span className="text-xs text-muted-foreground ml-auto">Arraste um evento para mudar o prazo</span>
+      </div>
+
+      <div className="grid grid-cols-7 border border-border rounded-xl overflow-hidden bg-card">
+        {DIAS_SEMANA.map((d) => (
+          <div key={d} className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted border-b border-border text-center">{d}</div>
+        ))}
+        {dias.map((dia) => {
+          const k = chaveDia(dia);
+          const doMes = dia.getMonth() === mes;
+          const lista = porDia.get(k) ?? [];
+          return (
+            <div
+              key={k}
+              onDragOver={(e) => { if (dragId) { e.preventDefault(); setDropDia(k); } }}
+              onDragLeave={() => { if (dropDia === k) setDropDia(null); }}
+              onDrop={(e) => { e.preventDefault(); if (dragId) onMudarPrazo(dragId, k); setDragId(null); setDropDia(null); }}
+              className={cn(
+                "min-h-28 border-b border-r border-border p-1 align-top",
+                !doMes && "bg-muted/40",
+                dropDia === k && "bg-info/10 ring-1 ring-inset ring-info/40"
+              )}
+            >
+              <span className={cn(
+                "inline-flex items-center justify-center text-xs w-5 h-5 rounded-full mb-0.5",
+                k === chaveHoje ? "bg-blue-600 text-white font-bold" : doMes ? "text-foreground" : "text-muted-foreground/50"
+              )}>
+                {dia.getDate()}
+              </span>
+              <div className="space-y-0.5">
+                {lista.slice(0, 4).map((t) => (
+                  <div
+                    key={t.id}
+                    draggable
+                    onDragStart={() => setDragId(t.id)}
+                    onDragEnd={() => { setDragId(null); setDropDia(null); }}
+                    onClick={() => onAbrir(t)}
+                    className={cn(
+                      "text-[11px] leading-tight px-1.5 py-1 rounded-md cursor-pointer truncate text-white font-medium",
+                      dragId === t.id && "opacity-40"
+                    )}
+                    style={{ backgroundColor: t.projeto.cor ?? "#64748b" }}
+                    title={`${t.titulo} — ${t.projeto.nome}`}
+                  >
+                    {t.titulo}
+                  </div>
+                ))}
+                {lista.length > 4 && <p className="text-[10px] text-muted-foreground px-1">+{lista.length - 4}</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legenda: um chip por projeto com evento no período */}
+      <div className="flex items-center gap-3 flex-wrap mt-3">
+        {Array.from(new Map(tarefas.map((t) => [t.projeto.id, t.projeto])).values()).map((p) => (
+          <span key={p.id} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.cor ?? "#64748b" }} /> {p.nome}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function AgendaPage() {
   const router = useRouter();
   const { user } = useSession();
@@ -37,6 +156,7 @@ export default function AgendaPage() {
   const [icsUrl, setIcsUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [soMinhas, setSoMinhas] = usePersistedState<boolean>("projetos:agenda:sominhas", false);
+  const [visao, setVisao] = usePersistedState<"calendario" | "lista">("projetos:agenda:visao", "calendario");
   const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
@@ -56,6 +176,16 @@ export default function AgendaPage() {
 
   const visiveis = soMinhas ? tarefas.filter((t) => t.membros.some((m) => m.id === user?.id)) : tarefas;
 
+  // Arrastar na grade: muda o prazo otimista e persiste em segundo plano.
+  async function mudarPrazo(id: string, novaData: string) {
+    setTarefas((prev) => prev.map((t) => (t.id === id ? { ...t, prazo: novaData } : t)));
+    await fetch(`/api/projetos/tarefas/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prazo: novaData }),
+    }).catch(() => {});
+  }
+
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const amanha = new Date(hoje); amanha.setDate(hoje.getDate() + 1);
   const fimSemana = new Date(hoje); fimSemana.setDate(hoje.getDate() + 7);
@@ -72,9 +202,25 @@ export default function AgendaPage() {
   return (
     <div>
       <PageHeader title="Agenda" breadcrumbs={[{ label: "Projetos", href: "/projetos" }, { label: "Agenda" }]} />
-      <div className="px-8 pb-8 space-y-6 max-w-4xl">
-        {/* Assinatura nos calendários externos */}
+      <div className={cn("px-8 pb-8 space-y-6", visao === "calendario" ? "max-w-6xl" : "max-w-4xl")}>
+        {/* Visão + assinatura nos calendários externos */}
         <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-lg border border-border overflow-hidden text-sm">
+            <button
+              onClick={() => setVisao("calendario")}
+              title="Calendário"
+              className={cn("px-3 py-1.5 inline-flex items-center transition-colors", visao === "calendario" ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}
+            >
+              <CalendarDays className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setVisao("lista")}
+              title="Lista"
+              className={cn("px-3 py-1.5 inline-flex items-center transition-colors", visao === "lista" ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
           <Button size="sm" variant="outline" className="gap-1.5" disabled={!icsUrl} onClick={() => { window.location.href = webcalUrl; }}>
             <Apple className="w-3.5 h-3.5" /> Calendário do Mac
           </Button>
@@ -95,6 +241,12 @@ export default function AgendaPage() {
 
         {loading ? (
           <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+        ) : visao === "calendario" ? (
+          <AgendaCalendario
+            tarefas={visiveis}
+            onAbrir={(t) => router.push(`/projetos/${t.projeto.id}?tarefa=${t.id}`)}
+            onMudarPrazo={mudarPrazo}
+          />
         ) : visiveis.length === 0 ? (
           <div className="text-center py-24 text-muted-foreground">
             <Inbox className="w-10 h-10 mx-auto mb-3 opacity-40" />
