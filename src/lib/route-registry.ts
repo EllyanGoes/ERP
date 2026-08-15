@@ -169,6 +169,7 @@ export const ROUTES: RouteEntry[] = [
   // ── Projetos ──
   { href: "/projetos",                             label: "Meus Projetos",           group: "Projetos",       section: "Geral",            icon: FolderKanban, keywords: "projetos quadro kanban board tarefas trello gestão projeto" },
   { href: "/projetos/minhas-tarefas",              label: "Minhas Tarefas",          group: "Projetos",       section: "Geral",            icon: ListTodo, keywords: "minhas tarefas pendentes atrasadas prazo hoje semana projeto kanban" },
+  { href: "/projetos/agenda",                      label: "Agenda",                  group: "Projetos",       section: "Geral",            icon: CalendarDays, keywords: "agenda prazos datas finais calendario mac google ics assinar feed" },
 
   // ── Documentos ──
   { href: "/documentos",                           label: "Documentos (Acervo)",     group: "Documentos",     section: "Geral",            icon: FileArchive, keywords: "documentos ged certidão licença alvará contrato apólice seguro procuração drive arquivo acervo" },

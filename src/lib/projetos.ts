@@ -3,11 +3,29 @@
 // Visibilidade: PRIVADO = só membros; PUBLICO = leitura p/ qualquer usuário com
 // o módulo. Edição = dono, membro ADMIN do projeto ou membro comum (tarefas);
 // gestão de estrutura (colunas/etiquetas/membros) = dono/ADMIN do projeto.
+import { createHmac, timingSafeEqual } from "crypto";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { notificarUsuario } from "@/lib/notificacoes";
 import type { SessionPayload } from "@/lib/auth";
 
 export type NivelProjeto = "DONO" | "ADMIN" | "MEMBRO" | "LEITURA";
+
+/**
+ * Token do feed ICS da Agenda: HMAC do id do usuário com o JWT_SECRET. Apps de
+ * calendário (Mac/Google) assinam a URL sem cookie de sessão — o link carrega
+ * a própria autenticação, revogável trocando o segredo.
+ */
+export function tokenFeedAgenda(usuarioId: string): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET não configurado — defina a variável de ambiente.");
+  return createHmac("sha256", secret).update(`agenda-ics:${usuarioId}`).digest("hex");
+}
+
+export function tokenFeedAgendaValido(usuarioId: string, token: string): boolean {
+  const esperado = Buffer.from(tokenFeedAgenda(usuarioId));
+  const recebido = Buffer.from(token);
+  return esperado.length === recebido.length && timingSafeEqual(esperado, recebido);
+}
 
 /**
  * Resolve o nível de acesso do usuário num projeto. Retorna null se o projeto

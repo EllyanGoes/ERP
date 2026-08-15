@@ -17,8 +17,10 @@ const COOKIE_NAME = "erp_session";
 //   /api/webhooks/* → validam o segredo do provedor (Telegram/Meta)
 //   /api/t/*        → tracking de marketing (snippet + ingestão): valida
 //                     siteId ativo + Origin na allowlist de SiteRastreado
+//   /api/projetos/agenda/ics → feed iCalendar assinado por apps de calendário
+//                     (Mac/Google, sem cookie): valida token HMAC da URL
 // Qualquer OUTRA rota /api/* agora exige um JWT de sessão válido.
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t"];
+const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t", "/api/projetos/agenda/ics"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));

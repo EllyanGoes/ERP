@@ -454,6 +454,7 @@ const mainModules: Module[] = [
         items: [
           { href: "/projetos", label: "Meus Projetos", icon: FolderKanban, exact: true },
           { href: "/projetos/minhas-tarefas", label: "Minhas Tarefas", icon: ListTodo },
+          { href: "/projetos/agenda", label: "Agenda", icon: CalendarDays },
         ],
       },
     ],
