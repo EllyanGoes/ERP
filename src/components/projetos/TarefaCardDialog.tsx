@@ -10,7 +10,7 @@ import AnexosSection from "@/components/shared/AnexosSection";
 import {
   Loader2, X, Trash2, Archive, CheckSquare, Square, Plus, Send,
   Circle, CheckCircle2, Copy, Link as LinkIcon, Check,
-  MoreHorizontal, AlignLeft, Paperclip, MessageSquare,
+  MoreHorizontal, AlignLeft, Paperclip, MessageSquare, UserPlus, GripVertical,
 } from "lucide-react";
 import { AvatarUsuario, EtiquetaChip } from "./comum";
 import SelectMenu from "@/components/shared/SelectMenu";
@@ -33,7 +33,7 @@ type CardDTO = {
   membros: { id: string; nome: string }[];
   coluna: { id: string; nome: string; concluiTarefa: boolean };
   etiquetas: { id: string; nome: string; cor: string }[];
-  checklist: { id: string; texto: string; feito: boolean; ordem: number }[];
+  checklist: { id: string; texto: string; feito: boolean; ordem: number; responsavel: { id: string; nome: string } | null }[];
   comentarios: { id: string; texto: string; createdAt: string; editadoEm: string | null; autor: { id: string; nome: string } }[];
   anexos: { id: string; nome: string; url: string; tamanho: number; tipo: string; createdAt: string }[];
   atividades: { id: string; tipo: string; detalhe: unknown; createdAt: string; autor: { id: string; nome: string } }[];
@@ -134,6 +134,10 @@ export default function TarefaCardDialog({
   const [showDatas, setShowDatas] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  // Checklist: picker de responsável aberto (id do item) e drag de reordenação.
+  const [atribuirItem, setAtribuirItem] = useState<string | null>(null);
+  const [dragItem, setDragItem] = useState<string | null>(null);
+  const [dropItem, setDropItem] = useState<string | null>(null);
   const comentarioRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
@@ -191,6 +195,30 @@ export default function TarefaCardDialog({
   async function removerChecklist(id: string) {
     setCard((c) => c ? { ...c, checklist: c.checklist.filter((i) => i.id !== id) } : c);
     await fetch(`/api/projetos/tarefas/${tarefaId}/checklist?id=${id}`, { method: "DELETE" }).catch(() => {});
+    onMudou();
+  }
+  async function atribuirChecklist(id: string, responsavel: { id: string; nome: string } | null) {
+    setAtribuirItem(null);
+    setCard((c) => c ? { ...c, checklist: c.checklist.map((i) => (i.id === id ? { ...i, responsavel } : i)) } : c);
+    await fetch(`/api/projetos/tarefas/${tarefaId}/checklist`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, responsavelId: responsavel?.id ?? null }),
+    }).catch(() => {});
+    onMudou();
+  }
+  // Solta o item arrastado na posição do alvo (otimista) e persiste a ordem.
+  async function reordenarChecklist(alvoId: string) {
+    if (!dragItem || dragItem === alvoId || !card) { setDragItem(null); setDropItem(null); return; }
+    const itens = [...card.checklist];
+    const de = itens.findIndex((i) => i.id === dragItem);
+    const para = itens.findIndex((i) => i.id === alvoId);
+    if (de < 0 || para < 0) { setDragItem(null); setDropItem(null); return; }
+    const [movido] = itens.splice(de, 1);
+    itens.splice(para, 0, movido);
+    setCard({ ...card, checklist: itens });
+    setDragItem(null); setDropItem(null);
+    await fetch(`/api/projetos/tarefas/${tarefaId}/checklist`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: itens.map((i) => i.id) }),
+    }).catch(() => {});
     onMudou();
   }
 
@@ -584,17 +612,84 @@ export default function TarefaCardDialog({
                 <div className={cn("h-full rounded-full transition-all", progresso === 100 ? "bg-success" : "bg-blue-500")} style={{ width: `${progresso}%` }} />
               </div>
             )}
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {card.checklist.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 group">
+                <div
+                  key={item.id}
+                  onDragOver={(e) => { if (dragItem && dragItem !== item.id) { e.preventDefault(); setDropItem(item.id); } }}
+                  onDragLeave={() => { if (dropItem === item.id) setDropItem(null); }}
+                  onDrop={(e) => { e.preventDefault(); reordenarChecklist(item.id); }}
+                  className={cn(
+                    "relative flex items-center gap-2 group rounded-md px-1 py-0.5 -mx-1",
+                    dropItem === item.id && "bg-info/10 ring-1 ring-inset ring-info/40",
+                    dragItem === item.id && "opacity-40",
+                  )}
+                >
+                  {podeEditar && (
+                    <span
+                      draggable
+                      // setData é obrigatório p/ o drag iniciar em alguns navegadores
+                      onDragStart={(e) => { e.dataTransfer.setData("text/plain", item.id); e.dataTransfer.effectAllowed = "move"; setDragItem(item.id); }}
+                      onDragEnd={() => { setDragItem(null); setDropItem(null); }}
+                      className="opacity-0 group-hover:opacity-100 cursor-grab text-muted-foreground shrink-0 -ml-1"
+                      title="Arrastar para reordenar"
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </span>
+                  )}
                   <button onClick={() => podeEditar && toggleChecklist(item.id, !item.feito)} className={cn("shrink-0", item.feito ? "text-success" : "text-muted-foreground")}>
                     {item.feito ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                   </button>
                   <span className={cn("text-sm flex-1", item.feito ? "line-through text-muted-foreground" : "text-foreground")}><Linkify texto={item.texto} /></span>
+                  {/* Responsável do item: avatar (trocar/remover) ou + pessoa no hover */}
+                  {podeEditar ? (
+                    <button
+                      onClick={() => setAtribuirItem(atribuirItem === item.id ? null : item.id)}
+                      className={cn("shrink-0", !item.responsavel && "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground")}
+                      title={item.responsavel ? `Responsável: ${item.responsavel.nome}` : "Atribuir responsável"}
+                    >
+                      {item.responsavel ? <AvatarUsuario nome={item.responsavel.nome} size="sm" /> : <UserPlus className="w-3.5 h-3.5" />}
+                    </button>
+                  ) : item.responsavel ? (
+                    <span title={`Responsável: ${item.responsavel.nome}`}><AvatarUsuario nome={item.responsavel.nome} size="sm" /></span>
+                  ) : null}
                   {podeEditar && (
                     <button onClick={() => removerChecklist(item.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger">
                       <X className="w-3.5 h-3.5" />
                     </button>
+                  )}
+                  {atribuirItem === item.id && (
+                    <>
+                      {/* Backdrop fecha o picker sem fechar o cartão */}
+                      <div className="fixed inset-0 z-10" onClick={() => setAtribuirItem(null)} />
+                      <div className="absolute right-0 top-6 z-20 w-56 bg-card border border-border rounded-lg shadow-xl p-1.5">
+                        <p className="text-[11px] font-semibold text-muted-foreground px-1.5 pb-1">Responsável do item</p>
+                        <div className="max-h-44 overflow-y-auto space-y-0.5">
+                          {board.membros.map((m) => (
+                            <button
+                              key={m.usuarioId}
+                              onClick={() => atribuirChecklist(item.id, { id: m.usuarioId, nome: m.usuario.nome })}
+                              className={cn(
+                                "w-full flex items-center gap-2 text-left px-1.5 py-1 text-[13px] rounded-md hover:bg-muted text-foreground",
+                                item.responsavel?.id === m.usuarioId && "bg-info/10",
+                              )}
+                            >
+                              <AvatarUsuario nome={m.usuario.nome} size="sm" />
+                              <span className="flex-1 truncate">{m.usuario.nome}</span>
+                              {item.responsavel?.id === m.usuarioId && <Check className="w-3.5 h-3.5 text-info" />}
+                            </button>
+                          ))}
+                        </div>
+                        {item.responsavel && (
+                          <button
+                            onClick={() => atribuirChecklist(item.id, null)}
+                            className="w-full text-left px-1.5 py-1 mt-1 text-xs text-muted-foreground hover:text-danger"
+                          >
+                            Remover responsável
+                          </button>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               ))}

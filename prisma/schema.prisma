@@ -2749,6 +2749,7 @@ model Usuario {
   tarefasMembro      TarefaMembro[]
   comentariosTarefa  TarefaComentario[]
   atividadesTarefa   TarefaAtividade[]
+  checklistItens     TarefaChecklistItem[] @relation("ChecklistResponsavel")
   documentosResp     Documento[]        @relation("DocumentoResponsavel")
   documentosAcesso   DocumentoAcesso[]
   documentosLog      DocumentoLog[]
@@ -4646,14 +4647,17 @@ model TarefaMembro {
 }
 
 model TarefaChecklistItem {
-  id       String  @id @default(cuid())
-  tarefaId String
-  texto    String
-  feito    Boolean @default(false)
-  ordem    Int
-  tarefa   Tarefa  @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  tarefaId      String
+  texto         String
+  feito         Boolean  @default(false)
+  ordem         Int
+  responsavelId String?
+  tarefa        Tarefa   @relation(fields: [tarefaId], references: [id], onDelete: Cascade)
+  responsavel   Usuario? @relation("ChecklistResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
 
   @@index([tarefaId, ordem])
+  @@index([responsavelId])
 }
 
 model TarefaComentario {

@@ -12,7 +12,8 @@ async function autorizar(session: { sub: string; perfil: "ADMIN" | "USUARIO" }, 
   return tarefa;
 }
 
-// POST — { texto } adiciona item; PATCH — { id, feito?, texto? }; DELETE ?id=
+// POST — { texto } adiciona; PATCH — { id, feito?, texto?, responsavelId? };
+// PUT — { ids } reordena; DELETE ?id=
 export async function POST(req: NextRequest, { params }: { params: { tarefaId: string } }) {
   const auth = await requireModulo("projetos");
   if (!auth.ok) return auth.response;
@@ -45,7 +46,30 @@ export async function PATCH(req: NextRequest, { params }: { params: { tarefaId: 
     if (!texto) return NextResponse.json({ error: "Texto não pode ficar vazio." }, { status: 400 });
     data.texto = texto;
   }
+  // Responsável do item: string atribui, null/"" remove (FK valida o usuário).
+  if (body.responsavelId !== undefined) data.responsavelId = body.responsavelId || null;
   await prismaSemEscopo.tarefaChecklistItem.updateMany({ where: { id: body.id, tarefaId: params.tarefaId }, data });
+  return NextResponse.json({ ok: true });
+}
+
+// PUT — { ids: string[] } reordena os itens na ordem recebida (drag na UI).
+export async function PUT(req: NextRequest, { params }: { params: { tarefaId: string } }) {
+  const auth = await requireModulo("projetos");
+  if (!auth.ok) return auth.response;
+  if (!(await autorizar(auth.session, params.tarefaId))) return NextResponse.json({ error: "Sem acesso" }, { status: 403 });
+
+  const body = await req.json();
+  const ids: string[] = Array.isArray(body.ids) ? body.ids.filter((i: unknown) => typeof i === "string") : [];
+  if (ids.length === 0) return NextResponse.json({ error: "ids obrigatório." }, { status: 400 });
+
+  await prismaSemEscopo.$transaction(
+    ids.map((id, idx) =>
+      prismaSemEscopo.tarefaChecklistItem.updateMany({
+        where: { id, tarefaId: params.tarefaId },
+        data: { ordem: idx + 1 },
+      }),
+    ),
+  );
   return NextResponse.json({ ok: true });
 }
 

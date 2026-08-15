@@ -31,7 +31,7 @@ export async function GET(_: NextRequest, { params }: { params: { tarefaId: stri
       membros: { select: { usuario: { select: { id: true, nome: true } } } },
       coluna: { select: { id: true, nome: true, concluiTarefa: true } },
       etiquetas: { select: { etiqueta: { select: { id: true, nome: true, cor: true } } } },
-      checklist: { orderBy: { ordem: "asc" }, select: { id: true, texto: true, feito: true, ordem: true } },
+      checklist: { orderBy: { ordem: "asc" }, select: { id: true, texto: true, feito: true, ordem: true, responsavel: { select: { id: true, nome: true } } } },
       comentarios: {
         orderBy: { createdAt: "asc" },
         select: { id: true, texto: true, createdAt: true, editadoEm: true, autor: { select: { id: true, nome: true } } },
