@@ -40,6 +40,37 @@ type CardDTO = {
   meuNivel: string;
 };
 
+// URLs em texto livre viram links clicáveis (descrição, checklist e comentários).
+// split com grupo de captura: índices ímpares são as URLs.
+const URL_SPLIT_RE = /((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+
+function Linkify({ texto }: { texto: string }) {
+  return (
+    <>
+      {texto.split(URL_SPLIT_RE).map((parte, i) => {
+        if (i % 2 === 0) return parte;
+        // Pontuação colada no fim ("...link.", "...link)") fica fora do link.
+        const m = parte.match(/[).,;:!?\]}'"»]+$/);
+        const url = m ? parte.slice(0, -m[0].length) : parte;
+        return (
+          <span key={i}>
+            <a
+              href={url.startsWith("www.") ? `https://${url}` : url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-info underline underline-offset-2 hover:opacity-80 break-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {url}
+            </a>
+            {m ? m[0] : ""}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 // Render da descrição: linhas "- ..." viram lista de marcadores; agrupa as
 // consecutivas num <ul>; o resto sai como parágrafo (quebras preservadas).
 function DescricaoRender({ texto }: { texto: string }) {
@@ -61,10 +92,10 @@ function DescricaoRender({ texto }: { texto: string }) {
       {blocos.map((b, i) =>
         b.tipo === "ul" ? (
           <ul key={i} className="list-disc pl-5 space-y-0.5">
-            {b.itens.map((it, j) => <li key={j}>{it}</li>)}
+            {b.itens.map((it, j) => <li key={j}><Linkify texto={it} /></li>)}
           </ul>
         ) : (
-          <p key={i} className="whitespace-pre-wrap">{b.linhas.join("\n")}</p>
+          <p key={i} className="whitespace-pre-wrap"><Linkify texto={b.linhas.join("\n")} /></p>
         ),
       )}
     </div>
@@ -559,7 +590,7 @@ export default function TarefaCardDialog({
                   <button onClick={() => podeEditar && toggleChecklist(item.id, !item.feito)} className={cn("shrink-0", item.feito ? "text-success" : "text-muted-foreground")}>
                     {item.feito ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                   </button>
-                  <span className={cn("text-sm flex-1", item.feito ? "line-through text-muted-foreground" : "text-foreground")}>{item.texto}</span>
+                  <span className={cn("text-sm flex-1", item.feito ? "line-through text-muted-foreground" : "text-foreground")}><Linkify texto={item.texto} /></span>
                   {podeEditar && (
                     <button onClick={() => removerChecklist(item.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger">
                       <X className="w-3.5 h-3.5" />
@@ -640,7 +671,7 @@ export default function TarefaCardDialog({
                       )}
                     </div>
                     <div className="bg-card border border-border rounded-lg px-2.5 py-1.5 mt-0.5">
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{f.c.texto}</p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap"><Linkify texto={f.c.texto} /></p>
                     </div>
                   </div>
                 </div>
