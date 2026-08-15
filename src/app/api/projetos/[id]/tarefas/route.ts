@@ -4,6 +4,27 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { nivelNoProjeto, podeEditarTarefas, registrarAtividade, notificarAtribuicao, ORDEM_GAP } from "@/lib/projetos";
 
+// GET /api/projetos/[id]/tarefas?arquivadas=1 — tarefas arquivadas do quadro
+// (painel do ícone de arquivo: restaurar ou excluir de vez).
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("projetos");
+  if (!auth.ok) return auth.response;
+  const acesso = await nivelNoProjeto(auth.session, params.id);
+  if (!acesso) return NextResponse.json({ error: "Projeto não encontrado" }, { status: 404 });
+  if (req.nextUrl.searchParams.get("arquivadas") !== "1") {
+    return NextResponse.json({ error: "Use ?arquivadas=1." }, { status: 400 });
+  }
+  const tarefas = await prismaSemEscopo.tarefa.findMany({
+    where: { projetoId: params.id, arquivada: true },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true, titulo: true, updatedAt: true, concluidaEm: true,
+      coluna: { select: { nome: true } },
+    },
+  });
+  return NextResponse.json({ data: tarefas });
+}
+
 // POST /api/projetos/[id]/tarefas — criação (inline do kanban ou completa).
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("projetos");

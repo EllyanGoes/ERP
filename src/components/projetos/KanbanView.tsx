@@ -38,7 +38,8 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Edição rápida (lápis no hover, ou atalhos com o mouse sobre o cartão:
-  // E = editar · M = membros · D = prazo · Espaço = me atribuir/remover)
+  // E = editar · M = membros · D = prazo · Espaço = me atribuir/remover ·
+  // Delete/Backspace = arquivar)
   const { user } = useSession();
   const [quickEdit, setQuickEdit] = useState<{ tarefa: TarefaResumoDTO; rect: { top: number; left: number; width: number; right: number }; submenu?: "membros" | "prazo" } | null>(null);
   const hoverRef = useRef<{ tarefa: TarefaResumoDTO; el: HTMLElement } | null>(null);
@@ -56,18 +57,30 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
     }).catch(() => onRecarregar());
   }, [user, onAtualizarLocal, onRecarregar]);
 
+  // Delete/Backspace (estilo Trello): arquiva o cartão sob o mouse — some na
+  // hora e fica recuperável no painel de arquivadas do cabeçalho do quadro.
+  const arquivarTarefa = useCallback(async (t: TarefaResumoDTO) => {
+    onAtualizarLocal(t.id, { arquivada: true });
+    await fetch(`/api/projetos/tarefas/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ arquivada: true }),
+    }).catch(() => onRecarregar());
+  }, [onAtualizarLocal, onRecarregar]);
+
   useEffect(() => {
     if (!podeEditar) return;
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tecla = e.key === " " ? " " : e.key.toLowerCase();
-      if (![" ", "e", "m", "d"].includes(tecla)) return;
+      if (![" ", "e", "m", "d", "backspace", "delete"].includes(tecla)) return;
       const alvo = e.target as HTMLElement;
       if (alvo.tagName === "INPUT" || alvo.tagName === "TEXTAREA" || alvo.tagName === "SELECT" || alvo.isContentEditable) return;
       const hov = hoverRef.current;
       if (!hov || hov.tarefa.id.startsWith("temp-")) return;
       e.preventDefault();
       if (tecla === " ") { toggleMeuMembro(hov.tarefa); return; }
+      if (tecla === "backspace" || tecla === "delete") { arquivarTarefa(hov.tarefa); return; }
       const r = hov.el.getBoundingClientRect();
       setQuickEdit({
         tarefa: hov.tarefa,
@@ -77,7 +90,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [podeEditar, toggleMeuMembro]);
+  }, [podeEditar, toggleMeuMembro, arquivarTarefa]);
 
   function abrirQuickEdit(tarefa: TarefaResumoDTO, el: HTMLElement) {
     const r = el.getBoundingClientRect();

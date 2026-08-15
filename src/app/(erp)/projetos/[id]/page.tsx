@@ -10,7 +10,7 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import {
   Loader2, ArrowLeft, Star, Settings2, LayoutGrid, List, Calendar as CalendarIcon,
-  GanttChartSquare, Activity, Search, X,
+  GanttChartSquare, Activity, Search, X, Archive,
 } from "lucide-react";
 import { AvatarUsuario, ProgressoCirculo, SituacaoBadge } from "@/components/projetos/comum";
 import SelectMenu from "@/components/shared/SelectMenu";
@@ -22,6 +22,7 @@ import TimelineView from "@/components/projetos/TimelineView";
 import AtividadeView from "@/components/projetos/AtividadeView";
 import TarefaCardDialog from "@/components/projetos/TarefaCardDialog";
 import ProjetoConfigDialog from "@/components/projetos/ProjetoConfigDialog";
+import TarefasArquivadasDialog from "@/components/projetos/TarefasArquivadasDialog";
 
 type Visao = "kanban" | "lista" | "calendario" | "timeline" | "atividade";
 
@@ -44,6 +45,7 @@ export default function ProjetoBoardPage() {
   const [error, setError] = useState("");
   const [visao, setVisao] = usePersistedState<Visao>(`projetos:visao:${id}`, "kanban");
   const [showConfig, setShowConfig] = useState(false);
+  const [showArquivadas, setShowArquivadas] = useState(false);
 
   // Filtros (persistidos por usuário/projeto)
   const [filtroResp, setFiltroResp] = usePersistedState<string>(`projetos:fresp:${id}`, "");
@@ -139,6 +141,8 @@ export default function ProjetoBoardPage() {
   const podeGerenciar = board.meuNivel === "DONO" || board.meuNivel === "ADMIN";
 
   const tarefasFiltradas = board.tarefas.filter((t) => {
+    // Arquivada some na hora (atalho Delete arquiva com patch local otimista).
+    if (t.arquivada) return false;
     if (filtroResp === "__sem__" ? t.membros.length > 0 : filtroResp && !t.membros.some((m) => m.id === filtroResp)) return false;
     if (filtroEtiqueta && !t.etiquetas.some((e) => e.id === filtroEtiqueta)) return false;
     if (filtroBusca && !t.titulo.toLowerCase().includes(filtroBusca.toLowerCase())) return false;
@@ -183,6 +187,9 @@ export default function ProjetoBoardPage() {
             )}
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowArquivadas(true)} title="Cartões arquivados" className="px-2.5">
+              <Archive className="w-4 h-4" />
+            </Button>
             {podeGerenciar && (
               <Button size="sm" variant="outline" onClick={() => setShowConfig(true)} title="Configurações do projeto" className="px-2.5">
                 <Settings2 className="w-4 h-4" />
@@ -294,6 +301,17 @@ export default function ProjetoBoardPage() {
             />
           </div>
         </div>
+      )}
+
+      {/* ── Cartões arquivados ──────────────────────────────────────────── */}
+      {showArquivadas && (
+        <TarefasArquivadasDialog
+          projetoId={board.id}
+          podeEditar={podeEditar}
+          podeGerenciar={podeGerenciar}
+          onFechar={() => setShowArquivadas(false)}
+          onMudou={() => load(true)}
+        />
       )}
 
       {/* ── Configurações do projeto ────────────────────────────────────── */}
