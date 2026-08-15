@@ -1,10 +1,12 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { getUserModulos, hasModulo } from "@/lib/permissions";
 
 // Resultado normalizado consumido pelo command palette (Cmd+K).
 export type SearchResult = {
-  tipo: "produto" | "cliente" | "fornecedor" | "pedido-venda" | "pedido-compra";
+  tipo: "produto" | "cliente" | "fornecedor" | "pedido-venda" | "pedido-compra" | "projeto";
   id: string;
   titulo: string;
   subtitulo?: string;
@@ -32,7 +34,29 @@ export async function GET(req: NextRequest) {
   const buscaDocumento = qDigits.length >= 2 && !/[a-zA-ZÀ-ÿ]/.test(q);
   const cpfOr = buscaDocumento ? [{ cpfCnpj: { contains: qDigits } }] : [];
 
-  const [produtos, clientes, fornecedores, pedidosVenda, pedidosCompra] = await Promise.all([
+  // Projetos: acesso por membro (privado = dono/membro; público = quem tem o
+  // módulo) — a busca respeita a mesma regra do nivelNoProjeto.
+  const session = await getSession();
+  const podeProjetos = session ? hasModulo(await getUserModulos(session.sub), "projetos") : false;
+  const projetosPromise = session && podeProjetos
+    ? prismaSemEscopo.projeto.findMany({
+        where: {
+          nome: ci,
+          ...(session.perfil === "ADMIN" ? {} : {
+            OR: [
+              { donoId: session.sub },
+              { membros: { some: { usuarioId: session.sub } } },
+              { visibilidade: "PUBLICO" as const },
+            ],
+          }),
+        },
+        select: { id: true, nome: true, status: true, dono: { select: { nome: true } } },
+        take: TAKE,
+        orderBy: { nome: "asc" },
+      })
+    : Promise.resolve([]);
+
+  const [produtos, clientes, fornecedores, pedidosVenda, pedidosCompra, projetos] = await Promise.all([
     prisma.item.findMany({
       where: { OR: [{ codigo: ci }, { descricao: ci }] },
       select: { id: true, codigo: true, descricao: true },
@@ -63,6 +87,7 @@ export async function GET(req: NextRequest) {
       take: TAKE,
       orderBy: { numero: "desc" },
     }),
+    projetosPromise,
   ]);
 
   const results: SearchResult[] = [
@@ -100,6 +125,13 @@ export async function GET(req: NextRequest) {
       titulo: pc.numero,
       subtitulo: pc.fornecedor?.nomeFantasia || pc.fornecedor?.razaoSocial || undefined,
       href: `/suprimentos/pedidos-compra/${pc.id}`,
+    })),
+    ...projetos.map((p) => ({
+      tipo: "projeto" as const,
+      id: p.id,
+      titulo: p.nome,
+      subtitulo: [p.dono.nome, p.status === "ARQUIVADO" ? "Arquivado" : null].filter(Boolean).join(" · ") || undefined,
+      href: `/projetos/${p.id}`,
     })),
   ];
 

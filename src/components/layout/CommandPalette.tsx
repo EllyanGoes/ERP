@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Search, X, Clock, ExternalLink, Package, Users, Truck, ShoppingCart, ClipboardList, type LucideIcon } from "lucide-react";
+import { Search, X, Clock, ExternalLink, Package, Users, Truck, ShoppingCart, ClipboardList, FolderKanban, type LucideIcon } from "lucide-react";
 import { ROUTES, routeColor } from "@/lib/route-registry";
 import type { RouteEntry as Route } from "@/lib/route-registry";
 
@@ -14,7 +14,7 @@ const MAX_RECENTS = 6;
 
 // ── Busca de registros (o Cmd+K vai além das telas) ─────────────────────────────
 type SearchResult = {
-  tipo: "produto" | "cliente" | "fornecedor" | "pedido-venda" | "pedido-compra";
+  tipo: "produto" | "cliente" | "fornecedor" | "pedido-venda" | "pedido-compra" | "projeto";
   id: string;
   titulo: string;
   subtitulo?: string;
@@ -29,6 +29,7 @@ const RECORD_META: Record<SearchResult["tipo"], { label: string; icon: LucideIco
   "fornecedor":    { label: "Fornecedor",       icon: Truck,         section: "Compras"          },
   "pedido-venda":  { label: "Pedido de Venda",  icon: ShoppingCart,  section: "Faturamento"        },
   "pedido-compra": { label: "Pedido de Compra", icon: ClipboardList, section: "Fluxo de Compras" },
+  "projeto":       { label: "Projeto",          icon: FolderKanban,  section: "Geral"            },
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
