@@ -16,7 +16,7 @@ import {
   Link as LinkIcon, Apple, CalendarPlus, List, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { AvatarUsuario, PrioridadeBadge } from "@/components/projetos/comum";
-import { prazoInfo } from "@/components/projetos/tipos";
+import { prazoInfo, diaPrazo } from "@/components/projetos/tipos";
 
 type TarefaAgendaDTO = {
   id: string;
@@ -60,7 +60,7 @@ function AgendaCalendario({
 
   const porDia = new Map<string, TarefaAgendaDTO[]>();
   for (const t of tarefas) {
-    const k = chaveDia(new Date(t.prazo));
+    const k = chaveDia(diaPrazo(t.prazo));
     porDia.set(k, [...(porDia.get(k) ?? []), t]);
   }
 
@@ -115,7 +115,8 @@ function AgendaCalendario({
                   <div
                     key={t.id}
                     draggable
-                    onDragStart={() => setDragId(t.id)}
+                    // setData é obrigatório p/ o drag iniciar em alguns navegadores
+                    onDragStart={(e) => { e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; setDragId(t.id); }}
                     onDragEnd={() => { setDragId(null); setDropDia(null); }}
                     onClick={() => onAbrir(t)}
                     className={cn(
@@ -189,7 +190,7 @@ export default function AgendaPage() {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const amanha = new Date(hoje); amanha.setDate(hoje.getDate() + 1);
   const fimSemana = new Date(hoje); fimSemana.setDate(hoje.getDate() + 7);
-  const dia = (iso: string) => { const d = new Date(iso); d.setHours(0, 0, 0, 0); return d; };
+  const dia = (iso: string) => diaPrazo(iso);
 
   const grupos: { titulo: string; icone: React.ReactNode; cls?: string; lista: TarefaAgendaDTO[] }[] = [
     { titulo: "Atrasadas", icone: <AlertTriangle className="w-4 h-4" />, cls: "text-danger", lista: visiveis.filter((t) => dia(t.prazo) < hoje) },

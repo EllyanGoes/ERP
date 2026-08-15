@@ -8,7 +8,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, AlertTriangle, CalendarDays, ListTodo, Inbox } from "lucide-react";
 import { EtiquetaChip, PrioridadeBadge } from "@/components/projetos/comum";
-import { EtiquetaDTO, prazoInfo } from "@/components/projetos/tipos";
+import { EtiquetaDTO, prazoInfo, diaPrazo } from "@/components/projetos/tipos";
 
 type MinhaTarefaDTO = {
   id: string;
@@ -43,31 +43,27 @@ export default function MinhasTarefasPage() {
       titulo: "Atrasadas",
       icone: <AlertTriangle className="w-4 h-4" />,
       cls: "text-danger",
-      lista: tarefas.filter((t) => t.prazo && new Date(t.prazo) < hoje),
+      lista: tarefas.filter((t) => t.prazo && diaPrazo(t.prazo) < hoje),
     },
     {
       titulo: "Hoje",
       icone: <CalendarDays className="w-4 h-4" />,
       cls: "text-warning",
-      lista: tarefas.filter((t) => {
-        if (!t.prazo) return false;
-        const d = new Date(t.prazo); d.setHours(0, 0, 0, 0);
-        return d.getTime() === hoje.getTime();
-      }),
+      lista: tarefas.filter((t) => t.prazo && diaPrazo(t.prazo).getTime() === hoje.getTime()),
     },
     {
       titulo: "Esta semana",
       icone: <ListTodo className="w-4 h-4" />,
       lista: tarefas.filter((t) => {
         if (!t.prazo) return false;
-        const d = new Date(t.prazo); d.setHours(0, 0, 0, 0);
+        const d = diaPrazo(t.prazo);
         return d > hoje && d <= fimSemana;
       }),
     },
     {
       titulo: "Mais adiante / sem prazo",
       icone: <Inbox className="w-4 h-4" />,
-      lista: tarefas.filter((t) => !t.prazo || (() => { const d = new Date(t.prazo!); d.setHours(0, 0, 0, 0); return d > fimSemana; })()),
+      lista: tarefas.filter((t) => !t.prazo || diaPrazo(t.prazo) > fimSemana),
     },
   ];
 

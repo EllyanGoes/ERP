@@ -92,15 +92,22 @@ export const CORES_PROJETO = [
   "#ca8a04", "#16a34a", "#0d9488", "#0891b2", "#64748b",
 ];
 
+/**
+ * Prazo como meia-noite LOCAL do dia salvo. O prazo é uma data pura gravada
+ * como meia-noite UTC — parsear o ISO inteiro desloca 1 dia em fusos
+ * negativos (BRT: 17 vira 16). Sempre posicione/agrupe por esta função.
+ */
+export function diaPrazo(prazo: string): Date {
+  return new Date(prazo.slice(0, 10) + "T00:00:00");
+}
+
 export function prazoInfo(prazo: string | null, concluida: boolean): { label: string; cls: string } | null {
   if (!prazo) return null;
-  const d = new Date(prazo);
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
-  const dia = new Date(d);
-  dia.setHours(0, 0, 0, 0);
+  const dia = diaPrazo(prazo);
   const diff = Math.round((dia.getTime() - hoje.getTime()) / 86_400_000);
-  const label = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  const label = dia.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
   if (concluida) return { label, cls: "text-muted-foreground" };
   if (diff < 0) return { label, cls: "text-danger font-semibold" };
   if (diff === 0) return { label: "Hoje", cls: "text-warning font-semibold" };

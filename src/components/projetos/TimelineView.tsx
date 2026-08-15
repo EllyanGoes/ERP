@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { AvatarUsuario } from "./comum";
-import { TarefaResumoDTO } from "./tipos";
+import { TarefaResumoDTO, diaPrazo } from "./tipos";
 
 const DIA_MS = 86_400_000;
 
@@ -21,8 +21,8 @@ export default function TimelineView({
   const comData = tarefas
     .filter((t) => t.prazo || t.dataInicio)
     .map((t) => {
-      const fim = new Date(t.prazo ?? t.dataInicio!);
-      const inicio = new Date(t.dataInicio ?? t.prazo!);
+      const fim = diaPrazo(t.prazo ?? t.dataInicio!);
+      const inicio = diaPrazo(t.dataInicio ?? t.prazo!);
       return { ...t, inicio: inicio < fim ? inicio : fim, fim: fim > inicio ? fim : inicio };
     });
 

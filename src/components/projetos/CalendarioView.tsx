@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { TarefaResumoDTO } from "./tipos";
+import { TarefaResumoDTO, diaPrazo } from "./tipos";
 
 const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -39,7 +39,7 @@ export default function CalendarioView({
   const porDia = new Map<string, TarefaResumoDTO[]>();
   for (const t of tarefas) {
     if (!t.prazo) continue;
-    const k = chaveDia(new Date(t.prazo));
+    const k = chaveDia(diaPrazo(t.prazo));
     porDia.set(k, [...(porDia.get(k) ?? []), t]);
   }
 
@@ -106,7 +106,8 @@ export default function CalendarioView({
                   <div
                     key={t.id}
                     draggable={podeEditar}
-                    onDragStart={() => setDragId(t.id)}
+                    // setData é obrigatório p/ o drag iniciar em alguns navegadores
+                    onDragStart={(e) => { e.dataTransfer.setData("text/plain", t.id); e.dataTransfer.effectAllowed = "move"; setDragId(t.id); }}
                     onDragEnd={() => { setDragId(null); setDropDia(null); }}
                     onClick={() => onAbrirTarefa(t.id)}
                     className={cn(
