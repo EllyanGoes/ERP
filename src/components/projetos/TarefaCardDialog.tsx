@@ -625,7 +625,7 @@ export default function TarefaCardDialog({
         </div>
 
         {/* ── Painel lateral: Comentários e atividade ──────────────────────── */}
-        <div className="border-t md:border-t-0 md:border-l border-border bg-muted/30 rounded-b-2xl md:rounded-bl-none md:rounded-r-2xl flex flex-col">
+        <div className="border-t md:border-t-0 md:border-l border-border bg-muted/50 rounded-b-2xl md:rounded-bl-none md:rounded-r-2xl flex flex-col">
           <div className="flex items-center gap-2 px-4 pt-4 pb-2">
             <MessageSquare className="w-4 h-4 text-muted-foreground" />
             <p className="text-sm font-semibold text-foreground">Comentários e atividade</p>
@@ -637,17 +637,18 @@ export default function TarefaCardDialog({
                 ref={comentarioRef}
                 value={novoComentario}
                 onChange={(e) => setNovoComentario(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) comentar(); }}
+                // Enter envia (padrão de chat); Shift+Enter quebra linha.
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); comentar(); } }}
                 rows={novoComentario ? 3 : 1}
                 placeholder="Escrever um comentário..."
-                className="w-full text-sm border border-border rounded-lg bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full text-sm border border-border shadow-sm rounded-lg bg-card px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
               {novoComentario.trim() && (
                 <Button size="sm" onClick={comentar} disabled={enviandoComentario} className="mt-1.5 bg-blue-600 hover:bg-blue-700 h-7 px-3 text-xs">
                   {enviandoComentario ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Send className="w-3 h-3 mr-1.5" /> Enviar</>}
                 </Button>
               )}
-              <p className="text-[10px] text-muted-foreground mt-1">@nome menciona · Ctrl+Enter envia</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Enter envia · Shift+Enter quebra linha · @nome menciona</p>
             </div>
           )}
 
@@ -660,7 +661,7 @@ export default function TarefaCardDialog({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-semibold text-foreground">{f.c.autor.nome}</span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[11px] text-muted-foreground">
                         {new Date(f.c.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                         {f.c.editadoEm && " (editado)"}
                       </span>
@@ -670,7 +671,7 @@ export default function TarefaCardDialog({
                         </button>
                       )}
                     </div>
-                    <div className="bg-card border border-border rounded-lg px-2.5 py-1.5 mt-0.5">
+                    <div className="bg-card border border-border shadow-sm rounded-lg px-2.5 py-1.5 mt-0.5">
                       <p className="text-sm text-foreground whitespace-pre-wrap"><Linkify texto={f.c.texto} /></p>
                     </div>
                   </div>
@@ -678,14 +679,14 @@ export default function TarefaCardDialog({
               ) : (
                 <div key={`a-${f.a.id}`} className="flex gap-2.5">
                   <AvatarUsuario nome={f.a.autor.nome} size="sm" />
-                  <p className="text-xs text-muted-foreground flex-1 min-w-0 pt-1">
+                  <p className="text-xs text-foreground/80 flex-1 min-w-0 pt-1">
                     <span className="font-semibold text-foreground">{f.a.autor.nome}</span>{" "}
                     {ATIVIDADE_LABEL[f.a.tipo] ?? f.a.tipo.toLowerCase()}
                     {(() => {
                       const d = f.a.detalhe as { de?: string; para?: string } | null;
                       return d?.de && d?.para ? ` de "${d.de}" para "${d.para}"` : "";
                     })()}
-                    <span className="block text-[10px]">
+                    <span className="block text-[11px] text-muted-foreground">
                       {new Date(f.a.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </p>
