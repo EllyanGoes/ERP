@@ -94,6 +94,8 @@ interface Props {
   allowClear?: boolean;
   /** Realça o gatilho com borda de erro (validação). */
   invalid?: boolean;
+  /** Foca o campo ao montar (sem abrir o calendário — digitar abre). */
+  autoFocus?: boolean;
   /** Limites (ISO) — dias fora do intervalo ficam desabilitados. */
   min?: string;
   max?: string;
@@ -112,6 +114,7 @@ export default function DatePicker({
   triggerClassName,
   allowClear = true,
   invalid = false,
+  autoFocus = false,
   min,
   max,
   id,
@@ -248,6 +251,7 @@ export default function DatePicker({
           // O padrão DD/MM/AAAA dispara a heurística de CARTÃO do Chrome
           // (validade MM/AA) — off + data-* calam navegador e gerenciadores.
           autoComplete="off"
+          autoFocus={autoFocus}
           data-lpignore="true"
           data-1p-ignore=""
           disabled={disabled}

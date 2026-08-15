@@ -233,7 +233,8 @@ export default function TarefaQuickEdit({
             })()}
             {submenu === "prazo" && a.submenu === "prazo" && (
               <div className="mt-1 bg-card border border-border rounded-lg shadow-md p-2 space-y-1.5">
-                <DatePicker value={tarefa.prazo ? tarefa.prazo.slice(0, 10) : ""} onChange={(v) => patch({ prazo: v || null })} />
+                {/* autoFocus: atalho D (e o clique em "Editar prazo") vai direto pro campo de data. */}
+                <DatePicker autoFocus value={tarefa.prazo ? tarefa.prazo.slice(0, 10) : ""} onChange={(v) => patch({ prazo: v || null })} />
                 {tarefa.prazo && (
                   <button className="w-full text-left px-1 text-xs text-muted-foreground hover:text-danger" onClick={() => patch({ prazo: null })}>
                     Remover prazo
