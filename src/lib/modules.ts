@@ -213,6 +213,14 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "investimentos",
+    label: "Investimentos",
+    group: "Investimentos",
+    recursos: [
+      { key: "carteira", label: "Carteira (B3)", acoes: ["ver", "inserir", "editar", "excluir"] },
+    ],
+  },
+  {
     key: "documentos",
     label: "Documentos",
     group: "Documentos",

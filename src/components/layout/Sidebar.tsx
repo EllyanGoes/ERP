@@ -82,6 +82,7 @@ import {
   FolderKanban,
   ListTodo,
   FileArchive,
+  LineChart,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -455,6 +456,19 @@ const mainModules: Module[] = [
           { href: "/projetos", label: "Meus Projetos", icon: FolderKanban, exact: true },
           { href: "/projetos/minhas-tarefas", label: "Minhas Tarefas", icon: ListTodo },
           { href: "/projetos/agenda", label: "Agenda", icon: CalendarDays },
+        ],
+      },
+    ],
+  },
+  {
+    id: "investimentos",
+    label: "Investimentos",
+    icon: LineChart,
+    sections: [
+      {
+        kind: "Geral",
+        items: [
+          { href: "/investimentos", label: "Carteira B3", icon: LineChart },
         ],
       },
     ],

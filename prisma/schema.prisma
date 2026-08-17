@@ -2750,6 +2750,9 @@ model Usuario {
   comentariosTarefa  TarefaComentario[]
   atividadesTarefa   TarefaAtividade[]
   checklistItens     TarefaChecklistItem[] @relation("ChecklistResponsavel")
+  // Investimentos pessoais (B3)
+  investOperacoes    InvestOperacao[]
+  investProventos    InvestProvento[]
   documentosResp     Documento[]        @relation("DocumentoResponsavel")
   documentosAcesso   DocumentoAcesso[]
   documentosLog      DocumentoLog[]
@@ -4816,4 +4819,76 @@ model EmpresaDrive {
   drivePastaId    String
   pastasCategoria Json    @default("{}")
   empresa         Empresa @relation(fields: [empresaId], references: [id])
+}
+
+// ── Investimentos pessoais (B3) ───────────────────────────────────────────────
+// Módulo standalone: sem empresaId, fora do escopo multiempresa. Toda consulta
+// filtra por usuarioId da sessão — cada usuário só vê a PRÓPRIA carteira.
+// Ativo é dado de mercado (compartilhado); o que é pessoal são operações e
+// proventos. Cotações via brapi.dev gravadas no ativo (cache).
+
+enum TipoInvestAtivo {
+  ACAO
+  FII
+  ETF
+  BDR
+  OUTRO
+}
+
+enum TipoInvestOperacao {
+  COMPRA
+  VENDA
+}
+
+enum TipoInvestProvento {
+  DIVIDENDO
+  JCP
+  RENDIMENTO
+  OUTRO
+}
+
+model InvestAtivo {
+  id                String           @id @default(cuid())
+  ticker            String           @unique
+  nome              String?
+  tipo              TipoInvestAtivo  @default(ACAO)
+  precoAtual        Decimal?         @db.Decimal(15, 4)
+  precoAtualizadoEm DateTime?
+  operacoes         InvestOperacao[]
+  proventos         InvestProvento[]
+}
+
+model InvestOperacao {
+  id          String             @id @default(cuid())
+  usuarioId   String
+  ativoId     String
+  tipo        TipoInvestOperacao
+  data        DateTime
+  quantidade  Decimal            @db.Decimal(18, 6)
+  preco       Decimal            @db.Decimal(15, 4)
+  custos      Decimal            @default(0) @db.Decimal(15, 2)
+  // Chave de deduplicação do import do extrato da B3 (null = lançamento manual)
+  chaveImport String?
+  createdAt   DateTime           @default(now())
+  usuario     Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  ativo       InvestAtivo        @relation(fields: [ativoId], references: [id])
+
+  @@unique([usuarioId, chaveImport])
+  @@index([usuarioId, ativoId, data])
+}
+
+model InvestProvento {
+  id          String             @id @default(cuid())
+  usuarioId   String
+  ativoId     String
+  tipo        TipoInvestProvento @default(DIVIDENDO)
+  data        DateTime
+  valor       Decimal            @db.Decimal(15, 2)
+  chaveImport String?
+  createdAt   DateTime           @default(now())
+  usuario     Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  ativo       InvestAtivo        @relation(fields: [ativoId], references: [id])
+
+  @@unique([usuarioId, chaveImport])
+  @@index([usuarioId, ativoId, data])
 }

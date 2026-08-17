@@ -26,7 +26,7 @@ import {
   Landmark, Wallet, FolderTree, Repeat, CalendarClock, FileCheck2,
   Megaphone, Target, Map as MapIcon,
   Receipt, Hash, Scale,
-  Filter, UserPlus, Globe,
+  Filter, UserPlus, Globe, LineChart,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -170,6 +170,7 @@ export const ROUTES: RouteEntry[] = [
   { href: "/projetos",                             label: "Meus Projetos",           group: "Projetos",       section: "Geral",            icon: FolderKanban, keywords: "projetos quadro kanban board tarefas trello gestão projeto" },
   { href: "/projetos/minhas-tarefas",              label: "Minhas Tarefas",          group: "Projetos",       section: "Geral",            icon: ListTodo, keywords: "minhas tarefas pendentes atrasadas prazo hoje semana projeto kanban" },
   { href: "/projetos/agenda",                      label: "Agenda",                  group: "Projetos",       section: "Geral",            icon: CalendarDays, keywords: "agenda prazos datas finais calendario mac google ics assinar feed" },
+  { href: "/investimentos",                        label: "Carteira B3",             group: "Investimentos",  section: "Geral",            icon: LineChart, keywords: "investimentos carteira b3 ações fii bolsa cotações proventos dividendos" },
 
   // ── Documentos ──
   { href: "/documentos",                           label: "Documentos (Acervo)",     group: "Documentos",     section: "Geral",            icon: FileArchive, keywords: "documentos ged certidão licença alvará contrato apólice seguro procuração drive arquivo acervo" },
