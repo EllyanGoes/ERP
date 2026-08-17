@@ -34,21 +34,18 @@ export async function GET(req: NextRequest) {
   const buscaDocumento = qDigits.length >= 2 && !/[a-zA-ZÀ-ÿ]/.test(q);
   const cpfOr = buscaDocumento ? [{ cpfCnpj: { contains: qDigits } }] : [];
 
-  // Projetos: acesso por membro (privado = dono/membro; público = quem tem o
-  // módulo) — a busca respeita a mesma regra do nivelNoProjeto.
+  // Projetos: só aparecem para quem PARTICIPA (dono/membro) — decisão do dono
+  // (17/08); nem ADMIN nem visibilidade pública listam projetos alheios.
   const session = await getSession();
   const podeProjetos = session ? hasModulo(await getUserModulos(session.sub), "projetos") : false;
   const projetosPromise = session && podeProjetos
     ? prismaSemEscopo.projeto.findMany({
         where: {
           nome: ci,
-          ...(session.perfil === "ADMIN" ? {} : {
-            OR: [
-              { donoId: session.sub },
-              { membros: { some: { usuarioId: session.sub } } },
-              { visibilidade: "PUBLICO" as const },
-            ],
-          }),
+          OR: [
+            { donoId: session.sub },
+            { membros: { some: { usuarioId: session.sub } } },
+          ],
         },
         select: { id: true, nome: true, status: true, dono: { select: { nome: true } } },
         take: TAKE,

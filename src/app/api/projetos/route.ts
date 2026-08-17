@@ -4,23 +4,21 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { registrarAtividade } from "@/lib/projetos";
 
-// GET /api/projetos — home: projetos do usuário (dono/membro) + públicos.
+// GET /api/projetos — home: SÓ projetos em que o usuário participa (dono ou
+// membro). Decisão do dono (17/08): nem perfil ADMIN nem visibilidade pública
+// listam projetos alheios — público continua abrindo por link (leitura).
 export async function GET() {
   const auth = await requireModulo("projetos");
   if (!auth.ok) return auth.response;
   const userId = auth.session.sub;
-  const isAdmin = auth.session.perfil === "ADMIN";
 
   const projetos = await prismaSemEscopo.projeto.findMany({
-    where: isAdmin
-      ? {}
-      : {
-          OR: [
-            { donoId: userId },
-            { membros: { some: { usuarioId: userId } } },
-            { visibilidade: "PUBLICO" },
-          ],
-        },
+    where: {
+      OR: [
+        { donoId: userId },
+        { membros: { some: { usuarioId: userId } } },
+      ],
+    },
     select: {
       id: true, nome: true, descricao: true, cor: true, icone: true,
       visibilidade: true, status: true, situacao: true, donoId: true, updatedAt: true, empresaId: true,
