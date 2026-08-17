@@ -16,6 +16,9 @@ import EscClose from "@/components/shared/EscClose";
 import {
   Loader2, RefreshCw, Upload, Plus, Trash2, X, LineChart, TrendingUp, TrendingDown, Inbox,
 } from "lucide-react";
+import {
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+} from "recharts";
 
 type PosicaoDTO = {
   ativoId: string; ticker: string; nome: string | null; tipo: string;
@@ -29,6 +32,7 @@ type ProventoDTO = { id: string; ticker: string; tipo: string; data: string; val
 type CarteiraDTO = {
   posicoes: PosicaoDTO[];
   totais: { custo: number; valor: number; resultado: number; realizado: number; proventos: number };
+  series: { mes: string; investido: number; proventos: number }[];
   operacoes: OperacaoDTO[];
   proventos: ProventoDTO[];
 };
@@ -39,6 +43,13 @@ const TIPO_PROVENTO_LABEL: Record<string, string> = { DIVIDENDO: "Dividendo", JC
 const fmtQtd = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 6 });
 const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 const fmtData = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+
+const MESES_ABREV = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const mesLabel = (ym: string) => `${MESES_ABREV[parseInt(ym.slice(5)) - 1]}/${ym.slice(2, 4)}`;
+// Padrão dos gráficos do ERP (ex.: RH/Relatórios)
+const tickStyle = { fontSize: 11, fill: "#94a3b8" };
+const moedaCompacta = (v: number) =>
+  v >= 10000 ? v.toLocaleString("pt-BR", { notation: "compact" }) : v.toLocaleString("pt-BR");
 
 export default function InvestimentosPage() {
   useTabTitle("Carteira B3");
@@ -114,6 +125,54 @@ export default function InvestimentosPage() {
                 <p className={cn("text-base font-semibold truncate", c.cls)}>{c.valor}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── Evolução (patrimônio investido e proventos) ────────────────── */}
+        {dados && dados.series.length >= 2 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="bg-card border border-border rounded-xl p-4">
+              <p className="text-sm font-semibold text-foreground">Evolução do patrimônio</p>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                Valor investido (custo) ao fim de cada mês · a mercado hoje: <b>{formatBRL(dados.totais.valor)}</b>
+              </p>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={dados.series.map((s) => ({ ...s, label: mesLabel(s.mes) }))} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradInvestido" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="#94a3b8" strokeOpacity={0.18} />
+                  <XAxis dataKey="label" tick={tickStyle} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
+                  <YAxis tick={tickStyle} tickFormatter={moedaCompacta} axisLine={false} tickLine={false} width={64} />
+                  <Tooltip
+                    cursor={{ stroke: "#94a3b8", strokeOpacity: 0.3 }}
+                    formatter={(v) => [formatBRL(Number(v)), "Investido"]}
+                  />
+                  <Area type="monotone" dataKey="investido" stroke="#3b82f6" strokeWidth={2} fill="url(#gradInvestido)" dot={false} activeDot={{ r: 4 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4">
+              <p className="text-sm font-semibold text-foreground">Evolução dos proventos</p>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                Recebidos por mês · acumulado: <b>{formatBRL(dados.totais.proventos)}</b>
+              </p>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={dados.series.map((s) => ({ ...s, label: mesLabel(s.mes) }))} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke="#94a3b8" strokeOpacity={0.18} />
+                  <XAxis dataKey="label" tick={tickStyle} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
+                  <YAxis tick={tickStyle} tickFormatter={moedaCompacta} axisLine={false} tickLine={false} width={64} />
+                  <Tooltip
+                    cursor={{ fill: "#94a3b8", fillOpacity: 0.08 }}
+                    formatter={(v) => [formatBRL(Number(v)), "Proventos"]}
+                  />
+                  <Bar dataKey="proventos" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
 
