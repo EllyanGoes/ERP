@@ -492,9 +492,19 @@ export default function PedidosVendaPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/pedidos-venda?limit=500");
-      const json = await res.json();
-      setPedidos(json.data ?? []);
+      // Busca TODAS as páginas: com limite fixo os pedidos antigos "sumiam"
+      // assim que a empresa passava do teto (Cimento e Mix: 789 > 500).
+      const todos: PedidoRow[] = [];
+      let page = 1;
+      // teto de sanidade de 20 páginas (10 mil pedidos)
+      while (page <= 20) {
+        const res = await fetch(`/api/pedidos-venda?limit=500&page=${page}`);
+        const json = await res.json();
+        todos.push(...(json.data ?? []));
+        if (todos.length >= (json.total ?? 0) || (json.data ?? []).length === 0) break;
+        page++;
+      }
+      setPedidos(todos);
     } finally {
       setLoading(false);
     }
