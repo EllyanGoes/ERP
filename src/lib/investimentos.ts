@@ -1,8 +1,22 @@
 // Investimentos pessoais (B3) — helpers do módulo standalone.
 // REGRA DE OURO: toda consulta de operações/proventos filtra por usuarioId da
 // sessão — nem perfil ADMIN enxerga a carteira de outro usuário.
+import { NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
+import { requireModulo } from "@/lib/permissions";
+import { podeAcessarInvestimentos } from "@/lib/investimentos-acesso";
+import type { RequireSessionResult } from "@/lib/auth";
 import type { TipoInvestAtivo } from "@prisma/client";
+
+/** Guard das rotas do módulo: exige o módulo E a allowlist de e-mails. */
+export async function requireInvestimentos(): Promise<RequireSessionResult> {
+  const auth = await requireModulo("investimentos");
+  if (!auth.ok) return auth;
+  if (!podeAcessarInvestimentos(auth.session.email)) {
+    return { ok: false, response: NextResponse.json({ error: "Acesso restrito." }, { status: 403 }) };
+  }
+  return auth;
+}
 
 /** Normaliza o código de negociação (remove sufixo F do fracionário). */
 export function normalizarTicker(raw: string): string {

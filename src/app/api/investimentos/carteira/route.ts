@@ -1,13 +1,12 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { consolidarPosicoes } from "@/lib/investimentos";
+import { consolidarPosicoes, requireInvestimentos } from "@/lib/investimentos";
 
 // GET /api/investimentos/carteira — carteira consolidada + operações e
 // proventos do usuário logado (uma chamada alimenta a tela toda).
 export async function GET() {
-  const auth = await requireModulo("investimentos");
+  const auth = await requireInvestimentos();
   if (!auth.ok) return auth.response;
   const usuarioId = auth.session.sub;
 

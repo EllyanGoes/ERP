@@ -1,13 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
+import { requireInvestimentos } from "@/lib/investimentos";
 
 // POST /api/investimentos/cotacoes — atualiza o preço dos ativos que o usuário
 // possui via brapi.dev (uma requisição por ticker: o plano gratuito não faz
 // lote). Token opcional em BRAPI_TOKEN eleva o limite de chamadas.
 export async function POST() {
-  const auth = await requireModulo("investimentos");
+  const auth = await requireInvestimentos();
   if (!auth.ok) return auth.response;
 
   const ativos = await prismaSemEscopo.investAtivo.findMany({

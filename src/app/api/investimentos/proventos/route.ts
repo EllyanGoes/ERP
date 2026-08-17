@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { resolverAtivo } from "@/lib/investimentos";
+import { resolverAtivo, requireInvestimentos } from "@/lib/investimentos";
 
 const TIPOS = ["DIVIDENDO", "JCP", "RENDIMENTO", "OUTRO"] as const;
 
 // POST — { ticker, tipo, data: "YYYY-MM-DD", valor }
 export async function POST(req: NextRequest) {
-  const auth = await requireModulo("investimentos");
+  const auth = await requireInvestimentos();
   if (!auth.ok) return auth.response;
 
   const body = await req.json();
@@ -33,7 +32,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const auth = await requireModulo("investimentos");
+  const auth = await requireInvestimentos();
   if (!auth.ok) return auth.response;
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório." }, { status: 400 });

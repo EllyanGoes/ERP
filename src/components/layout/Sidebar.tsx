@@ -87,6 +87,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { useShortcuts } from "@/lib/shortcuts-context";
+import { podeAcessarInvestimentos } from "@/lib/investimentos-acesso";
 import { routeColor } from "@/lib/route-registry";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 
@@ -759,7 +760,12 @@ export default function Sidebar() {
   }, [fetchPending]);
 
   // Visible main modules (exclude admin)
-  const visibleMain  = mainModules.filter((mod) => canAccess(mod.id));
+  // Investimentos: carteira PESSOAL — além do módulo, exige a allowlist de
+  // e-mails (nem outro ADMIN vê; as rotas da API aplicam a mesma regra).
+  const visibleMain  = mainModules.filter((mod) => {
+    if (mod.id === "investimentos" && !podeAcessarInvestimentos(user?.email)) return false;
+    return canAccess(mod.id);
+  });
   const showAdmin    = canAccess("admin");
 
   const [openId, setOpenId] = useState<string | null>(() => {

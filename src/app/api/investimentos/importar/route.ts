@@ -1,9 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { resolverAtivo, normalizarTicker } from "@/lib/investimentos";
+import { resolverAtivo, normalizarTicker, requireInvestimentos } from "@/lib/investimentos";
 
 // POST /api/investimentos/importar — extrato XLSX da Área do Investidor da B3.
 // Detecta o layout pelas colunas:
@@ -40,7 +39,7 @@ const PROVENTO_TIPO: Record<string, "DIVIDENDO" | "JCP" | "RENDIMENTO"> = {
 };
 
 export async function POST(req: NextRequest) {
-  const auth = await requireModulo("investimentos");
+  const auth = await requireInvestimentos();
   if (!auth.ok) return auth.response;
   const usuarioId = auth.session.sub;
 
