@@ -17,11 +17,13 @@ import { useColumnVisibility } from "@/lib/use-column-visibility";
 import ColumnConfigurator, { ColDef } from "@/components/shared/ColumnConfigurator";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import {
   Search, X, LayoutList, Kanban, Loader2,
   ChevronDown as ChevronDownIcon, CalendarDays, Download, Check,
   ShoppingCart, AlertTriangle, Trash2, Shuffle, Truck,
   ArrowUp, ArrowDown, ArrowUpDown, CircleDot, FileX,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
@@ -456,6 +458,20 @@ export default function PedidosVendaPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>(loadFilters);
 
+  // Paginação server-side: a tela pede só a página visível (filtros e ordenação
+  // rodam no banco) — pedidos antigos nunca mais "somem" por teto de carga.
+  const [pagina, setPagina] = useState(1);
+  const [linhas, setLinhas] = usePersistedState<number>("comercial:pedidos-venda:linhas", 50);
+  const [total, setTotal] = useState(0);
+  // Totais do conjunto FILTRADO inteiro (grupos por data/status)
+  const [resumo, setResumo] = useState<{ porStatus: { status: string; count: number; total: number }[]; porDia: { dia: string; count: number; total: number }[] } | null>(null);
+  // Busca com debounce (não consulta o banco a cada tecla)
+  const [buscaDebounced, setBuscaDebounced] = useState(() => loadFilters().search.trim());
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaDebounced(filters.search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [filters.search]);
+
   // Barra de filtros padrão (shared/FilterBar): funil na toolbar + linha de chips.
   const filterBar = useFilterBar("comercial:pedidos-venda:filtros", ["status"]);
 
@@ -477,6 +493,7 @@ export default function PedidosVendaPage() {
       saveFilters(next);
       return next;
     });
+    setPagina(1); // filtro novo recomeça da primeira página
   }
 
   // Clique no cabeçalho: aplica a direção padrão do campo; clicando de novo, inverte.
@@ -489,26 +506,36 @@ export default function PedidosVendaPage() {
     updateFilters({ sortKey: proximo });
   }
 
+  // Query string dos filtros atuais (compartilhada entre listagem e PDF).
+  const buildParams = useCallback((page: number, limit: number) => {
+    const p = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (buscaDebounced) p.set("q", buscaDebounced);
+    if (filters.statuses.length > 0) { p.set("statuses", filters.statuses.join(",")); p.set("statusOp", filters.statusOp); }
+    if (filters.dateFrom) p.set("dataDe", filters.dateFrom);
+    if (filters.dateTo) p.set("dataAte", filters.dateTo);
+    if (filters.semOrcamento) p.set("semOrcamento", "1");
+    if (filters.aOrdem) p.set("aOrdem", "1");
+    if (filters.sortKey) p.set("sort", filters.sortKey);
+    return p;
+  }, [buscaDebounced, filters.statuses, filters.statusOp, filters.dateFrom, filters.dateTo, filters.semOrcamento, filters.aOrdem, filters.sortKey]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Busca TODAS as páginas: com limite fixo os pedidos antigos "sumiam"
-      // assim que a empresa passava do teto (Cimento e Mix: 789 > 500).
-      const todos: PedidoRow[] = [];
-      let page = 1;
-      // teto de sanidade de 20 páginas (10 mil pedidos)
-      while (page <= 20) {
-        const res = await fetch(`/api/pedidos-venda?limit=500&page=${page}`);
-        const json = await res.json();
-        todos.push(...(json.data ?? []));
-        if (todos.length >= (json.total ?? 0) || (json.data ?? []).length === 0) break;
-        page++;
-      }
-      setPedidos(todos);
+      // Lista: só a página visível. Kanban: precisa do conjunto todo (pipeline
+      // ativo) — teto de 1000, que o kanban não comporta visualmente mesmo.
+      const kanban = filters.view === "kanban";
+      const p = buildParams(kanban ? 1 : pagina, kanban ? 1000 : linhas);
+      if (filters.groupBy !== "none") p.set("resumo", "1");
+      const res = await fetch(`/api/pedidos-venda?${p.toString()}`);
+      const json = await res.json();
+      setPedidos(json.data ?? []);
+      setTotal(json.total ?? 0);
+      setResumo(json.resumo ?? null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [buildParams, pagina, linhas, filters.view, filters.groupBy]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -533,47 +560,8 @@ export default function PedidosVendaPage() {
     }
   }
 
-  // ── Filtering + sorting ───────────────────────────────────────────────────
-  const filtered = useMemo(() => {
-    const q = filters.search.toLowerCase().trim();
-    let list = pedidos.filter((p) => {
-      if (filters.statuses.length > 0) {
-        if (filters.statusOp === "is"     && !filters.statuses.includes(p.status)) return false;
-        if (filters.statusOp === "is_not" &&  filters.statuses.includes(p.status)) return false;
-      }
-      if (filters.semOrcamento && (p.numeroOrcamento ?? "").trim() !== "") return false;
-      if (filters.aOrdem && !p.estoqueOrigemEmpresaId && !p.pedidoVendaOrigemId) return false;
-      // Compara a data-calendário (UTC, igual ao formatDate exibido na coluna)
-      // como string YYYY-MM-DD — evita desvio de fuso no limite do período.
-      if (filters.dateFrom || filters.dateTo) {
-        const emiss = String(p.dataEmissao).slice(0, 10);
-        if (filters.dateFrom && emiss < filters.dateFrom) return false;
-        if (filters.dateTo && emiss > filters.dateTo) return false;
-      }
-      if (!q) return true;
-      return (
-        p.numero.toLowerCase().includes(q) ||
-        (p.numeroOrcamento ?? "").toLowerCase().includes(q) ||
-        (p.minutas ?? []).some((mn) => (mn.numeroFisico ?? "").toLowerCase().includes(q)) ||
-        p.cliente.razaoSocial.toLowerCase().includes(q) ||
-        (p.cliente.nomeFantasia ?? "").toLowerCase().includes(q)
-      );
-    });
-
-    list = [...list].sort((a, b) => {
-      switch (filters.sortKey) {
-        case "dataEmissao_asc":  return new Date(a.dataEmissao).getTime() - new Date(b.dataEmissao).getTime();
-        case "dataEmissao_desc": return new Date(b.dataEmissao).getTime() - new Date(a.dataEmissao).getTime();
-        case "total_desc":       return decimalToNumber(b.valorTotal) - decimalToNumber(a.valorTotal);
-        case "total_asc":        return decimalToNumber(a.valorTotal) - decimalToNumber(b.valorTotal);
-        case "numero_asc":       return a.numero.localeCompare(b.numero);
-        case "numero_desc":      return b.numero.localeCompare(a.numero);
-        default:                 return 0;
-      }
-    });
-
-    return list;
-  }, [pedidos, filters]);
+  // Filtro e ordenação agora rodam no SERVIDOR — a página já chega pronta.
+  const filtered = pedidos;
 
   // ── Kanban grouped ────────────────────────────────────────────────────────
   const kanbanGroups = useMemo(
@@ -590,18 +578,21 @@ export default function PedidosVendaPage() {
   );
 
   // ── Agrupado (visão lista) — por data de emissão ou por status ────────────
+  // Os ITENS são os da página atual; contagem e total do cabeçalho vêm do
+  // resumo do servidor (conjunto filtrado inteiro, não só a página).
   const listGroups = useMemo(() => {
     if (filters.groupBy === "none") return [];
-    const groups: { key: string; label: string; items: PedidoRow[]; total: number }[] = [];
+    const groups: { key: string; label: string; items: PedidoRow[]; count: number; total: number }[] = [];
     const index = new Map<string, number>();
     const push = (key: string, label: string, p: PedidoRow) => {
       let gi = index.get(key);
       if (gi === undefined) {
         gi = groups.length;
         index.set(key, gi);
-        groups.push({ key, label, items: [], total: 0 });
+        groups.push({ key, label, items: [], count: 0, total: 0 });
       }
       groups[gi].items.push(p);
+      groups[gi].count += 1;
       groups[gi].total += decimalToNumber(p.valorTotal);
     };
 
@@ -612,6 +603,10 @@ export default function PedidosVendaPage() {
       }
       const ordem = new Map(STATUS_COLS.map((c, i) => [c.key, i]));
       groups.sort((a, b) => (ordem.get(a.key) ?? 99) - (ordem.get(b.key) ?? 99));
+      for (const g of groups) {
+        const r = resumo?.porStatus.find((s) => s.status === g.key);
+        if (r) { g.count = r.count; g.total = r.total; }
+      }
     } else {
       for (const p of filtered) {
         const key = p.dataEmissao ? p.dataEmissao.slice(0, 10) : "sem-data";
@@ -621,9 +616,13 @@ export default function PedidosVendaPage() {
       groups.sort((a, b) =>
         a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)
       );
+      for (const g of groups) {
+        const r = resumo?.porDia.find((d) => d.dia === g.key);
+        if (r) { g.count = r.count; g.total = r.total; }
+      }
     }
     return groups;
-  }, [filtered, filters.groupBy]);
+  }, [filtered, filters.groupBy, resumo]);
 
   // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
   // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
@@ -758,9 +757,23 @@ export default function PedidosVendaPage() {
   }
 
   // ── PDF export ────────────────────────────────────────────────────────────
+  // Com paginação server-side, a tela só tem a página visível — o PDF busca o
+  // conjunto FILTRADO completo na hora de exportar.
+  async function fetchTodosFiltrados(): Promise<PedidoRow[]> {
+    const todos: PedidoRow[] = [];
+    for (let page = 1; page <= 40; page++) { // teto de sanidade: 20 mil pedidos
+      const res = await fetch(`/api/pedidos-venda?${buildParams(page, 500).toString()}`);
+      const json = await res.json();
+      todos.push(...(json.data ?? []));
+      if (todos.length >= (json.total ?? 0) || (json.data ?? []).length === 0) break;
+    }
+    return todos;
+  }
+
   async function downloadPDF() {
     const { default: jsPDF }      = await import("jspdf");
     const { default: autoTable }  = await import("jspdf-autotable");
+    const lista = await fetchTodosFiltrados();
 
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
@@ -788,7 +801,7 @@ export default function PedidosVendaPage() {
     autoTable(doc, {
       startY: 32,
       head: [["Número", "Cliente", "Status", "Emissão", "Conclusão", "Cond. Pagamento", "Total"]],
-      body: filtered.map((p) => [
+      body: lista.map((p) => [
         p.numero,
         p.cliente.nomeFantasia || p.cliente.razaoSocial,
         STATUS_LABEL[p.status] ?? p.status,
@@ -812,7 +825,7 @@ export default function PedidosVendaPage() {
       margin: { left: 14, right: 14 },
     });
 
-    const totalGeral = filtered.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0);
+    const totalGeral = lista.reduce((s, p) => s + decimalToNumber(p.valorTotal), 0);
     const finalY = (doc as InstanceType<typeof jsPDF> & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
@@ -856,9 +869,9 @@ export default function PedidosVendaPage() {
           )}
         </div>
 
-        {/* Results count */}
+        {/* Results count (total do conjunto filtrado, não da página) */}
         <span className="text-xs text-muted-foreground">
-          {loading ? "…" : `${filtered.length} pedido${filtered.length !== 1 ? "s" : ""}`}
+          {loading ? "…" : `${total} pedido${total !== 1 ? "s" : ""}`}
         </span>
 
         {/* Funil: mostra/esconde a linha de chips (filtros seguem ativos). */}
@@ -898,7 +911,7 @@ export default function PedidosVendaPage() {
         {/* PDF download */}
         <button
           onClick={downloadPDF}
-          disabled={loading || filtered.length === 0}
+          disabled={loading || total === 0}
           className="flex items-center gap-1.5 h-9 px-3 text-sm border border-border rounded-lg bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-foreground"
           title="Baixar PDF dos pedidos filtrados"
         >
@@ -995,7 +1008,7 @@ export default function PedidosVendaPage() {
                                 {g.label}
                               </span>
                               <span className="text-xs text-muted-foreground">
-                                {g.items.length} pedido{g.items.length !== 1 ? "s" : ""} · {formatBRL(g.total)}
+                                {g.count} pedido{g.count !== 1 ? "s" : ""} · {formatBRL(g.total)}
                               </span>
                             </div>
                           </td>
@@ -1050,6 +1063,41 @@ export default function PedidosVendaPage() {
                     ))}
               </tbody>
             </table>
+          </div>
+
+          {/* ── Paginação (server-side) ─────────────────────────────────── */}
+          <div className="flex items-center gap-3 flex-wrap mt-3 text-xs text-muted-foreground">
+            <label className="flex items-center gap-1.5">
+              Linhas por página
+              <select
+                value={linhas}
+                onChange={(e) => { setLinhas(parseInt(e.target.value)); setPagina(1); }}
+                className="h-7 px-1.5 border border-border rounded-md bg-card text-foreground focus:outline-none"
+              >
+                {[20, 50, 100, 200].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <span className="ml-auto">
+              Página {pagina} de {Math.max(1, Math.ceil(total / linhas))} · {total} pedido{total !== 1 ? "s" : ""}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                disabled={pagina <= 1 || loading}
+                className="p-1.5 border border-border rounded-md bg-card text-foreground disabled:opacity-40 hover:bg-muted"
+                title="Página anterior"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setPagina((p) => (p * linhas < total ? p + 1 : p))}
+                disabled={pagina * linhas >= total || loading}
+                className="p-1.5 border border-border rounded-md bg-card text-foreground disabled:opacity-40 hover:bg-muted"
+                title="Próxima página"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       ) : (

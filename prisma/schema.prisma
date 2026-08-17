@@ -2348,6 +2348,9 @@ model PedidoVenda {
   @@index([dataEmissao])
   @@index([status])
   @@index([vendedorId])
+  // Listagem paginada: ordem padrão (createdAt desc) e filtro por período
+  @@index([empresaId, createdAt])
+  @@index([empresaId, dataEmissao])
   @@index([empresaId])
   @@index([estoqueOrigemEmpresaId])
 }

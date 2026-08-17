@@ -18,7 +18,16 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") || undefined;
   const pdv = searchParams.get("pdv") === "1";
   const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "50");
+  const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 1000);
+  // Filtros server-side da listagem (a tela não carrega mais tudo no navegador)
+  const statuses = (searchParams.get("statuses") || "").split(",").filter(Boolean);
+  const statusOp = searchParams.get("statusOp") === "is_not" ? "is_not" : "is";
+  const dataDe = searchParams.get("dataDe") || "";
+  const dataAte = searchParams.get("dataAte") || "";
+  const semOrcamento = searchParams.get("semOrcamento") === "1";
+  const aOrdem = searchParams.get("aOrdem") === "1";
+  const sort = searchParams.get("sort") || "";
+  const comResumo = searchParams.get("resumo") === "1";
 
   const where: Record<string, unknown> = {
     AND: [
@@ -27,10 +36,16 @@ export async function GET(req: NextRequest) {
           { numero: { contains: q, mode: "insensitive" } },
           { numeroOrcamento: { contains: q, mode: "insensitive" } },
           { cliente: { razaoSocial: { contains: q, mode: "insensitive" } } },
+          { cliente: { nomeFantasia: { contains: q, mode: "insensitive" } } },
           { minutas: { some: { numeroFisico: { contains: q, mode: "insensitive" } } } },
         ],
       } : {},
       status ? { status } : {},
+      statuses.length > 0 ? { status: statusOp === "is" ? { in: statuses } : { notIn: statuses } } : {},
+      dataDe ? { dataEmissao: { gte: new Date(`${dataDe}T00:00:00Z`) } } : {},
+      dataAte ? { dataEmissao: { lte: new Date(`${dataAte}T23:59:59.999Z`) } } : {},
+      semOrcamento ? { OR: [{ numeroOrcamento: null }, { numeroOrcamento: "" }] } : {},
+      aOrdem ? { OR: [{ estoqueOrigemEmpresaId: { not: null } }, { pedidoVendaOrigemId: { not: null } }] } : {},
       // Fila do PDV (caixa): pedidos abertos, sem minutas ativas (quem já tem
       // minuta segue o fluxo de entrega), fora do intragrupo e ainda NÃO
       // recebidos — um pedido "minutas manuais"/à ordem fica CONFIRMADO após
@@ -43,6 +58,16 @@ export async function GET(req: NextRequest) {
       } : {},
     ],
   };
+
+  // Ordenação server-side (mesmas chaves da tela); padrão: mais recente.
+  const orderBy: Record<string, "asc" | "desc"> =
+    sort === "numero_asc" ? { numero: "asc" } :
+    sort === "numero_desc" ? { numero: "desc" } :
+    sort === "dataEmissao_asc" ? { dataEmissao: "asc" } :
+    sort === "dataEmissao_desc" ? { dataEmissao: "desc" } :
+    sort === "total_asc" ? { valorTotal: "asc" } :
+    sort === "total_desc" ? { valorTotal: "desc" } :
+    { createdAt: "desc" };
 
   const [data, total] = await Promise.all([
     prisma.pedidoVenda.findMany({
@@ -57,14 +82,38 @@ export async function GET(req: NextRequest) {
         pedidoVendaOrigem: { select: { id: true, numero: true, empresa: { select: { id: true, razaoSocial: true, nomeFantasia: true } } } },
         _count: { select: { minutas: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy,
       skip: (page - 1) * limit,
       take: limit,
     }),
     prisma.pedidoVenda.count({ where }),
   ]);
 
-  return NextResponse.json({ data, total, page, limit });
+  // Resumo do conjunto FILTRADO inteiro (não só a página): totais por status e
+  // por dia de emissão — alimenta cabeçalhos de grupo e o total geral da tela.
+  let resumo: { porStatus: { status: string; count: number; total: number }[]; porDia: { dia: string; count: number; total: number }[] } | undefined;
+  if (comResumo) {
+    const porStatus = await prisma.pedidoVenda.groupBy({
+      by: ["status"], where, _count: { _all: true }, _sum: { valorTotal: true },
+    });
+    const porDiaRaw = await prisma.pedidoVenda.groupBy({
+      by: ["dataEmissao"], where, _count: { _all: true }, _sum: { valorTotal: true },
+    });
+    const porDia = new Map<string, { count: number; total: number }>();
+    for (const g of porDiaRaw) {
+      const dia = g.dataEmissao.toISOString().slice(0, 10);
+      const cur = porDia.get(dia) ?? { count: 0, total: 0 };
+      cur.count += g._count._all;
+      cur.total += Number(g._sum.valorTotal ?? 0);
+      porDia.set(dia, cur);
+    }
+    resumo = {
+      porStatus: porStatus.map((g) => ({ status: g.status, count: g._count._all, total: Number(g._sum.valorTotal ?? 0) })),
+      porDia: Array.from(porDia.entries()).map(([dia, v]) => ({ dia, ...v })),
+    };
+  }
+
+  return NextResponse.json({ data, total, page, limit, resumo });
 }
 
 // Assinatura do conteúdo do pedido (itens+quantidades) p/ detectar duplicata exata.
