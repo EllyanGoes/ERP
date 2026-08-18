@@ -106,6 +106,7 @@ const ATIVIDADE_LABEL: Record<string, string> = {
   CRIOU: "criou a tarefa", MOVEU: "moveu", CONCLUIU: "concluiu", REABRIU: "reabriu",
   ATRIBUIU: "alterou o responsável", COMENTOU: "comentou", PRAZO: "alterou o prazo",
   ARQUIVOU: "arquivou", DESARQUIVOU: "desarquivou", EXCLUIU: "excluiu",
+  CHECK_CONCLUIU: "concluiu o item", CHECK_REABRIU: "desmarcou o item",
 };
 
 export default function TarefaCardDialog({
@@ -157,6 +158,21 @@ export default function TarefaCardDialog({
   }, [tarefaId]);
   useEffect(() => { load(); }, [load]);
 
+  // Atalhos de teclado do cartão (estilo Trello): M abre membros, D abre datas.
+  // Ignorados enquanto o foco está num campo de texto ou com modificador.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!podeEditar || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (k === "m") { e.preventDefault(); setShowMembros(true); }
+      if (k === "d") { e.preventDefault(); setShowDatas(true); }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [podeEditar]);
+
   async function patch(data: Record<string, unknown>) {
     const res = await fetch(`/api/projetos/tarefas/${tarefaId}`, {
       method: "PATCH",
@@ -192,6 +208,7 @@ export default function TarefaCardDialog({
     await fetch(`/api/projetos/tarefas/${tarefaId}/checklist`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, feito }),
     }).catch(() => {});
+    await load(); // sincroniza o feed de atividade
     onMudou();
   }
   async function removerChecklist(id: string) {
@@ -205,6 +222,7 @@ export default function TarefaCardDialog({
     await fetch(`/api/projetos/tarefas/${tarefaId}/checklist`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, responsavelId: responsavel?.id ?? null }),
     }).catch(() => {});
+    await load(); // responsável novo pode ter entrado como membro do cartão
     onMudou();
   }
   // Solta o item arrastado na posição do alvo (otimista) e persiste a ordem.
@@ -458,7 +476,7 @@ export default function TarefaCardDialog({
                   <button
                     onClick={() => setShowMembros(true)}
                     className="w-7 h-7 rounded-full border border-border bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center"
-                    title="Alterar membros"
+                    title="Alterar membros (M)"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -507,6 +525,7 @@ export default function TarefaCardDialog({
                 <button
                   onClick={() => podeEditar && setShowDatas(true)}
                   className="text-sm border border-border rounded-lg bg-card px-2.5 py-1.5 text-foreground hover:bg-muted text-left"
+                  title="Alterar datas (D)"
                 >
                   {card.dataInicio || card.prazo
                     ? [
@@ -622,7 +641,7 @@ export default function TarefaCardDialog({
                   onDragLeave={() => { if (dropItem === item.id) setDropItem(null); }}
                   onDrop={(e) => { e.preventDefault(); reordenarChecklist(item.id); }}
                   className={cn(
-                    "relative flex items-center gap-2 group rounded-md px-1 py-0.5 -mx-1",
+                    "relative flex items-center gap-2 group rounded-md px-1 py-0.5 -mx-1 hover:bg-muted transition-colors",
                     dropItem === item.id && "bg-info/10 ring-1 ring-inset ring-info/40",
                     dragItem === item.id && "opacity-40",
                   )}
@@ -787,7 +806,8 @@ export default function TarefaCardDialog({
                     <span className="font-semibold text-foreground">{f.a.autor.nome}</span>{" "}
                     {ATIVIDADE_LABEL[f.a.tipo] ?? f.a.tipo.toLowerCase()}
                     {(() => {
-                      const d = f.a.detalhe as { de?: string; para?: string } | null;
+                      const d = f.a.detalhe as { de?: string; para?: string; item?: string } | null;
+                      if (d?.item) return ` "${d.item}"`;
                       return d?.de && d?.para ? ` de "${d.de}" para "${d.para}"` : "";
                     })()}
                     <span className="block text-[11px] text-muted-foreground">
