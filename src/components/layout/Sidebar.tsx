@@ -91,6 +91,7 @@ import { useShortcuts } from "@/lib/shortcuts-context";
 import { podeAcessarInvestimentos } from "@/lib/investimentos-acesso";
 import { routeColor } from "@/lib/route-registry";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { ProgressoCirculo } from "@/components/projetos/comum";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -572,7 +573,7 @@ function ProjetosEmAndamento() {
   const router = useRouter();
   const { attemptNavigate } = useDirtyFormContext();
   const [open, setOpen] = usePersistedState<boolean>("sidebar:projetos:emAndamento", false);
-  const [projetos, setProjetos] = useState<{ id: string; nome: string; cor: string | null }[] | null>(null);
+  const [projetos, setProjetos] = useState<{ id: string; nome: string; cor: string | null; tarefasAbertas: number; tarefasConcluidas: number }[] | null>(null);
 
   // Carrega ao abrir (recarrega a cada abertura p/ refletir projetos novos).
   useEffect(() => {
@@ -584,7 +585,8 @@ function ProjetosEmAndamento() {
         if (!ativo) return;
         const lista = (Array.isArray(j.data) ? j.data : [])
           .filter((p: { situacao?: string | null }) => (p.situacao ?? "EM_ANDAMENTO") === "EM_ANDAMENTO")
-          .map((p: { id: string; nome: string; cor: string | null }) => ({ id: p.id, nome: p.nome, cor: p.cor }));
+          .map((p: { id: string; nome: string; cor: string | null; tarefasAbertas: number; tarefasConcluidas: number }) =>
+            ({ id: p.id, nome: p.nome, cor: p.cor, tarefasAbertas: p.tarefasAbertas, tarefasConcluidas: p.tarefasConcluidas }));
         setProjetos(lista);
       })
       .catch(() => { if (ativo) setProjetos([]); });
@@ -622,9 +624,11 @@ function ProjetosEmAndamento() {
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: p.cor ?? "#64748b" }}
+                <ProgressoCirculo
+                  concluidas={p.tarefasConcluidas}
+                  total={p.tarefasAbertas + p.tarefasConcluidas}
+                  cor={p.cor}
+                  size={16}
                 />
                 <span className="truncate flex-1 text-left">{p.nome}</span>
               </button>
