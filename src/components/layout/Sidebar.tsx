@@ -46,6 +46,7 @@ import {
   HelpCircle,
   User,
   ChevronRight,
+  ChevronDown,
   GitBranch,
   UserCheck,
   Plug,
@@ -89,6 +90,7 @@ import { useSession } from "@/lib/session-context";
 import { useShortcuts } from "@/lib/shortcuts-context";
 import { podeAcessarInvestimentos } from "@/lib/investimentos-acesso";
 import { routeColor } from "@/lib/route-registry";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import ThemeToggle from "@/components/shared/ThemeToggle";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -454,9 +456,9 @@ const mainModules: Module[] = [
       {
         kind: "Geral",
         items: [
-          { href: "/projetos", label: "Meus Projetos", icon: FolderKanban, exact: true },
           { href: "/projetos/minhas-tarefas", label: "Minhas Tarefas", icon: ListTodo },
           { href: "/projetos/agenda", label: "Agenda", icon: CalendarDays },
+          { href: "/projetos", label: "Meus Projetos", icon: FolderKanban, exact: true },
         ],
       },
     ],
@@ -562,6 +564,77 @@ const kindStyle: Record<SubSection["kind"], string> = {
   "Inteligência Comercial": "text-fuchsia-500 dark:text-fuchsia-400",
   "Funis & Leads":    "text-pink-500 dark:text-pink-400",
 };
+
+// ── Projetos em andamento (toggle no painel do módulo Projetos) ───────────────
+
+function ProjetosEmAndamento() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { attemptNavigate } = useDirtyFormContext();
+  const [open, setOpen] = usePersistedState<boolean>("sidebar:projetos:emAndamento", false);
+  const [projetos, setProjetos] = useState<{ id: string; nome: string; cor: string | null }[] | null>(null);
+
+  // Carrega ao abrir (recarrega a cada abertura p/ refletir projetos novos).
+  useEffect(() => {
+    if (!open) return;
+    let ativo = true;
+    fetch("/api/projetos")
+      .then((r) => r.json())
+      .then((j) => {
+        if (!ativo) return;
+        const lista = (Array.isArray(j.data) ? j.data : [])
+          .filter((p: { situacao?: string | null }) => (p.situacao ?? "EM_ANDAMENTO") === "EM_ANDAMENTO")
+          .map((p: { id: string; nome: string; cor: string | null }) => ({ id: p.id, nome: p.nome, cor: p.cor }));
+        setProjetos(lista);
+      })
+      .catch(() => { if (ativo) setProjetos([]); });
+    return () => { ativo = false; };
+  }, [open]);
+
+  return (
+    <div className="mb-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "w-full flex items-center gap-1.5 px-2 mb-1 text-[10px] font-bold uppercase tracking-widest transition-colors",
+          kindStyle.Geral, "hover:opacity-80",
+        )}
+      >
+        <span className="truncate">Em andamento</span>
+        {open ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
+      </button>
+      {open && (
+        projetos === null ? (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">Carregando...</p>
+        ) : projetos.length === 0 ? (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum projeto em andamento.</p>
+        ) : (
+          projetos.map((p) => {
+            const active = pathname === `/projetos/${p.id}` || pathname.startsWith(`/projetos/${p.id}/`);
+            return (
+              <button
+                key={p.id}
+                onClick={() => attemptNavigate(() => router.push(`/projetos/${p.id}`))}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
+                  active
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: p.cor ?? "#64748b" }}
+                />
+                <span className="truncate flex-1 text-left">{p.nome}</span>
+              </button>
+            );
+          })
+        )
+      )}
+    </div>
+  );
+}
 
 // ── Tooltip wrapper (portal-based) ────────────────────────────────────────────
 
@@ -1104,6 +1177,7 @@ export default function Sidebar() {
                       })}
                     </div>
                   ))}
+                  {openModule.id === "projetos" && <ProjetosEmAndamento />}
                 </nav>
 
                 {/* User info footer in panel */}
