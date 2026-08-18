@@ -139,6 +139,7 @@ export default function TarefaCardDialog({
   const [dragItem, setDragItem] = useState<string | null>(null);
   const [dropItem, setDropItem] = useState<string | null>(null);
   const comentarioRef = useRef<HTMLTextAreaElement>(null);
+  const novoItemRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -184,6 +185,7 @@ export default function TarefaCardDialog({
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto }),
     }).catch(() => {});
     await load(); onMudou();
+    novoItemRef.current?.focus();
   }
   async function toggleChecklist(id: string, feito: boolean) {
     setCard((c) => c ? { ...c, checklist: c.checklist.map((i) => (i.id === id ? { ...i, feito } : i)) } : c);
@@ -698,9 +700,16 @@ export default function TarefaCardDialog({
               <div className="flex items-center gap-2 mt-2">
                 <Plus className="w-4 h-4 text-muted-foreground shrink-0" />
                 <input
+                  ref={novoItemRef}
                   value={novoItem}
                   onChange={(e) => setNovoItem(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addChecklist()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") addChecklist();
+                    // ESC cancela só a digitação — stopPropagation impede o
+                    // EscClose global de fechar o cartão junto.
+                    if (e.key === "Escape") { e.stopPropagation(); setNovoItem(""); e.currentTarget.blur(); }
+                  }}
+                  onBlur={() => setNovoItem("")}
                   placeholder="Adicionar item..."
                   className="flex-1 text-sm bg-transparent focus:outline-none text-foreground placeholder:text-muted-foreground"
                 />
