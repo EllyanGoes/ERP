@@ -69,12 +69,14 @@ const KANBAN_COLS = [
 const STATUS_OPTIONS = [
   { value: "PENDENTE",   label: "Pendente" },
   { value: "EM_ANALISE", label: "Em Análise" },
+  { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
   { value: "CONCLUIDA",  label: "Concluída" },
 ];
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   PENDENTE:   { label: "Pendente",   cls: "bg-warning/15 text-warning" },
   EM_ANALISE: { label: "Em Análise", cls: "bg-info/15 text-info" },
+  AGUARDANDO_APROVACAO: { label: "Aguard. Aprovação", cls: "bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300" },
   CONCLUIDA:  { label: "Concluída",  cls: "bg-success/15 text-success" },
 };
 
@@ -114,7 +116,11 @@ function makeCotacoesCols(
       label: "Num. Cotação",
       thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
       tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
-      render: (c) => c.numero,
+      render: (c) => (
+        <span className="inline-flex items-center gap-1.5">
+          {c.numero} <EmpresaTag empresaId={c.empresaId} />
+        </span>
+      ),
     },
     {
       id: "solicitacao",
