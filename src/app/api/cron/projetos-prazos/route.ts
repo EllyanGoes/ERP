@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { notificarUsuario } from "@/lib/notificacoes";
+import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 
 /**
  * Cron diário (07h BRT): notifica cada responsável sobre tarefas de projeto
@@ -49,6 +49,9 @@ export async function GET(req: NextRequest) {
   let notificacoes = 0;
   for (const [usuarioId, projetos] of Array.from(porUsuario.entries())) {
     for (const [projetoId, info] of Array.from(projetos.entries())) {
+      // Não empilha: a notificação de ontem do mesmo projeto vira lida antes
+      // de criar a de hoje (o sino chegou a acumular 3 "Prazos em X").
+      await marcarNotificacoesLidasPorLink(usuarioId, `/projetos/${projetoId}`, "PROJETO_PRAZO");
       await notificarUsuario({
         usuarioId,
         tipo: "PROJETO_PRAZO",

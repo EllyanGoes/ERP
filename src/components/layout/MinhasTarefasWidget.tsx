@@ -40,14 +40,20 @@ export default function MinhasTarefasWidget() {
     } catch {}
   }, [temModulo]);
 
-  // Carrega ao montar, ao focar a janela e a cada 5 min (mesmo espírito do sino)
+  // Carrega ao montar, ao focar a janela, a cada 5 min e quando qualquer tela
+  // de projetos dispara "erp:tarefas-mudou" (tarefa concluída some na hora).
   useEffect(() => {
     if (!temModulo) return;
     load();
     const onFocus = () => load();
     window.addEventListener("focus", onFocus);
+    window.addEventListener("erp:tarefas-mudou", onFocus);
     const id = setInterval(load, 5 * 60_000);
-    return () => { window.removeEventListener("focus", onFocus); clearInterval(id); };
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("erp:tarefas-mudou", onFocus);
+      clearInterval(id);
+    };
   }, [load, temModulo]);
 
   // Fecha ao clicar fora / ESC

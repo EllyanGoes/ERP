@@ -89,6 +89,13 @@ export default function ProjetoBoardPage() {
     load(temCache);
   }, [load, id]);
 
+  // Recarrega o quadro e avisa o widget "Minhas Tarefas" do topo — assim uma
+  // tarefa concluída some da caixinha na hora, sem esperar o próximo poll.
+  const mudou = useCallback(() => {
+    load(true);
+    try { window.dispatchEvent(new Event("erp:tarefas-mudou")); } catch { /* SSR */ }
+  }, [load]);
+
   // Recarrega ao voltar o foco (colaboração sem websocket — decisão do PRD)
   useEffect(() => {
     const onFocus = () => load(true);
@@ -266,16 +273,16 @@ export default function ProjetoBoardPage() {
             podeEditar={podeEditar}
             podeGerenciar={podeGerenciar}
             onAbrirTarefa={abrirTarefa}
-            onRecarregar={() => load(true)}
+            onRecarregar={mudou}
             onAtualizarLocal={atualizarTarefaLocal}
             onInserirLocal={inserirTarefaLocal}
           />
         )}
         {visao === "lista" && (
-          <ListaView board={board} tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={() => load(true)} />
+          <ListaView board={board} tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
         )}
         {visao === "calendario" && (
-          <CalendarioView tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={() => load(true)} />
+          <CalendarioView tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
         )}
         {visao === "timeline" && (
           <TimelineView tarefas={tarefasFiltradas} onAbrirTarefa={abrirTarefa} />
@@ -297,7 +304,7 @@ export default function ProjetoBoardPage() {
               podeEditar={podeEditar}
               usuarioId={user?.id ?? ""}
               onFechar={fecharTarefa}
-              onMudou={() => load(true)}
+              onMudou={mudou}
             />
           </div>
         </div>
@@ -310,7 +317,7 @@ export default function ProjetoBoardPage() {
           podeEditar={podeEditar}
           podeGerenciar={podeGerenciar}
           onFechar={() => setShowArquivadas(false)}
-          onMudou={() => load(true)}
+          onMudou={mudou}
         />
       )}
 
@@ -319,7 +326,7 @@ export default function ProjetoBoardPage() {
         <ProjetoConfigDialog
           board={board}
           onFechar={() => setShowConfig(false)}
-          onMudou={() => load(true)}
+          onMudou={mudou}
           onExcluido={() => router.push("/projetos")}
         />
       )}
