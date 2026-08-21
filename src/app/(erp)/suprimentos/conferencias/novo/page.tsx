@@ -1356,7 +1356,7 @@ export default function NovoDocumentoEntradaPage() {
                 className="w-full h-9 px-3 border border-border rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="NF">NF — Nota Fiscal</option>
-                <option value="SN">SN — Sem Nota</option>
+                <option value="SN">CI — Controle Interno</option>
               </select>
             </div>
 
