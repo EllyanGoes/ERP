@@ -113,24 +113,17 @@ type Item = {
 type Fornecedor    = { id: string; razaoSocial: string; nomeFantasia: string | null; cpfCnpj: string | null };
 type UnidadeOpt   = { id: string; sigla: string; nome: string };
 
+// Aba Compras: uma linha por PROCESSO (cadeia SC → CT → PC → DE), cada etapa
+// clicável levando ao documento correspondente.
+type EtapaDoc = { id: string; numero: string; status: string } | null;
 type ComprasData = {
-  necessidades: Array<{
-    id: string; numero: string; status: string;
-    solicitante: string | null; dataNecessidade: string | null; createdAt: string;
-    quantidade: unknown; observacao: string | null;
-  }>;
-  pedidos: Array<{
-    id: string; numero: string; status: string;
-    valorTotal: unknown; dataEntregaPrevista: string | null; createdAt: string;
-    fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null };
+  processos: Array<{
+    sc: (NonNullable<EtapaDoc> & { solicitante?: string | null }) | null;
+    ct: EtapaDoc; pc: EtapaDoc; de: EtapaDoc;
+    fornecedor: string | null;
     quantidade: unknown; precoUnitario: unknown;
-  }>;
-  conferencias: Array<{
-    id: string; numero: string; status: string;
-    dataConferencia: string | null; createdAt: string;
-    fornecedor: { razaoSocial: string; nomeFantasia: string | null } | null;
-    pedido: { numero: string; fornecedor: { razaoSocial: string; nomeFantasia: string | null } } | null;
-    quantidadePedida: unknown; quantidadeRecebida: unknown; divergencia: boolean;
+    quantidadeRecebida: unknown; divergencia: boolean | null;
+    data: string;
   }>;
 };
 
@@ -1024,9 +1017,7 @@ export default function ProdutoDetailPage() {
     ? item.fornecedores.reduce((s, f) => s + decimalToNumber(f.precoUltimo), 0) / item.fornecedores.filter((f) => decimalToNumber(f.precoUltimo) > 0).length
     : custoUnit;
 
-  const totalCompras = compras
-    ? compras.necessidades.length + compras.pedidos.length + compras.conferencias.length
-    : null;
+  const totalCompras = compras ? compras.processos.length : null;
 
   const TABS = [
     { key: "dados",          label: "Dados" },
@@ -2270,13 +2261,13 @@ export default function ProdutoDetailPage() {
               <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground/60" /></div>
             ) : !compras ? null : (
               <>
-                {/* ── Necessidades ── */}
+                {/* ── Processos de Compra: uma linha por cadeia SC → CT → PC → DE ── */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                       <ClipboardList className="w-4 h-4 text-amber-500" />
-                      Necessidades de Compra
-                      <span className="text-xs font-normal text-muted-foreground">({compras.necessidades.length})</span>
+                      Processos de Compra
+                      <span className="text-xs font-normal text-muted-foreground">({compras.processos.length})</span>
                     </h3>
                     <Button size="sm" variant="outline"
                       className="border-amber-300 text-warning hover:bg-warning/10"
@@ -2285,195 +2276,69 @@ export default function ProdutoDetailPage() {
                       <Plus className="w-3.5 h-3.5 mr-1" /> Nova Necessidade
                     </Button>
                   </div>
-                  {compras.necessidades.length === 0 ? (
+                  {compras.processos.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-xl text-sm">
-                      Nenhuma necessidade de compra registrada para este produto
+                      Nenhum processo de compra registrado para este produto
                     </div>
                   ) : (
                     <div className="rounded-xl border border-border overflow-hidden">
                       <table className="w-full text-sm">
                         <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                           <tr>
-                            <th className="text-left px-4 py-2.5 font-semibold">Número</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Status</th>
-                            <th className="text-right px-4 py-2.5 font-semibold">Qtd.</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Solicitante</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Prazo</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Criado em</th>
-                            <th className="w-10" />
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {compras.necessidades.map((n) => (
-                            <tr key={n.id} className="hover:bg-info/10">
-                              <td className="px-4 py-3 font-mono text-xs font-bold text-info">{n.numero}</td>
-                              <td className="px-4 py-3">
-                                <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
-                                  "bg-muted text-muted-foreground":   n.status === "RASCUNHO",
-                                  "bg-warning/15 text-warning": n.status === "PENDENTE",
-                                  "bg-info/15 text-info":   n.status === "APROVADO",
-                                  "bg-success/15 text-success": n.status === "CONCLUIDO",
-                                  "bg-danger/15 text-danger":     n.status === "REPROVADO" || n.status === "CANCELADO",
-                                })}>
-                                  {n.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium text-foreground">
-                                {decimalToNumber(n.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                              </td>
-                              <td className="px-4 py-3 text-foreground text-xs">{n.solicitante || <span className="text-muted-foreground">—</span>}</td>
-                              <td className="px-4 py-3 text-muted-foreground text-xs">
-                                {n.dataNecessidade ? new Date(n.dataNecessidade).toLocaleDateString("pt-BR") : <span className="text-muted-foreground">—</span>}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
-                                {new Date(n.createdAt).toLocaleDateString("pt-BR")}
-                              </td>
-                              <td className="px-3 py-3">
-                                <Link href={`/compras/necessidades/${n.id}`} className="p-1 rounded hover:bg-info/10 text-muted-foreground hover:text-info inline-flex">
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </Link>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Pedidos de Compra ── */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-blue-500" />
-                    Pedidos de Compra
-                    <span className="text-xs font-normal text-muted-foreground">({compras.pedidos.length})</span>
-                  </h3>
-                  {compras.pedidos.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-xl text-sm">
-                      Nenhum pedido de compra para este produto
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-border overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
-                          <tr>
-                            <th className="text-left px-4 py-2.5 font-semibold">Número</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Status</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Solicitação</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Cotação</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Pedido</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Entrada</th>
                             <th className="text-left px-4 py-2.5 font-semibold">Fornecedor</th>
                             <th className="text-right px-4 py-2.5 font-semibold">Qtd.</th>
                             <th className="text-right px-4 py-2.5 font-semibold">Preço Unit.</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Entrega Prev.</th>
-                            <th className="w-10" />
+                            <th className="text-center px-4 py-2.5 font-semibold">Diverg.</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Data</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                          {compras.pedidos.map((p) => (
-                            <tr key={p.id} className="hover:bg-info/10">
-                              <td className="px-4 py-3 font-mono text-xs font-bold text-info">{p.numero}</td>
-                              <td className="px-4 py-3">
-                                <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
-                                  "bg-muted text-muted-foreground":   p.status === "RASCUNHO",
-                                  "bg-warning/15 text-warning": p.status === "ENVIADO",
-                                  "bg-info/15 text-info":   p.status === "CONFIRMADO",
-                                  "bg-success/15 text-success": p.status === "ENTREGUE",
-                                  "bg-danger/15 text-danger":     p.status === "CANCELADO",
-                                })}>
-                                  {p.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-foreground text-xs font-medium">
-                                {p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial}
-                              </td>
-                              <td className="px-4 py-3 text-right font-semibold text-foreground">
-                                {decimalToNumber(p.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                              </td>
-                              <td className="px-4 py-3 text-right text-foreground font-semibold">
-                                {formatBRL(decimalToNumber(p.precoUnitario))}
-                              </td>
-                              <td className="px-4 py-3 text-muted-foreground text-xs">
-                                {p.dataEntregaPrevista ? new Date(p.dataEntregaPrevista).toLocaleDateString("pt-BR") : <span className="text-muted-foreground">—</span>}
-                              </td>
-                              <td className="px-3 py-3">
-                                <Link href={`/suprimentos/pedidos-compra/${p.id}`} className="p-1 rounded hover:bg-info/10 text-muted-foreground hover:text-info inline-flex">
-                                  <ExternalLink className="w-3.5 h-3.5" />
+                          {compras.processos.map((pr, i) => {
+                            // Célula de etapa: número clicável (tooltip = status) ou —
+                            const etapa = (doc: EtapaDoc, href: (id: string) => string) =>
+                              doc ? (
+                                <Link
+                                  href={href(doc.id)}
+                                  title={doc.status || undefined}
+                                  className="font-mono text-xs font-bold text-info hover:underline"
+                                >
+                                  {doc.numero}
                                 </Link>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Conferências ── */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <PackageCheck className="w-4 h-4 text-emerald-500" />
-                    Conferências de Recebimento
-                    <span className="text-xs font-normal text-muted-foreground">({compras.conferencias.length})</span>
-                  </h3>
-                  {compras.conferencias.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-xl text-sm">
-                      Nenhuma conferência de recebimento para este produto
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-border overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
-                          <tr>
-                            <th className="text-left px-4 py-2.5 font-semibold">Número</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Status</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Pedido</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Fornecedor</th>
-                            <th className="text-right px-4 py-2.5 font-semibold">Pedido</th>
-                            <th className="text-right px-4 py-2.5 font-semibold">Recebido</th>
-                            <th className="text-center px-4 py-2.5 font-semibold">Divergência</th>
-                            <th className="w-10" />
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {compras.conferencias.map((c) => (
-                            <tr key={c.id} className="hover:bg-info/10">
-                              <td className="px-4 py-3 font-mono text-xs font-bold text-info">{c.numero}</td>
-                              <td className="px-4 py-3">
-                                <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", {
-                                  "bg-warning/15 text-warning": c.status === "PENDENTE",
-                                  "bg-info/15 text-info":   c.status === "EM_ANDAMENTO",
-                                  "bg-success/15 text-success": c.status === "CONCLUIDA",
-                                  "bg-danger/15 text-danger":     c.status === "CANCELADA",
-                                })}>
-                                  {c.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 font-mono text-xs font-semibold text-foreground">
-                                {c.pedido ? c.pedido.numero : <span className="text-muted-foreground">—</span>}
-                              </td>
-                              <td className="px-4 py-3 text-foreground text-xs font-medium">
-                                {(() => {
-                                  const f = c.pedido?.fornecedor ?? c.fornecedor;
-                                  return f ? (f.nomeFantasia || f.razaoSocial) : <span className="text-muted-foreground">—</span>;
-                                })()}
-                              </td>
-                              <td className="px-4 py-3 text-right font-semibold text-foreground">
-                                {decimalToNumber(c.quantidadePedida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                              </td>
-                              <td className="px-4 py-3 text-right font-semibold text-success">
-                                {decimalToNumber(c.quantidadeRecebida).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                {c.divergencia
-                                  ? <span className="text-xs text-danger font-semibold bg-danger/15 border border-danger/30 px-2.5 py-1 rounded-full">Sim</span>
-                                  : <span className="text-xs text-success font-semibold bg-success/15 border border-success/30 px-2.5 py-1 rounded-full">OK</span>
-                                }
-                              </td>
-                              <td className="px-3 py-3">
-                                <Link href={`/suprimentos/conferencias/${c.id}`} className="p-1 rounded hover:bg-info/10 text-muted-foreground hover:text-info inline-flex">
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </Link>
-                              </td>
-                            </tr>
-                          ))}
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              );
+                            return (
+                              <tr key={i} className="hover:bg-info/10">
+                                <td className="px-4 py-3">{etapa(pr.sc, (id) => `/compras/necessidades/${id}`)}</td>
+                                <td className="px-4 py-3">{etapa(pr.ct, (id) => `/suprimentos/cotacoes/${id}`)}</td>
+                                <td className="px-4 py-3">{etapa(pr.pc, (id) => `/suprimentos/pedidos-compra/${id}`)}</td>
+                                <td className="px-4 py-3">{etapa(pr.de, (id) => `/suprimentos/conferencias/${id}`)}</td>
+                                <td className="px-4 py-3 text-foreground text-xs font-medium">
+                                  {pr.fornecedor ?? <span className="text-muted-foreground">—</span>}
+                                </td>
+                                <td className="px-4 py-3 text-right font-semibold text-foreground">
+                                  {decimalToNumber(pr.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
+                                </td>
+                                <td className="px-4 py-3 text-right text-foreground font-semibold">
+                                  {pr.precoUnitario != null ? formatBRL(decimalToNumber(pr.precoUnitario)) : <span className="text-muted-foreground">—</span>}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {pr.de == null || pr.divergencia == null
+                                    ? <span className="text-muted-foreground">—</span>
+                                    : pr.divergencia
+                                      ? <span className="text-xs text-danger font-semibold bg-danger/15 border border-danger/30 px-2.5 py-1 rounded-full">Sim</span>
+                                      : <span className="text-xs text-success font-semibold bg-success/15 border border-success/30 px-2.5 py-1 rounded-full">OK</span>}
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
+                                  {new Date(pr.data).toLocaleDateString("pt-BR")}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
