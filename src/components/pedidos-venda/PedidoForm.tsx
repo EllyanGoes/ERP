@@ -137,9 +137,9 @@ type PedidoInicial = {
   condicaoPagamento: string | null;
   naturezaFinanceiraId?: string | null;
   formaPagamento: string | null;
-  pagamentos?: { forma: string; valor: unknown; contaBancariaId?: string | null }[];
+  pagamentos?: { forma: string; valor: unknown; contaBancariaId?: string | null; dataPagamento?: string | null }[];
   pago?: boolean;   // pedido já recebido → conta de destino editável
-  pagamentoData?: string | null; // data do recebimento (YYYY-MM-DD), editável se pago
+  pagamentoData?: string | null; // fallback legado: data única do recebimento (YYYY-MM-DD)
   valorFrete: unknown;
   observacoes: string | null;
   estoqueOrigemEmpresaId?: string | null;
@@ -270,14 +270,16 @@ export default function PedidoForm({
   // Pagamento misto: formas previstas com valores (PIX + dinheiro etc.).
   const [pagamentos, setPagamentos] = useState<LinhaPagamento[]>(
     pedido?.pagamentos && pedido.pagamentos.length > 0
-      ? pedido.pagamentos.map((p) => novaLinhaPagamento(p.forma, p.contaBancariaId ?? "", decimalToNumber(p.valor).toFixed(2).replace(".", ",")))
-      : [novaLinhaPagamento(pedido?.formaPagamento ?? "")],
+      ? pedido.pagamentos.map((p) => novaLinhaPagamento(
+          p.forma, p.contaBancariaId ?? "", decimalToNumber(p.valor).toFixed(2).replace(".", ","),
+          // Data do recebimento POR LINHA; linhas antigas caem na data única legada.
+          p.dataPagamento ?? pedido?.pagamentoData ?? undefined,
+        ))
+      : [novaLinhaPagamento(pedido?.formaPagamento ?? "", "caixa-geral", "", pedido?.pagamentoData ?? undefined)],
   );
   // Pedido já pago → mostra e permite editar a conta de destino de cada forma.
   const pago = pedido?.pago === true;
   const [contas, setContas] = useState<{ id: string; nome: string; tipo?: string; ativo?: boolean }[]>([]);
-  // Data do recebimento (editável quando pago) — move o lançamento no caixa.
-  const [pagamentoData, setPagamentoData] = useState(pedido?.pagamentoData ?? "");
   const [valorFrete,        setValorFrete]        = useState(pedido ? decimalToNumber(pedido.valorFrete).toString() : "0");
   const [observacoes,       setObservacoes]       = useState(pedido?.observacoes ?? "");
 
@@ -722,9 +724,9 @@ export default function PedidoForm({
         .filter((l) => l.forma && parseValorBR(l.valor) > 0)
         // Em pedido já pago, envia a conta de destino (editável) para o back
         // mover o lançamento; nos demais, pagamento é só intenção (sem conta).
-        .map((l) => ({ forma: l.forma, valor: parseValorBR(l.valor), ...(pago ? { contaBancariaId: l.contaBancariaId || null } : {}) })),
-      // Data do recebimento (só quando pago) — move o lançamento no caixa.
-      ...(pago && pagamentoData ? { pagamentoData } : {}),
+        // Em pedido pago, cada linha leva também a DATA do recebimento — o back
+        // move o lançamento no caixa para a data da linha.
+        .map((l) => ({ forma: l.forma, valor: parseValorBR(l.valor), ...(pago ? { contaBancariaId: l.contaBancariaId || null, data: l.data || null } : {}) })),
       formaPagamento: Array.from(new Set(
         pagamentos.filter((l) => l.forma && parseValorBR(l.valor) > 0).map((l) => l.forma),
       )).join(" + ") || null,
@@ -1491,19 +1493,10 @@ export default function PedidoForm({
               contas={contas}
               total={totalGeral}
               mostrarConta={pago}
+              mostrarData={pago}
             />
             {pago && (
-              <>
-                <p className="text-[11px] text-muted-foreground">Pedido já pago — você pode corrigir a conta de destino e a data do recebimento (o lançamento no caixa é movido junto).</p>
-                <div className="space-y-1 max-w-[12rem]">
-                  <Label className="text-xs font-semibold text-foreground uppercase tracking-wide">Data do Recebimento</Label>
-                  <DatePicker
-                    value={pagamentoData}
-                    onChange={(v) => setPagamentoData(v)}
-                    className="w-full"
-                  />
-                </div>
-              </>
+              <p className="text-[11px] text-muted-foreground">Pedido já pago — você pode corrigir a conta de destino e a data de cada recebimento (o lançamento no caixa é movido junto; pagamentos em datas distintas são aceitos).</p>
             )}
           </div>
           <div className="space-y-1.5">

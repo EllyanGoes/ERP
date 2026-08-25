@@ -20,6 +20,9 @@ export const pedidoVendaPagamentoSchema = z.object({
   // Conta de destino do recebimento. Só é editável (e enviada) ao editar um
   // pedido JÁ pago — nos demais casos o pagamento é só intenção (sem conta).
   contaBancariaId: z.string().optional().nullable().transform((v) => v || null),
+  // Data do recebimento DESTA forma (YYYY-MM-DD) — pagamento misto pode ser
+  // recebido em datas distintas. Só aplicada ao editar pedido já pago.
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
 })
 
 export const pedidoVendaSchema = z.object({

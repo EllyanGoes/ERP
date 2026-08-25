@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { cn, formatBRL } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import DatePicker from "@/components/shared/DatePicker";
 
 export type FormaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean };
 export type ContaOpt = { id: string; nome: string; tipo?: string; ativo?: boolean; ehTerceiro?: boolean; compensacao?: boolean };
@@ -38,10 +39,11 @@ export type LinhaPagamento = {
   contaBancariaId: string;
   valor: string; // texto do input
   maquinetaId?: string; // linha de cartão (crédito/débito): maquineta escolhida
+  data?: string; // data do recebimento DESTA forma (YYYY-MM-DD) — modo mostrarData
 };
 
-export function novaLinhaPagamento(forma = "", contaBancariaId = "caixa-geral", valor = ""): LinhaPagamento {
-  return { _key: crypto.randomUUID(), forma, contaBancariaId, valor };
+export function novaLinhaPagamento(forma = "", contaBancariaId = "caixa-geral", valor = "", data?: string): LinhaPagamento {
+  return { _key: crypto.randomUUID(), forma, contaBancariaId, valor, data };
 }
 
 export function parseValorBR(s: string): number {
@@ -154,7 +156,7 @@ export function pagamentoCartaoSemMaquineta(linhas: LinhaPagamento[], formas: Fo
 
 export default function PagamentosInput({
   linhas, setLinhas, formas, contas, total, mostrarConta = true, menuMinWidth, usarMaquinetas = false,
-  contaPlaceholder = "Conta de destino",
+  contaPlaceholder = "Conta de destino", mostrarData = false,
 }: {
   linhas: LinhaPagamento[];
   setLinhas: (fn: (prev: LinhaPagamento[]) => LinhaPagamento[]) => void;
@@ -170,6 +172,9 @@ export default function PagamentosInput({
   // Rótulo da conta conforme o lado: recebimento = "Conta de destino" (default);
   // pagamento (contas a pagar) = "Conta de pagamento" (o dinheiro SAI dela).
   contaPlaceholder?: string;
+  // Data do recebimento POR LINHA (pagamento misto em datas distintas). Só nos
+  // fluxos cuja API aceita `data` por linha (edição de pedido já pago).
+  mostrarData?: boolean;
 }) {
   const pago = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
   const temDinheiro = linhas.some((l) => parseValorBR(l.valor) > 0 && formaEhDinheiro(l.forma, formas));
@@ -244,7 +249,12 @@ export default function PagamentosInput({
         <div key={l._key}>
         {/* minmax(0,1fr) nos comboboxes: eles ENCOLHEM em vez de empurrar o
             campo de valor (6.5rem fixos) para fora da linha. */}
-        <div className={cn("grid gap-2 items-center", mostrarConta ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6.5rem_auto]" : "grid-cols-[minmax(0,1fr)_6.5rem_auto]")}>
+        <div className={cn(
+          "grid gap-2 items-center",
+          mostrarConta
+            ? (mostrarData ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6.5rem_8.5rem_auto]" : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_6.5rem_auto]")
+            : (mostrarData ? "grid-cols-[minmax(0,1fr)_6.5rem_8.5rem_auto]" : "grid-cols-[minmax(0,1fr)_6.5rem_auto]"),
+        )}>
           <div className="min-w-0">
             <ComboboxWithCreate
               value={l.forma}
@@ -308,6 +318,13 @@ export default function PagamentosInput({
             placeholder="0,00"
             className="h-9 w-full min-w-0 rounded-lg border border-border px-2 text-sm text-right font-mono bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {mostrarData && (
+            <DatePicker
+              value={l.data ?? ""}
+              onChange={(v) => up(l._key, "data", v)}
+              className="w-full"
+            />
+          )}
           <button
             type="button"
             onClick={() => rm(l._key)}

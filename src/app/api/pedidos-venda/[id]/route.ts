@@ -280,46 +280,58 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           // (decisão do dono: reajustar tudo — o "valor recebido" e o total acompanham).
           const cr = unicoCr;
 
-          // Substitui os pagamentos previstos com os valores/formas/contas editados.
+          // Data do recebimento POR LINHA (pagamento misto pode ser recebido em
+          // datas distintas); pagamentoData global e a data atual da CR são
+          // fallbacks p/ payloads antigos.
+          const dataFallback = pagamentoData ? new Date(`${pagamentoData}T00:00:00.000Z`) : (cr.dataPagamento ?? new Date());
+          const dataDaLinha = (p: { data?: string | null }) =>
+            p.data ? new Date(`${p.data}T00:00:00.000Z`) : dataFallback;
+
+          // Substitui os pagamentos previstos com os valores/formas/contas/datas editados.
           await tx.pedidoVendaPagamento.deleteMany({ where: { pedidoVendaId: params.id } });
           if (pagamentos.length > 0) {
             await tx.pedidoVendaPagamento.createMany({
-              data: pagamentos.map((p, i) => ({ pedidoVendaId: params.id, forma: p.forma, valor: p.valor, ordem: i, contaBancariaId: p.contaBancariaId ?? null })),
+              data: pagamentos.map((p, i) => ({
+                pedidoVendaId: params.id, forma: p.forma, valor: p.valor, ordem: i,
+                contaBancariaId: p.contaBancariaId ?? null,
+                dataPagamento: dataDaLinha(p),
+              })),
             });
           }
 
           // Reconstrói os lançamentos da CR a partir das linhas editadas (uma por
-          // forma, na sua conta) e reajusta a conta a receber ao novo total.
+          // forma, na sua conta e na sua data) e reajusta a conta a receber.
           const round2 = (n: number) => Math.round(n * 100) / 100;
           const caixaPadrao = contaCaixaIdDaEmpresa(cr.empresaId);
           const linhasPag = pagamentos
             .filter((p) => Number(p.valor) > 0)
-            .map((p) => ({ forma: p.forma, contaBancariaId: p.contaBancariaId || caixaPadrao, valor: round2(Number(p.valor)) }));
+            .map((p) => ({ forma: p.forma, contaBancariaId: p.contaBancariaId || caixaPadrao, valor: round2(Number(p.valor)), data: dataDaLinha(p) }));
 
           const ruim = await formaEletronicaNoCaixa(tx, cr.empresaId, linhasPag.map((l) => ({ forma: l.forma, contaBancariaId: l.contaBancariaId })));
           if (ruim) throw new Error(`ROTEAMENTO::A forma "${ruim.forma}" não pode ser recebida no Caixa em Dinheiro — selecione a conta bancária de destino.`);
 
-          const novaData = pagamentoData ? new Date(`${pagamentoData}T00:00:00.000Z`) : (cr.dataPagamento ?? new Date());
           await tx.lancamentoFinanceiro.deleteMany({ where: { contaReceberId: cr.id } });
           for (const l of linhasPag) {
             await tx.lancamentoFinanceiro.create({
               data: {
                 empresaId: cr.empresaId, tipo: "RECEITA",
                 descricao: `Recebimento ${cr.numero}${linhasPag.length > 1 ? ` (${l.forma})` : ""}`,
-                valor: l.valor, dataLancamento: novaData,
+                valor: l.valor, dataLancamento: l.data,
                 contaReceberId: cr.id, contaBancariaId: l.contaBancariaId,
                 naturezaFinanceiraId: cr.naturezaFinanceiraId ?? undefined,
               },
             });
           }
           const somaPag = round2(linhasPag.reduce((s, l) => s + l.valor, 0));
+          // dataPagamento da CR = a ÚLTIMA data recebida (quando quitou de fato).
+          const ultimaData = linhasPag.reduce<Date | null>((max, l) => (!max || l.data > max ? l.data : max), null);
           await tx.contaReceber.update({
             where: { id: cr.id },
             data: {
               valorOriginal: valorTotal,
               valorPago: somaPag,
               status: somaPag >= valorTotal - 0.001 ? "PAGA" : somaPag > 0 ? "PARCIAL" : "ABERTA",
-              dataPagamento: somaPag > 0 ? novaData : null,
+              dataPagamento: somaPag > 0 ? (ultimaData ?? dataFallback) : null,
               formaPagamento: Array.from(new Set(linhasPag.map((l) => l.forma))).join(" + ") || null,
             },
           });

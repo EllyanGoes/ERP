@@ -87,7 +87,11 @@ export default async function EditarPedidoPage({ params }: { params: { id: strin
     condicaoPagamento: pedido.condicaoPagamento,
     naturezaFinanceiraId: pedido.naturezaFinanceiraId,
     formaPagamento: pedido.formaPagamento,
-    pagamentos: pedido.pagamentos.map((p) => ({ forma: p.forma, valor: p.valor, contaBancariaId: p.contaBancariaId })),
+    pagamentos: pedido.pagamentos.map((p) => ({
+      forma: p.forma, valor: p.valor, contaBancariaId: p.contaBancariaId,
+      // Data do recebimento da linha; linhas antigas caem na data da CR.
+      dataPagamento: (p.dataPagamento ?? pedido.contasReceber[0]?.dataPagamento)?.toISOString().slice(0, 10) ?? null,
+    })),
     // Pedido já pago → a conta de destino e a data do recebimento ficam editáveis.
     pago: pedido.contasReceber.length > 0,
     pagamentoData: pedido.contasReceber[0]?.dataPagamento

@@ -2365,6 +2365,7 @@ model PedidoVendaPagamento {
   valor           Decimal        @db.Decimal(15, 2)
   ordem           Int            @default(0)
   contaBancariaId String? // conta de destino do recebimento (preenchida ao receber no caixa)
+  dataPagamento   DateTime? // data do recebimento DESTA forma (pagamentos em datas distintas)
   pedidoVenda     PedidoVenda    @relation(fields: [pedidoVendaId], references: [id], onDelete: Cascade)
   contaBancaria   ContaBancaria? @relation(fields: [contaBancariaId], references: [id])
 
