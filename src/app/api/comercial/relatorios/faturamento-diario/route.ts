@@ -28,7 +28,8 @@ export async function GET(req: NextRequest) {
 
   const pedidos = await prisma.pedidoVenda.findMany({
     where: {
-      status: { not: "CANCELADO" },
+      // Orçamento não é venda: fica fora do resumo diário (como do faturamento).
+      status: { notIn: ["CANCELADO", "ORCAMENTO"] },
       dataConclusao: { gte: from, lte: to },
     },
     orderBy: [{ dataConclusao: "asc" }, { numero: "asc" }],

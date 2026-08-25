@@ -612,6 +612,15 @@ export default function PedidosVendaPage() {
         const key = p.dataEmissao ? p.dataEmissao.slice(0, 10) : "sem-data";
         push(key, p.dataEmissao ? formatDate(p.dataEmissao) : "Sem data", p);
       }
+      // Acumulado local (fallback sem resumo do servidor): orçamento/cancelado
+      // não contam — mesmo critério do resumo server-side.
+      for (const g of groups) { g.count = 0; g.total = 0; }
+      for (const p of filtered) {
+        if (p.status === "ORCAMENTO" || p.status === "CANCELADO") continue;
+        const key = p.dataEmissao ? p.dataEmissao.slice(0, 10) : "sem-data";
+        const g = groups.find((x) => x.key === key);
+        if (g) { g.count += 1; g.total += decimalToNumber(p.valorTotal); }
+      }
       // Mais recente para o mais antigo; "sem data" por último.
       groups.sort((a, b) =>
         a.key === "sem-data" ? 1 : b.key === "sem-data" ? -1 : b.key.localeCompare(a.key)

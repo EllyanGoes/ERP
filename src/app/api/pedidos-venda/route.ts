@@ -96,8 +96,12 @@ export async function GET(req: NextRequest) {
     const porStatus = await prisma.pedidoVenda.groupBy({
       by: ["status"], where, _count: { _all: true }, _sum: { valorTotal: true },
     });
+    // Acumulado do dia = VENDAS: orçamento (não confirmado) e cancelado ficam
+    // fora da contagem/soma — continuam listados nas linhas, só não acumulam.
     const porDiaRaw = await prisma.pedidoVenda.groupBy({
-      by: ["dataEmissao"], where, _count: { _all: true }, _sum: { valorTotal: true },
+      by: ["dataEmissao"],
+      where: { AND: [where, { status: { notIn: ["ORCAMENTO", "CANCELADO"] } }] },
+      _count: { _all: true }, _sum: { valorTotal: true },
     });
     const porDia = new Map<string, { count: number; total: number }>();
     for (const g of porDiaRaw) {
