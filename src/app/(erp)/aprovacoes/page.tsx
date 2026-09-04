@@ -3,14 +3,19 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
+import DataTable from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   CheckCircle2, XCircle, Clock, RefreshCw, Loader2, ChevronRight,
   AlertTriangle, ClipboardList, CheckSquare, Square, MinusSquare,
+  LayoutGrid, Table2,
 } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
+import type { ColumnDef } from "@tanstack/react-table";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -345,11 +350,6 @@ function BulkBar({
   const [showObs, setShowObs]   = useState(false);
   const [obs, setObs]           = useState("");
 
-  function handleReprovar() {
-    if (!showObs) { setShowObs(true); return; }
-    onReprovar();          // obs is lifted via closure below
-  }
-
   // Expose obs to parent through a ref-like pattern: we store it in the component
   // and call onReprovar which reads it — so pass obs up via a wrapper
   return (
@@ -438,6 +438,14 @@ export default function AprovacoesPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
 
+  // Visão Cards ⇄ Tabela (padrão do sistema), persistida por usuário.
+  const [view, setView] = usePersistedState<"cards" | "tabela">("aprovacoes-view", "cards");
+
+  // Ação por linha na tabela (Reprovar abre campo de motivo inline).
+  const [rowLoading, setRowLoading]     = useState<string | null>(null);
+  const [reprovandoId, setReprovandoId] = useState<string | null>(null);
+  const [obsReprova, setObsReprova]     = useState("");
+
   // Seleção
   const [selected, setSelected]     = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -470,7 +478,7 @@ export default function AprovacoesPage() {
   function toggleOne(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
@@ -506,6 +514,212 @@ export default function AprovacoesPage() {
     }
   }
 
+  // Responde uma aprovação a partir da linha da tabela.
+  async function responderUm(id: string, acao: "APROVAR" | "REPROVAR", observacao?: string) {
+    setRowLoading(id); setError("");
+    try {
+      const res = await fetch(`/api/aprovacoes/${id}/responder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao, observacao: observacao || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error || "Erro ao responder"); return; }
+      setReprovandoId(null); setObsReprova("");
+      await load(tab);
+    } catch {
+      setError("Erro de conexão");
+    } finally {
+      setRowLoading(null);
+    }
+  }
+
+  // ── Colunas da visão em tabela ──────────────────────────────────────────────
+  const fmtData = (iso: string) =>
+    new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+  const colunas: ColumnDef<Aprovacao>[] = [
+    ...(tab === "PENDENTE" ? [{
+      id: "sel",
+      header: () => (
+        <button type="button" onClick={toggleAll} className="flex items-center text-muted-foreground/60 hover:text-blue-500 transition-colors" title={allSelected ? "Desmarcar todos" : "Selecionar todos"}>
+          {allSelected ? <CheckSquare className="w-4 h-4 text-blue-500" /> : someSelected ? <MinusSquare className="w-4 h-4 text-blue-400" /> : <Square className="w-4 h-4" />}
+        </button>
+      ),
+      cell: ({ row }) => row.original.status === "PENDENTE" ? (
+        <button type="button" onClick={() => toggleOne(row.original.id)} className="flex items-center text-muted-foreground/60 hover:text-blue-500 transition-colors">
+          {selected.has(row.original.id) ? <CheckSquare className="w-4 h-4 text-blue-500" /> : <Square className="w-4 h-4" />}
+        </button>
+      ) : null,
+      meta: { thClass: "w-8", tdClass: "w-8" },
+    } satisfies ColumnDef<Aprovacao>] : []),
+    {
+      id: "numero",
+      header: "Nº",
+      accessorFn: (r) => r.necessidade?.numero ?? (r.cotacao?.nome || r.cotacao?.numero) ?? "",
+      cell: ({ row }) => {
+        const r = row.original;
+        const href = r.necessidade ? `/compras/necessidades/${r.necessidade.id}` : r.cotacao ? `/suprimentos/cotacoes/${r.cotacao.id}` : null;
+        const label = r.necessidade?.numero ?? (r.cotacao?.nome || r.cotacao?.numero) ?? "—";
+        return href
+          ? <Link href={href} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">{label}</Link>
+          : <span>{label}</span>;
+      },
+    },
+    {
+      id: "tipo",
+      header: "Tipo",
+      accessorFn: (r) => r.necessidade ? "SC" : "Cotação · PC",
+      cell: ({ getValue }) => (
+        <span className={cn(
+          "text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap border",
+          getValue() === "SC" ? "bg-info/10 text-info border-info/20" : "bg-warning/10 text-warning border-amber-100",
+        )}>
+          {String(getValue())}
+        </span>
+      ),
+    },
+    {
+      id: "descricao",
+      header: "Descrição",
+      accessorFn: (r) => {
+        if (r.necessidade) return r.necessidade.motivo || r.necessidade.justificativa || "";
+        const venc = r.cotacao?.fornecedores[0];
+        return venc ? (venc.fornecedor.nomeFantasia || venc.fornecedor.razaoSocial) : "";
+      },
+      cell: ({ row, getValue }) => (
+        <span className="block max-w-[280px] truncate" title={String(getValue())}>
+          {row.original.cotacao && !row.original.necessidade && <span className="text-muted-foreground">Fornecedor: </span>}
+          {String(getValue()) || "—"}
+        </span>
+      ),
+    },
+    {
+      id: "itens",
+      header: "Itens",
+      accessorFn: (r) => r.necessidade?.itens.length ?? "",
+      cell: ({ row }) => {
+        const sc = row.original.necessidade;
+        if (!sc) return <span className="text-muted-foreground">—</span>;
+        const lista = sc.itens.map((it) => {
+          const qtd = parseFloat(String(it.quantidade ?? 0));
+          const un  = it.unidade ?? it.item.unidade?.sigla ?? it.item.unidadeMedida ?? "un";
+          return `${it.item.descricao} — ${qtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${un}`;
+        }).join("\n");
+        return <span className="tabular-nums cursor-help" title={lista}>{sc.itens.length}</span>;
+      },
+      meta: { sortTipo: "numero", className: "text-center" },
+    },
+    {
+      id: "filial",
+      header: "Filial",
+      accessorFn: (r) => r.necessidade?.filial ? (r.necessidade.filial.nomeFantasia ?? r.necessidade.filial.razaoSocial) : "",
+      cell: ({ getValue }) => <span className="whitespace-nowrap">{String(getValue()) || "—"}</span>,
+    },
+    {
+      id: "prioridade",
+      header: "Prioridade",
+      accessorFn: (r) => r.necessidade?.prioridade ?? "",
+      cell: ({ row }) => {
+        const sc = row.original.necessidade;
+        if (!sc) return <span className="text-muted-foreground">—</span>;
+        const prio = PRIORIDADE[sc.prioridade] ?? { label: String(sc.prioridade), cls: "text-muted-foreground" };
+        return <span className={cn("text-xs font-medium whitespace-nowrap", prio.cls)}>{prio.label}</span>;
+      },
+      meta: { sortTipo: "numero" },
+    },
+    {
+      id: "valor",
+      header: "Valor",
+      accessorFn: (r) => r.cotacao?.fornecedores[0]?.totalCalculado ?? "",
+      cell: ({ getValue }) => {
+        const v = getValue();
+        return v === "" || v == null
+          ? <span className="text-muted-foreground">—</span>
+          : <span className="tabular-nums whitespace-nowrap">{Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>;
+      },
+      meta: { sortTipo: "numero", className: "text-right" },
+    },
+    {
+      id: "por",
+      header: "Encaminhada por",
+      accessorFn: (r) => r.solicitadoPorNome ?? r.necessidade?.solicitante ?? "",
+      cell: ({ getValue }) => <span className="whitespace-nowrap">{String(getValue()) || "—"}</span>,
+    },
+    {
+      id: "data",
+      header: "Data",
+      accessorFn: (r) => r.createdAt,
+      cell: ({ row }) => <span className="whitespace-nowrap text-muted-foreground">{fmtData(row.original.createdAt)}</span>,
+      meta: { sortTipo: "data" },
+    },
+    ...(tab === "REPROVADO" ? [{
+      id: "motivoReprovacao",
+      header: "Motivo",
+      accessorFn: (r: Aprovacao) => r.observacao ?? "",
+      cell: ({ getValue }: { getValue: () => unknown }) => (
+        <span className="block max-w-[220px] truncate text-danger" title={String(getValue())}>{String(getValue()) || "—"}</span>
+      ),
+    } satisfies ColumnDef<Aprovacao>] : []),
+    ...(tab !== "PENDENTE" ? [{
+      id: "respondidoEm",
+      header: "Respondida em",
+      accessorFn: (r: Aprovacao) => r.respondidoEm ?? "",
+      cell: ({ getValue }: { getValue: () => unknown }) => {
+        const v = String(getValue());
+        return <span className="whitespace-nowrap text-muted-foreground">{v ? fmtData(v) : "—"}</span>;
+      },
+      meta: { sortTipo: "data" },
+    } satisfies ColumnDef<Aprovacao>] : []),
+    {
+      id: "acoes",
+      header: "",
+      cell: ({ row }) => {
+        const r = row.original;
+        if (r.status !== "PENDENTE") return null;
+        if (someSelected) return <span className="text-xs text-muted-foreground whitespace-nowrap">via seleção</span>;
+        const busy = rowLoading === r.id;
+        if (reprovandoId === r.id) {
+          return (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <Input
+                autoFocus
+                value={obsReprova}
+                onChange={(e) => setObsReprova(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") responderUm(r.id, "REPROVAR", obsReprova); if (e.key === "Escape") { setReprovandoId(null); setObsReprova(""); } }}
+                placeholder="Motivo (opcional)"
+                className="h-7 w-44 text-xs"
+              />
+              <Button size="sm" disabled={busy} onClick={() => responderUm(r.id, "REPROVAR", obsReprova)}
+                className="h-7 px-2 bg-red-600 hover:bg-red-700 text-white text-xs">
+                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Confirmar"}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setReprovandoId(null); setObsReprova(""); }}
+                className="h-7 px-2 text-xs text-muted-foreground">
+                Cancelar
+              </Button>
+            </div>
+          );
+        }
+        return (
+          <div className="flex items-center gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
+            <Button size="sm" disabled={busy} onClick={() => responderUm(r.id, "APROVAR")}
+              className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1">
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+              Aprovar
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => { setReprovandoId(r.id); setObsReprova(""); }}
+              className="h-7 px-2.5 border-danger/30 text-danger hover:bg-danger/10 text-xs gap-1">
+              <XCircle className="w-3.5 h-3.5" />
+              Reprovar
+            </Button>
+          </div>
+        );
+      },
+      meta: { tdClass: "text-right" },
+    },
+  ];
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "PENDENTE",  label: "Pendentes",  icon: <Clock className="w-3.5 h-3.5" /> },
     { id: "APROVADO",  label: "Aprovadas",  icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
@@ -513,7 +727,7 @@ export default function AprovacoesPage() {
   ];
 
   return (
-    <div className="px-8 py-8 max-w-3xl pb-32">
+    <div className={cn("px-8 py-8 pb-32", view === "tabela" ? "max-w-7xl" : "max-w-3xl")}>
       <PageHeader
         title="Aprovações"
         subtitle="Solicitações de compra aguardando sua decisão"
@@ -525,27 +739,50 @@ export default function AprovacoesPage() {
         }
       />
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-5 p-1 bg-muted rounded-xl w-fit">
-        {tabs.map((t) => (
-          <button key={t.id} onClick={() => handleTabChange(t.id)}
+      {/* Tabs + toggle Cards ⇄ Tabela */}
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex gap-1 p-1 bg-muted rounded-xl w-fit">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => handleTabChange(t.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                tab === t.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}>
+              {t.icon}
+              {t.label}
+              {t.id === "PENDENTE" && pendingCount > 0 && (
+                <span className="ml-0.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto flex gap-1 rounded-lg border border-border p-1">
+          <button
+            onClick={() => setView("cards")}
             className={cn(
-              "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-              tab === t.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            )}>
-            {t.icon}
-            {t.label}
-            {t.id === "PENDENTE" && pendingCount > 0 && (
-              <span className="ml-0.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                {pendingCount}
-              </span>
+              "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
+              view === "cards" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-muted",
             )}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" /> Cards
           </button>
-        ))}
+          <button
+            onClick={() => setView("tabela")}
+            className={cn(
+              "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
+              view === "tabela" ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-muted",
+            )}
+          >
+            <Table2 className="h-3.5 w-3.5" /> Tabela
+          </button>
+        </div>
       </div>
 
-      {/* Selecionar todos — aba pendente com itens */}
-      {tab === "PENDENTE" && pendentIds.length > 1 && (
+      {/* Selecionar todos — aba pendente com itens (só nos cards; a tabela tem o checkbox no cabeçalho) */}
+      {view === "cards" && tab === "PENDENTE" && pendentIds.length > 1 && (
         <div className="flex items-center gap-2 mb-3">
           <button onClick={toggleAll}
             className={cn("flex items-center gap-2 text-sm transition-colors",
@@ -571,7 +808,7 @@ export default function AprovacoesPage() {
         </div>
       )}
 
-      {loading && items.length === 0 && (
+      {view === "cards" && loading && items.length === 0 && (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
@@ -591,18 +828,30 @@ export default function AprovacoesPage() {
         </div>
       )}
 
-      <div className="space-y-3">
-        {items.map((item) => (
-          <AprovacaoCard
-            key={item.id}
-            item={item}
-            selected={selected.has(item.id)}
-            onToggle={() => toggleOne(item.id)}
-            onRefresh={() => load(tab)}
-            bulkActive={someSelected}
-          />
-        ))}
-      </div>
+      {view === "tabela" && (loading || items.length > 0) && (
+        <DataTable
+          data={items}
+          columns={colunas}
+          isLoading={loading && items.length === 0}
+          getRowId={(r) => r.id}
+          searchPlaceholder="Buscar por número, descrição, solicitante..."
+        />
+      )}
+
+      {view === "cards" && (
+        <div className="space-y-3">
+          {items.map((item) => (
+            <AprovacaoCard
+              key={item.id}
+              item={item}
+              selected={selected.has(item.id)}
+              onToggle={() => toggleOne(item.id)}
+              onRefresh={() => load(tab)}
+              bulkActive={someSelected}
+            />
+          ))}
+        </div>
+      )}
 
       {!loading && total > items.length && (
         <p className="text-center text-xs text-muted-foreground mt-6">
