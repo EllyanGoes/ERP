@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2, ChevronDown, Loader2, Save } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import ProdutoQuickModal from "@/components/compras/ProdutoQuickModal";
+import { linhaValida, linhasIncompletas, msgLinhasIncompletas } from "@/components/compras/SolicitacaoCreateForm";
 import DatePicker from "@/components/shared/DatePicker";
 import { cn, decimalToNumber } from "@/lib/utils";
 import { useFormPersist } from "@/lib/form-persist";
@@ -336,7 +338,15 @@ export default function EditarSolicitacaoPage() {
   async function handleSaveOnly() {
     if (!filialId) throw new Error("Filial required");
     if (!localEstoqueId) throw new Error("Local required");
-    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
+    // O PATCH substitui TODOS os itens da SC pelos enviados — descartar uma
+    // linha incompleta em silêncio aqui apagaria itens do banco. Bloqueia e avisa.
+    const incompletas = linhasIncompletas(itens);
+    if (incompletas.length > 0) {
+      const msg = msgLinhasIncompletas(incompletas);
+      setError(msg);
+      throw new Error(msg);
+    }
+    const validItens = itens.filter(linhaValida);
     if (validItens.length === 0) throw new Error("No items");
     if (!descricao.trim()) throw new Error("Descricao required");
     setSaving(true); setError("");
@@ -374,7 +384,9 @@ export default function EditarSolicitacaoPage() {
     e.preventDefault();
     if (!filialId) { setError("Filial é obrigatória"); return; }
     if (!localEstoqueId) { setError("Local de Estoque é obrigatório"); return; }
-    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade) > 0);
+    const incompletas = linhasIncompletas(itens);
+    if (incompletas.length > 0) { setError(msgLinhasIncompletas(incompletas)); return; }
+    const validItens = itens.filter(linhaValida);
     if (validItens.length === 0) { setError("Adicione pelo menos um item com quantidade válida"); return; }
     if (!descricao.trim()) { setError("Descrição é obrigatória"); return; }
     try {
@@ -523,6 +535,16 @@ export default function EditarSolicitacaoPage() {
                       createHref="/suprimentos/produtos/novo"
                       createParam="descricao"
                       createLabel="produto"
+                      renderCreateModal={({ initialValue, onCreated, onClose }) => (
+                        <ProdutoQuickModal
+                          initialValue={initialValue}
+                          onCreated={(novo) => {
+                            setItemOptions((prev) => [...prev, novo]);
+                            onCreated(novo.id, `[${novo.codigo}] ${novo.descricao}`);
+                          }}
+                          onClose={onClose}
+                        />
+                      )}
                     />
                   </div>
                   <div className="col-span-2 space-y-1.5">

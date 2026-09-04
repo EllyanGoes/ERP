@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import ProdutoQuickModal from "@/components/compras/ProdutoQuickModal";
 import DatePicker from "@/components/shared/DatePicker";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 
@@ -61,6 +62,18 @@ export default function NovaNecessidadePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Linha com dados mas sem produto/quantidade válidos NÃO pode ser descartada
+    // em silêncio (SC salva com menos itens do que o digitado); só linha
+    // totalmente vazia é ignorada.
+    const linhaVazia = (row: ItemRow) => !row.itemId && !row.observacao.trim() && ["", "1"].includes(row.quantidade.trim());
+    const incompletas = itens
+      .map((row, idx) => ({ row, idx }))
+      .filter(({ row }) => !linhaVazia(row) && !(row.itemId && parseFloat(row.quantidade) > 0));
+    if (incompletas.length > 0) {
+      const nums = incompletas.map(({ idx }) => idx + 1);
+      setServerError(`Linha${nums.length > 1 ? "s" : ""} ${nums.join(", ")} sem produto selecionado ou com quantidade inválida — complete ou remova a linha antes de salvar.`);
+      return;
+    }
     const validItens = itens.filter((row) => row.itemId && parseFloat(row.quantidade) > 0);
     if (validItens.length === 0) {
       setServerError("Adicione pelo menos um item com quantidade válida");
@@ -162,6 +175,16 @@ export default function NovaNecessidadePage() {
                     createHref="/suprimentos/produtos/novo"
                     createParam="descricao"
                     createLabel="produto"
+                    renderCreateModal={({ initialValue, onCreated, onClose }) => (
+                      <ProdutoQuickModal
+                        initialValue={initialValue}
+                        onCreated={(novo) => {
+                          setItemOptions((prev) => [...prev, novo]);
+                          onCreated(novo.id, `[${novo.codigo}] ${novo.descricao}`);
+                        }}
+                        onClose={onClose}
+                      />
+                    )}
                   />
                 </div>
                 <div className="col-span-2 space-y-1.5">

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2, ChevronDown, Loader2, Save, X, AlertTriangle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import ProdutoQuickModal from "@/components/compras/ProdutoQuickModal";
 import EscClose from "@/components/shared/EscClose";
 import DatePicker from "@/components/shared/DatePicker";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
@@ -36,6 +37,20 @@ type ColaboradorOpt = { id: string; nome: string; setorId: string | null; setor:
 type SetorOpt      = { id: string; nome: string; ativo: boolean };
 
 type ItemRow = { itemId: string; quantidade: string; unidade: string; observacao: string };
+
+// Linha recém-adicionada e não tocada (pode ser ignorada no submit) vs. linha
+// com algum dado mas sem produto/quantidade válidos. Linha incompleta NUNCA é
+// descartada em silêncio — a SC-0430 foi salva com menos itens do que o
+// digitado exatamente porque o filtro antigo engolia essas linhas sem avisar.
+const linhaVazia = (r: ItemRow) => !r.itemId && !r.observacao.trim() && ["", "1"].includes(r.quantidade.trim());
+export const linhaValida = (r: ItemRow) => !!r.itemId && parseFloat(r.quantidade.replace(",", ".")) > 0;
+export function linhasIncompletas(itens: ItemRow[]): number[] {
+  return itens.map((r, idx) => ({ r, idx })).filter(({ r }) => !linhaVazia(r) && !linhaValida(r)).map(({ idx }) => idx + 1);
+}
+export function msgLinhasIncompletas(nums: number[]): string {
+  const plural = nums.length > 1;
+  return `Linha${plural ? "s" : ""} ${nums.join(", ")} sem produto selecionado ou com quantidade inválida — complete ou remova a linha antes de salvar.`;
+}
 
 const STATUS_PT: Record<string, string> = {
   RASCUNHO: "Rascunho",
@@ -528,7 +543,9 @@ export default function SolicitacaoCreateForm() {
     if (!colaboradorId) { setServerError("Solicitante é obrigatório"); return; }
     if (!setorId) { setServerError("Setor é obrigatório"); return; }
     if (!motivo.trim()) { setServerError("Motivo de compra é obrigatório"); return; }
-    const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade.replace(",", ".")) > 0);
+    const incompletas = linhasIncompletas(itens);
+    if (incompletas.length > 0) { setServerError(msgLinhasIncompletas(incompletas)); return; }
+    const validItens = itens.filter(linhaValida);
     if (validItens.length === 0) { setServerError("Adicione pelo menos um item com quantidade válida"); return; }
     if (!descricao.trim()) { setServerError("Descrição é obrigatória"); return; }
 
@@ -711,6 +728,16 @@ export default function SolicitacaoCreateForm() {
                       createHref="/suprimentos/produtos/novo"
                       createParam="descricao"
                       createLabel="produto"
+                      renderCreateModal={({ initialValue, onCreated, onClose }) => (
+                        <ProdutoQuickModal
+                          initialValue={initialValue}
+                          onCreated={(novo) => {
+                            setItemOptions((prev) => [...prev, novo]);
+                            onCreated(novo.id, `[${novo.codigo}] ${novo.descricao}`);
+                          }}
+                          onClose={onClose}
+                        />
+                      )}
                     />
                   </div>
                   <div className="col-span-2 space-y-1.5">
@@ -813,7 +840,7 @@ export default function SolicitacaoCreateForm() {
                 onClick={async () => {
                   setUserConfirmedDuplicate(true);
                   setShowDuplicateWarning(false);
-                  const validItens = itens.filter((r) => r.itemId && parseFloat(r.quantidade.replace(",", ".")) > 0);
+                  const validItens = itens.filter(linhaValida);
                   await doSubmit(validItens);
                 }}
               >
