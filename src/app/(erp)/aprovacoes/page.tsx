@@ -676,12 +676,20 @@ export default function AprovacoesPage() {
       header: "",
       cell: ({ row }) => {
         const r = row.original;
-        if (r.status !== "PENDENTE") return null;
-        if (someSelected) return <span className="text-xs text-muted-foreground whitespace-nowrap">via seleção</span>;
+        // Todos os estados da célula têm a MESMA altura (h-7) para a linha não
+        // mudar de tamanho ao selecionar/abrir o motivo da reprovação.
+        if (r.status !== "PENDENTE") return <div className="h-7" />;
+        if (someSelected) {
+          return (
+            <div className="flex h-7 items-center justify-end">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">via seleção</span>
+            </div>
+          );
+        }
         const busy = rowLoading === r.id;
         if (reprovandoId === r.id) {
           return (
-            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex h-7 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
               <Input
                 autoFocus
                 value={obsReprova}
@@ -702,7 +710,7 @@ export default function AprovacoesPage() {
           );
         }
         return (
-          <div className="flex items-center gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
+          <div className="flex h-7 items-center gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
             <Button size="sm" disabled={busy} onClick={() => responderUm(r.id, "APROVAR")}
               className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1">
               {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
@@ -727,7 +735,7 @@ export default function AprovacoesPage() {
   ];
 
   return (
-    <div className={cn("px-8 py-8 pb-32", view === "tabela" ? "max-w-7xl" : "max-w-3xl")}>
+    <div className={cn("px-8 py-8 pb-32", view === "tabela" ? "max-w-none" : "max-w-3xl")}>
       <PageHeader
         title="Aprovações"
         subtitle="Solicitações de compra aguardando sua decisão"
