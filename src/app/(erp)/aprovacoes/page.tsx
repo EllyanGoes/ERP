@@ -556,14 +556,31 @@ export default function AprovacoesPage() {
     {
       id: "numero",
       header: "Nº",
-      accessorFn: (r) => r.necessidade?.numero ?? (r.cotacao?.nome || r.cotacao?.numero) ?? "",
+      // Busca acha tanto pelo código da cotação quanto pelo da SC de origem.
+      accessorFn: (r) => r.necessidade?.numero
+        ?? [r.cotacao?.numero, r.cotacao?.necessidade?.numero].filter(Boolean).join(" "),
       cell: ({ row }) => {
         const r = row.original;
-        const href = r.necessidade ? `/compras/necessidades/${r.necessidade.id}` : r.cotacao ? `/suprimentos/cotacoes/${r.cotacao.id}` : null;
-        const label = r.necessidade?.numero ?? (r.cotacao?.nome || r.cotacao?.numero) ?? "—";
-        return href
-          ? <Link href={href} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">{label}</Link>
-          : <span>{label}</span>;
+        if (r.necessidade) {
+          return (
+            <Link href={`/compras/necessidades/${r.necessidade.id}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
+              {r.necessidade.numero}
+            </Link>
+          );
+        }
+        if (r.cotacao) {
+          return (
+            <span className="whitespace-nowrap">
+              <Link href={`/suprimentos/cotacoes/${r.cotacao.id}`} className="font-medium text-foreground hover:text-info transition-colors">
+                {r.cotacao.numero}
+              </Link>
+              {r.cotacao.necessidade && (
+                <span className="ml-1.5 text-xs text-muted-foreground">{r.cotacao.necessidade.numero}</span>
+              )}
+            </span>
+          );
+        }
+        return <span>—</span>;
       },
     },
     {
@@ -585,14 +602,27 @@ export default function AprovacoesPage() {
       accessorFn: (r) => {
         if (r.necessidade) return r.necessidade.motivo || r.necessidade.justificativa || "";
         const venc = r.cotacao?.fornecedores[0];
-        return venc ? (venc.fornecedor.nomeFantasia || venc.fornecedor.razaoSocial) : "";
+        const forn = venc ? (venc.fornecedor.nomeFantasia || venc.fornecedor.razaoSocial) : "";
+        return [r.cotacao?.nome, forn].filter(Boolean).join(" · ");
       },
-      cell: ({ row, getValue }) => (
-        <span className="block max-w-[280px] truncate" title={String(getValue())}>
-          {row.original.cotacao && !row.original.necessidade && <span className="text-muted-foreground">Fornecedor: </span>}
-          {String(getValue()) || "—"}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const r = row.original;
+        if (r.necessidade) {
+          const txt = r.necessidade.motivo || r.necessidade.justificativa || "";
+          return <span className="block max-w-[320px] truncate" title={txt}>{txt || "—"}</span>;
+        }
+        const venc = r.cotacao?.fornecedores[0];
+        const forn = venc ? (venc.fornecedor.nomeFantasia || venc.fornecedor.razaoSocial) : "";
+        const completo = [r.cotacao?.nome, forn ? `Fornecedor: ${forn}` : ""].filter(Boolean).join(" · ");
+        if (!completo) return <span>—</span>;
+        return (
+          <span className="block max-w-[320px] truncate" title={completo}>
+            {r.cotacao?.nome && <span className="font-medium text-foreground">{r.cotacao.nome}</span>}
+            {r.cotacao?.nome && forn && <span className="text-muted-foreground"> · </span>}
+            {forn && <><span className="text-muted-foreground">Fornecedor: </span>{forn}</>}
+          </span>
+        );
+      },
     },
     {
       id: "itens",
