@@ -289,6 +289,15 @@ export default function DiariaDetailPage() {
   }
 
   async function salvar(novoStatus?: string) {
+    // Setor obrigatório: todo bloco com gente lançada precisa de setor definido
+    // (na lista corrida, é a coluna Setor de cada linha).
+    const semSetor = grupos.filter((g) => !g.setor.trim() && g.itens.some((it) => it.colaboradorId));
+    if (semSetor.length > 0) {
+      const pessoas = semSetor.reduce((s, g) => s + g.itens.filter((it) => it.colaboradorId).length, 0);
+      setErroAcao(`O setor é obrigatório: defina o setor de ${pessoas === 1 ? "1 lançamento" : `${pessoas} lançamentos`} antes de salvar.`);
+      return false;
+    }
+    setErroAcao("");
     setSalvando(true);
     const body = {
       data, turno: turnoFolha, observacoes, status: novoStatus ?? status,
@@ -303,8 +312,13 @@ export default function DiariaDetailPage() {
     };
     const res = await fetch(`/api/rh/diaristas/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setSalvando(false);
-    if (res.ok && novoStatus) setStatus(novoStatus);
-    return res.ok;
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      setErroAcao(j.error || "Falha ao salvar a folha.");
+      return false;
+    }
+    if (novoStatus) setStatus(novoStatus);
+    return true;
   }
 
   // Fechar = provisão contábil (custeio pela classificação do colaborador) +
@@ -313,7 +327,7 @@ export default function DiariaDetailPage() {
   async function fechar() {
     setSalvando(true); setErroAcao("");
     try {
-      if (!(await salvar())) { setErroAcao("Falha ao salvar a folha antes de fechar."); return; }
+      if (!(await salvar())) return; // salvar() já apontou o erro (ex.: setor obrigatório)
       const r = await fetch(`/api/rh/diaristas/${id}/fechar`, { method: "POST" });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErroAcao(j.error || "Falha ao fechar a folha."); return; }

@@ -296,13 +296,19 @@ export async function fecharDiariaFolha(diariaFolhaId: string) {
     where: { id: diariaFolhaId },
     select: {
       id: true, empresaId: true, status: true, data: true, turno: true,
-      grupos: { select: { itens: { select: {
+      grupos: { select: { setor: true, itens: { select: {
         id: true, colaboradorId: true, valor: true, valorTotal: true,
         colaborador: { select: { id: true, nome: true, classificacaoCusto: true } },
       } } } },
     },
   });
   if (!folha) throw new RhPagamentoErro("Folha de diárias não encontrada.", 404);
+
+  // Backstop da regra "setor obrigatório" (o PUT já valida no salvar): não
+  // fecha folha com gente lançada em bloco sem setor — inclusive folhas antigas.
+  if (folha.grupos.some((g) => g.itens.length > 0 && !g.setor?.trim())) {
+    throw new RhPagamentoErro("A folha tem lançamentos sem setor — defina o setor de todos os blocos antes de fechar.", 400);
+  }
 
   const itens = folha.grupos.flatMap((g) => g.itens)
     .map((i) => ({

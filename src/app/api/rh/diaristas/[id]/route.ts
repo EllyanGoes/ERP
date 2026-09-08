@@ -42,6 +42,19 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
 
   const b = await req.json();
   const grupos: GrupoIn[] = Array.isArray(b.grupos) ? b.grupos : [];
+
+  // Setor é OBRIGATÓRIO em todo bloco que tem gente lançada (blocos vazios de
+  // rascunho passam). Sem isso a folha fecha com custeio/relatório sem setor.
+  const blocosSemSetor = grupos.filter(
+    (g) => (g.itens ?? []).some((it) => it.colaboradorId) && !g.setor?.trim(),
+  );
+  if (blocosSemSetor.length > 0) {
+    const pessoas = blocosSemSetor.reduce((s, g) => s + (g.itens ?? []).filter((it) => it.colaboradorId).length, 0);
+    return NextResponse.json(
+      { error: `O setor é obrigatório: defina o setor de ${pessoas === 1 ? "1 lançamento" : `${pessoas} lançamentos`} da folha antes de salvar.` },
+      { status: 400 },
+    );
+  }
   // pt-BR: vírgula decimal, ponto de milhar opcional; aceita ponto puro também.
   const num = (v: unknown) => {
     const s = String(v ?? "").trim();
