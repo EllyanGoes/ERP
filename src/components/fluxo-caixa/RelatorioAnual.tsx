@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { formatBRL, formatDate, cn } from "@/lib/utils";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { Loader2, ChevronLeft, ChevronRight, ChevronDown, ExternalLink, ChevronRight as Caret, Download } from "lucide-react";
 import Link from "next/link";
 
@@ -21,8 +22,8 @@ const GRUPO_LABEL: Record<string, string> = {
   RECEITA_OPERACIONAL: "Receitas operacionais",
   CUSTO_OPERACIONAL: "Custos operacionais",
   DESPESA_OPERACIONAL: "Despesas operacionais",
-  INVESTIMENTO: "Atividades de investimento",
-  FINANCIAMENTO: "Atividades de financiamento",
+  INVESTIMENTO: "Ativ. de investimento",
+  FINANCIAMENTO: "Ativ. de financiamento",
 };
 
 type NatNode = { id: string; nome: string; tipo: "ENTRADA" | "SAIDA"; meses: number[]; total: number; temMovimento: boolean };
@@ -41,6 +42,8 @@ const fmt = (v: number) => (v === 0 ? "–" : formatBRL(v));
 
 export default function RelatorioAnual() {
   const [ano, setAno] = useState(new Date().getFullYear());
+  // Previsto (títulos por vencimento) ⇄ Realizado (caixa efetivo, pelas baixas).
+  const [modo, setModo] = usePersistedState<"previsto" | "realizado">("fluxo-caixa:relatorio-modo", "previsto");
   const [rel, setRel] = useState<Relatorio | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -68,17 +71,17 @@ export default function RelatorioAnual() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/fluxo-caixa/relatorio?ano=${ano}`)
+    fetch(`/api/fluxo-caixa/relatorio?ano=${ano}&modo=${modo}`)
       .then((r) => r.json())
       .then((j) => setRel(j))
       .finally(() => setLoading(false));
-  }, [ano]);
+  }, [ano, modo]);
 
   const abrirDrill = useCallback(async (natureza: NatNode, mes: number | null) => {
     setDrill({ natureza, mes });
     setLancs(null);
     setLoadingLancs(true);
-    const qs = new URLSearchParams({ naturezaId: natureza.id, ano: String(ano) });
+    const qs = new URLSearchParams({ naturezaId: natureza.id, ano: String(ano), modo });
     if (mes !== null) qs.set("mes", String(mes));
     try {
       const j = await fetch(`/api/fluxo-caixa/relatorio/lancamentos?${qs}`).then((r) => r.json());
@@ -86,7 +89,7 @@ export default function RelatorioAnual() {
     } finally {
       setLoadingLancs(false);
     }
-  }, [ano]);
+  }, [ano, modo]);
 
   if (loading || !rel) {
     return <div className="py-20 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground/60" /></div>;
@@ -127,7 +130,7 @@ export default function RelatorioAnual() {
     const blob = new Blob(["﻿" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `fluxo-caixa-${rel.ano}.csv`;
+    a.download = `fluxo-caixa-${rel.ano}-${modo}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -139,6 +142,21 @@ export default function RelatorioAnual() {
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold text-foreground">Fluxo de Caixa — relatório anual</p>
         <div className="flex items-center gap-2">
+          {/* Previsto (por vencimento) ⇄ Realizado (caixa efetivo) */}
+          <div className="inline-flex gap-1 rounded-lg border border-border bg-card p-1">
+            {([["previsto", "Previsto"], ["realizado", "Realizado"]] as const).map(([v, rotulo]) => (
+              <button
+                key={v}
+                onClick={() => setModo(v)}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                  modo === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
           <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-1">
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setAno((a) => a - 1)}><ChevronLeft className="w-4 h-4" /></Button>
             <span className="px-2 text-sm font-semibold text-foreground tabular-nums">{ano}</span>
@@ -198,7 +216,7 @@ export default function RelatorioAnual() {
           <SheetHeader>
             <SheetTitle>{drill?.natureza.nome}</SheetTitle>
             <SheetDescription>
-              Lançamentos {drill?.mes !== null && drill?.mes !== undefined ? `de ${MESES[drill.mes]}/` : "de "}{ano}
+              Lançamentos {modo === "realizado" ? "realizados" : "previstos"} {drill?.mes !== null && drill?.mes !== undefined ? `de ${MESES[drill.mes]}/` : "de "}{ano}
             </SheetDescription>
           </SheetHeader>
           <div className="p-6 space-y-4">
@@ -262,15 +280,15 @@ function GrupoBloco({ grupo, onDrill, collapsed, onToggle }: {
           <button
             type="button"
             onClick={() => onToggle(grupo.grupo)}
-            className="inline-flex items-center gap-1.5 font-semibold text-muted-foreground hover:text-foreground uppercase text-[11px] tracking-wide"
+            className="inline-flex items-center gap-1.5 font-semibold text-muted-foreground hover:text-foreground uppercase text-[11px] tracking-wide whitespace-nowrap"
             title={fechado ? "Expandir grupo" : "Recolher grupo"}
           >
             {fechado ? <Caret className="w-3.5 h-3.5 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0" />}
             {GRUPO_LABEL[grupo.grupo] ?? grupo.grupo}
           </button>
         </td>
-        {grupo.meses.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium", valorCor(v))}>{fmt(v)}</td>)}
-        <td className={cn("px-4 py-2 text-right tabular-nums font-semibold", valorCor(grupo.total))}>{fmt(grupo.total)}</td>
+        {grupo.meses.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap", valorCor(v))}>{fmt(v)}</td>)}
+        <td className={cn("px-4 py-2 text-right tabular-nums font-semibold whitespace-nowrap", valorCor(grupo.total))}>{fmt(grupo.total)}</td>
       </tr>
       {!fechado && grupo.subgrupos.map((sub) => (
         <SubgrupoBloco key={sub.id ?? "sem"} sub={sub} onDrill={onDrill} mostrarTituloSub={!!sub.nome} grupoKey={grupo.grupo} collapsed={collapsed} onToggle={onToggle} />
@@ -309,8 +327,8 @@ function SubgrupoBloco({ sub, onDrill, mostrarTituloSub, grupoKey, collapsed, on
           </td>
           {fechado ? (
             <>
-              {mesesSub.map((v, i) => <td key={i} className={cn("px-3 py-1.5 text-right tabular-nums", valorCor(v))}>{fmt(v)}</td>)}
-              <td className={cn("px-4 py-1.5 text-right tabular-nums font-medium", valorCor(totalSub))}>{fmt(totalSub)}</td>
+              {mesesSub.map((v, i) => <td key={i} className={cn("px-3 py-1.5 text-right tabular-nums whitespace-nowrap", valorCor(v))}>{fmt(v)}</td>)}
+              <td className={cn("px-4 py-1.5 text-right tabular-nums font-medium whitespace-nowrap", valorCor(totalSub))}>{fmt(totalSub)}</td>
             </>
           ) : (
             <td colSpan={13} />
@@ -326,13 +344,13 @@ function SubgrupoBloco({ sub, onDrill, mostrarTituloSub, grupoKey, collapsed, on
             </button>
           </td>
           {n.meses.map((v, i) => (
-            <td key={i} className="px-3 py-1.5 text-right tabular-nums">
+            <td key={i} className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
               {v === 0 ? <span className="text-muted-foreground/60">–</span> : (
-                <button onClick={() => onDrill(n, i)} className={cn("hover:underline", valorCor(v))}>{formatBRL(v)}</button>
+                <button onClick={() => onDrill(n, i)} className={cn("hover:underline whitespace-nowrap", valorCor(v))}>{formatBRL(v)}</button>
               )}
             </td>
           ))}
-          <td className={cn("px-4 py-1.5 text-right tabular-nums font-medium", valorCor(n.total))}>{fmt(n.total)}</td>
+          <td className={cn("px-4 py-1.5 text-right tabular-nums font-medium whitespace-nowrap", valorCor(n.total))}>{fmt(n.total)}</td>
         </tr>
       ))}
     </>
@@ -348,10 +366,10 @@ function LinhaResumo({ label, valores, destaque, forte, semTotal }: { label: str
       <td className={cn("px-4 py-2 sticky left-0 z-10", forte ? "bg-muted font-bold text-foreground" : "bg-slate-50 dark:bg-slate-500/15 font-semibold text-foreground")}>
         = {label}
       </td>
-      {valores.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium", valorCor(v))}>{fmt(v)}</td>)}
+      {valores.map((v, i) => <td key={i} className={cn("px-3 py-2 text-right tabular-nums font-medium whitespace-nowrap", valorCor(v))}>{fmt(v)}</td>)}
       {semTotal
         ? <td className="px-4 py-2 text-right text-muted-foreground/50">—</td>
-        : <td className={cn("px-4 py-2 text-right tabular-nums font-bold", valorCor(total))}>{fmt(total)}</td>}
+        : <td className={cn("px-4 py-2 text-right tabular-nums font-bold whitespace-nowrap", valorCor(total))}>{fmt(total)}</td>}
     </tr>
   );
 }
