@@ -33,6 +33,8 @@ export default function ProjetosHomePage() {
   const [busca, setBusca] = useState("");
   // Filtro por empresa: "TODAS" | "GERAL" (sem empresa) | empresaId.
   const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
+  // Filtro por situação (status de andamento): "TODAS" | chave de SITUACOES_PROJETO. Persiste por usuário.
+  const [filtroSituacao, setFiltroSituacao] = usePersistedState<string>("projetos:home:situacao", "TODAS");
   const empresasSessao = user?.empresas ?? [];
   const multiEmpresa = empresasSessao.length > 1;
   // Visualização: cards (padrão) ou lista — persiste por usuário.
@@ -210,7 +212,8 @@ export default function ProjetosHomePage() {
     .filter((p) =>
       filtroEmpresa === "TODAS" ? true
       : filtroEmpresa === "GERAL" ? !p.empresaId
-      : p.empresaId === filtroEmpresa);
+      : p.empresaId === filtroEmpresa)
+    .filter((p) => filtroSituacao === "TODAS" || (p.situacao ?? "EM_ANDAMENTO") === filtroSituacao);
   const favoritos = visiveis.filter((p) => p.favorito);
   const meus = visiveis.filter((p) => !p.favorito && p.souMembro);
   const publicos = visiveis.filter((p) => !p.favorito && !p.souMembro);
@@ -428,6 +431,17 @@ export default function ProjetosHomePage() {
                 ]}
               />
             )}
+            {/* Filtro por situação */}
+            <SelectMenu
+              value={filtroSituacao}
+              onChange={setFiltroSituacao}
+              title="Filtrar por situação"
+              className="w-44"
+              options={[
+                { value: "TODAS", label: "Todas as situações" },
+                ...Object.entries(SITUACOES_PROJETO).map(([k, v]) => ({ value: k, label: v.label })),
+              ]}
+            />
             {/* Agrupamento das seções */}
             <SelectMenu
               value={agrupar}
