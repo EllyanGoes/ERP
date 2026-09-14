@@ -2754,6 +2754,7 @@ model Usuario {
   comentariosTarefa  TarefaComentario[]
   atividadesTarefa   TarefaAtividade[]
   checklistItens     TarefaChecklistItem[] @relation("ChecklistResponsavel")
+  tarefasInbox       TarefaInbox[]
   // Investimentos pessoais (B3)
   investOperacoes    InvestOperacao[]
   investProventos    InvestProvento[]
@@ -4644,6 +4645,23 @@ model TarefaEtiqueta {
   etiqueta   ProjetoEtiqueta @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
 
   @@id([tarefaId, etiquetaId])
+}
+
+// Caixa de entrada pessoal (estilo Things 3): captura rápida de tarefas sem
+// projeto. Cada item é do usuário; "mover para projeto" vira Tarefa real na
+// 1ª coluna do quadro e o item some daqui. Concluir tira da lista.
+model TarefaInbox {
+  id          String    @id @default(cuid())
+  usuarioId   String
+  titulo      String
+  notas       String?
+  ordem       Int       @default(0)
+  concluidaEm DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, concluidaEm])
 }
 
 model TarefaMembro {

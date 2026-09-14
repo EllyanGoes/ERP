@@ -84,6 +84,7 @@ import {
   ListTodo,
   FileArchive,
   LineChart,
+  Inbox,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
@@ -457,6 +458,7 @@ const mainModules: Module[] = [
       {
         kind: "Geral",
         items: [
+          { href: "/projetos/caixa-de-entrada", label: "Caixa de Entrada", icon: Inbox },
           { href: "/projetos/minhas-tarefas", label: "Minhas Tarefas", icon: ListTodo },
           { href: "/projetos/agenda", label: "Agenda", icon: CalendarDays },
           { href: "/projetos", label: "Meus Projetos", icon: FolderKanban, exact: true },

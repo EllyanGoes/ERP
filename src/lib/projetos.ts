@@ -167,6 +167,11 @@ export function normalizarHora(v: unknown): string | null {
   return `${String(h).padStart(2, "0")}:${m[2]}`;
 }
 
+/** Campos do item da caixa de entrada pessoal (TarefaInbox). */
+export const INBOX_SELECT = {
+  id: true, titulo: true, notas: true, ordem: true, concluidaEm: true, createdAt: true,
+} as const;
+
 export const TAREFA_LISTA_SELECT = {
   id: true, projetoId: true, colunaId: true, titulo: true, descricao: true, ordem: true,
   prioridade: true, prazo: true, prazoHora: true, dataInicio: true, concluidaEm: true, arquivada: true,

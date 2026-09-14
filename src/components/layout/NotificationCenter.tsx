@@ -3,8 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Bell, Check, CheckCheck, X } from "lucide-react";
+import { Bell, Check, CheckCheck, X, AlertTriangle, ListTodo } from "lucide-react";
 import { useSession } from "@/lib/session-context";
+import { prazoInfo, instantePrazo } from "@/components/projetos/tipos";
+
+// Tarefas atribuídas ao usuário com prazo vencido/hoje entram no sino (a
+// caixinha do topo virou a Caixa de Entrada de Projetos).
+type TarefaPrazoDTO = {
+  id: string;
+  titulo: string;
+  prazo: string | null;
+  prazoHora?: string | null;
+  projeto: { id: string; nome: string; cor: string | null };
+  coluna: { nome: string };
+};
 
 type Notif = {
   id: string;
@@ -31,8 +43,10 @@ function tempoRelativo(iso: string): string {
 
 export default function NotificationCenter() {
   const router = useRouter();
-  const { user } = useSession();
+  const { user, canAccess } = useSession();
   const userId = user?.id ?? "anon";
+  const temProjetos = !!user && canAccess("projetos");
+  const [tarefasPrazo, setTarefasPrazo] = useState<TarefaPrazoDTO[]>([]);
 
   const [notifs, setNotifs] = useState<Notif[]>([]);
   const [naoLidas, setNaoLidas] = useState(0);
@@ -125,6 +139,34 @@ export default function NotificationCenter() {
     };
   }, [user, poll]);
 
+  // Prazos das minhas tarefas: ao montar, ao focar, a cada 5 min e quando
+  // uma tela de projetos avisa "erp:tarefas-mudou".
+  const carregarPrazos = useCallback(async () => {
+    if (!temProjetos) return;
+    try {
+      const res = await fetch("/api/projetos/minhas-tarefas");
+      if (!res.ok) return;
+      const json = await res.json();
+      const fimDeHoje = new Date(); fimDeHoje.setHours(23, 59, 59, 999);
+      const lista: TarefaPrazoDTO[] = (json.data ?? []).filter((t: TarefaPrazoDTO) => t.prazo && instantePrazo(t.prazo, t.prazoHora) <= fimDeHoje);
+      setTarefasPrazo(lista);
+    } catch { /* silencioso */ }
+  }, [temProjetos]);
+
+  useEffect(() => {
+    if (!temProjetos) return;
+    carregarPrazos();
+    const onFocus = () => carregarPrazos();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("erp:tarefas-mudou", onFocus);
+    const id = setInterval(carregarPrazos, 5 * 60_000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("erp:tarefas-mudou", onFocus);
+      clearInterval(id);
+    };
+  }, [temProjetos, carregarPrazos]);
+
   // Auto-dismiss dos toasts (macOS some sozinho).
   useEffect(() => {
     if (!toasts.length) return;
@@ -167,6 +209,8 @@ export default function NotificationCenter() {
   const pendentes = notifs.filter((n) => !n.lida);
   const vistas = notifs.filter((n) => n.lida);
   const lista = aba === "pendentes" ? pendentes : vistas;
+  // Badge do sino: notificações não lidas + tarefas com prazo (hoje/atrasadas).
+  const totalBadge = naoLidas + tarefasPrazo.length;
 
   return (
     <>
@@ -179,9 +223,9 @@ export default function NotificationCenter() {
           aria-label="Notificações"
         >
           <Bell className="w-[18px] h-[18px]" />
-          {naoLidas > 0 && (
+          {totalBadge > 0 && (
             <span className="absolute -top-1 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-danger px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
-              {naoLidas > 9 ? "9+" : naoLidas}
+              {totalBadge > 9 ? "9+" : totalBadge}
             </span>
           )}
         </button>
@@ -201,7 +245,7 @@ export default function NotificationCenter() {
             </div>
             {/* Abas: pendentes (não lidas) × vistas (já lidas) */}
             <div className="flex items-center gap-1 px-2 pt-2 border-b border-border">
-              {([["pendentes", "Pendentes", pendentes.length], ["vistas", "Vistas", vistas.length]] as const).map(([k, label, count]) => (
+              {([["pendentes", "Pendentes", pendentes.length + tarefasPrazo.length], ["vistas", "Vistas", vistas.length]] as const).map(([k, label, count]) => (
                 <button
                   key={k}
                   onClick={() => setAba(k)}
@@ -219,7 +263,40 @@ export default function NotificationCenter() {
               ))}
             </div>
             <div className="overflow-y-auto">
-              {lista.length === 0 ? (
+              {/* Tarefas com prazo (atrasadas/hoje) — só na aba Pendentes */}
+              {aba === "pendentes" && tarefasPrazo.length > 0 && (
+                <div className="border-b border-border">
+                  <div className="flex items-center justify-between px-4 pt-2.5 pb-1">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-danger">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Tarefas com prazo ({tarefasPrazo.length})
+                    </span>
+                    <button onClick={() => { setOpen(false); router.push("/projetos/minhas-tarefas"); }} className="text-[11px] text-info hover:underline inline-flex items-center gap-1">
+                      <ListTodo className="w-3 h-3" /> Ver todas
+                    </button>
+                  </div>
+                  {tarefasPrazo.slice(0, 6).map((t) => {
+                    const prazo = prazoInfo(t.prazo, false, t.prazoHora);
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => { setOpen(false); router.push(`/projetos/${t.projeto.id}?tarefa=${t.id}`); }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:bg-muted transition-colors"
+                      >
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.projeto.cor ?? "#64748b" }} />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm text-foreground truncate">{t.titulo}</span>
+                          <span className="block text-[11px] text-muted-foreground truncate">{t.projeto.nome} · {t.coluna.nome}</span>
+                        </span>
+                        {prazo && <span className={`text-[11px] whitespace-nowrap shrink-0 ${prazo.cls}`}>{prazo.label}</span>}
+                      </button>
+                    );
+                  })}
+                  {tarefasPrazo.length > 6 && (
+                    <p className="px-4 pb-2 text-center text-[11px] text-muted-foreground">+{tarefasPrazo.length - 6} tarefas</p>
+                  )}
+                </div>
+              )}
+              {lista.length === 0 && !(aba === "pendentes" && tarefasPrazo.length > 0) ? (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                   {aba === "pendentes" ? "Nenhuma notificação pendente." : "Nenhuma notificação vista."}
                 </p>
