@@ -12,7 +12,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2, MoreHorizontal, ExternalLink, Trash2, LayoutGrid, List, Settings2 } from "lucide-react";
-import { AvatarUsuario, SituacaoBadge, SITUACOES_PROJETO } from "@/components/projetos/comum";
+import { AvatarUsuario, SituacaoMenu, SITUACOES_PROJETO } from "@/components/projetos/comum";
 import { ProjetoHomeDTO, CORES_PROJETO, ProjetoBoardDTO } from "@/components/projetos/tipos";
 import ProjetoConfigDialog from "@/components/projetos/ProjetoConfigDialog";
 import EmpresaTag from "@/components/shared/EmpresaTag";
@@ -169,6 +169,15 @@ export default function ProjetosHomePage() {
     }).catch(() => {});
   }
 
+  // Situação: dono, ADMIN do sistema ou ADMIN do projeto (mesma regra do PATCH).
+  function podeEditarSituacao(p: ProjetoHomeDTO) {
+    if (p.donoId === user?.id || user?.perfil === "ADMIN") return true;
+    return p.membros.some((m) => m.id === user?.id && m.papel === "ADMIN");
+  }
+  function situacaoAlterada(p: ProjetoHomeDTO, situacao: string) {
+    setProjetos((prev) => prev.map((x) => (x.id === p.id ? { ...x, situacao } : x)));
+  }
+
   // ── Ações rápidas do ⋯ do card ────────────────────────────────────────────
   async function alternarArquivado(p: ProjetoHomeDTO) {
     setMenuProjeto(null);
@@ -301,7 +310,7 @@ export default function ProjetosHomePage() {
           {p.descricao && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.descricao}</p>}
           {/* Situação + tag da empresa (ou "Geral" p/ quem vê 2+ empresas). */}
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            <SituacaoBadge situacao={p.situacao} small />
+            <SituacaoMenu projetoId={p.id} situacao={p.situacao} small podeEditar={podeEditarSituacao(p)} onChange={(s) => situacaoAlterada(p, s)} onError={setError} />
             {multiEmpresa && (p.empresaId ? (
               <EmpresaTag empresaId={p.empresaId} compact={false} />
             ) : (
@@ -346,7 +355,7 @@ export default function ProjetosHomePage() {
         <ProgressoProjeto p={p} size={16} />
         <span className="font-medium text-sm text-foreground truncate">{p.nome}</span>
         {p.favorito && <Star className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="currentColor" />}
-        <SituacaoBadge situacao={p.situacao} small />
+        <SituacaoMenu projetoId={p.id} situacao={p.situacao} small podeEditar={podeEditarSituacao(p)} onChange={(s) => situacaoAlterada(p, s)} onError={setError} />
         {multiEmpresa && (
           p.empresaId
             ? <EmpresaTag empresaId={p.empresaId} />

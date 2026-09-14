@@ -1,6 +1,8 @@
 "use client";
 
 // Peças visuais compartilhadas do módulo de Projetos.
+import { useState } from "react";
+import { ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EtiquetaDTO, PRIORIDADES } from "./tipos";
 
@@ -61,11 +63,11 @@ export function ProgressoCirculo({ concluidas, total, cor, size = 18 }: { conclu
 }
 
 /** Situação (status de andamento) do projeto. */
-export const SITUACOES_PROJETO: Record<string, { label: string; cls: string }> = {
-  NAO_INICIADO: { label: "Não iniciado", cls: "bg-muted text-muted-foreground" },
-  EM_ANDAMENTO: { label: "Em andamento", cls: "bg-info/15 text-info" },
-  PAUSADO:      { label: "Pausado",      cls: "bg-warning/15 text-warning" },
-  CONCLUIDO:    { label: "Concluído",    cls: "bg-success/15 text-success" },
+export const SITUACOES_PROJETO: Record<string, { label: string; cls: string; dot: string }> = {
+  NAO_INICIADO: { label: "Não iniciado", cls: "bg-muted text-muted-foreground", dot: "bg-muted-foreground" },
+  EM_ANDAMENTO: { label: "Em andamento", cls: "bg-info/15 text-info",           dot: "bg-info" },
+  PAUSADO:      { label: "Pausado",      cls: "bg-warning/15 text-warning",     dot: "bg-warning" },
+  CONCLUIDO:    { label: "Concluído",    cls: "bg-success/15 text-success",     dot: "bg-success" },
 };
 
 export function SituacaoBadge({ situacao, small }: { situacao?: string | null; small?: boolean }) {
@@ -73,6 +75,90 @@ export function SituacaoBadge({ situacao, small }: { situacao?: string | null; s
   return (
     <span className={cn("inline-flex items-center rounded-full font-medium whitespace-nowrap", small ? "px-1.5 py-px text-[10px]" : "px-2 py-0.5 text-xs", s.cls)}>
       {s.label}
+    </span>
+  );
+}
+
+/** Badge de situação com troca rápida: clica → menu com as situações; salva
+ *  via PATCH /api/projetos/[id] e devolve a nova situação em onChange.
+ *  Feito com <span> (não <button>) p/ poder viver dentro do card, que é um
+ *  <button>. Sem permissão de gerenciar, cai na badge estática. */
+export function SituacaoMenu({
+  projetoId, situacao, small, podeEditar = true, onChange, onError,
+}: {
+  projetoId: string;
+  situacao?: string | null;
+  small?: boolean;
+  podeEditar?: boolean;
+  onChange?: (situacao: string) => void;
+  onError?: (msg: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const atual = situacao ?? "EM_ANDAMENTO";
+  const s = SITUACOES_PROJETO[atual] ?? SITUACOES_PROJETO.EM_ANDAMENTO;
+
+  if (!podeEditar) return <SituacaoBadge situacao={situacao} small={small} />;
+
+  async function escolher(nova: string) {
+    setAberto(false);
+    if (nova === atual || salvando) return;
+    setSalvando(true);
+    try {
+      const res = await fetch(`/api/projetos/${projetoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ situacao: nova }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        onError?.(j.error || "Não foi possível alterar a situação.");
+        return;
+      }
+      onChange?.(nova);
+    } catch {
+      onError?.("Erro de conexão");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <span className="relative inline-flex" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
+      <span
+        role="button"
+        tabIndex={0}
+        title="Alterar situação do projeto"
+        onClick={() => setAberto((v) => !v)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAberto((v) => !v); } }}
+        className={cn(
+          "inline-flex items-center gap-0.5 rounded-full font-medium whitespace-nowrap cursor-pointer hover:ring-1 hover:ring-border transition-shadow",
+          small ? "px-1.5 py-px text-[10px]" : "px-2 py-0.5 text-xs",
+          s.cls, salvando && "opacity-60"
+        )}
+      >
+        {s.label}
+        <ChevronDown className={small ? "w-2.5 h-2.5" : "w-3 h-3"} />
+      </span>
+      {aberto && (
+        <>
+          <span className="fixed inset-0 z-40" onClick={() => setAberto(false)} />
+          <span className="absolute left-0 top-full mt-1 z-50 w-44 bg-card border border-border rounded-xl shadow-xl py-1 text-sm flex flex-col">
+            {Object.entries(SITUACOES_PROJETO).map(([k, v]) => (
+              <span
+                key={k}
+                role="button"
+                onClick={() => escolher(k)}
+                className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted cursor-pointer text-foreground"
+              >
+                <span className={cn("w-2 h-2 rounded-full shrink-0", v.dot)} />
+                <span className="flex-1">{v.label}</span>
+                {k === atual && <Check className="w-3.5 h-3.5 text-muted-foreground" />}
+              </span>
+            ))}
+          </span>
+        </>
+      )}
     </span>
   );
 }
