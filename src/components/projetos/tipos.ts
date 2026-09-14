@@ -26,6 +26,8 @@ export type TarefaResumoDTO = {
   ordem: number;
   prioridade: "BAIXA" | "MEDIA" | "ALTA" | "URGENTE";
   prazo: string | null;
+  // "HH:MM" local; null = dia inteiro.
+  prazoHora?: string | null;
   dataInicio: string | null;
   concluidaEm: string | null;
   arquivada: boolean;
@@ -101,16 +103,29 @@ export function diaPrazo(prazo: string): Date {
   return new Date(prazo.slice(0, 10) + "T00:00:00");
 }
 
-export function prazoInfo(prazo: string | null, concluida: boolean): { label: string; cls: string } | null {
+/** Data+hora do prazo como Date local (hora "HH:MM"; sem hora = meia-noite). */
+export function instantePrazo(prazo: string, hora?: string | null): Date {
+  const d = diaPrazo(prazo);
+  if (hora) {
+    const [h, m] = hora.split(":").map(Number);
+    d.setHours(h, m, 0, 0);
+  }
+  return d;
+}
+
+export function prazoInfo(prazo: string | null, concluida: boolean, hora?: string | null): { label: string; cls: string } | null {
   if (!prazo) return null;
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const dia = diaPrazo(prazo);
   const diff = Math.round((dia.getTime() - hoje.getTime()) / 86_400_000);
-  const label = dia.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  const sufixo = hora ? ` ${hora}` : "";
+  const label = dia.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) + sufixo;
   if (concluida) return { label, cls: "text-muted-foreground" };
   if (diff < 0) return { label, cls: "text-danger font-semibold" };
-  if (diff === 0) return { label: "Hoje", cls: "text-warning font-semibold" };
-  if (diff === 1) return { label: "Amanhã", cls: "text-warning" };
+  // Com hora no dia de hoje, já passou → atrasada.
+  if (diff === 0 && hora && instantePrazo(prazo, hora) < new Date()) return { label: `Hoje${sufixo}`, cls: "text-danger font-semibold" };
+  if (diff === 0) return { label: `Hoje${sufixo}`, cls: "text-warning font-semibold" };
+  if (diff === 1) return { label: `Amanhã${sufixo}`, cls: "text-warning" };
   return { label, cls: "text-muted-foreground" };
 }

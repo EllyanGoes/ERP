@@ -4,6 +4,7 @@
 // Cada um renderiza um backdrop transparente (clique fora fecha) + painel
 // ancorado no elemento pai (que deve ser position:relative).
 import { useState, useEffect } from "react";
+import TimePicker from "@/components/shared/TimePicker";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import EscClose from "@/components/shared/EscClose";
@@ -110,15 +111,19 @@ function iso(d: Date): string {
 const DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 export function DatasPopover({
-  dataInicio, prazo, onSalvar, onFechar,
+  dataInicio, prazo, prazoHora, onSalvar, onFechar,
 }: {
   dataInicio: string | null;
   prazo: string | null;
-  onSalvar: (v: { dataInicio: string | null; prazo: string | null }) => void;
+  prazoHora?: string | null;
+  onSalvar: (v: { dataInicio: string | null; prazo: string | null; prazoHora: string | null }) => void;
   onFechar: () => void;
 }) {
   const [inicio, setInicio] = useState<string>(dataInicio ? dataInicio.slice(0, 10) : "");
   const [entrega, setEntrega] = useState<string>(prazo ? prazo.slice(0, 10) : "");
+  // Hora da entrega ("HH:MM"; "" = dia inteiro). Com hora, a atividade entra
+  // na Agenda no horário (visão semanal) e no feed ICS como evento de 1h.
+  const [hora, setHora] = useState<string>(prazoHora ?? "");
   const [campoAtivo, setCampoAtivo] = useState<"inicio" | "entrega">("entrega");
   const base = entrega || inicio || iso(new Date());
   const [ano, setAno] = useState(parseInt(base.slice(0, 4)));
@@ -232,15 +237,16 @@ export function DatasPopover({
               >
                 {entrega ? new Date(entrega + "T12:00:00").toLocaleDateString("pt-BR") : "D/M/AAAA"}
               </button>
+              <TimePicker value={hora} onChange={setHora} disabled={!entrega} className="w-28" triggerClassName="h-[34px]" />
             </div>
           </div>
         </div>
 
         <div className="space-y-1.5 pt-1">
-          <Button className="w-full bg-blue-600 hover:bg-blue-700 h-9" onClick={() => onSalvar({ dataInicio: inicio || null, prazo: entrega || null })}>
+          <Button className="w-full bg-blue-600 hover:bg-blue-700 h-9" onClick={() => onSalvar({ dataInicio: inicio || null, prazo: entrega || null, prazoHora: entrega && hora ? hora : null })}>
             Salvar
           </Button>
-          <Button variant="outline" className="w-full h-9" onClick={() => onSalvar({ dataInicio: null, prazo: null })}>
+          <Button variant="outline" className="w-full h-9" onClick={() => onSalvar({ dataInicio: null, prazo: null, prazoHora: null })}>
             Remover
           </Button>
         </div>

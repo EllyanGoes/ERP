@@ -16,7 +16,7 @@ export async function GET() {
       projeto: { status: "ATIVO" },
     },
     select: {
-      id: true, titulo: true, prioridade: true, prazo: true, dataInicio: true,
+      id: true, titulo: true, prioridade: true, prazo: true, prazoHora: true, dataInicio: true,
       projeto: { select: { id: true, nome: true, cor: true } },
       coluna: { select: { nome: true } },
       etiquetas: { select: { etiqueta: { select: { id: true, nome: true, cor: true } } } },

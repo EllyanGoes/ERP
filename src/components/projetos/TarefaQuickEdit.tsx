@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import DatePicker from "@/components/shared/DatePicker";
+import TimePicker from "@/components/shared/TimePicker";
 import EscClose from "@/components/shared/EscClose";
 import {
   CreditCard, User as UserIcon, CalendarDays, ArrowRight, Copy, Link as LinkIcon, Archive, Check, X,
@@ -234,7 +235,10 @@ export default function TarefaQuickEdit({
             {submenu === "prazo" && a.submenu === "prazo" && (
               <div className="mt-1 bg-card border border-border rounded-lg shadow-md p-2 space-y-1.5">
                 {/* autoFocus: atalho D (e o clique em "Editar prazo") vai direto pro campo de data. */}
-                <DatePicker autoFocus value={tarefa.prazo ? tarefa.prazo.slice(0, 10) : ""} onChange={(v) => patch({ prazo: v || null })} />
+                <DatePicker autoFocus value={tarefa.prazo ? tarefa.prazo.slice(0, 10) : ""} onChange={(v) => patch({ prazo: v || null }) } />
+                {tarefa.prazo && (
+                  <TimePicker value={tarefa.prazoHora ?? ""} onChange={(v) => patch({ prazoHora: v || null })} placeholder="Hora (opcional)" />
+                )}
                 {tarefa.prazo && (
                   <button className="w-full text-left px-1 text-xs text-muted-foreground hover:text-danger" onClick={() => patch({ prazo: null })}>
                     Remover prazo

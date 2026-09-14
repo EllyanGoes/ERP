@@ -40,7 +40,7 @@ export default function ListaView({
             <table className="w-full text-sm">
               <tbody className="divide-y divide-border">
                 {lista.map((t) => {
-                  const prazo = prazoInfo(t.prazo, !!t.concluidaEm);
+                  const prazo = prazoInfo(t.prazo, !!t.concluidaEm, t.prazoHora);
                   return (
                     <tr key={t.id} className="hover:bg-muted cursor-pointer" onClick={() => onAbrirTarefa(t.id)}>
                       <td className="px-4 py-2.5">

@@ -12,6 +12,8 @@ import { tokenFeedAgendaValido } from "@/lib/projetos";
 const esc = (s: string) =>
   s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 
+const TZ = "America/Sao_Paulo";
+
 const ymd = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
 
 export async function GET(req: NextRequest) {
@@ -29,7 +31,7 @@ export async function GET(req: NextRequest) {
       projeto: { status: "ATIVO", OR: [{ donoId: u }, { membros: { some: { usuarioId: u } } }] },
     },
     select: {
-      id: true, titulo: true, prazo: true, updatedAt: true,
+      id: true, titulo: true, prazo: true, prazoHora: true, updatedAt: true,
       projeto: { select: { id: true, nome: true } },
     },
     orderBy: { prazo: "asc" },
@@ -44,17 +46,37 @@ export async function GET(req: NextRequest) {
     "X-WR-CALNAME:Agenda — Projetos",
     "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
     "X-PUBLISHED-TTL:PT1H",
+    // Eventos com hora usam o fuso local do grupo (Brasil, sem horário de verão).
+    "BEGIN:VTIMEZONE",
+    `TZID:${TZ}`,
+    "BEGIN:STANDARD",
+    "DTSTART:19700101T000000",
+    "TZOFFSETFROM:-0300",
+    "TZOFFSETTO:-0300",
+    "TZNAME:-03",
+    "END:STANDARD",
+    "END:VTIMEZONE",
   ];
   for (const tf of tarefas) {
     const inicio = tf.prazo!;
     const fim = new Date(inicio.getTime() + 86400000); // dia inteiro: DTEND exclusivo
     const url = `${req.nextUrl.origin}/projetos/${tf.projeto.id}?tarefa=${tf.id}`;
+    // Com hora: evento de 1h no fuso local (DTSTART;TZID=...). Sem hora: dia inteiro.
+    let dtstart = `DTSTART;VALUE=DATE:${ymd(inicio)}`;
+    let dtend = `DTEND;VALUE=DATE:${ymd(fim)}`;
+    if (tf.prazoHora) {
+      const [h, m] = tf.prazoHora.split(":").map(Number);
+      const hm = (hh: number, mm: number) => `${String(hh).padStart(2, "0")}${String(mm).padStart(2, "0")}00`;
+      const fimH = h + 1 > 23 ? 23 : h + 1, fimM = h + 1 > 23 ? 59 : m;
+      dtstart = `DTSTART;TZID=${TZ}:${ymd(inicio)}T${hm(h, m)}`;
+      dtend = `DTEND;TZID=${TZ}:${ymd(inicio)}T${hm(fimH, fimM)}`;
+    }
     linhas.push(
       "BEGIN:VEVENT",
       `UID:tarefa-${tf.id}@erp-projetos`,
       `DTSTAMP:${tf.updatedAt.toISOString().replace(/[-:]/g, "").slice(0, 15)}Z`,
-      `DTSTART;VALUE=DATE:${ymd(inicio)}`,
-      `DTEND;VALUE=DATE:${ymd(fim)}`,
+      dtstart,
+      dtend,
       `SUMMARY:${esc(`${tf.titulo} — ${tf.projeto.nome}`)}`,
       `DESCRIPTION:${esc(url)}`,
       `URL:${url}`,

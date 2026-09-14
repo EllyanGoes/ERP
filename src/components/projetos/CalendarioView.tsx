@@ -120,6 +120,7 @@ export default function CalendarioView({
                     title={t.titulo}
                   >
                     {t.etiquetas[0] && <span className="inline-block w-2 h-2 rounded-full mr-1 align-middle" style={{ backgroundColor: t.etiquetas[0].cor }} />}
+                    {t.prazoHora && <span className="text-muted-foreground mr-1 tabular-nums">{t.prazoHora}</span>}
                     {t.titulo}
                   </div>
                 ))}

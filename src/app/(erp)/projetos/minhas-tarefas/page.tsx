@@ -15,6 +15,7 @@ type MinhaTarefaDTO = {
   titulo: string;
   prioridade: string;
   prazo: string | null;
+  prazoHora?: string | null;
   dataInicio: string | null;
   projeto: { id: string; nome: string; cor: string | null };
   coluna: { nome: string };
@@ -87,7 +88,7 @@ export default function MinhasTarefasPage() {
                 </div>
                 <div className="bg-card rounded-xl border border-border divide-y divide-border overflow-hidden">
                   {g.lista.map((t) => {
-                    const prazo = prazoInfo(t.prazo, false);
+                    const prazo = prazoInfo(t.prazo, false, t.prazoHora);
                     return (
                       <button
                         key={t.id}

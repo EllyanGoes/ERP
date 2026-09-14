@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
-import { nivelNoProjeto, podeEditarTarefas, registrarAtividade, notificarAtribuicao } from "@/lib/projetos";
+import { nivelNoProjeto, podeEditarTarefas, registrarAtividade, notificarAtribuicao, normalizarHora } from "@/lib/projetos";
 
 async function carregarComAcesso(session: { sub: string; perfil: "ADMIN" | "USUARIO" }, tarefaId: string) {
   const tarefa = await prismaSemEscopo.tarefa.findUnique({
@@ -26,7 +26,7 @@ export async function GET(_: NextRequest, { params }: { params: { tarefaId: stri
     where: { id: params.tarefaId },
     select: {
       id: true, projetoId: true, colunaId: true, titulo: true, descricao: true,
-      prioridade: true, dataInicio: true, prazo: true, concluidaEm: true, arquivada: true,
+      prioridade: true, dataInicio: true, prazo: true, prazoHora: true, concluidaEm: true, arquivada: true,
       criadoPor: true, createdAt: true,
       membros: { select: { usuario: { select: { id: true, nome: true } } } },
       coluna: { select: { id: true, nome: true, concluiTarefa: true } },
@@ -78,7 +78,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { tarefaId: 
   if (body.dataInicio !== undefined) data.dataInicio = body.dataInicio ? new Date(body.dataInicio) : null;
   if (body.prazo !== undefined) {
     data.prazo = body.prazo ? new Date(body.prazo) : null;
-    atividades.push({ tipo: "PRAZO", detalhe: { prazo: body.prazo ?? null } });
+    // Sem prazo não há hora.
+    if (!body.prazo) data.prazoHora = null;
+    atividades.push({ tipo: "PRAZO", detalhe: { prazo: body.prazo ?? null, prazoHora: body.prazoHora ?? null } });
+  }
+  // Hora do prazo ("HH:MM"; null/"" = dia inteiro). Inválida é ignorada.
+  if (body.prazoHora !== undefined && data.prazoHora === undefined) {
+    data.prazoHora = normalizarHora(body.prazoHora);
+    if (body.prazo === undefined) atividades.push({ tipo: "PRAZO", detalhe: { prazoHora: data.prazoHora } });
   }
   let membrosNovos: string[] = [];
   if (Array.isArray(body.membroIds)) {

@@ -15,7 +15,7 @@ import {
 import { AvatarUsuario, EtiquetaChip } from "./comum";
 import SelectMenu from "@/components/shared/SelectMenu";
 import { MembrosPopover, DatasPopover, EtiquetasPopover } from "./popovers";
-import { ProjetoBoardDTO, PRIORIDADES } from "./tipos";
+import { ProjetoBoardDTO, PRIORIDADES, instantePrazo } from "./tipos";
 
 type CardDTO = {
   id: string;
@@ -26,6 +26,7 @@ type CardDTO = {
   prioridade: string;
   dataInicio: string | null;
   prazo: string | null;
+  prazoHora?: string | null;
   concluidaEm: string | null;
   arquivada: boolean;
   criadoPor: string | null;
@@ -381,7 +382,7 @@ export default function TarefaCardDialog({
   const podeGerenciar = card.meuNivel === "DONO" || card.meuNivel === "ADMIN";
   const feitos = card.checklist.filter((i) => i.feito).length;
   const progresso = card.checklist.length > 0 ? Math.round((feitos / card.checklist.length) * 100) : 0;
-  const prazoVencido = card.prazo && !card.concluidaEm && new Date(card.prazo) < new Date();
+  const prazoVencido = card.prazo && !card.concluidaEm && instantePrazo(card.prazo, card.prazoHora) < (card.prazoHora ? new Date() : new Date(new Date().setHours(0, 0, 0, 0)));
 
   // Feed unificado (estilo Trello): comentários + atividade, mais recente no topo
   const feed = [
@@ -530,7 +531,7 @@ export default function TarefaCardDialog({
                   {card.dataInicio || card.prazo
                     ? [
                         card.dataInicio ? new Date(card.dataInicio).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : null,
-                        card.prazo ? new Date(card.prazo).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : null,
+                        card.prazo ? new Date(card.prazo).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) + (card.prazoHora ? ` às ${card.prazoHora}` : "") : null,
                       ].filter(Boolean).join(" → ")
                     : "Adicionar datas"}
                 </button>
@@ -545,7 +546,8 @@ export default function TarefaCardDialog({
                 <DatasPopover
                   dataInicio={card.dataInicio}
                   prazo={card.prazo}
-                  onSalvar={(v) => { setShowDatas(false); patch({ dataInicio: v.dataInicio, prazo: v.prazo }); }}
+                  prazoHora={card.prazoHora}
+                  onSalvar={(v) => { setShowDatas(false); patch({ dataInicio: v.dataInicio, prazo: v.prazo, prazoHora: v.prazoHora }); }}
                   onFechar={() => setShowDatas(false)}
                 />
               )}

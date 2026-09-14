@@ -157,9 +157,19 @@ export async function renormalizarColuna(colunaId: string): Promise<void> {
 }
 
 /** Payload padrão da tarefa nas listagens (board/lista/minhas-tarefas). */
+/** Valida "HH:MM" (hora do prazo). Devolve a string normalizada ou null. */
+export function normalizarHora(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const m = v.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1]), mi = parseInt(m[2]);
+  if (h > 23 || mi > 59) return null;
+  return `${String(h).padStart(2, "0")}:${m[2]}`;
+}
+
 export const TAREFA_LISTA_SELECT = {
   id: true, projetoId: true, colunaId: true, titulo: true, descricao: true, ordem: true,
-  prioridade: true, prazo: true, dataInicio: true, concluidaEm: true, arquivada: true,
+  prioridade: true, prazo: true, prazoHora: true, dataInicio: true, concluidaEm: true, arquivada: true,
   membros: { select: { usuario: { select: { id: true, nome: true } } } },
   etiquetas: { select: { etiqueta: { select: { id: true, nome: true, cor: true } } } },
   _count: { select: { comentarios: true, anexos: true, checklist: true } },

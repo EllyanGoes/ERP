@@ -302,7 +302,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
             {/* Cartões */}
             <div className="px-2 pb-2 space-y-2 overflow-y-auto flex-1 min-h-[6px]">
               {lista.map((t, idx) => {
-                const prazo = prazoInfo(t.prazo, !!t.concluidaEm);
+                const prazo = prazoInfo(t.prazo, !!t.concluidaEm, t.prazoHora);
                 return (
                   <div key={t.id}>
                     {/* Zona de drop ANTES do cartão */}

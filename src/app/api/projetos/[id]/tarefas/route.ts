@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
-import { nivelNoProjeto, podeEditarTarefas, registrarAtividade, notificarAtribuicao, ORDEM_GAP } from "@/lib/projetos";
+import { nivelNoProjeto, podeEditarTarefas, registrarAtividade, notificarAtribuicao, ORDEM_GAP, normalizarHora } from "@/lib/projetos";
 
 // GET /api/projetos/[id]/tarefas?arquivadas=1 — tarefas arquivadas do quadro
 // (painel do ícone de arquivo: restaurar ou excluir de vez).
@@ -64,6 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       membros: { create: membroIds.map((usuarioId) => ({ usuarioId })) },
       dataInicio: body.dataInicio ? new Date(body.dataInicio) : null,
       prazo: body.prazo ? new Date(body.prazo) : null,
+      prazoHora: body.prazo ? normalizarHora(body.prazoHora) : null,
       concluidaEm: coluna.concluiTarefa ? new Date() : null,
     },
     select: { id: true, titulo: true },

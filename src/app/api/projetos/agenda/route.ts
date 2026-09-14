@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       },
     },
     select: {
-      id: true, titulo: true, prazo: true, prioridade: true,
+      id: true, titulo: true, prazo: true, prazoHora: true, prioridade: true,
       projeto: { select: { id: true, nome: true, cor: true } },
       coluna: { select: { nome: true } },
       membros: { select: { usuario: { select: { id: true, nome: true } } } },

@@ -4615,6 +4615,9 @@ model Tarefa {
   prioridade    PrioridadeTarefa      @default(MEDIA)
   dataInicio    DateTime?
   prazo         DateTime?
+  // Hora do prazo ("HH:MM", local). Null = dia inteiro. prazo continua sendo
+  // só a DATA (meia-noite UTC) — a hora vive separada p/ não deslocar o dia.
+  prazoHora     String?
   concluidaEm   DateTime?
   arquivada     Boolean               @default(false)
   criadoPor     String?
