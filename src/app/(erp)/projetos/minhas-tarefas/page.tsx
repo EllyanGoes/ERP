@@ -1,14 +1,14 @@
 "use client";
 
 // Minhas Tarefas — caixa pessoal cruzando todos os projetos do usuário.
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, AlertTriangle, CalendarDays, ListTodo, Inbox } from "lucide-react";
 import { EtiquetaChip, PrioridadeBadge } from "@/components/projetos/comum";
 import { EtiquetaDTO, prazoInfo, diaPrazo } from "@/components/projetos/tipos";
+import TarefaCardOverlay from "@/components/projetos/TarefaCardOverlay";
 
 type MinhaTarefaDTO = {
   id: string;
@@ -23,18 +23,21 @@ type MinhaTarefaDTO = {
 };
 
 export default function MinhasTarefasPage() {
-  const router = useRouter();
   useTabTitle("Minhas Tarefas");
 
   const [tarefas, setTarefas] = useState<MinhaTarefaDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  // Cartão aberto em popup (mesmo do quadro) sem sair da lista.
+  const [aberta, setAberta] = useState<{ tarefaId: string; projetoId: string } | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch("/api/projetos/minhas-tarefas")
       .then((r) => r.json())
       .then((j) => setTarefas(j.data ?? []))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const fimSemana = new Date(hoje); fimSemana.setDate(hoje.getDate() + 7);
@@ -92,7 +95,7 @@ export default function MinhasTarefasPage() {
                     return (
                       <button
                         key={t.id}
-                        onClick={() => router.push(`/projetos/${t.projeto.id}?tarefa=${t.id}`)}
+                        onClick={() => setAberta({ tarefaId: t.id, projetoId: t.projeto.id })}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted transition-colors"
                       >
                         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.projeto.cor ?? "#64748b" }} title={t.projeto.nome} />
@@ -116,6 +119,15 @@ export default function MinhasTarefasPage() {
           )
         )}
       </div>
+
+      {aberta && (
+        <TarefaCardOverlay
+          tarefaId={aberta.tarefaId}
+          projetoId={aberta.projetoId}
+          onFechar={() => { setAberta(null); load(); }}
+          onMudou={load}
+        />
+      )}
     </div>
   );
 }
