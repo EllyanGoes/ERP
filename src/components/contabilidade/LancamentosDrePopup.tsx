@@ -55,7 +55,7 @@ export default function LancamentosDrePopup({ alvo, onFechar }: { alvo: AlvoLanc
     <ModalPortal>
       <div className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/50 p-4 overflow-y-auto" onMouseDown={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
         <EscClose onClose={onFechar} />
-        <div className="bg-card rounded-2xl shadow-2xl w-full max-w-5xl my-6 flex flex-col max-h-[85vh]">
+        <div className="bg-card rounded-2xl shadow-2xl w-[96vw] max-w-[1700px] my-4 flex flex-col max-h-[92vh]">
           <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">{alvo.fonte === "dexion" ? "Lançamentos do contador (Dexion)" : "Lançamentos do ERP"} · {periodo}</p>
@@ -81,7 +81,7 @@ export default function LancamentosDrePopup({ alvo, onFechar }: { alvo: AlvoLanc
                   <tr>
                     <th className="text-left px-4 py-2 w-24">Data</th>
                     <th className="text-left px-3 py-2 w-24">Nº</th>
-                    <th className="text-left px-3 py-2">Histórico</th>
+                    <th className="text-left px-3 py-2 min-w-[22rem]">Histórico</th>
                     <th className="text-left px-3 py-2">Conta</th>
                     <th className="text-left px-3 py-2">Contrapartida</th>
                     <th className="text-right px-3 py-2 w-32">Débito</th>
@@ -91,11 +91,11 @@ export default function LancamentosDrePopup({ alvo, onFechar }: { alvo: AlvoLanc
                 <tbody className="divide-y divide-border">
                   {(linhas ?? []).map((l) => (
                     <tr key={l.chave} className="hover:bg-muted/60">
-                      <td className="px-4 py-1.5 whitespace-nowrap text-muted-foreground">{l.data.split("-").reverse().join("/")}</td>
+                      <td className="px-4 py-1.5 whitespace-nowrap text-muted-foreground align-top">{l.data.split("-").reverse().join("/")}</td>
                       <td className="px-3 py-1.5 font-mono text-xs text-muted-foreground">{l.numero ?? ""}</td>
-                      <td className="px-3 py-1.5 text-foreground max-w-md truncate" title={l.historico}>{l.historico}</td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground max-w-xs truncate" title={l.conta}>{l.conta}</td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground max-w-xs truncate" title={l.contrapartida}>{l.contrapartida}</td>
+                      <td className="px-3 py-1.5 text-foreground whitespace-normal break-words leading-snug">{l.historico}</td>
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-normal leading-snug min-w-[14rem]">{l.conta}</td>
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-normal leading-snug min-w-[14rem]">{l.contrapartida}</td>
                       <td className="px-3 py-1.5 text-right">{l.lado === "D" ? fmt(l.valor) : ""}</td>
                       <td className="px-4 py-1.5 text-right">{l.lado === "C" ? fmt(l.valor) : ""}</td>
                     </tr>

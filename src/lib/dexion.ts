@@ -219,39 +219,73 @@ export type DexionLancamento = {
   lado: "D" | "C";
 };
 
-/** Lançamentos do Dexion que tocam a conta (ou prefixo de conta) no mês (1–12;
- *  0 = ano inteiro). Histórico = padrão + complemento. Com cache de 12h. */
-export function dexionLancamentos(codigoEmpresa: number, exercicio: number, contaPrefixo: string, mes: number, opts?: { forcar?: boolean }) {
-  const prefixo = contaPrefixo.replace(/[^0-9.]/g, "");
-  return comCache<DexionLancamento[]>(`lanc:${codigoEmpresa}:${exercicio}:${prefixo}:${mes}`, async () => {
-    const filtroMes = mes >= 1 && mes <= 12 ? `AND EXTRACT(MONTH FROM l.DATA) = ${Math.floor(mes)}` : "";
+type LancBruto = { l: number; p: number; d: string; v: number; cd: string | null; cc: string | null; h: string };
+
+/** Históricos padrão do Dexion (id → descrição), cache 24h. */
+async function dexionHistoricos() {
+  const c = await comCache<Record<string, string>>("historicos", async () => {
+    const rows = await dexionQuery<{ HISTORICO_PADRAO: number; DESCRICAO: string; TIPO_HISTORICO_PADRAO: string }>(
+      "SELECT HISTORICO_PADRAO, DESCRICAO, TIPO_HISTORICO_PADRAO FROM C_HISTORICOS_PADROES",
+    );
+    const m: Record<string, string> = {};
+    for (const r of rows) m[`${r.TIPO_HISTORICO_PADRAO}|${r.HISTORICO_PADRAO}`] = r.DESCRICAO ?? "";
+    return m;
+  }, { ttlMs: 24 * 60 * 60 * 1000 });
+  return c.dados;
+}
+
+// Lançamentos do ano que tocam um "pedaço" do plano (prefixo de 4 segmentos,
+// ex.: 3.1.1.1), em cache. O COMPLEMENTO é blob: buscar linha a linha custa
+// uma ida e volta de rede por lançamento (18 s p/ 2 mil linhas); com CAST
+// p/ VARCHAR ele vem inline e o ano inteiro do grupo sai em < 1 s. Os nomes
+// das contas vêm do balancete em cache, sem join.
+async function dexionLancamentosPedaco(codigoEmpresa: number, exercicio: number, pedaco: string, opts?: { forcar?: boolean }) {
+  return comCache<LancBruto[]>(`lanc:${codigoEmpresa}:${exercicio}:${pedaco}`, async () => {
+    const hist = await dexionHistoricos();
     const rows = await dexionQuery<Row>(
-      `SELECT l.LANCAMENTO, l.PARTIDA, l.DATA, l.VALOR, l.CONTA_DEBITO, l.CONTA_CREDITO, l.COMPLEMENTO,
-              h.DESCRICAO AS HIST, pd.DESCRICAO AS NOME_D, pc.DESCRICAO AS NOME_C
+      `SELECT l.LANCAMENTO, l.PARTIDA, l.DATA, l.VALOR, l.CONTA_DEBITO, l.CONTA_CREDITO, l.HISTORICO, l.TIPO_HISTORICO_PADRAO,
+              CAST(l.COMPLEMENTO AS VARCHAR(8000)) AS COMPL
          FROM C_LANCAMENTOS l
-         LEFT JOIN C_HISTORICOS_PADROES h ON h.HISTORICO_PADRAO = l.HISTORICO AND h.TIPO_HISTORICO_PADRAO = l.TIPO_HISTORICO_PADRAO
-         LEFT JOIN C_PLANO_CONTAS pd ON pd.TIPO_PLANO_CONTAS = l.TIPO_PLANO_CONTAS AND pd.CONTA = l.CONTA_DEBITO
-         LEFT JOIN C_PLANO_CONTAS pc ON pc.TIPO_PLANO_CONTAS = l.TIPO_PLANO_CONTAS AND pc.CONTA = l.CONTA_CREDITO
         WHERE l.EMPRESA = ? AND l.EXERCICIO = ?
-          AND (l.CONTA_DEBITO STARTING WITH ? OR l.CONTA_CREDITO STARTING WITH ?) ${filtroMes}
+          AND (l.CONTA_DEBITO STARTING WITH ? OR l.CONTA_CREDITO STARTING WITH ?)
         ORDER BY l.DATA, l.LANCAMENTO, l.PARTIDA`,
-      [codigoEmpresa, exercicio, prefixo, prefixo],
+      [codigoEmpresa, exercicio, pedaco, pedaco],
       120_000,
     );
     return rows.map((r) => {
-      const cd = (r.CONTA_DEBITO as string | null) ?? null, cc = (r.CONTA_CREDITO as string | null) ?? null;
-      const hist = [r.HIST, r.COMPLEMENTO].map((x) => (x == null ? "" : String(x).trim())).filter(Boolean).join(" — ");
       const d = r.DATA instanceof Date ? r.DATA : new Date(String(r.DATA));
+      const padrao = r.HISTORICO == null ? "" : (hist[`${r.TIPO_HISTORICO_PADRAO}|${r.HISTORICO}`] ?? "");
+      const compl = r.COMPL == null ? "" : String(r.COMPL).trim();
       return {
-        lancamento: Number(r.LANCAMENTO), partida: Number(r.PARTIDA ?? 0),
-        data: d.toISOString().slice(0, 10),
-        contaDebito: cd, contaCredito: cc,
-        contaDebitoNome: (r.NOME_D as string | null) ?? null, contaCreditoNome: (r.NOME_C as string | null) ?? null,
-        historico: hist, valor: Number(r.VALOR ?? 0),
-        lado: cd && cd.startsWith(prefixo) ? "D" : "C",
-      } as DexionLancamento;
+        l: Number(r.LANCAMENTO), p: Number(r.PARTIDA ?? 0), d: d.toISOString().slice(0, 10), v: Number(r.VALOR ?? 0),
+        cd: (r.CONTA_DEBITO as string | null) ?? null, cc: (r.CONTA_CREDITO as string | null) ?? null,
+        h: [padrao, compl].filter(Boolean).join(" — "),
+      };
     });
   }, opts);
+}
+
+/** Lançamentos do Dexion que tocam a conta (ou prefixo) no mês (1–12; 0 = ano
+ *  inteiro). Filtra em memória o pedaço (4 segmentos) em cache. */
+export async function dexionLancamentos(codigoEmpresa: number, exercicio: number, contaPrefixo: string, mes: number, opts?: { forcar?: boolean }): Promise<ComCache<DexionLancamento[]>> {
+  const prefixo = contaPrefixo.replace(/[^0-9.]/g, "");
+  const pedaco = prefixo.split(".").slice(0, 4).join(".");
+  const [bruto, balancete] = await Promise.all([
+    dexionLancamentosPedaco(codigoEmpresa, exercicio, pedaco, opts),
+    dexionBalanceteCache(codigoEmpresa, exercicio),
+  ]);
+  const nome = new Map(balancete.dados.map((c) => [c.conta, c.descricao]));
+  const mm = mes >= 1 && mes <= 12 ? String(Math.floor(mes)).padStart(2, "0") : null;
+  const dados: DexionLancamento[] = bruto.dados
+    .filter((r) => (r.cd?.startsWith(prefixo) || r.cc?.startsWith(prefixo)) && (!mm || r.d.slice(5, 7) === mm))
+    .map((r) => ({
+      lancamento: r.l, partida: r.p, data: r.d,
+      contaDebito: r.cd, contaCredito: r.cc,
+      contaDebitoNome: r.cd ? nome.get(r.cd) ?? null : null, contaCreditoNome: r.cc ? nome.get(r.cc) ?? null : null,
+      historico: r.h, valor: r.v,
+      lado: r.cd && r.cd.startsWith(prefixo) ? "D" : "C",
+    }));
+  return { dados, atualizadoEm: bruto.atualizadoEm, doCache: bruto.doCache, erroAtualizacao: bruto.erroAtualizacao };
 }
 
 /** Só os dígitos do CNPJ/CPF — p/ casar empresa do Dexion com a do ERP. */
