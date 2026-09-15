@@ -90,6 +90,8 @@ export type DexionContaSaldo = {
   /** Devedor positivo, credor negativo. */
   saldoFinal: number;
   mensal: number[]; // débito − crédito de cada mês (12 posições)
+  debitosMes?: number[]; // brutos por mês (p/ corte a partir do cache)
+  creditosMes?: number[];
 };
 
 /** Balancete do Dexion p/ (código da empresa, exercício) até o mês informado (1–12). */
@@ -111,10 +113,11 @@ export async function dexionBalancete(codigoEmpresa: number, exercicio: number, 
     const conta = String(r.CONTA ?? "");
     if (!conta || r.DESCRICAO == null) continue; // contas sem cadastro no plano
     let deb = 0, cred = 0;
-    const mensal: number[] = [];
+    const mensal: number[] = [], debitosMes: number[] = [], creditosMes: number[] = [];
     meses.forEach((m, i) => {
       const d = Number(r[`DEBITO_${m}`] ?? 0), c = Number(r[`CREDITO_${m}`] ?? 0);
       mensal.push(+(d - c).toFixed(2));
+      debitosMes.push(+d.toFixed(2)); creditosMes.push(+c.toFixed(2));
       if (i < ate) { deb += d; cred += c; }
     });
     const si = Number(r.SALDO_INICIAL ?? 0);
@@ -128,10 +131,78 @@ export async function dexionBalancete(codigoEmpresa: number, exercicio: number, 
       debitos: +deb.toFixed(2),
       creditos: +cred.toFixed(2),
       saldoFinal: +(si + deb - cred).toFixed(2),
-      mensal,
+      mensal, debitosMes, creditosMes,
     });
   }
   return out;
+}
+
+// ── Cache no banco do ERP ────────────────────────────────────────────────────
+// O Firebird do contador é remoto e lento (um balancete leva vários segundos).
+// As telas leem do cache (tabela DexionCache) e só reconsultam quando ele
+// passa da validade ou quando o usuário clica em "Atualizar do Dexion".
+// Se o Dexion estiver fora do ar e houver cache, devolve o cache (marcado).
+
+export const DEXION_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12h
+
+export type ComCache<T> = { dados: T; atualizadoEm: Date; doCache: boolean; erroAtualizacao?: string };
+
+async function lerCache<T>(chave: string): Promise<{ dados: T; atualizadoEm: Date } | null> {
+  const c = await prisma.dexionCache.findUnique({ where: { chave } });
+  return c ? { dados: c.dados as T, atualizadoEm: c.atualizadoEm } : null;
+}
+
+async function gravarCache<T>(chave: string, dados: T): Promise<Date> {
+  const agora = new Date();
+  await prisma.dexionCache.upsert({
+    where: { chave },
+    update: { dados: dados as object, atualizadoEm: agora },
+    create: { chave, dados: dados as object, atualizadoEm: agora },
+  });
+  return agora;
+}
+
+async function comCache<T>(chave: string, buscar: () => Promise<T>, opts?: { forcar?: boolean; ttlMs?: number }): Promise<ComCache<T>> {
+  const ttl = opts?.ttlMs ?? DEXION_CACHE_TTL_MS;
+  const cache = await lerCache<T>(chave);
+  if (cache && !opts?.forcar && Date.now() - cache.atualizadoEm.getTime() < ttl) {
+    return { dados: cache.dados, atualizadoEm: cache.atualizadoEm, doCache: true };
+  }
+  try {
+    const dados = await buscar();
+    const atualizadoEm = await gravarCache(chave, dados);
+    return { dados, atualizadoEm, doCache: false };
+  } catch (e) {
+    if (cache) return { dados: cache.dados, atualizadoEm: cache.atualizadoEm, doCache: true, erroAtualizacao: e instanceof Error ? e.message : String(e) };
+    throw e;
+  }
+}
+
+/** Lista de empresas do Dexion, com cache (24h). */
+export function dexionEmpresasCache(opts?: { forcar?: boolean }) {
+  return comCache<DexionEmpresa[]>("empresas", dexionEmpresas, { ...opts, ttlMs: 24 * 60 * 60 * 1000 });
+}
+
+/** Balancete do exercício inteiro (12 meses) com cache; o corte por mês é feito
+ *  em memória a partir do `mensal`. Só guarda contas com saldo ou movimento. */
+export async function dexionBalanceteCache(codigoEmpresa: number, exercicio: number, opts?: { forcar?: boolean }): Promise<ComCache<DexionContaSaldo[]>> {
+  return comCache<DexionContaSaldo[]>(
+    `balancete:${codigoEmpresa}:${exercicio}`,
+    async () => (await dexionBalancete(codigoEmpresa, exercicio, 12)).filter((c) => c.saldoInicial !== 0 || c.mensal.some((m) => m !== 0)),
+    opts,
+  );
+}
+
+/** Reaplica o corte "até o mês" num balancete vindo do cache (12 meses). */
+export function cortarBalancete(contas: DexionContaSaldo[], ateMes: number): DexionContaSaldo[] {
+  const ate = Math.min(12, Math.max(1, ateMes));
+  return contas.map((c) => {
+    // mensal = débito − crédito; recompõe débitos/créditos só dá com os brutos,
+    // então guardamos ambos: recalcula a partir dos acumulados por mês.
+    const deb = c.debitosMes ? c.debitosMes.slice(0, ate).reduce((a, b) => a + b, 0) : c.debitos;
+    const cred = c.creditosMes ? c.creditosMes.slice(0, ate).reduce((a, b) => a + b, 0) : c.creditos;
+    return { ...c, debitos: +deb.toFixed(2), creditos: +cred.toFixed(2), saldoFinal: +(c.saldoInicial + deb - cred).toFixed(2) };
+  });
 }
 
 /** Só os dígitos do CNPJ/CPF — p/ casar empresa do Dexion com a do ERP. */

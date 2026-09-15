@@ -28,6 +28,25 @@ type LinhaComparativo = ContaDexionDTO & { erpContaId: string | null; erpCodigo:
 type ContaErpDTO = { id: string; codigo: string; nome: string; nivel: number; aceitaLancamento: boolean };
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+type MetaCache = { atualizadoEm?: string; doCache?: boolean; erroAtualizacao?: string | null };
+
+// "Dados do Dexion de dd/mm hh:mm" + botão que força a releitura no Firebird.
+function InfoCache({ meta, onAtualizar, atualizando }: { meta: MetaCache | null; onAtualizar: () => void; atualizando: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+      {meta?.atualizadoEm && (
+        <span title={meta.doCache ? "Lido do cache do ERP" : "Lido agora do Dexion"}>
+          Dados do Dexion de {new Date(meta.atualizadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+        </span>
+      )}
+      {meta?.erroAtualizacao && <span className="text-warning" title={meta.erroAtualizacao}>Dexion indisponível, mostrando o cache</span>}
+      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onAtualizar} disabled={atualizando} title="Reler do Dexion agora (o cache vale 12h)">
+        <RefreshCw className={cn("w-3.5 h-3.5 mr-1", atualizando && "animate-spin")} /> Atualizar do Dexion
+      </Button>
+    </span>
+  );
+}
 const fmt = (v: number | null | undefined) => v == null ? "—" : v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function IntegracaoDexionPage() {
@@ -195,10 +214,10 @@ function AbaVinculos({ empresas, onErro }: { empresas: { id: string; nome: strin
   const [novo, setNovo] = useState({ empresaId: empresas[0]?.id ?? "", exercicio: String(new Date().getFullYear()), codigoDexion: "" });
   const [salvando, setSalvando] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forcar = false) => {
     setLoading(true); onErro("");
     const [e, v] = await Promise.all([
-      fetch("/api/contabilidade/dexion/empresas").then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/contabilidade/dexion/empresas${forcar ? "?atualizar=1" : ""}`).then((r) => r.json()).catch(() => ({})),
       fetch("/api/contabilidade/dexion/vinculos").then((r) => r.json()).catch(() => ({})),
     ]);
     if (e.error) onErro(e.error);
@@ -253,7 +272,7 @@ function AbaVinculos({ empresas, onErro }: { empresas: { id: string; nome: strin
         <Button size="sm" onClick={salvar} disabled={salvando || !novo.codigoDexion || !novo.empresaId}>
           {salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Link2 className="w-3.5 h-3.5 mr-1.5" />} Vincular
         </Button>
-        <Button size="sm" variant="ghost" onClick={load} title="Recarregar"><RefreshCw className="w-3.5 h-3.5" /></Button>
+        <Button size="sm" variant="ghost" onClick={() => load(true)} title="Reler a lista de empresas do Dexion (o cache vale 24h)"><RefreshCw className="w-3.5 h-3.5 mr-1" /> Atualizar do Dexion</Button>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -299,14 +318,16 @@ function AbaBalancete({ empresaId, exercicio, ate, onErro }: { empresaId: string
   const [busca, setBusca] = useState("");
   const [contas, setContas] = useState<ContaDexionDTO[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [meta, setMeta] = useState<MetaCache | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forcar = false) => {
     setLoading(true); onErro("");
-    const res = await fetch(`/api/contabilidade/dexion/balancete?empresaId=${empresaId}&exercicio=${exercicio}&ate=${ate}`).catch(() => null);
+    const res = await fetch(`/api/contabilidade/dexion/balancete?empresaId=${empresaId}&exercicio=${exercicio}&ate=${ate}${forcar ? "&atualizar=1" : ""}`).catch(() => null);
     const j = await res?.json().catch(() => ({}));
     setLoading(false);
     if (!res?.ok) { onErro(j?.error || "Não foi possível carregar o balancete."); setContas(null); return; }
     setContas(j.data ?? []);
+    setMeta({ atualizadoEm: j.atualizadoEm, doCache: j.doCache, erroAtualizacao: j.erroAtualizacao });
   }, [empresaId, exercicio, ate, onErro]);
   useEffect(() => { load(); }, [load]);
 
@@ -329,7 +350,10 @@ function AbaBalancete({ empresaId, exercicio, ate, onErro }: { empresaId: string
       <div className="flex flex-wrap items-center gap-2">
         <SelectMenu value={String(nivel)} onChange={(v) => setNivel(Number(v))} className="w-40" options={[1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: n === 6 ? "Todas (analíticas)" : `Até nível ${n}` }))} />
         <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conta ou descrição…" className="h-9 w-64 text-sm" />
-        <Button size="sm" variant="outline" onClick={exportar} disabled={!contas?.length} className="ml-auto"><Download className="w-3.5 h-3.5 mr-1.5" /> Planilha</Button>
+        <span className="ml-auto inline-flex items-center gap-2">
+          <InfoCache meta={meta} onAtualizar={() => load(true)} atualizando={loading} />
+          <Button size="sm" variant="outline" onClick={exportar} disabled={!contas?.length}><Download className="w-3.5 h-3.5 mr-1.5" /> Planilha</Button>
+        </span>
       </div>
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -370,15 +394,17 @@ function AbaComparativo({ empresaId, exercicio, ate, onErro }: { empresaId: stri
   const [linhas, setLinhas] = useState<LinhaComparativo[] | null>(null);
   const [contasErp, setContasErp] = useState<ContaErpDTO[]>([]);
   const [loading, setLoading] = useState(false);
+  const [meta, setMeta] = useState<MetaCache | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forcar = false) => {
     setLoading(true); onErro("");
-    const res = await fetch(`/api/contabilidade/dexion/comparativo?empresaId=${empresaId}&exercicio=${exercicio}&ate=${ate}&nivel=6`).catch(() => null);
+    const res = await fetch(`/api/contabilidade/dexion/comparativo?empresaId=${empresaId}&exercicio=${exercicio}&ate=${ate}&nivel=6${forcar ? "&atualizar=1" : ""}`).catch(() => null);
     const j = await res?.json().catch(() => ({}));
     setLoading(false);
     if (!res?.ok) { onErro(j?.error || "Não foi possível montar o comparativo."); setLinhas(null); return; }
     setLinhas(j.data ?? []);
     setContasErp(j.contasErp ?? []);
+    setMeta({ atualizadoEm: j.atualizadoEm, doCache: j.doCache, erroAtualizacao: j.erroAtualizacao });
   }, [empresaId, exercicio, ate, onErro]);
   useEffect(() => { load(); }, [load]);
 
@@ -420,7 +446,10 @@ function AbaComparativo({ empresaId, exercicio, ate, onErro }: { empresaId: stri
             {mapeadas.length} mapeadas · <span className={divergentes.length ? "text-danger font-medium" : "text-success font-medium"}>{divergentes.length} com diferença</span>
           </span>
         )}
-        <Button size="sm" variant="outline" onClick={exportar} disabled={!visiveis.length} className="ml-auto"><Download className="w-3.5 h-3.5 mr-1.5" /> Planilha</Button>
+        <span className="ml-auto inline-flex items-center gap-2">
+          <InfoCache meta={meta} onAtualizar={() => load(true)} atualizando={loading} />
+          <Button size="sm" variant="outline" onClick={exportar} disabled={!visiveis.length}><Download className="w-3.5 h-3.5 mr-1.5" /> Planilha</Button>
+        </span>
       </div>
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>

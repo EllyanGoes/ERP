@@ -11,12 +11,12 @@ import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtColuna } from "@/lib/formato-contabil";
 import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
-import { Loader2, FileBarChart, SlidersHorizontal, FileDown, Database, AlertTriangle } from "lucide-react";
+import { Loader2, FileBarChart, SlidersHorizontal, FileDown, Database, AlertTriangle, RefreshCw } from "lucide-react";
 
 type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
 type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI" | "SUBTOTAL"; contas: LinhaConta[]; meses: number[]; total: number };
 type Fonte = "erp" | "dexion";
-type Dre = { ano: number; fonte?: Fonte; secoes: Secao[]; resultadoMeses: number[]; resultadoTotal: number; codigoDexion?: number; error?: string };
+type Dre = { ano: number; fonte?: Fonte; secoes: Secao[]; resultadoMeses: number[]; resultadoTotal: number; codigoDexion?: number; atualizadoEm?: string; erroAtualizacao?: string | null; error?: string };
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
@@ -38,6 +38,14 @@ export default function DrePage() {
     () => fetch(`/api/contabilidade/dre?ano=${ano}&fonte=${fonte}`).then((r) => r.json()),
   );
   const erroDre = dre && !dre.secoes ? (dre.error || "Não foi possível montar a DRE.") : null;
+  const [atualizando, setAtualizando] = useState(false);
+  // Força a releitura no Firebird do contador (o cache no ERP vale 12h) e recarrega.
+  async function atualizarDexion() {
+    setAtualizando(true);
+    try { await fetch(`/api/contabilidade/dre?ano=${ano}&fonte=dexion&atualizar=1`); } catch { /* o refetch mostra o erro */ }
+    await refetch();
+    setAtualizando(false);
+  }
   const { user } = useSession();
   const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;
 
@@ -112,9 +120,16 @@ export default function DrePage() {
         </div>
 
         {fonte === "dexion" && dre?.secoes && (
-          <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
-            <Database className="w-3.5 h-3.5" /> Dados da contabilidade do contador (Dexion, empresa {dre.codigoDexion}), agrupados nas seções da sua estrutura de DRE. Linhas são os grupos do plano do contador e não abrem razão.
-          </p>
+          <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground no-print">
+            <span className="inline-flex items-center gap-1.5">
+              <Database className="w-3.5 h-3.5" /> Contabilidade do contador (Dexion, empresa {dre.codigoDexion}), nas seções da sua estrutura de DRE. Linhas são os grupos do plano do contador e não abrem razão.
+            </span>
+            {dre.atualizadoEm && <span>Dados de {new Date(dre.atualizadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}.</span>}
+            {dre.erroAtualizacao && <span className="text-warning" title={dre.erroAtualizacao}>Dexion indisponível, mostrando o cache.</span>}
+            <button type="button" onClick={atualizarDexion} disabled={atualizando} className="inline-flex items-center gap-1 text-info hover:underline disabled:opacity-50">
+              <RefreshCw className={cn("w-3.5 h-3.5", atualizando && "animate-spin")} /> Atualizar do Dexion
+            </button>
+          </div>
         )}
         {loading || !dre ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>

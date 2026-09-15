@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const secoesDex = await prisma.dRESecao.findMany({ orderBy: { ordem: "asc" }, select: { id: true, nome: true, operacao: true, ordem: true } });
     const empresaId = auth.session.activeEmpresaId ?? "emp_tramontin";
     try {
-      const d = await dreDexion(empresaId, ano, secoesDex);
+      const d = await dreDexion(empresaId, ano, secoesDex, { forcar: searchParams.get("atualizar") === "1" });
       return NextResponse.json({ ano, fonte, ...d });
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao consultar o Dexion" }, { status: 502 });

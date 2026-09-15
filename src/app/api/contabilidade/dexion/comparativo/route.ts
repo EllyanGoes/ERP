@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { decimalToNumber } from "@/lib/utils";
-import { dexionBalancete } from "@/lib/dexion";
+import { dexionBalanceteCache, cortarBalancete } from "@/lib/dexion";
 import { guardDexion, erroDexion } from "../_shared";
 
 // GET /api/contabilidade/dexion/comparativo?empresaId&exercicio&ate=9&nivel=3
@@ -23,8 +23,9 @@ export async function GET(req: NextRequest) {
   const fim = new Date(Date.UTC(exercicio, ate, 0, 23, 59, 59, 999)); // último dia do mês `ate`
 
   try {
-    const [dexion, contas, partidas, dePara] = await Promise.all([
-      dexionBalancete(v.codigoDexion, exercicio, ate),
+    const forcar = sp.get("atualizar") === "1";
+    const [cache, contas, partidas, dePara] = await Promise.all([
+      dexionBalanceteCache(v.codigoDexion, exercicio, { forcar }),
       prismaSemEscopo.contaContabil.findMany({ where: { empresaId: g.empresaId }, select: { id: true, codigo: true, nome: true, paiId: true, nivel: true, aceitaLancamento: true } }),
       prismaSemEscopo.partidaContabil.groupBy({
         by: ["contaId", "tipo"],
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
     const contaPorId = new Map(contas.map((c) => [c.id, c]));
     const mapa = new Map(dePara.map((d) => [d.contaDexion, d.contaContabilId]));
 
+    const dexion = cortarBalancete(cache.dados, ate);
     const data = dexion
       .filter((c) => c.nivel <= nivel)
       .map((c) => {
@@ -73,6 +75,7 @@ export async function GET(req: NextRequest) {
       data,
       contasErp: contas.map((c) => ({ id: c.id, codigo: c.codigo, nome: c.nome, nivel: c.nivel, aceitaLancamento: c.aceitaLancamento })),
       codigoDexion: v.codigoDexion, exercicio, ate, fim: fim.toISOString(),
+      atualizadoEm: cache.atualizadoEm, doCache: cache.doCache, erroAtualizacao: cache.erroAtualizacao ?? null,
     });
   } catch (e) {
     return erroDexion(e);

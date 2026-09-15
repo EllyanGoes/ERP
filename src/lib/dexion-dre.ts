@@ -1,7 +1,7 @@
 // DRE a partir do Dexion + utilitários compartilhados com a DRE do ERP
 // (tipos, cascata de seções). Separado da rota p/ ser testável.
 import { prismaSemEscopo } from "@/lib/prisma";
-import { dexionBalancete } from "@/lib/dexion";
+import { dexionBalanceteCache } from "@/lib/dexion";
 
 export type LinhaConta = { id: string; codigo: string; nome: string; ordemDre: number; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
 export type SecaoOut = { id: string; nome: string; operacao: string; contas: LinhaConta[]; meses: number[]; total: number };
@@ -35,10 +35,11 @@ export function cascata(secoesOut: SecaoOut[]) {
 // linha. Seção pelo prefixo do Dexion: 3.1 e 3.4.1 → Receitas, 3.1.1.1.09 →
 // Deduções (se a estrutura tiver), 3.2 → Custos, demais → Despesas. Sinal:
 // seção de receita = crédito − débito; as outras = débito − crédito.
-export async function dreDexion(empresaId: string, ano: number, secoes: SecaoIn[]) {
+export async function dreDexion(empresaId: string, ano: number, secoes: SecaoIn[], opts?: { forcar?: boolean }) {
   const v = await prismaSemEscopo.dexionVinculoEmpresa.findUnique({ where: { empresaId_exercicio: { empresaId, exercicio: ano } } });
   if (!v) throw new Error(`Sem vínculo com o Dexion para ${ano}. Cadastre em Contabilidade → Integração Dexion → Vínculos.`);
-  const contas = await dexionBalancete(v.codigoDexion, ano, 12);
+  const cache = await dexionBalanceteCache(v.codigoDexion, ano, opts);
+  const contas = cache.dados;
   const resultado = contas.filter((c) => c.conta.startsWith("3") && c.sintetica);
   const temFilhoN5 = new Set(resultado.filter((c) => c.nivel === 5).map((c) => c.conta.split(".").slice(0, 4).join(".")));
   const linhas = resultado.filter((c) => c.nivel === 5 || (c.nivel === 4 && !temFilhoN5.has(c.conta)));
@@ -75,6 +76,6 @@ export async function dreDexion(empresaId: string, ano: number, secoes: SecaoIn[
   }
   const secoesOut = Array.from(porSecao.values());
   for (const s of secoesOut) s.contas.sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
-  return { secoes: secoesOut, ...cascata(secoesOut), codigoDexion: v.codigoDexion };
+  return { secoes: secoesOut, ...cascata(secoesOut), codigoDexion: v.codigoDexion, atualizadoEm: cache.atualizadoEm, doCache: cache.doCache, erroAtualizacao: cache.erroAtualizacao ?? null };
 }
 

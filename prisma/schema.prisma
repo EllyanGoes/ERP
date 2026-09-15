@@ -656,6 +656,15 @@ model DexionVinculoEmpresa {
   @@unique([empresaId, exercicio])
 }
 
+// Cache das consultas ao Dexion (balancete por código×exercício, lista de
+// empresas). O Firebird do contador é lento e remoto; as telas leem daqui e
+// só reconsultam quando o cache passa da validade ou quando o usuário pede.
+model DexionCache {
+  chave        String   @id // ex.: "balancete:217:2026", "empresas"
+  dados        Json
+  atualizadoEm DateTime @default(now())
+}
+
 model DexionDePara {
   id              String        @id @default(cuid())
   empresaId       String
