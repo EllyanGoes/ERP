@@ -138,6 +138,7 @@ export const MODULOS: ModuloDef[] = [
       { key: "dre",          label: "DRE",                      acoes: ["ver"] },
       { key: "balanco",      label: "Balanço Patrimonial",      acoes: ["ver"] },
       { key: "imobilizado",  label: "Imobilizado",              acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "integracao-dexion", label: "Integração Dexion (contador)", acoes: ["ver", "editar"] },
       { key: "cpv",          label: "CPV",                      acoes: ["ver"] },
       { key: "fechamento",   label: "Encerramento do Exercício", acoes: ["ver", "editar"] },
       { key: "diagnostico",  label: "Diagnóstico",              acoes: ["ver"] },

@@ -332,6 +332,7 @@ const mainModules: Module[] = [
           { href: "/contabilidade/lancamentos", label: "Diário Contábil", icon: BarChart3 },
           { href: "/contabilidade/cpv", label: "CPV", icon: Calculator },
           { href: "/contabilidade/fechamento", label: "Encerramento do Exercício", icon: CalendarClock },
+          { href: "/contabilidade/integracao-dexion", label: "Integração Dexion", icon: Plug },
         ],
       },
       {

@@ -133,6 +133,16 @@ export default function IntegracoesPage() {
       status:  dbStatus,
     },
     {
+      href:    "/contabilidade/integracao-dexion",
+      icon:    <Database className="w-5 h-5 text-warning" />,
+      bg:      "bg-warning/10 border-warning/20",
+      title:   "Banco Dexion (contador)",
+      desc:    "Leitura da cópia do Firebird do escritório contábil — balancete e comparativo no módulo Contabilidade",
+      badge:   "Firebird",
+      badgeCn: "bg-warning/10 text-warning border-warning/20",
+      status:  "idle" as const,
+    },
+    {
       href:    "/configuracoes/integracoes/pagamento",
       icon:    <CreditCard className="w-5 h-5 text-success" />,
       bg:      "bg-success/10 border-emerald-100",

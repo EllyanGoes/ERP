@@ -642,6 +642,32 @@ model Configuracao {
 // própria conta na adquirente. Hoje só a Stone tem API de nuvem para cobrança
 // automática; Sicredi/Caixa seguem manuais no Caixa. accessToken é secret
 // (nunca volta no GET — mascarado). ativo liga a cobrança automática no Caixa.
+// Integração Dexion (Firebird do escritório contábil). Vínculo empresa ERP ×
+// código da empresa no Dexion, POR EXERCÍCIO (lá cada ano é uma "empresa"), e
+// De-Para de contas p/ comparar o balancete do contador com o do ERP.
+model DexionVinculoEmpresa {
+  id           String   @id @default(cuid())
+  empresaId    String
+  exercicio    Int
+  codigoDexion Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([empresaId, exercicio])
+}
+
+model DexionDePara {
+  id              String        @id @default(cuid())
+  empresaId       String
+  contaDexion     String // código no plano do Dexion (ex.: 1.1.2.6)
+  contaContabilId String
+  createdAt       DateTime      @default(now())
+  contaContabil   ContaContabil @relation(fields: [contaContabilId], references: [id], onDelete: Cascade)
+
+  @@unique([empresaId, contaDexion])
+  @@index([contaContabilId])
+}
+
 model IntegracaoPagamento {
   id           String   @id @default(cuid())
   empresaId    String
@@ -1210,6 +1236,7 @@ model ContaContabil {
   updatedAt                DateTime             @updatedAt
   pai                      ContaContabil?       @relation("ContaArvore", fields: [paiId], references: [id])
   filhos                   ContaContabil[]      @relation("ContaArvore")
+  dexionDePara             DexionDePara[]
   cliente                  Cliente?             @relation(fields: [clienteId], references: [id])
   fornecedor               Fornecedor?          @relation(fields: [fornecedorId], references: [id])
   colaborador              Colaborador?         @relation(fields: [colaboradorId], references: [id])
