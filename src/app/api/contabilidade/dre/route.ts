@@ -3,8 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { decimalToNumber } from "@/lib/utils";
+import { dreDexion } from "@/lib/dexion-dre";
 
-// GET /api/contabilidade/dre?ano=YYYY
+import { cascata, z, r2, type SecaoOut } from "@/lib/dexion-dre";
+
+// GET /api/contabilidade/dre?ano=YYYY&fonte=erp|dexion
 // DRE da empresa ativa, mês a mês, agrupada pelas seções da estrutura editável
 // (DRESecao). Cada conta de resultado tem valor por mês; o subtotal da seção
 // soma/subtrai no resultado conforme a operação da seção.
@@ -16,6 +19,18 @@ export async function GET(req: NextRequest) {
   const ano = parseInt(searchParams.get("ano") ?? "", 10) || new Date().getUTCFullYear();
   const ini = new Date(Date.UTC(ano, 0, 1));
   const fim = new Date(Date.UTC(ano, 11, 31, 23, 59, 59, 999));
+
+  const fonte = searchParams.get("fonte") === "dexion" ? "dexion" : "erp";
+  if (fonte === "dexion") {
+    const secoesDex = await prisma.dRESecao.findMany({ orderBy: { ordem: "asc" }, select: { id: true, nome: true, operacao: true, ordem: true } });
+    const empresaId = auth.session.activeEmpresaId ?? "emp_tramontin";
+    try {
+      const d = await dreDexion(empresaId, ano, secoesDex);
+      return NextResponse.json({ ano, fonte, ...d });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao consultar o Dexion" }, { status: 502 });
+    }
+  }
 
   const [secoes, contas, sinteticas] = await Promise.all([
     prisma.dRESecao.findMany({ orderBy: { ordem: "asc" }, select: { id: true, nome: true, operacao: true, ordem: true } }),
@@ -50,23 +65,17 @@ export async function GET(req: NextRequest) {
   // valorPorConta[contaId][mes 0..11] = débito/crédito acumulado
   const deb = new Map<string, number[]>();
   const cred = new Map<string, number[]>();
-  const z = () => new Array(12).fill(0) as number[];
   for (const p of partidas) {
     const mes = new Date(p.lancamento.data).getUTCMonth();
     const m = p.tipo === "DEBITO" ? deb : cred;
     if (!m.has(p.contaId)) m.set(p.contaId, z());
     m.get(p.contaId)![mes] += decimalToNumber(p.valor);
   }
-  const r2 = (n: number) => Math.round(n * 100) / 100;
-
   // Seção default por prefixo (para contas sem dreSecaoId).
   const secaoPorPrefixo = (codigo: string) => {
     const nomeAlvo = codigo.startsWith("3.1") ? "Receitas" : codigo.startsWith("3.2") ? "Custos" : "Despesas";
     return secoes.find((s) => s.nome === nomeAlvo) ?? secoes.find((s) => s.operacao !== "SUBTOTAL");
   };
-
-  type LinhaConta = { id: string; codigo: string; nome: string; ordemDre: number; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
-  type SecaoOut = { id: string; nome: string; operacao: string; contas: LinhaConta[]; meses: number[]; total: number };
 
   const porSecao = new Map<string, SecaoOut>();
   for (const s of secoes) porSecao.set(s.id, { id: s.id, nome: s.nome, operacao: s.operacao, contas: [], meses: z(), total: 0 });
@@ -95,21 +104,6 @@ export async function GET(req: NextRequest) {
   const secoesOut = Array.from(porSecao.values());
   for (const s of secoesOut) s.contas.sort((a, b) => a.codigo.localeCompare(b.codigo, undefined, { numeric: true }));
 
-  // Cascata: acumula +/− na ordem; cada seção "=" (SUBTOTAL) recebe o acumulado
-  // até o ponto (Receita Líquida, Margem Bruta, EBITDA…). O resultado final é o
-  // último acumulado.
-  const acc = z();
-  let accTotal = 0;
-  for (const s of secoesOut) {
-    if (s.operacao === "SUBTOTAL") {
-      s.meses = acc.slice();
-      s.total = accTotal;
-      continue;
-    }
-    const sinal = s.operacao === "SUBTRAI" ? -1 : 1;
-    for (let i = 0; i < 12; i++) acc[i] = r2(acc[i] + sinal * s.meses[i]);
-    accTotal = r2(accTotal + sinal * s.total);
-  }
-
-  return NextResponse.json({ ano, secoes: secoesOut, resultadoMeses: acc, resultadoTotal: accTotal });
+  const { resultadoMeses, resultadoTotal } = cascata(secoesOut);
+  return NextResponse.json({ ano, fonte, secoes: secoesOut, resultadoMeses, resultadoTotal });
 }

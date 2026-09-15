@@ -5,16 +5,18 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import BackfillConsistencia from "@/components/contabilidade/BackfillConsistencia";
 import { useCachedData } from "@/lib/use-cached-data";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtColuna } from "@/lib/formato-contabil";
 import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
-import { Loader2, FileBarChart, SlidersHorizontal, FileDown } from "lucide-react";
+import { Loader2, FileBarChart, SlidersHorizontal, FileDown, Database, AlertTriangle } from "lucide-react";
 
 type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
 type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI" | "SUBTOTAL"; contas: LinhaConta[]; meses: number[]; total: number };
-type Dre = { ano: number; secoes: Secao[]; resultadoMeses: number[]; resultadoTotal: number };
+type Fonte = "erp" | "dexion";
+type Dre = { ano: number; fonte?: Fonte; secoes: Secao[]; resultadoMeses: number[]; resultadoTotal: number; codigoDexion?: number; error?: string };
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
@@ -28,11 +30,14 @@ export default function DrePage() {
   // Exercício SEMPRE no ano corrente ao abrir (não persiste).
   const [ano, setAno] = useState<number>(() => new Date().getUTCFullYear());
   const [modo, setModo] = useFormatoContabil();
-  // Cache stale-while-revalidate por ano — reabrir não recarrega.
+  // Origem dos dados: contabilidade do ERP ou a do contador (Dexion). Persiste por usuário.
+  const [fonte, setFonte] = usePersistedState<Fonte>("contabilidade:dre:fonte", "erp");
+  // Cache stale-while-revalidate por ano+origem — reabrir não recarrega.
   const { data: dre, loading, refetch } = useCachedData<Dre>(
-    `dre:${ano}`,
-    () => fetch(`/api/contabilidade/dre?ano=${ano}`).then((r) => r.json()),
+    `dre:${fonte}:${ano}`,
+    () => fetch(`/api/contabilidade/dre?ano=${ano}&fonte=${fonte}`).then((r) => r.json()),
   );
+  const erroDre = dre && !dre.secoes ? (dre.error || "Não foi possível montar a DRE.") : null;
   const { user } = useSession();
   const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? null;
 
@@ -61,7 +66,7 @@ export default function DrePage() {
     gerarPdfContabil({
       titulo: "DRE — Demonstração do Resultado",
       empresa: empresaNome,
-      subinfo: [`Exercício: ${dre.ano}`, `Formato: ${modo === "contabil" ? "Contábil" : "Real"}`],
+      subinfo: [`Exercício: ${dre.ano}`, `Origem: ${fonte === "dexion" ? "Dexion (contador)" : "ERP"}`, `Formato: ${modo === "contabil" ? "Contábil" : "Real"}`],
       head: ["Conta", ...MESES, "Total"],
       linhas,
       alinharDireitaDe: 1,
@@ -83,6 +88,19 @@ export default function DrePage() {
               {Array.from({ length: 6 }).map((_, i) => { const y = new Date().getUTCFullYear() - i; return <option key={y} value={y}>{y}</option>; })}
             </select>
           </label>
+          {/* Origem: ERP × Dexion (contador) */}
+          <div className="flex rounded-lg border border-border overflow-hidden text-sm" title="Origem dos dados da DRE">
+            {([["erp", "ERP"], ["dexion", "Dexion (contador)"]] as const).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setFonte(k)}
+                className={cn("px-3 py-2 inline-flex items-center gap-1.5 font-medium transition-colors", fonte === k ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted")}
+              >
+                {k === "dexion" ? <Database className="w-4 h-4" /> : <FileBarChart className="w-4 h-4" />} {label}
+              </button>
+            ))}
+          </div>
           <Link href="/contabilidade/dre/estrutura" className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg border border-border hover:bg-muted">
             <SlidersHorizontal className="w-4 h-4" /> Editar estrutura
           </Link>
@@ -93,8 +111,15 @@ export default function DrePage() {
           </button>
         </div>
 
+        {fonte === "dexion" && dre?.secoes && (
+          <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5" /> Dados da contabilidade do contador (Dexion, empresa {dre.codigoDexion}), agrupados nas seções da sua estrutura de DRE. Linhas são os grupos do plano do contador e não abrem razão.
+          </p>
+        )}
         {loading || !dre ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground gap-2"><Loader2 className="w-5 h-5 animate-spin" /> Carregando…</div>
+        ) : erroDre ? (
+          <div className="flex items-center gap-2 rounded-lg bg-danger/10 text-danger text-sm px-3 py-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {erroDre}</div>
         ) : (
           <div className="rounded-xl border border-border bg-card overflow-auto print-area">
             <table className="w-full text-sm tabular-nums whitespace-nowrap">
@@ -107,7 +132,7 @@ export default function DrePage() {
               </thead>
               <tbody>
                 {dre.secoes.map((s) => (
-                  <SecaoRows key={s.id} secao={s} ano={dre.ano} modo={modo} />
+                  <SecaoRows key={s.id} secao={s} ano={dre.ano} modo={modo} linkRazao={fonte === "erp"} />
                 ))}
                 <tr className="border-t-2 border-border bg-gray-900 text-white font-bold">
                   <td className="px-4 py-3 sticky left-0 bg-gray-900 z-10">Resultado do Exercício</td>
@@ -138,7 +163,7 @@ function subtotaisDoSubgrupo(contas: LinhaConta[]) {
   return m;
 }
 
-function SecaoRows({ secao, ano, modo }: { secao: Secao; ano: number; modo: "contabil" | "real" }) {
+function SecaoRows({ secao, ano, modo, linkRazao }: { secao: Secao; ano: number; modo: "contabil" | "real"; linkRazao: boolean }) {
   // Linha "=" (SUBTOTAL): resultado acumulado, sem contas.
   if (secao.operacao === "SUBTOTAL") {
     return (
@@ -181,14 +206,21 @@ function SecaoRows({ secao, ano, modo }: { secao: Secao; ano: number; modo: "con
             )}
             <tr className="border-b border-gray-50 hover:bg-info/10">
               <td className={cn("px-4 py-1.5 sticky left-0 bg-card z-10", c.subgrupoCodigo && "pl-9")}>
-                <Link
-                  href={`/contabilidade/razao/${c.id}?from=${ano}-01-01&to=${ano}-12-31`}
-                  className="flex items-center gap-2 hover:text-info"
-                  title="Abrir razão da conta em nova aba"
-                >
-                  <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
-                  <span className="truncate">{c.nome}</span>
-                </Link>
+                {linkRazao ? (
+                  <Link
+                    href={`/contabilidade/razao/${c.id}?from=${ano}-01-01&to=${ano}-12-31`}
+                    className="flex items-center gap-2 hover:text-info"
+                    title="Abrir razão da conta em nova aba"
+                  >
+                    <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
+                    <span className="truncate">{c.nome}</span>
+                  </Link>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
+                    <span className="truncate">{c.nome}</span>
+                  </span>
+                )}
               </td>
               {c.meses.map((v, i) => <td key={i} className="text-right px-3 py-1.5 text-muted-foreground">{celula(v, modo)}</td>)}
               <td className="text-right px-4 py-1.5 font-medium bg-muted/50">{celula(c.total, modo)}</td>
