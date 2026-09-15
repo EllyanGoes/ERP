@@ -3,7 +3,7 @@
 import { prismaSemEscopo } from "@/lib/prisma";
 import { dexionBalanceteCache } from "@/lib/dexion";
 
-export type LinhaConta = { id: string; codigo: string; nome: string; ordemDre: number; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
+export type LinhaConta = { id: string; codigo: string; nome: string; ordemDre: number; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null; filhos?: LinhaConta[] };
 export type SecaoOut = { id: string; nome: string; operacao: string; contas: LinhaConta[]; meses: number[]; total: number };
 export type SecaoIn = { id: string; nome: string; operacao: string; ordem: number };
 
@@ -41,6 +41,7 @@ export async function dreDexion(empresaId: string, ano: number, secoes: SecaoIn[
   const cache = await dexionBalanceteCache(v.codigoDexion, ano, opts);
   const contas = cache.dados;
   const resultado = contas.filter((c) => c.conta.startsWith("3") && c.sintetica);
+  const analiticas = contas.filter((c) => c.conta.startsWith("3") && !c.sintetica);
   const temFilhoN5 = new Set(resultado.filter((c) => c.nivel === 5).map((c) => c.conta.split(".").slice(0, 4).join(".")));
   const linhas = resultado.filter((c) => c.nivel === 5 || (c.nivel === 4 && !temFilhoN5.has(c.conta)));
   const nomeDe = new Map(resultado.map((c) => [c.conta, c.descricao]));
@@ -70,7 +71,16 @@ export async function dreDexion(empresaId: string, ano: number, secoes: SecaoIn[
     if (Math.abs(total) < 0.005 && meses.every((m) => Math.abs(m) < 0.005)) continue;
     const pai = c.conta.split(".").slice(0, -1).join(".");
     const sg = c.nivel === 5 ? { codigo: pai, nome: nomeDe.get(pai) ?? pai } : null;
-    out.contas.push({ id: `dexion:${c.conta}`, codigo: c.conta, nome: c.descricao, ordemDre: 0, meses, total, subgrupoCodigo: sg?.codigo ?? null, subgrupoNome: sg?.nome ?? null });
+    // Analíticas abaixo da linha (abrir mais um nível na DRE).
+    const filhos: LinhaConta[] = analiticas
+      .filter((a) => a.conta.startsWith(c.conta + "."))
+      .map((a) => {
+        const m = a.mensal.map((x) => r2(credora ? -x : x));
+        return { id: `dexion:${a.conta}`, codigo: a.conta, nome: a.descricao, ordemDre: 0, meses: m, total: r2(m.reduce((p, q) => p + q, 0)), subgrupoCodigo: null, subgrupoNome: null };
+      })
+      .filter((f) => Math.abs(f.total) >= 0.005 || f.meses.some((m) => Math.abs(m) >= 0.005))
+      .sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+    out.contas.push({ id: `dexion:${c.conta}`, codigo: c.conta, nome: c.descricao, ordemDre: 0, meses, total, subgrupoCodigo: sg?.codigo ?? null, subgrupoNome: sg?.nome ?? null, filhos });
     for (let i = 0; i < 12; i++) out.meses[i] = r2(out.meses[i] + meses[i]);
     out.total = r2(out.total + total);
   }

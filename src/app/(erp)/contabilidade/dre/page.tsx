@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import LancamentosDrePopup, { type AlvoLancamentos } from "@/components/contabilidade/LancamentosDrePopup";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import BackfillConsistencia from "@/components/contabilidade/BackfillConsistencia";
@@ -11,9 +12,9 @@ import { cn } from "@/lib/utils";
 import { useFormatoContabil, FormatoToggle, fmtColuna } from "@/lib/formato-contabil";
 import { useSession } from "@/lib/session-context";
 import { gerarPdfContabil, type LinhaPdf } from "@/lib/pdf-contabil";
-import { Loader2, FileBarChart, SlidersHorizontal, FileDown, Database, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, FileBarChart, SlidersHorizontal, FileDown, Database, AlertTriangle, RefreshCw, ChevronRight } from "lucide-react";
 
-type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null };
+type LinhaConta = { id: string; codigo: string; nome: string; meses: number[]; total: number; subgrupoCodigo: string | null; subgrupoNome: string | null; filhos?: LinhaConta[] };
 type Secao = { id: string; nome: string; operacao: "SOMA" | "SUBTRAI" | "SUBTOTAL"; contas: LinhaConta[]; meses: number[]; total: number };
 type Fonte = "erp" | "dexion";
 type Dre = { ano: number; fonte?: Fonte; secoes: Secao[]; resultadoMeses: number[]; resultadoTotal: number; codigoDexion?: number; atualizadoEm?: string; erroAtualizacao?: string | null; error?: string };
@@ -23,6 +24,20 @@ const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "O
 function celula(v: number, modo: "contabil" | "real") {
   if (Math.abs(v) < 0.005) return <span className="text-muted-foreground/60">—</span>;
   return <span className={v < 0 ? "text-danger" : ""}>{fmtColuna(v, modo)}</span>;
+}
+
+// Número clicável: abre o popup com os lançamentos que compõem a célula.
+function Cel({ v, modo, onClick, className }: { v: number; modo: "contabil" | "real"; onClick?: () => void; className?: string }) {
+  const vazio = Math.abs(v) < 0.005;
+  return (
+    <td className={cn("text-right", className)}>
+      {vazio || !onClick ? celula(v, modo) : (
+        <button type="button" onClick={onClick} className="hover:underline decoration-dotted underline-offset-2 hover:text-info" title="Ver lançamentos">
+          {celula(v, modo)}
+        </button>
+      )}
+    </td>
+  );
 }
 
 export default function DrePage() {
@@ -39,6 +54,8 @@ export default function DrePage() {
   );
   const erroDre = dre && !dre.secoes ? (dre.error || "Não foi possível montar a DRE.") : null;
   const [atualizando, setAtualizando] = useState(false);
+  // Popup de lançamentos da célula clicada.
+  const [alvo, setAlvo] = useState<AlvoLancamentos | null>(null);
   // Força a releitura no Firebird do contador (o cache no ERP vale 12h) e recarrega.
   async function atualizarDexion() {
     setAtualizando(true);
@@ -147,7 +164,7 @@ export default function DrePage() {
               </thead>
               <tbody>
                 {dre.secoes.map((s) => (
-                  <SecaoRows key={s.id} secao={s} ano={dre.ano} modo={modo} linkRazao={fonte === "erp"} />
+                  <SecaoRows key={s.id} secao={s} ano={dre.ano} modo={modo} fonte={fonte} onCelula={setAlvo} />
                 ))}
                 <tr className="border-t-2 border-border bg-gray-900 text-white font-bold">
                   <td className="px-4 py-3 sticky left-0 bg-gray-900 z-10">Resultado do Exercício</td>
@@ -160,6 +177,7 @@ export default function DrePage() {
             </table>
           </div>
         )}
+        {alvo && <LancamentosDrePopup alvo={alvo} onFechar={() => setAlvo(null)} />}
       </div>
     </div>
   );
@@ -178,7 +196,20 @@ function subtotaisDoSubgrupo(contas: LinhaConta[]) {
   return m;
 }
 
-function SecaoRows({ secao, ano, modo, linkRazao }: { secao: Secao; ano: number; modo: "contabil" | "real"; linkRazao: boolean }) {
+function SecaoRows({ secao, ano, modo, fonte, onCelula }: { secao: Secao; ano: number; modo: "contabil" | "real"; fonte: Fonte; onCelula: (a: AlvoLancamentos) => void }) {
+  // Linhas abertas (mais um nível: analíticas do Dexion).
+  const [abertas, setAbertas] = useState<Set<string>>(new Set());
+  const toggle = (id: string) => setAbertas((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  // Alvo do popup p/ conta(s): ERP usa ids; Dexion usa o código/prefixo.
+  const alvoContas = (contas: LinhaConta[], titulo: string, mes: number): AlvoLancamentos | null => {
+    if (fonte === "erp") return { fonte: "erp", contaIds: contas.map((c) => c.id), titulo, ano, mes };
+    if (contas.length === 1) return { fonte: "dexion", conta: contas[0].codigo, titulo, ano, mes };
+    return null;
+  };
+  const alvoPrefixo = (codigo: string, titulo: string, mes: number): AlvoLancamentos => ({ fonte: "dexion", conta: codigo, titulo, ano, mes });
+  const abrir = (a: AlvoLancamentos | null) => { if (a) onCelula(a); };
+
   // Linha "=" (SUBTOTAL): resultado acumulado, sem contas.
   if (secao.operacao === "SUBTOTAL") {
     return (
@@ -195,19 +226,25 @@ function SecaoRows({ secao, ano, modo, linkRazao }: { secao: Secao; ano: number;
   }
   const subtotais = subtotaisDoSubgrupo(secao.contas);
   let ultimoSub: string | null = null;
+  const secaoAlvo = (mes: number) => fonte === "erp" ? alvoContas(secao.contas, secao.nome, mes) : null;
   return (
     <>
       <tr className="bg-muted/70 border-y border-border font-semibold text-foreground">
         <td className="px-4 py-2 sticky left-0 bg-muted/70 z-10">
           {secao.nome} <span className="text-xs font-normal text-muted-foreground">({secao.operacao === "SUBTRAI" ? "−" : "+"})</span>
         </td>
-        {secao.meses.map((v, i) => <td key={i} className="text-right px-3 py-2">{celula(v, modo)}</td>)}
-        <td className="text-right px-4 py-2 bg-muted">{celula(secao.total, modo)}</td>
+        {secao.meses.map((v, i) => <Cel key={i} v={v} modo={modo} className="px-3 py-2" onClick={secaoAlvo(i + 1) ? () => abrir(secaoAlvo(i + 1)) : undefined} />)}
+        <Cel v={secao.total} modo={modo} className="px-4 py-2 bg-muted" onClick={secaoAlvo(0) ? () => abrir(secaoAlvo(0)) : undefined} />
       </tr>
       {secao.contas.map((c) => {
         const abreSub = c.subgrupoCodigo && c.subgrupoCodigo !== ultimoSub;
         ultimoSub = c.subgrupoCodigo;
         const st = abreSub ? subtotais.get(c.subgrupoCodigo!) : null;
+        const contasDoSub = c.subgrupoCodigo ? secao.contas.filter((x) => x.subgrupoCodigo === c.subgrupoCodigo) : [];
+        const subAlvo = (mes: number) => fonte === "erp" ? alvoContas(contasDoSub, st?.nome ?? c.subgrupoCodigo ?? "", mes) : alvoPrefixo(c.subgrupoCodigo!, `${c.subgrupoCodigo} ${st?.nome ?? ""}`, mes);
+        const contaAlvo = (mes: number) => fonte === "erp" ? alvoContas([c], `${c.codigo} ${c.nome}`, mes) : alvoPrefixo(c.codigo, `${c.codigo} ${c.nome}`, mes);
+        const temFilhos = !!c.filhos?.length;
+        const aberta = abertas.has(c.id);
         return (
           <Fragment key={c.id}>
             {st && (
@@ -215,31 +252,53 @@ function SecaoRows({ secao, ano, modo, linkRazao }: { secao: Secao; ano: number;
                 <td className="px-4 py-1.5 sticky left-0 bg-muted/40 z-10">
                   <span className="font-mono text-[11px] text-muted-foreground mr-2">{c.subgrupoCodigo}</span>{st.nome}
                 </td>
-                {st.meses.map((v, i) => <td key={i} className="text-right px-3 py-1.5">{celula(v, modo)}</td>)}
-                <td className="text-right px-4 py-1.5 bg-muted/60">{celula(st.total, modo)}</td>
+                {st.meses.map((v, i) => <Cel key={i} v={v} modo={modo} className="px-3 py-1.5" onClick={() => abrir(subAlvo(i + 1))} />)}
+                <Cel v={st.total} modo={modo} className="px-4 py-1.5 bg-muted/60" onClick={() => abrir(subAlvo(0))} />
               </tr>
             )}
             <tr className="border-b border-gray-50 hover:bg-info/10">
               <td className={cn("px-4 py-1.5 sticky left-0 bg-card z-10", c.subgrupoCodigo && "pl-9")}>
-                {linkRazao ? (
-                  <Link
-                    href={`/contabilidade/razao/${c.id}?from=${ano}-01-01&to=${ano}-12-31`}
-                    className="flex items-center gap-2 hover:text-info"
-                    title="Abrir razão da conta em nova aba"
-                  >
-                    <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
-                    <span className="truncate">{c.nome}</span>
-                  </Link>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
-                    <span className="truncate">{c.nome}</span>
-                  </span>
-                )}
+                <span className="flex items-center gap-1.5">
+                  {temFilhos ? (
+                    <button type="button" onClick={() => toggle(c.id)} className="p-0.5 -ml-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted" title={aberta ? "Fechar" : `Abrir ${c.filhos!.length} contas`}>
+                      <ChevronRight className={cn("w-3.5 h-3.5 transition-transform", aberta && "rotate-90")} />
+                    </button>
+                  ) : <span className="w-4" />}
+                  {fonte === "erp" ? (
+                    <Link
+                      href={`/contabilidade/razao/${c.id}?from=${ano}-01-01&to=${ano}-12-31`}
+                      className="flex items-center gap-2 hover:text-info"
+                      title="Abrir razão da conta"
+                    >
+                      <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
+                      <span className="truncate">{c.nome}</span>
+                    </Link>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-muted-foreground">{c.codigo}</span>
+                      <span className="truncate">{c.nome}</span>
+                    </span>
+                  )}
+                </span>
               </td>
-              {c.meses.map((v, i) => <td key={i} className="text-right px-3 py-1.5 text-muted-foreground">{celula(v, modo)}</td>)}
-              <td className="text-right px-4 py-1.5 font-medium bg-muted/50">{celula(c.total, modo)}</td>
+              {c.meses.map((v, i) => <Cel key={i} v={v} modo={modo} className="px-3 py-1.5 text-muted-foreground" onClick={() => abrir(contaAlvo(i + 1))} />)}
+              <Cel v={c.total} modo={modo} className="px-4 py-1.5 font-medium bg-muted/50" onClick={() => abrir(contaAlvo(0))} />
             </tr>
+            {aberta && c.filhos!.map((f) => {
+              const filhoAlvo = (mes: number) => fonte === "erp" ? alvoContas([f], `${f.codigo} ${f.nome}`, mes) : alvoPrefixo(f.codigo, `${f.codigo} ${f.nome}`, mes);
+              return (
+                <tr key={f.id} className="border-b border-gray-50 bg-muted/20 text-xs hover:bg-info/10">
+                  <td className={cn("px-4 py-1 sticky left-0 bg-muted/20 z-10", c.subgrupoCodigo ? "pl-16" : "pl-11")}>
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-muted-foreground">{f.codigo}</span>
+                      <span className="truncate text-foreground">{f.nome}</span>
+                    </span>
+                  </td>
+                  {f.meses.map((v, i) => <Cel key={i} v={v} modo={modo} className="px-3 py-1 text-muted-foreground" onClick={() => abrir(filhoAlvo(i + 1))} />)}
+                  <Cel v={f.total} modo={modo} className="px-4 py-1 bg-muted/40" onClick={() => abrir(filhoAlvo(0))} />
+                </tr>
+              );
+            })}
           </Fragment>
         );
       })}

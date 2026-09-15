@@ -36,7 +36,7 @@ export async function dexionQuery<T extends Row = Row>(sql: string, params: unkn
   if (!dexionConfigurado(c)) throw new Error("Integração Dexion não configurada (host, caminho do banco, usuário e senha).");
   const opts: Firebird.Options = {
     host: c.host, port: c.port, database: c.database, user: c.user, password: c.password,
-    lowercase_keys: false, pageSize: 4096,
+    lowercase_keys: false, pageSize: 4096, blobAsText: true,
   };
   return new Promise<T[]>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("Tempo esgotado consultando o Dexion.")), timeoutMs);
@@ -203,6 +203,55 @@ export function cortarBalancete(contas: DexionContaSaldo[], ateMes: number): Dex
     const cred = c.creditosMes ? c.creditosMes.slice(0, ate).reduce((a, b) => a + b, 0) : c.creditos;
     return { ...c, debitos: +deb.toFixed(2), creditos: +cred.toFixed(2), saldoFinal: +(c.saldoInicial + deb - cred).toFixed(2) };
   });
+}
+
+export type DexionLancamento = {
+  lancamento: number;
+  partida: number;
+  data: string; // ISO (yyyy-mm-dd)
+  contaDebito: string | null;
+  contaCredito: string | null;
+  contaDebitoNome: string | null;
+  contaCreditoNome: string | null;
+  historico: string;
+  valor: number;
+  /** Lado em que a conta consultada aparece. */
+  lado: "D" | "C";
+};
+
+/** Lançamentos do Dexion que tocam a conta (ou prefixo de conta) no mês (1–12;
+ *  0 = ano inteiro). Histórico = padrão + complemento. Com cache de 12h. */
+export function dexionLancamentos(codigoEmpresa: number, exercicio: number, contaPrefixo: string, mes: number, opts?: { forcar?: boolean }) {
+  const prefixo = contaPrefixo.replace(/[^0-9.]/g, "");
+  return comCache<DexionLancamento[]>(`lanc:${codigoEmpresa}:${exercicio}:${prefixo}:${mes}`, async () => {
+    const filtroMes = mes >= 1 && mes <= 12 ? `AND EXTRACT(MONTH FROM l.DATA) = ${Math.floor(mes)}` : "";
+    const rows = await dexionQuery<Row>(
+      `SELECT l.LANCAMENTO, l.PARTIDA, l.DATA, l.VALOR, l.CONTA_DEBITO, l.CONTA_CREDITO, l.COMPLEMENTO,
+              h.DESCRICAO AS HIST, pd.DESCRICAO AS NOME_D, pc.DESCRICAO AS NOME_C
+         FROM C_LANCAMENTOS l
+         LEFT JOIN C_HISTORICOS_PADROES h ON h.HISTORICO_PADRAO = l.HISTORICO AND h.TIPO_HISTORICO_PADRAO = l.TIPO_HISTORICO_PADRAO
+         LEFT JOIN C_PLANO_CONTAS pd ON pd.TIPO_PLANO_CONTAS = l.TIPO_PLANO_CONTAS AND pd.CONTA = l.CONTA_DEBITO
+         LEFT JOIN C_PLANO_CONTAS pc ON pc.TIPO_PLANO_CONTAS = l.TIPO_PLANO_CONTAS AND pc.CONTA = l.CONTA_CREDITO
+        WHERE l.EMPRESA = ? AND l.EXERCICIO = ?
+          AND (l.CONTA_DEBITO STARTING WITH ? OR l.CONTA_CREDITO STARTING WITH ?) ${filtroMes}
+        ORDER BY l.DATA, l.LANCAMENTO, l.PARTIDA`,
+      [codigoEmpresa, exercicio, prefixo, prefixo],
+      120_000,
+    );
+    return rows.map((r) => {
+      const cd = (r.CONTA_DEBITO as string | null) ?? null, cc = (r.CONTA_CREDITO as string | null) ?? null;
+      const hist = [r.HIST, r.COMPLEMENTO].map((x) => (x == null ? "" : String(x).trim())).filter(Boolean).join(" — ");
+      const d = r.DATA instanceof Date ? r.DATA : new Date(String(r.DATA));
+      return {
+        lancamento: Number(r.LANCAMENTO), partida: Number(r.PARTIDA ?? 0),
+        data: d.toISOString().slice(0, 10),
+        contaDebito: cd, contaCredito: cc,
+        contaDebitoNome: (r.NOME_D as string | null) ?? null, contaCreditoNome: (r.NOME_C as string | null) ?? null,
+        historico: hist, valor: Number(r.VALOR ?? 0),
+        lado: cd && cd.startsWith(prefixo) ? "D" : "C",
+      } as DexionLancamento;
+    });
+  }, opts);
 }
 
 /** Só os dígitos do CNPJ/CPF — p/ casar empresa do Dexion com a do ERP. */
