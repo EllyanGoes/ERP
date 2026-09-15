@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import ClientesTable from "@/components/clientes/ClientesTable";
+import ExportarClientesButton from "@/components/clientes/ExportarClientesButton";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,14 @@ export default async function ClientesPage() {
   const countMap = Object.fromEntries(counts.map((c) => [c.status, c._count]));
   const mapeadosSet = new Set(vinc.map((v) => v.clienteId).filter((x): x is string => !!x));
   const clientesComMapeado = clientes.map((c) => ({ ...c, mapeado: mapeadosSet.has(c.id) }));
+  // Planilha: mesmos dados da ficha (datas serializadas p/ o componente cliente).
+  const paraPlanilha = clientesComMapeado.map((c) => ({
+    razaoSocial: c.razaoSocial, nomeFantasia: c.nomeFantasia, tipoPessoa: c.tipoPessoa, cpfCnpj: c.cpfCnpj, ie: c.ie, indIE: c.indIE,
+    suframa: c.suframa, email: c.email, telefone: c.telefone, celular: c.celular, status: c.status,
+    cep: c.cep, logradouro: c.logradouro, numero: c.numero, complemento: c.complemento, bairro: c.bairro, cidade: c.cidade, estado: c.estado,
+    codigoMunicipioIBGE: c.codigoMunicipioIBGE, latitude: c.latitude, longitude: c.longitude, observacoes: c.observacoes, mapeado: c.mapeado,
+    createdAt: c.createdAt.toISOString(), updatedAt: c.updatedAt.toISOString(),
+  }));
 
   return (
     <div>
@@ -25,12 +34,15 @@ export default async function ClientesPage() {
         title="Clientes"
         breadcrumbs={[{ label: "Faturamento" }, { label: "Clientes" }]}
         action={
-          <Button asChild>
-            <Link href="/clientes/novo">
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Cliente
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportarClientesButton clientes={paraPlanilha} />
+            <Button asChild>
+              <Link href="/clientes/novo">
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Cliente
+              </Link>
+            </Button>
+          </div>
         }
       />
       <div className="px-8 pb-8 space-y-6">
