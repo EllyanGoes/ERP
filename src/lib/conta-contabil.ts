@@ -50,8 +50,14 @@ export function chaveOrdenacaoConta(codigo: string, ordemPorCodigo: Map<string, 
   for (const seg of segs) {
     prefixo = prefixo ? `${prefixo}.${seg}` : seg;
     const ord = ordemPorCodigo.get(prefixo);
-    const chave = ord != null ? ord : (parseInt(seg, 10) || 0);
-    partes.push(String(chave).padStart(6, "0"));
+    const segNum = parseInt(seg, 10) || 0;
+    const chave = ord != null ? ord : segNum;
+    // Desempate SEMPRE pelo segmento do código: duas irmãs com a mesma `ordem`
+    // (ex.: Clientes 1.1.2 e Cartões 1.1.8, ambas 3) viravam a mesma chave e as
+    // analíticas das duas se misturavam, ordenadas só pelo último segmento
+    // (1.1.8.0001 antes de 1.1.2.0038). Com o segmento na chave, cada subárvore
+    // fica contígua e o empate resolve pela ordem numérica do código.
+    partes.push(`${String(chave).padStart(6, "0")}-${String(segNum).padStart(6, "0")}`);
   }
   return partes.join(".");
 }
