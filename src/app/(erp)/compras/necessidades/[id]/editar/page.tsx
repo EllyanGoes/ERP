@@ -190,6 +190,7 @@ export default function EditarSolicitacaoPage() {
   const [filiais,       setFiliais]       = useState<Filial[]>([]);
   const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoque[]>([]);
   const [centrosCusto,  setCentrosCusto]  = useState<CentroCusto[]>([]);
+  const [docEmpresaId,  setDocEmpresaId]  = useState(""); // empresa do documento
   const [itemOptions,   setItemOptions]   = useState<ItemOption[]>([]);
   const [colaboradores, setColaboradores] = useState<ColaboradorOpt[]>([]);
   const [setores,       setSetores]       = useState<SetorOpt[]>([]);
@@ -200,6 +201,7 @@ export default function EditarSolicitacaoPage() {
     fetch(`/api/suprimentos/necessidades/${id}`).then((r) => r.json()).then(({ data }) => {
       if (!data) { setError("Não encontrado"); setLoading(false); return; }
       if (data.status !== "RASCUNHO") { setError("Apenas rascunhos podem ser editados"); setLoading(false); return; }
+      setDocEmpresaId(data.empresaId ?? "");
       setNumero(data.numero);
       const cached = loadForm();
       if (cached && !formRestoredRef.current) {
@@ -272,10 +274,16 @@ export default function EditarSolicitacaoPage() {
     });
   }, [id]); // eslint-disable-line
 
+  // Filiais e centros de custo da EMPRESA DO DOCUMENTO (pode não ser a ativa)
+  useEffect(() => {
+    if (!ready) return;
+    const empresaQuery = docEmpresaId ? `&empresaId=${docEmpresaId}` : "";
+    fetch(`/api/empresa/filiais?ativo=true${empresaQuery}`).then((r) => r.json()).then((j) => setFiliais(Array.isArray(j) ? j : []));
+    fetch(`/api/empresa/centros-custo?ativo=true${empresaQuery}`).then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
+  }, [ready, docEmpresaId]);
+
   // Load static options
   useEffect(() => {
-    fetch("/api/empresa/filiais?ativo=true").then((r) => r.json()).then((j) => setFiliais(Array.isArray(j) ? j : []));
-    fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
     fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
     fetch("/api/empresa/colaboradores?ativo=true").then((r) => r.json()).then((j) => setColaboradores(Array.isArray(j) ? j : []));
     fetch("/api/empresa/setores?ativo=true").then((r) => r.json()).then((j) => setSetores(Array.isArray(j) ? j : []));

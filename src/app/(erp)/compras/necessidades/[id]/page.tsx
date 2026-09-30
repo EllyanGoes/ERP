@@ -378,10 +378,12 @@ export default function NecessidadeDetailPage() {
   // Load static options once
   useEffect(() => {
     if (!editMode) return;
+    // Filiais e centros da EMPRESA DO DOCUMENTO (pode não ser a ativa)
+    const empresaQuery = necessidade?.empresa?.id ? `&empresaId=${necessidade.empresa.id}` : "";
     if (filiais.length === 0)
-      fetch("/api/empresa/filiais?ativo=true").then((r) => r.json()).then((j) => setFiliais(Array.isArray(j) ? j : []));
+      fetch(`/api/empresa/filiais?ativo=true${empresaQuery}`).then((r) => r.json()).then((j) => setFiliais(Array.isArray(j) ? j : []));
     if (centrosCusto.length === 0)
-      fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
+      fetch(`/api/empresa/centros-custo?ativo=true${empresaQuery}`).then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
     if (itemOptions.length === 0)
       fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
   }, [editMode]); // eslint-disable-line

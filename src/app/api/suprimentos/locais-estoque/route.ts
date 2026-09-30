@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
 import { garantirContaContabilLocalEstoque } from "@/lib/conta-contabil";
 import { valorUnitarioEstoque } from "@/lib/valor-estoque";
@@ -22,8 +23,26 @@ export async function GET(req: NextRequest) {
   const filialId = searchParams.get("filialId");
   const ativo    = searchParams.get("ativo");
 
-  const data = await prisma.localEstoque.findMany({
+  // Multiempresa: a filial pode ser de OUTRA empresa do usuário (formulários do
+  // modo grupo escolhem a empresa do documento). Validado contra as empresas da
+  // sessão; filial da empresa ativa (ou sem filial) segue no escopo normal.
+  let db = prisma;
+  let filtroEmpresa: { empresaId?: string } = {};
+  if (filialId) {
+    const session = await getSession();
+    const filial = await prismaSemEscopo.filial.findUnique({ where: { id: filialId }, select: { empresaId: true } });
+    if (filial && filial.empresaId !== session?.activeEmpresaId) {
+      if (!session?.empresaIds?.includes(filial.empresaId)) {
+        return NextResponse.json({ error: "Empresa não permitida" }, { status: 403 });
+      }
+      db = prismaSemEscopo;
+      filtroEmpresa = { empresaId: filial.empresaId };
+    }
+  }
+
+  const data = await db.localEstoque.findMany({
     where: {
+      ...filtroEmpresa,
       AND: [
         filialId ? { filialId } : {},
         ativo !== null && ativo !== "" ? { ativo: ativo === "true" } : {},
@@ -46,18 +65,18 @@ export async function GET(req: NextRequest) {
   // Custo por empresa: a valoração de cada local usa o CMPM da empresa dona
   // do local (fallback no CMPM global do Item, que já vem embutido).
   const custos = await custosPorEmpresaItem(
-    prisma,
+    db,
     data.flatMap((l) => l.estoqueItens.map((e) => ({ empresaId: l.empresaId, itemId: e.itemId }))),
   );
   // Saldo CONTÁBIL de cada local (conta 1.1.3.x vinculada por localEstoqueId) —
   // o "Custo Total" do local passa a refletir exatamente o razão/balancete.
   const localIds = data.map((l) => l.id);
   const contasLocais = localIds.length
-    ? await prisma.contaContabil.findMany({ where: { localEstoqueId: { in: localIds } }, select: { id: true, localEstoqueId: true } })
+    ? await db.contaContabil.findMany({ where: { localEstoqueId: { in: localIds } }, select: { id: true, localEstoqueId: true } })
     : [];
   const saldoContabilPorLocal = new Map<string, number>();
   if (contasLocais.length) {
-    const partidas = await prisma.partidaContabil.groupBy({
+    const partidas = await db.partidaContabil.groupBy({
       by: ["contaId", "tipo"],
       where: { contaId: { in: contasLocais.map((c) => c.id) } },
       _sum: { valor: true },

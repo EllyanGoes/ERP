@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { z } from "zod";
 
 const schema = z.object({
@@ -20,8 +21,24 @@ export async function GET(req: NextRequest) {
   const grupoId = searchParams.get("grupoId") ?? "";
   const ativo = searchParams.get("ativo");
 
-  const centros = await prisma.centroCusto.findMany({
+  // Multiempresa: ?empresaId= devolve os centros de OUTRA empresa do usuário
+  // (formulários do modo grupo escolhem a empresa do documento). Validado
+  // contra as empresas da sessão; sem o parâmetro, escopo normal (ativa).
+  const empresaIdParam = searchParams.get("empresaId");
+  let db = prisma;
+  let filtroEmpresa: { empresaId?: string } = {};
+  if (empresaIdParam) {
+    const session = await getSession();
+    if (!session?.empresaIds?.includes(empresaIdParam)) {
+      return NextResponse.json({ error: "Empresa não permitida" }, { status: 403 });
+    }
+    db = prismaSemEscopo;
+    filtroEmpresa = { empresaId: empresaIdParam };
+  }
+
+  const centros = await db.centroCusto.findMany({
     where: {
+      ...filtroEmpresa,
       AND: [
         search
           ? {

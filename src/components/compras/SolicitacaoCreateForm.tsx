@@ -437,10 +437,15 @@ export default function SolicitacaoCreateForm() {
         return matriz?.id ?? "";
       });
     });
+    // Centro de custo é por empresa: segue a empresa do documento.
+    fetch(`/api/empresa/centros-custo?ativo=true${empresaQuery}`).then((r) => r.json()).then((j) => {
+      const lista = Array.isArray(j) ? j : [];
+      setCentrosCusto(lista);
+      setCentroCustoId((atual) => (atual && !lista.some((c: { id: string }) => c.id === atual) ? "" : atual));
+    });
   }, [empresaId]);
 
   useEffect(() => {
-    fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentrosCusto(Array.isArray(j) ? j : []));
     fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
     fetch("/api/empresa/colaboradores?ativo=true").then((r) => r.json()).then((j) => setColaboradores(Array.isArray(j) ? j : []));
     fetch("/api/empresa/setores?ativo=true").then((r) => r.json()).then((j) => setSetores(Array.isArray(j) ? j : []));
