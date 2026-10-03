@@ -38,6 +38,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/suprimentos/locais-estoque": "Locais de Estoque",
   "/suprimentos/locais-estoque/novo": "Novo Local",
   "/suprimentos/movimentacoes": "Movimentações",
+  "/compras/acompanhamento": "Acompanhamento de Compras",
   "/compras/necessidades": "Solicitações de Compras",
   "/compras/necessidades/nova": "Nova Solicitação",
   "/empresa/filiais": "Filiais",

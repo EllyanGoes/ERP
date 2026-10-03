@@ -98,6 +98,7 @@ export const MODULOS: ModuloDef[] = [
     label: "Compras",
     group: "Suprimentos",
     recursos: [
+      { key: "acompanhamento", label: "Acompanhamento de Compras", acoes: ["ver"] },
       { key: "solicitacoes",  label: "Solicitação de Compras", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "cotacoes",      label: "Cotação de Compras",     acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "pedidos-compra", label: "Pedido de Compras",     acoes: ["ver", "inserir", "editar", "excluir"] },

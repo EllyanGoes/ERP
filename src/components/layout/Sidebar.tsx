@@ -81,6 +81,7 @@ import {
   UserPlus,
   Globe,
   FolderKanban,
+  Kanban,
   ListTodo,
   FileArchive,
   LineChart,
@@ -258,6 +259,7 @@ const mainModules: Module[] = [
       {
         kind: "Fluxo de Compras",
         items: [
+          { href: "/compras/acompanhamento",     label: "Acompanhamento",        icon: Kanban },
           { href: "/compras/necessidades",       label: "Solicitação de Compras", icon: ClipboardList },
           { href: "/suprimentos/cotacoes",       label: "Cotação de Compras",    icon: FileSearch },
           { href: "/suprimentos/pedidos-compra", label: "Pedido de Compras",     icon: FilePlus },
