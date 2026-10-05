@@ -99,6 +99,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { tarefaId: 
         skipDuplicates: true,
       });
     }
+    // Quem entra num cartão vira membro do projeto (time): assim aparece em
+    // "Membros do Quadro" nos próximos cartões — inclusive convidado criado por
+    // quem não gerencia membros (o POST /membros dele dá 403).
+    if (membrosNovos.length > 0) {
+      await prismaSemEscopo.projetoMembro.createMany({
+        data: membrosNovos.map((usuarioId) => ({ projetoId: ctx.tarefa.projetoId, usuarioId })),
+        skipDuplicates: true,
+      });
+    }
     if (membrosNovos.length > 0) atividades.push({ tipo: "ATRIBUIU", detalhe: { membros: membrosNovos.length } });
   }
   if (body.arquivada !== undefined) {

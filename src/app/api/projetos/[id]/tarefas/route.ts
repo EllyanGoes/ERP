@@ -70,6 +70,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     select: { id: true, titulo: true },
   });
 
+  // Responsável do cartão vira membro do projeto (aparece nos próximos pickers).
+  if (membroIds.length > 0) {
+    await prismaSemEscopo.projetoMembro.createMany({
+      data: membroIds.map((usuarioId) => ({ projetoId: params.id, usuarioId })),
+      skipDuplicates: true,
+    });
+  }
+
   await registrarAtividade({ projetoId: params.id, tarefaId: tarefa.id, autorId: auth.session.sub, tipo: "CRIOU" });
   for (const usuarioId of membroIds) {
     await notificarAtribuicao({

@@ -7,13 +7,12 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import DatePicker from "@/components/shared/DatePicker";
-import TimePicker from "@/components/shared/TimePicker";
 import EscClose from "@/components/shared/EscClose";
 import {
   CreditCard, User as UserIcon, CalendarDays, ArrowRight, Copy, Link as LinkIcon, Archive, Check, X,
 } from "lucide-react";
 import { AvatarUsuario } from "./comum";
+import { DatasPopover, MembrosPopover } from "./popovers";
 import { ProjetoBoardDTO, TarefaResumoDTO } from "./tipos";
 
 type Submenu = null | "membros" | "prazo" | "mover";
@@ -93,10 +92,65 @@ export default function TarefaQuickEdit({
     ? { top: rect.top, right: window.innerWidth - rect.left + 8 }
     : { top: rect.top, left: rect.right + 8 };
 
+  // Popups de Datas/Membros (modelo Trello): painel fixo ao lado do cartão,
+  // sempre inteiro dentro da tela (são mais altos e largos que o menu).
+  const POP_W = 320;
+  const popStyle = (altura: number) => ({
+    top: Math.max(8, Math.min(rect.top, window.innerHeight - altura - 8)),
+    left: rect.right + 8 + POP_W > window.innerWidth ? Math.max(8, rect.left - 8 - POP_W) : rect.right + 8,
+  });
+  const datasStyle = popStyle(520);
+
+  // Atalho de teclado (M / D): só o popup, sem escurecer a tela nem abrir o
+  // cartão editável e o menu de ações por trás — igual ao Trello.
+  if (submenuInicial === "membros") {
+    const alternar = (id: string) => {
+      const nome = board.membros.find((m) => m.usuarioId === id)?.usuario.nome ?? "";
+      const novos = membrosCartao.some((m) => m.id === id)
+        ? membrosCartao.filter((m) => m.id !== id)
+        : [...membrosCartao, { id, nome }];
+      setMembrosCartao(novos);
+      patch({ membroIds: novos.map((m) => m.id) }, false);
+    };
+    return createPortal(
+      <MembrosPopover
+        board={board}
+        membros={membrosCartao}
+        estilo={popStyle(420)}
+        onToggle={alternar}
+        onFechar={onFechar}
+        onCriarConvidado={async (nome) => {
+          const res = await fetch("/api/projetos/usuarios", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }),
+          }).catch(() => null);
+          const j = await res?.json().catch(() => ({}));
+          if (!res?.ok || !j?.data?.id) return;
+          const novos = [...membrosCartao, { id: j.data.id as string, nome: j.data.nome as string }];
+          setMembrosCartao(novos);
+          await patch({ membroIds: novos.map((m) => m.id) }, false);
+        }}
+      />,
+      document.body,
+    );
+  }
+  if (submenuInicial === "prazo") {
+    return createPortal(
+      <DatasPopover
+        dataInicio={tarefa.dataInicio}
+        prazo={tarefa.prazo}
+        prazoHora={tarefa.prazoHora}
+        estilo={datasStyle}
+        onSalvar={(v) => patch({ dataInicio: v.dataInicio, prazo: v.prazo, prazoHora: v.prazoHora })}
+        onFechar={onFechar}
+      />,
+      document.body,
+    );
+  }
+
   const acoes: Array<{ icone: React.ReactNode; label: string; onClick: () => void; submenu?: Submenu; danger?: boolean; atalho?: string }> = [
     { icone: <CreditCard className="w-3.5 h-3.5" />, label: "Abrir cartão", onClick: () => { onFechar(); onAbrir(); } },
     { icone: <UserIcon className="w-3.5 h-3.5" />, label: "Alterar membros", onClick: () => setSubmenu(submenu === "membros" ? null : "membros"), submenu: "membros", atalho: "m" },
-    { icone: <CalendarDays className="w-3.5 h-3.5" />, label: "Editar prazo", onClick: () => setSubmenu(submenu === "prazo" ? null : "prazo"), submenu: "prazo", atalho: "d" },
+    { icone: <CalendarDays className="w-3.5 h-3.5" />, label: "Editar datas", onClick: () => setSubmenu(submenu === "prazo" ? null : "prazo"), submenu: "prazo", atalho: "d" },
     { icone: <ArrowRight className="w-3.5 h-3.5" />, label: "Mover", onClick: () => setSubmenu(submenu === "mover" ? null : "mover"), submenu: "mover" },
     { icone: <Copy className="w-3.5 h-3.5" />, label: "Copiar cartão", onClick: copiarCartao },
     { icone: copiado ? <Check className="w-3.5 h-3.5 text-success" /> : <LinkIcon className="w-3.5 h-3.5" />, label: copiado ? "Link copiado!" : "Copiar link", onClick: copiarLink },
@@ -233,18 +287,14 @@ export default function TarefaQuickEdit({
               );
             })()}
             {submenu === "prazo" && a.submenu === "prazo" && (
-              <div className="mt-1 bg-card border border-border rounded-lg shadow-md p-2 space-y-1.5">
-                {/* autoFocus: atalho D (e o clique em "Editar prazo") vai direto pro campo de data. */}
-                <DatePicker autoFocus value={tarefa.prazo ? tarefa.prazo.slice(0, 10) : ""} onChange={(v) => patch({ prazo: v || null }) } />
-                {tarefa.prazo && (
-                  <TimePicker value={tarefa.prazoHora ?? ""} onChange={(v) => patch({ prazoHora: v || null })} placeholder="Hora (opcional)" />
-                )}
-                {tarefa.prazo && (
-                  <button className="w-full text-left px-1 text-xs text-muted-foreground hover:text-danger" onClick={() => patch({ prazo: null })}>
-                    Remover prazo
-                  </button>
-                )}
-              </div>
+              <DatasPopover
+                dataInicio={tarefa.dataInicio}
+                prazo={tarefa.prazo}
+                prazoHora={tarefa.prazoHora}
+                estilo={datasStyle}
+                onSalvar={(v) => patch({ dataInicio: v.dataInicio, prazo: v.prazo, prazoHora: v.prazoHora })}
+                onFechar={() => setSubmenu(null)}
+              />
             )}
             {submenu === "mover" && a.submenu === "mover" && (
               <div className="mt-1 bg-card border border-border rounded-lg shadow-md p-1">

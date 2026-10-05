@@ -10,7 +10,7 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import {
   Loader2, ArrowLeft, Star, Settings2, LayoutGrid, List, Calendar as CalendarIcon,
-  GanttChartSquare, Activity, Search, X, Archive,
+  GanttChartSquare, Activity, Search, X, Archive, Plus,
 } from "lucide-react";
 import { AvatarUsuario, ProgressoCirculo, SituacaoMenu } from "@/components/projetos/comum";
 import SelectMenu from "@/components/shared/SelectMenu";
@@ -22,6 +22,7 @@ import TimelineView from "@/components/projetos/TimelineView";
 import AtividadeView from "@/components/projetos/AtividadeView";
 import TarefaCardDialog from "@/components/projetos/TarefaCardDialog";
 import ProjetoConfigDialog from "@/components/projetos/ProjetoConfigDialog";
+import { TimePopover } from "@/components/projetos/popovers";
 import TarefasArquivadasDialog from "@/components/projetos/TarefasArquivadasDialog";
 
 type Visao = "kanban" | "lista" | "calendario" | "timeline" | "atividade";
@@ -45,6 +46,7 @@ export default function ProjetoBoardPage() {
   const [error, setError] = useState("");
   const [visao, setVisao] = usePersistedState<Visao>(`projetos:visao:${id}`, "kanban");
   const [showConfig, setShowConfig] = useState(false);
+  const [showTime, setShowTime] = useState(false);
   const [showArquivadas, setShowArquivadas] = useState(false);
 
   // Filtros (persistidos por usuário/projeto)
@@ -159,8 +161,11 @@ export default function ProjetoBoardPage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* ── Cabeçalho do quadro ─────────────────────────────────────────── */}
-      <div className="px-6 pt-4 pb-3 border-b border-border shrink-0 space-y-3" style={{ borderTopColor: board.cor ?? undefined }}>
-        <div className="flex items-center gap-3 flex-wrap">
+      {/* Cabeçalho em UMA linha (modelo Trello): título, time, visões, filtros e
+          ações. Os dois grupos são "contents" — tudo vira item do mesmo flex e
+          só quebra de linha em tela estreita. */}
+      <div className="px-6 py-2.5 border-b border-border shrink-0 flex items-center gap-x-2.5 gap-y-2 flex-wrap" style={{ borderTopColor: board.cor ?? undefined }}>
+        <div className="contents">
           <button onClick={() => router.push("/projetos")} className="text-muted-foreground hover:text-foreground" title="Voltar">
             <ArrowLeft className="w-4 h-4" />
           </button>
@@ -170,7 +175,7 @@ export default function ProjetoBoardPage() {
             cor={board.cor}
             size={20}
           />
-          <h1 className="font-bold text-lg text-foreground truncate max-w-md" title={board.nome}>{board.nome}</h1>
+          <h1 className="font-bold text-lg text-foreground truncate max-w-[280px]" title={board.nome}>{board.nome}</h1>
           <SituacaoMenu
             projetoId={board.id}
             situacao={board.situacao}
@@ -191,15 +196,32 @@ export default function ProjetoBoardPage() {
           {board.visibilidade === "PUBLICO" && (
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-info/10 text-info">Público</span>
           )}
-          <div className="flex -space-x-1.5 ml-1">
-            {board.membros.slice(0, 6).map((m) => <AvatarUsuario key={m.id} nome={m.usuario.nome} size="sm" />)}
-            {board.membros.length > 6 && (
-              <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground text-[9px] font-semibold inline-flex items-center justify-center">
-                +{board.membros.length - 6}
-              </span>
+          {/* Time: clique abre o popup p/ adicionar gente (cadastrada ou não). */}
+          <div className="relative ml-1">
+            <button
+              type="button"
+              disabled={!podeGerenciar}
+              onClick={() => setShowTime(true)}
+              title={podeGerenciar ? "Time do projeto — adicionar pessoas" : "Time do projeto"}
+              className={cn("flex items-center -space-x-1.5 rounded-full p-0.5", podeGerenciar && "hover:bg-muted cursor-pointer")}
+            >
+              {board.membros.slice(0, 6).map((m) => <AvatarUsuario key={m.id} nome={m.usuario.nome} size="sm" />)}
+              {board.membros.length > 6 && (
+                <span className="w-5 h-5 rounded-full bg-muted text-muted-foreground text-[9px] font-semibold inline-flex items-center justify-center">
+                  +{board.membros.length - 6}
+                </span>
+              )}
+              {podeGerenciar && (
+                <span className="w-5 h-5 rounded-full bg-muted border border-border text-muted-foreground inline-flex items-center justify-center">
+                  <Plus className="w-3 h-3" />
+                </span>
+              )}
+            </button>
+            {showTime && podeGerenciar && (
+              <TimePopover board={board} onMudou={mudou} onFechar={() => setShowTime(false)} />
             )}
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto order-last flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => setShowArquivadas(true)} title="Cartões arquivados" className="px-2.5">
               <Archive className="w-4 h-4" />
             </Button>
@@ -211,7 +233,7 @@ export default function ProjetoBoardPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="contents">
           {/* Visões */}
           <div className="flex rounded-lg border border-border overflow-hidden text-sm">
             {VISOES.map((v) => (
@@ -221,7 +243,7 @@ export default function ProjetoBoardPage() {
                 title={v.label}
                 aria-label={v.label}
                 className={cn(
-                  "px-3 py-1.5 inline-flex items-center transition-colors",
+                  "px-2.5 py-1.5 inline-flex items-center transition-colors",
                   visao === v.key ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted"
                 )}
               >
@@ -237,13 +259,13 @@ export default function ProjetoBoardPage() {
               value={filtroBusca}
               onChange={(e) => setFiltroBusca(e.target.value)}
               placeholder="Buscar tarefa..."
-              className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
+              className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
             />
           </div>
           <SelectMenu
             value={filtroResp}
             onChange={setFiltroResp}
-            className="w-48"
+            className="w-40"
             options={[
               { value: "", label: "Todos os responsáveis" },
               { value: "__sem__", label: "Sem responsável" },
@@ -253,7 +275,7 @@ export default function ProjetoBoardPage() {
           <SelectMenu
             value={filtroEtiqueta}
             onChange={setFiltroEtiqueta}
-            className="w-44"
+            className="w-36"
             options={[
               { value: "", label: "Todas as etiquetas" },
               ...board.etiquetas.map((e) => ({ value: e.id, label: e.nome })),
@@ -291,7 +313,7 @@ export default function ProjetoBoardPage() {
           <CalendarioView tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
         )}
         {visao === "timeline" && (
-          <TimelineView tarefas={tarefasFiltradas} onAbrirTarefa={abrirTarefa} />
+          <TimelineView tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
         )}
         {visao === "atividade" && <AtividadeView projetoId={board.id} onAbrirTarefa={abrirTarefa} />}
       </div>

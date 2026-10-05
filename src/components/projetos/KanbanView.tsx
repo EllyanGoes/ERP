@@ -219,14 +219,16 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
   }
 
   return (
-    <div className="flex items-start gap-4 px-6 py-4 h-full overflow-x-auto">
+    // Dimensões do Trello: lista de 272px, 12px entre listas, 8px de respiro
+    // interno e cartão com padding 8×12.
+    <div className="flex items-start gap-3 px-3 py-3 h-full overflow-x-auto">
       {board.colunas.map((coluna) => {
         const lista = porColuna(coluna.id);
         return (
           <div
             key={coluna.id}
             className={cn(
-              "w-72 shrink-0 bg-muted/60 rounded-xl border border-border flex flex-col max-h-full",
+              "w-[272px] shrink-0 bg-muted/60 rounded-xl border border-border flex flex-col max-h-full",
               dragColunaId === coluna.id && "opacity-50"
             )}
             onDragOver={(e) => {
@@ -329,7 +331,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                       onMouseEnter={(e) => { hoverRef.current = { tarefa: t, el: e.currentTarget }; }}
                       onMouseLeave={() => { if (hoverRef.current?.tarefa.id === t.id) hoverRef.current = null; }}
                       className={cn(
-                        "group/card relative bg-card rounded-lg border border-border p-2.5 shadow-sm cursor-pointer hover:border-blue-400 transition-colors",
+                        "group/card relative bg-card rounded-lg border border-border px-3 py-2 shadow-sm cursor-pointer hover:border-blue-400 transition-colors",
                         dragTarefaId === t.id && "opacity-40",
                         t.concluidaEm && "opacity-70"
                       )}
@@ -472,7 +474,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
 
       {/* Nova coluna */}
       {podeGerenciar && (
-        <div className="w-72 shrink-0">
+        <div className="w-[272px] shrink-0">
           {novaColuna ? (
             <div className="bg-card rounded-xl border border-info/40 p-3 space-y-2">
               <EscClose onClose={() => setNovaColuna(false)} />

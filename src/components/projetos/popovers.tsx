@@ -12,11 +12,18 @@ import { X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Pencil, Tras
 import { AvatarUsuario } from "./comum";
 import { ProjetoBoardDTO, EtiquetaDTO } from "./tipos";
 
-function Shell({ titulo, onFechar, children, largura = "w-80" }: { titulo: string; onFechar: () => void; children: React.ReactNode; largura?: string }) {
+function Shell({ titulo, onFechar, children, largura = "w-80", estilo }: {
+  titulo: string; onFechar: () => void; children: React.ReactNode; largura?: string;
+  /** Posição fixa na tela (quick edit do kanban); sem ela, ancora no elemento pai. */
+  estilo?: React.CSSProperties;
+}) {
   return (
     <>
       <div className="fixed inset-0 z-[60]" onMouseDown={onFechar} />
-      <div className={cn("absolute left-0 top-full mt-1.5 z-[70] bg-card border border-border rounded-xl shadow-xl", largura)}>
+      <div
+        className={cn("z-[70] bg-card border border-border rounded-xl shadow-xl", estilo ? "fixed" : "absolute left-0 top-full mt-1.5", largura)}
+        style={estilo}
+      >
         <EscClose onClose={onFechar} />
         <div className="flex items-center justify-between px-4 pt-3 pb-2">
           <span className="w-4" />
@@ -31,12 +38,13 @@ function Shell({ titulo, onFechar, children, largura = "w-80" }: { titulo: strin
 
 // ── Membros ─────────────────────────────────────────────────────────────────
 export function MembrosPopover({
-  board, membros, onToggle, onFechar, onCriarConvidado,
+  board, membros, onToggle, onFechar, onCriarConvidado, estilo,
 }: {
   board: ProjetoBoardDTO;
   membros: { id: string; nome: string }[];
   onToggle: (usuarioId: string) => void;
   onFechar: () => void;
+  estilo?: React.CSSProperties;
   /** Cria um membro CONVIDADO (sem usuário) com o texto da busca e o adiciona. */
   onCriarConvidado?: (nome: string) => Promise<void>;
 }) {
@@ -48,7 +56,7 @@ export function MembrosPopover({
     .filter((m) => !busca || m.usuario.nome.toLowerCase().includes(busca.toLowerCase()));
 
   return (
-    <Shell titulo="Membros" onFechar={onFechar}>
+    <Shell titulo="Membros" onFechar={onFechar} estilo={estilo}>
       <div className="px-3 pb-3 space-y-3">
         <input
           autoFocus
@@ -104,20 +112,176 @@ export function MembrosPopover({
   );
 }
 
+// ── Time do projeto (avatares do cabeçalho) ─────────────────────────────────
+// Adiciona/remove membros do quadro: usuários do sistema ou CONVIDADOS (pessoa
+// sem cadastro — criada pelo nome digitado). Quem está aqui aparece em
+// "Membros do Quadro" nos cartões.
+export function TimePopover({
+  board, onMudou, onFechar,
+}: {
+  board: ProjetoBoardDTO;
+  onMudou: () => void;
+  onFechar: () => void;
+}) {
+  const [busca, setBusca] = useState("");
+  const [usuarios, setUsuarios] = useState<{ id: string; nome: string; convidado?: boolean }[]>([]);
+  const [ocupado, setOcupado] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/projetos/usuarios")
+      .then((r) => r.json())
+      .then((j) => setUsuarios(j.data ?? []))
+      .catch(() => {});
+  }, []);
+
+  const noTime = new Set(board.membros.map((m) => m.usuarioId));
+  const termo = busca.trim().toLowerCase();
+  const candidatos = usuarios.filter((u) => !noTime.has(u.id) && (!termo || u.nome.toLowerCase().includes(termo)));
+  const jaNoTime = !!termo && board.membros.some((m) => m.usuario.nome.toLowerCase() === termo);
+
+  async function adicionar(usuarioId: string) {
+    setOcupado(true);
+    await fetch(`/api/projetos/${board.id}/membros`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioIds: [usuarioId] }),
+    }).catch(() => {});
+    setOcupado(false);
+    setBusca("");
+    onMudou();
+  }
+
+  async function remover(usuarioId: string) {
+    await fetch(`/api/projetos/${board.id}/membros?usuarioId=${usuarioId}`, { method: "DELETE" }).catch(() => {});
+    onMudou();
+  }
+
+  async function criarConvidado() {
+    setOcupado(true);
+    const res = await fetch("/api/projetos/usuarios", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: busca.trim() }),
+    }).catch(() => null);
+    const j = await res?.json().catch(() => ({}));
+    if (res?.ok && j?.data?.id) await adicionar(j.data.id);
+    else setOcupado(false);
+  }
+
+  return (
+    <Shell titulo="Time do projeto" onFechar={onFechar}>
+      <div className="px-3 pb-3 space-y-3">
+        <input
+          autoFocus
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Nome da pessoa"
+          className="w-full text-sm border-2 border-info/60 rounded-lg bg-card px-3 py-2 text-foreground focus:outline-none"
+        />
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground mb-1.5">No time ({board.membros.length})</p>
+          <div className="space-y-0.5 max-h-44 overflow-y-auto">
+            {board.membros.map((m) => (
+              <div key={m.id} className="flex items-center gap-2.5 bg-muted rounded-lg px-2.5 py-1.5">
+                <AvatarUsuario nome={m.usuario.nome} size="sm" />
+                <span className="text-sm text-foreground flex-1 truncate">
+                  {m.usuario.nome}
+                  {m.usuarioId === board.donoId && <span className="text-xs text-muted-foreground ml-1.5">(dono)</span>}
+                </span>
+                {m.usuarioId !== board.donoId && (
+                  <button onClick={() => remover(m.usuarioId)} className="text-muted-foreground hover:text-danger" title="Remover do time">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground mb-1.5">Adicionar</p>
+          <div className="space-y-0.5 max-h-48 overflow-y-auto">
+            {candidatos.map((u) => (
+              <button
+                key={u.id}
+                disabled={ocupado}
+                onClick={() => adicionar(u.id)}
+                className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-muted disabled:opacity-60"
+              >
+                <AvatarUsuario nome={u.nome} size="sm" />
+                <span className="text-sm text-foreground flex-1 truncate">{u.nome}</span>
+                {u.convidado && <span className="text-[10px] text-muted-foreground">convidado</span>}
+              </button>
+            ))}
+            {candidatos.length === 0 && !termo && <p className="text-xs text-muted-foreground px-2 py-2">Todos os usuários já estão no time.</p>}
+            {/* Pessoa sem cadastro: entra como convidado (não faz login). */}
+            {termo && !jaNoTime && !candidatos.some((u) => u.nome.toLowerCase() === termo) && (
+              <button
+                disabled={ocupado}
+                onClick={criarConvidado}
+                className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm text-info hover:bg-info/10 disabled:opacity-60"
+              >
+                + Adicionar “{busca.trim()}” (sem cadastro no sistema)
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 // ── Datas ───────────────────────────────────────────────────────────────────
 function iso(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 const DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
+// Campo de data digitável (D/M/AAAA) do popover de Datas: aceita digitação e
+// também recebe o dia clicado no calendário enquanto estiver ativo.
+function CampoData({
+  valor, ativo, onFoco, onChange,
+}: {
+  valor: string; // ISO "AAAA-MM-DD" ou ""
+  ativo: boolean;
+  onFoco: () => void;
+  onChange: (iso: string) => void;
+}) {
+  const fmt = (v: string) => (v ? `${v.slice(8, 10)}/${v.slice(5, 7)}/${v.slice(0, 4)}` : "");
+  const [txt, setTxt] = useState(fmt(valor));
+  useEffect(() => { setTxt(fmt(valor)); }, [valor]);
+
+  function digitar(v: string) {
+    setTxt(v);
+    const m = v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return;
+    const [dia, mes, ano] = [parseInt(m[1]), parseInt(m[2]), parseInt(m[3])];
+    const d = new Date(ano, mes - 1, dia);
+    if (d.getFullYear() === ano && d.getMonth() === mes - 1 && d.getDate() === dia) onChange(iso(d));
+  }
+
+  return (
+    <input
+      value={txt}
+      disabled={!valor}
+      placeholder="D/M/AAAA"
+      inputMode="numeric"
+      onFocus={onFoco}
+      onChange={(e) => digitar(e.target.value)}
+      onBlur={() => setTxt(fmt(valor))}
+      className={cn(
+        "text-sm border rounded-lg px-2.5 py-1.5 w-32 focus:outline-none",
+        !valor ? "bg-muted text-muted-foreground/60 border-border" :
+        ativo ? "border-info ring-1 ring-info/40 text-foreground bg-card" : "border-border text-foreground bg-card"
+      )}
+    />
+  );
+}
+
 export function DatasPopover({
-  dataInicio, prazo, prazoHora, onSalvar, onFechar,
+  dataInicio, prazo, prazoHora, onSalvar, onFechar, estilo,
 }: {
   dataInicio: string | null;
   prazo: string | null;
   prazoHora?: string | null;
   onSalvar: (v: { dataInicio: string | null; prazo: string | null; prazoHora: string | null }) => void;
   onFechar: () => void;
+  estilo?: React.CSSProperties;
 }) {
   const [inicio, setInicio] = useState<string>(dataInicio ? dataInicio.slice(0, 10) : "");
   const [entrega, setEntrega] = useState<string>(prazo ? prazo.slice(0, 10) : "");
@@ -151,8 +315,16 @@ export function DatasPopover({
     else setEntrega(v);
   }
 
+  // Data digitada: grava no campo e leva o calendário para o mês dela.
+  function digitada(campo: "inicio" | "entrega", v: string) {
+    if (campo === "inicio") setInicio(v);
+    else setEntrega(v);
+    setAno(parseInt(v.slice(0, 4)));
+    setMes(parseInt(v.slice(5, 7)) - 1);
+  }
+
   return (
-    <Shell titulo="Datas" onFechar={onFechar} largura="w-80">
+    <Shell titulo="Datas" onFechar={onFechar} largura="w-80" estilo={estilo}>
       <div className="px-4 pb-4 space-y-3">
         {/* Calendário */}
         <div>
@@ -206,16 +378,7 @@ export function DatasPopover({
                 checked={!!inicio}
                 onChange={(e) => { if (!e.target.checked) setInicio(""); else { setInicio(hoje); setCampoAtivo("inicio"); } }}
               />
-              <button
-                onClick={() => inicio && setCampoAtivo("inicio")}
-                className={cn(
-                  "text-sm border rounded-lg px-2.5 py-1.5 min-w-32 text-left",
-                  !inicio ? "bg-muted text-muted-foreground/60 border-border" :
-                  campoAtivo === "inicio" ? "border-info ring-1 ring-info/40 text-foreground bg-card" : "border-border text-foreground bg-card"
-                )}
-              >
-                {inicio ? new Date(inicio + "T12:00:00").toLocaleDateString("pt-BR") : "D/M/AAAA"}
-              </button>
+              <CampoData valor={inicio} ativo={campoAtivo === "inicio"} onFoco={() => setCampoAtivo("inicio")} onChange={(v) => digitada("inicio", v)} />
             </div>
           </div>
           <div>
@@ -227,16 +390,7 @@ export function DatasPopover({
                 checked={!!entrega}
                 onChange={(e) => { if (!e.target.checked) setEntrega(""); else { setEntrega(hoje); setCampoAtivo("entrega"); } }}
               />
-              <button
-                onClick={() => entrega && setCampoAtivo("entrega")}
-                className={cn(
-                  "text-sm border rounded-lg px-2.5 py-1.5 min-w-32 text-left",
-                  !entrega ? "bg-muted text-muted-foreground/60 border-border" :
-                  campoAtivo === "entrega" ? "border-info ring-1 ring-info/40 text-foreground bg-card" : "border-border text-foreground bg-card"
-                )}
-              >
-                {entrega ? new Date(entrega + "T12:00:00").toLocaleDateString("pt-BR") : "D/M/AAAA"}
-              </button>
+              <CampoData valor={entrega} ativo={campoAtivo === "entrega"} onFoco={() => setCampoAtivo("entrega")} onChange={(v) => digitada("entrega", v)} />
               <TimePicker value={hora} onChange={setHora} disabled={!entrega} className="w-28" triggerClassName="h-[34px]" />
             </div>
           </div>
