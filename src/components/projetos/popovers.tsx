@@ -136,7 +136,9 @@ export function TimePopover({
 
   const noTime = new Set(board.membros.map((m) => m.usuarioId));
   const termo = busca.trim().toLowerCase();
-  const candidatos = usuarios.filter((u) => !noTime.has(u.id) && (!termo || u.nome.toLowerCase().includes(termo)));
+  // Aberto, o popup mostra só o time; os demais usuários só aparecem como
+  // sugestão enquanto se digita um nome.
+  const candidatos = termo ? usuarios.filter((u) => !noTime.has(u.id) && u.nome.toLowerCase().includes(termo)) : [];
   const jaNoTime = !!termo && board.membros.some((m) => m.usuario.nome.toLowerCase() === termo);
 
   async function adicionar(usuarioId: string) {
@@ -171,12 +173,12 @@ export function TimePopover({
           autoFocus
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          placeholder="Nome da pessoa"
+          placeholder="Digite um nome para adicionar"
           className="w-full text-sm border-2 border-info/60 rounded-lg bg-card px-3 py-2 text-foreground focus:outline-none"
         />
         <div>
           <p className="text-xs font-semibold text-muted-foreground mb-1.5">No time ({board.membros.length})</p>
-          <div className="space-y-0.5 max-h-44 overflow-y-auto">
+          <div className="space-y-0.5 max-h-72 overflow-y-auto">
             {board.membros.map((m) => (
               <div key={m.id} className="flex items-center gap-2.5 bg-muted rounded-lg px-2.5 py-1.5">
                 <AvatarUsuario nome={m.usuario.nome} size="sm" />
@@ -193,6 +195,7 @@ export function TimePopover({
             ))}
           </div>
         </div>
+        {termo && (
         <div>
           <p className="text-xs font-semibold text-muted-foreground mb-1.5">Adicionar</p>
           <div className="space-y-0.5 max-h-48 overflow-y-auto">
@@ -208,7 +211,6 @@ export function TimePopover({
                 {u.convidado && <span className="text-[10px] text-muted-foreground">convidado</span>}
               </button>
             ))}
-            {candidatos.length === 0 && !termo && <p className="text-xs text-muted-foreground px-2 py-2">Todos os usuários já estão no time.</p>}
             {/* Pessoa sem cadastro: entra como convidado (não faz login). */}
             {termo && !jaNoTime && !candidatos.some((u) => u.nome.toLowerCase() === termo) && (
               <button
@@ -221,6 +223,7 @@ export function TimePopover({
             )}
           </div>
         </div>
+        )}
       </div>
     </Shell>
   );

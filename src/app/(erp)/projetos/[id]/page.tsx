@@ -10,7 +10,7 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import {
   Loader2, ArrowLeft, Star, Settings2, LayoutGrid, List, Calendar as CalendarIcon,
-  GanttChartSquare, Activity, Search, X, Archive, Plus,
+  GanttChartSquare, Activity, Search, X, Archive, Plus, ChevronDown, Check,
 } from "lucide-react";
 import { AvatarUsuario, ProgressoCirculo, SituacaoMenu } from "@/components/projetos/comum";
 import SelectMenu from "@/components/shared/SelectMenu";
@@ -31,7 +31,7 @@ const VISOES: { key: Visao; label: string; icon: typeof LayoutGrid }[] = [
   { key: "kanban",     label: "Quadro",         icon: LayoutGrid },
   { key: "lista",      label: "Lista",          icon: List },
   { key: "calendario", label: "Calendário",     icon: CalendarIcon },
-  { key: "timeline",   label: "Linha do tempo", icon: GanttChartSquare },
+  { key: "timeline",   label: "Cronograma",     icon: GanttChartSquare },
   { key: "atividade",  label: "Atividade",      icon: Activity },
 ];
 
@@ -47,6 +47,7 @@ export default function ProjetoBoardPage() {
   const [visao, setVisao] = usePersistedState<Visao>(`projetos:visao:${id}`, "kanban");
   const [showConfig, setShowConfig] = useState(false);
   const [showTime, setShowTime] = useState(false);
+  const [showVisoes, setShowVisoes] = useState(false);
   const [showArquivadas, setShowArquivadas] = useState(false);
 
   // Filtros (persistidos por usuário/projeto)
@@ -234,22 +235,53 @@ export default function ProjetoBoardPage() {
         </div>
 
         <div className="contents">
-          {/* Visões */}
-          <div className="flex rounded-lg border border-border overflow-hidden text-sm">
-            {VISOES.map((v) => (
-              <button
-                key={v.key}
-                onClick={() => setVisao(v.key)}
-                title={v.label}
-                aria-label={v.label}
-                className={cn(
-                  "px-2.5 py-1.5 inline-flex items-center transition-colors",
-                  visao === v.key ? "bg-info/10 text-info" : "text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <v.icon className="w-4 h-4" />
-              </button>
-            ))}
+          {/* Visões — um botão só (ícone da visão atual + seta) que abre o
+              menu com as visões por nome, como no Trello. */}
+          <div className="relative">
+            {(() => {
+              const atual = VISOES.find((v) => v.key === visao) ?? VISOES[0];
+              return (
+                <button
+                  onClick={() => setShowVisoes((v) => !v)}
+                  title={`Visualização: ${atual.label}`}
+                  aria-label={`Visualização: ${atual.label}`}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border text-foreground transition-colors",
+                    showVisoes ? "bg-muted" : "bg-card hover:bg-muted"
+                  )}
+                >
+                  <atual.icon className="w-4 h-4" />
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              );
+            })()}
+            {showVisoes && (
+              <>
+                <div className="fixed inset-0 z-40" onMouseDown={() => setShowVisoes(false)} />
+                <div className="absolute left-0 top-full mt-1.5 z-50 w-60 bg-card border border-border rounded-xl shadow-xl p-1.5">
+                  <EscClose onClose={() => setShowVisoes(false)} />
+                  <div className="flex items-center justify-between px-2 pt-1 pb-1.5">
+                    <span className="w-4" />
+                    <span className="text-xs font-semibold text-muted-foreground">Visualizações</span>
+                    <button onClick={() => setShowVisoes(false)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                  {VISOES.map((v) => (
+                    <button
+                      key={v.key}
+                      onClick={() => { setVisao(v.key); setShowVisoes(false); }}
+                      className={cn(
+                        "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-left transition-colors",
+                        visao === v.key ? "bg-info/10 text-info font-medium" : "text-foreground hover:bg-muted"
+                      )}
+                    >
+                      <v.icon className="w-4 h-4" />
+                      <span className="flex-1">{v.label}</span>
+                      {visao === v.key && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Filtros */}
