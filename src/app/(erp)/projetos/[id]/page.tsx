@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { AvatarUsuario, ProgressoCirculo, SituacaoMenu } from "@/components/projetos/comum";
 import SelectMenu from "@/components/shared/SelectMenu";
-import { ProjetoBoardDTO, TarefaResumoDTO, CATEGORIAS_COLUNA } from "@/components/projetos/tipos";
+import { ProjetoBoardDTO, TarefaResumoDTO, CATEGORIAS_COLUNA, tonsCor } from "@/components/projetos/tipos";
 import KanbanView from "@/components/projetos/KanbanView";
 import ListaView from "@/components/projetos/ListaView";
 import CalendarioView from "@/components/projetos/CalendarioView";
@@ -323,7 +323,16 @@ export default function ProjetoBoardPage() {
             className="w-40"
             options={[
               { value: "", label: "Todos os status" },
-              ...board.colunas.map((c) => ({ value: `col:${c.id}`, label: c.nome })),
+              ...board.colunas.map((c) => ({
+                value: `col:${c.id}`,
+                label: c.nome,
+                render: () => (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.cor ?? "#9ca3af" }} />
+                    <span className="rounded px-1.5 py-px" style={tonsCor(c.cor) ? { backgroundColor: tonsCor(c.cor)!.bg, color: tonsCor(c.cor)!.text } : undefined}>{c.nome}</span>
+                  </span>
+                ),
+              })),
               // Categorias agrupam as colunas do projeto (Início / Andamento / Fim).
               ...CATEGORIAS_COLUNA
                 .filter((cat) => board.colunas.filter((c) => c.categoria === cat.key).length > 1)

@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import EscClose from "@/components/shared/EscClose";
 import { AvatarUsuario, EtiquetaChip, PrioridadeBadge } from "./comum";
-import { TarefaResumoDTO, ColunaDTO, ProjetoBoardDTO, diaPrazo, instantePrazo } from "./tipos";
+import { TarefaResumoDTO, ColunaDTO, ProjetoBoardDTO, diaPrazo, instantePrazo, tonsCor } from "./tipos";
 
 // ── Propriedades ────────────────────────────────────────────────────────────
 // "nome" é fixa em ambos os lugares; as demais ligam/desligam e reordenam no
@@ -118,6 +118,7 @@ export default function TimelineView({
   const propsBarra = config.barra.props.filter((c) => c.visivel).map((c) => c.key);
   const larguraPainel = config.tabela.mostrar ? larguraNomes + colunasTabela.reduce((acc, c) => acc + c.largura, 0) : 0;
   const nomeColuna = (id: string) => colunas.find((c) => c.id === id)?.nome ?? "—";
+  const corColuna = (id: string) => colunas.find((c) => c.id === id)?.cor ?? null;
 
   function setLista(aba: "barra" | "tabela", props: ItemProp[]) {
     setConfig({ ...config, [aba]: { ...config[aba], props } });
@@ -356,7 +357,15 @@ export default function TimelineView({
             {modo === "tabela" && <span className="truncate" title={t.membros.map((m) => m.nome).join(", ")}>{t.membros.map((m) => m.nome).join(", ")}</span>}
           </>
         );
-      case "status": return <span className="truncate">{nomeColuna(t.colunaId)}</span>;
+      case "status": {
+        const tons = tonsCor(corColuna(t.colunaId));
+        return (
+          <span className="inline-flex items-center gap-1.5 truncate rounded px-1.5 py-px" style={tons ? { backgroundColor: tons.bg, color: tons.text } : undefined}>
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: corColuna(t.colunaId) ?? "#9ca3af" }} />
+            {nomeColuna(t.colunaId)}
+          </span>
+        );
+      }
       case "inicio": return t.dataInicio ? <span>{(modo === "tabela" ? fmtDia : fmtCurto)(diaPrazo(t.dataInicio))}</span> : vazio;
       case "entrega": {
         if (!t.prazo) return vazio;
@@ -612,30 +621,29 @@ export default function TimelineView({
       ) : (
       <div ref={rolagemRef} className="border border-border rounded-xl bg-card overflow-x-auto gantt-scroll">
         <div className="relative" style={{ minWidth: larguraPainel + totalDias * diaPx }}>
-          {/* Divisória nomes × grade: arraste para alargar a coluna de nomes. */}
-          {config.tabela.mostrar && (
-            <div
-              onPointerDown={(e) => { if (e.button !== 0) return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); divisoriaRef.current = { x0: e.clientX, w0: larguraNomes }; }}
-              onPointerMove={arrastarDivisoria}
-              onPointerUp={() => { divisoriaRef.current = null; }}
-              onPointerCancel={() => { divisoriaRef.current = null; }}
-              onDoubleClick={() => setLarguraNomes(224)}
-              className="absolute top-0 bottom-0 z-20 w-2 -ml-1 cursor-col-resize hover:bg-info/30 active:bg-info/40 touch-none"
-              style={{ left: larguraPainel }}
-              title="Arraste para ajustar a largura da coluna Tarefa (duplo clique restaura)"
-            />
-          )}
           {/* Cabeçalho: meses + régua de dias */}
           <div className="flex border-b border-border bg-muted sticky top-0">
+            {/* Tabela congelada: fica parada enquanto a grade rola na horizontal */}
             {config.tabela.mostrar && (
-              <>
+              <div className="sticky left-0 z-30 flex shrink-0 bg-muted border-r border-border" style={{ width: larguraPainel }}>
                 <div className="shrink-0 px-3 py-1.5 text-xs font-semibold text-muted-foreground border-r border-border/60" style={{ width: larguraNomes }}>Tarefa</div>
                 {colunasTabela.map((c, i) => (
-                  <div key={c.key} className={cn("shrink-0 px-2 py-1.5 text-xs font-semibold text-muted-foreground truncate", i === colunasTabela.length - 1 ? "border-r border-border" : "border-r border-border/60")} style={{ width: c.largura }}>
+                  <div key={c.key} className={cn("shrink-0 px-2 py-1.5 text-xs font-semibold text-muted-foreground truncate", i < colunasTabela.length - 1 && "border-r border-border/60")} style={{ width: c.largura }}>
                     {c.label}
                   </div>
                 ))}
-              </>
+                {/* Divisória nomes × grade: arraste para alargar a coluna Tarefa. */}
+                <div
+                  onPointerDown={(e) => { if (e.button !== 0) return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); divisoriaRef.current = { x0: e.clientX, w0: larguraNomes }; }}
+                  onPointerMove={arrastarDivisoria}
+                  onPointerUp={() => { divisoriaRef.current = null; }}
+                  onPointerCancel={() => { divisoriaRef.current = null; }}
+                  onDoubleClick={() => setLarguraNomes(224)}
+                  className="absolute top-0 -right-1 z-20 w-2 cursor-col-resize hover:bg-info/30 active:bg-info/40 touch-none"
+                  style={{ height: 45 + ordenadas.length * ALTURA_LINHA }}
+                  title="Arraste para ajustar a largura da coluna Tarefa (duplo clique restaura)"
+                />
+              </div>
             )}
             <div className="relative flex-1 overflow-visible" style={{ height: 44 }}>
               {(diaPx < 2 ? anos : meses).map((m, i) => (
@@ -656,9 +664,11 @@ export default function TimelineView({
                 const w = Math.max(diaPx, g.dur * diaPx);
                 const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
                 const umDia = g.inicio.getTime() === g.fim.getTime();
+                // A pílula é opaca e fica POR CIMA do círculo de "hoje" (que
+                // espia por trás quando coincide), como no Notion.
                 return (
                   <span
-                    className="absolute flex items-center justify-between gap-5 rounded-full bg-muted-foreground/15 text-xs text-foreground px-3 whitespace-nowrap pointer-events-none z-20"
+                    className="absolute flex items-center justify-between gap-5 rounded-full bg-muted text-xs text-foreground px-3 whitespace-nowrap pointer-events-none z-20 shadow-[inset_0_0_0_100px_hsl(var(--muted-foreground)/0.15)]"
                     style={{ left: g.x0 - 6, minWidth: w + 12, height: 24, top: 20 }}
                   >
                     <span>{fmt(g.inicio)}</span>
@@ -747,11 +757,14 @@ export default function TimelineView({
               const atrasada = !t.concluidaEm && (t.prazoHora ? instantePrazo(iso(fim), t.prazoHora) < new Date() : fim < hoje);
               const arrastando = arraste?.id === t.id && arraste.moveu;
               const larguraBarra = Math.max(diaPx, dur * diaPx);
+              // Barra sólida na cor do status (coluna); atraso sobrepõe em vermelho.
+              // Opaca de propósito: o rótulo cinza de trás só aparece fora dela.
+              const corBarra = atrasada ? "hsl(var(--danger))" : (corColuna(t.colunaId) ?? "#3b82f6");
               // Rótulo (Notion): começa dentro da barra e continua para fora em
               // cinza — a camada de trás é o rótulo inteiro em cinza, a barra
               // (opaca) cobre o trecho inicial e mostra o mesmo texto escuro.
               const Rotulo = ({ apagado }: { apagado?: boolean }) => (
-                <span className={cn("inline-flex items-center gap-2 whitespace-nowrap", apagado ? "text-muted-foreground" : t.concluidaEm ? "text-muted-foreground" : atrasada ? "text-danger" : "text-foreground")}>
+                <span className={cn("inline-flex items-center gap-2 whitespace-nowrap", apagado ? "text-muted-foreground" : "text-white")}>
                   <span className={cn(t.concluidaEm && "line-through")}>{t.titulo}</span>
                   {propsBarra.map((k) => <span key={k} className="inline-flex items-center gap-1">{valorProp(t, k, "barra")}</span>)}
                 </span>
@@ -759,26 +772,26 @@ export default function TimelineView({
               return (
                 <div
                   key={t.id}
-                  className={cn("flex border-b border-border/40 hover:bg-muted/40", ligacao && ligacao.deId !== t.id && "hover:bg-amber-500/10")}
+                  className={cn("group/linha flex border-b border-border/40 hover:bg-muted/40", ligacao && ligacao.deId !== t.id && "hover:bg-amber-500/10")}
                   onPointerEnter={() => { linhaHoverRef.current = t.id; }}
                   onPointerLeave={() => { if (linhaHoverRef.current === t.id) linhaHoverRef.current = null; }}
                 >
                   {config.tabela.mostrar && (
-                    <>
+                    <div className="sticky left-0 z-20 flex shrink-0 bg-card group-hover/linha:bg-muted border-r border-border" style={{ width: larguraPainel }}>
                       <div className={cn("shrink-0 px-3 py-1.5 text-xs truncate border-r border-border/60 cursor-pointer", t.concluidaEm ? "text-muted-foreground line-through" : "text-foreground")} style={{ width: larguraNomes }} onClick={() => onAbrirTarefa(t.id)} title={t.titulo}>
                         {t.titulo}
                       </div>
                       {colunasTabela.map((c, i) => (
                         <div
                           key={c.key}
-                          className={cn("shrink-0 px-2 flex items-center gap-1.5 text-xs text-foreground overflow-hidden cursor-pointer", i === colunasTabela.length - 1 ? "border-r border-border" : "border-r border-border/60")}
+                          className={cn("shrink-0 px-2 flex items-center gap-1.5 text-xs text-foreground overflow-hidden cursor-pointer", i < colunasTabela.length - 1 && "border-r border-border/60")}
                           style={{ width: c.largura, height: 28 }}
                           onClick={() => onAbrirTarefa(t.id)}
                         >
                           {valorProp(t, c.key, "tabela")}
                         </div>
                       ))}
-                    </>
+                    </div>
                   )}
                   <div
                     className={cn("relative flex-1", podeEditar && !t.temData && "cursor-copy")}
@@ -814,17 +827,16 @@ export default function TimelineView({
                           onMouseEnter={() => setHoverId(t.id)}
                           onMouseLeave={() => setHoverId((h) => (h === t.id ? null : h))}
                           className={cn(
-                            "group absolute top-1 h-5 rounded-md border text-[11px] pl-2 text-left select-none touch-none leading-5 overflow-hidden shadow-sm transition-colors",
+                            "group absolute top-1 h-5 rounded-md text-[11px] pl-2 text-left select-none touch-none leading-5 overflow-hidden shadow-sm transition-[filter]",
                             podeEditar ? (arrastando ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer",
                             arrastando && "ring-2 ring-info/60 shadow-md",
-                            t.concluidaEm ? "bg-success/10 border-success/30 hover:bg-success/20" :
-                            atrasada ? "bg-danger/10 border-danger/40 hover:bg-danger/20" :
-                            "bg-card border-border hover:bg-muted"
+                            t.concluidaEm ? "opacity-70" : "",
+                            "hover:brightness-110"
                           )}
-                          style={{ left: off * diaPx, width: larguraBarra }}
+                          style={{ left: off * diaPx, width: larguraBarra, backgroundColor: corBarra }}
                           title={`${t.titulo} — ${inicio.toLocaleDateString("pt-BR")} → ${fim.toLocaleDateString("pt-BR")}`}
                         >
-                          <Rotulo />
+                          <span className="relative"><Rotulo /></span>
                           {podeEditar && (
                             <>
                               {/* Bordas: início (esquerda) e entrega (direita) */}
@@ -832,13 +844,13 @@ export default function TimelineView({
                                 onPointerDown={(e) => iniciarArraste(e, t, "inicio")}
                                 onPointerMove={moverArraste}
                                 onPointerUp={(e) => { e.stopPropagation(); soltarArraste(t); }}
-                                className="absolute left-0 top-0 h-full w-1.5 rounded-l-md cursor-ew-resize bg-transparent group-hover:bg-foreground/15"
+                                className="absolute left-0 top-0 h-full w-1.5 rounded-l-md cursor-ew-resize bg-transparent group-hover:bg-white/40"
                               />
                               <span
                                 onPointerDown={(e) => iniciarArraste(e, t, "fim")}
                                 onPointerMove={moverArraste}
                                 onPointerUp={(e) => { e.stopPropagation(); soltarArraste(t); }}
-                                className="absolute right-0 top-0 h-full w-1.5 rounded-r-md cursor-ew-resize bg-transparent group-hover:bg-foreground/15"
+                                className="absolute right-0 top-0 h-full w-1.5 rounded-r-md cursor-ew-resize bg-transparent group-hover:bg-white/40"
                               />
                             </>
                           )}

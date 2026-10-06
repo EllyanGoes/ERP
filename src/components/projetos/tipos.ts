@@ -20,6 +20,25 @@ export type ColunaDTO = {
   concluiTarefa: boolean;
 };
 
+// Cores de status (colunas), paleta estilo Notion. A cor da coluna aparece no
+// cabeçalho do kanban, no filtro de status e nas barras do cronograma.
+export const CORES_STATUS: { cor: string; label: string }[] = [
+  { cor: "#9ca3af", label: "Cinza" },
+  { cor: "#a16207", label: "Marrom" },
+  { cor: "#f97316", label: "Laranja" },
+  { cor: "#eab308", label: "Amarelo" },
+  { cor: "#22c55e", label: "Verde" },
+  { cor: "#3b82f6", label: "Azul" },
+  { cor: "#8b5cf6", label: "Roxo" },
+  { cor: "#ec4899", label: "Rosa" },
+  { cor: "#ef4444", label: "Vermelho" },
+];
+/** Tons derivados de uma cor (#rrggbb): fundo suave, borda e texto. */
+export function tonsCor(cor: string | null | undefined): { bg: string; border: string; text: string } | null {
+  if (!cor || !/^#[0-9a-fA-F]{6}$/.test(cor)) return null;
+  return { bg: `${cor}1f`, border: `${cor}66`, text: cor };
+}
+
 export const CATEGORIAS_COLUNA: { key: "INICIO" | "ANDAMENTO" | "FIM"; label: string }[] = [
   { key: "INICIO", label: "Início" },
   { key: "ANDAMENTO", label: "Andamento" },

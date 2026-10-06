@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AvatarUsuario, EtiquetaChip, PrioridadeBadge } from "./comum";
-import { ProjetoBoardDTO, TarefaResumoDTO, prazoInfo, CATEGORIAS_COLUNA } from "./tipos";
+import { ProjetoBoardDTO, TarefaResumoDTO, prazoInfo, CATEGORIAS_COLUNA, CORES_STATUS, tonsCor } from "./tipos";
 import TarefaQuickEdit from "./TarefaQuickEdit";
 
 type Props = {
@@ -249,8 +249,18 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
               onDragEnd={() => setDragColunaId(null)}
             >
               {podeGerenciar && <GripVertical className="w-3.5 h-3.5 text-muted-foreground/40 cursor-grab" />}
-              {coluna.cor && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: coluna.cor }} />}
-              <span className="font-semibold text-sm text-foreground truncate">{coluna.nome}</span>
+              {/* Nome como pílula na cor do status (Notion) */}
+              {(() => {
+                const tons = tonsCor(coluna.cor);
+                return (
+                  <span
+                    className="font-semibold text-sm truncate rounded-md px-1.5 py-0.5 -my-0.5"
+                    style={tons ? { backgroundColor: tons.bg, color: tons.text } : undefined}
+                  >
+                    {coluna.nome}
+                  </span>
+                );
+              })()}
               {coluna.concluiTarefa && <Check className="w-3.5 h-3.5 text-success" />}
               <span className="text-xs text-muted-foreground">{lista.length}</span>
               {podeGerenciar && (
@@ -290,6 +300,19 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                     >
                       Renomear
                     </button>
+                    {/* Cor do status (aparece no filtro e no cronograma) */}
+                    <div className="px-3 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground border-t border-border/60">Cor</div>
+                    <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+                      {CORES_STATUS.map((c) => (
+                        <button
+                          key={c.cor}
+                          title={c.label}
+                          onClick={() => acaoColuna(coluna.id, { cor: c.cor })}
+                          className={cn("w-5 h-5 rounded-full border-2 transition-transform hover:scale-110", coluna.cor === c.cor ? "border-foreground" : "border-transparent")}
+                          style={{ backgroundColor: c.cor }}
+                        />
+                      ))}
+                    </div>
                     {/* Categoria de status: Início / Andamento / Fim (Fim conclui as tarefas). */}
                     <div className="px-3 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground border-t border-border/60">Categoria do status</div>
                     <div className="flex gap-1 px-3 pb-2">

@@ -89,9 +89,9 @@ export async function POST(req: NextRequest) {
       donoId: auth.session.sub,
       colunas: {
         create: [
-          { nome: "A fazer", ordem: 1024, categoria: "INICIO" },
-          { nome: "Em andamento", ordem: 2048, categoria: "ANDAMENTO" },
-          { nome: "Concluído", ordem: 3072, categoria: "FIM", concluiTarefa: true },
+          { nome: "A fazer", ordem: 1024, categoria: "INICIO", cor: "#9ca3af" },
+          { nome: "Em andamento", ordem: 2048, categoria: "ANDAMENTO", cor: "#3b82f6" },
+          { nome: "Concluído", ordem: 3072, categoria: "FIM", concluiTarefa: true, cor: "#22c55e" },
         ],
       },
       membros: {
