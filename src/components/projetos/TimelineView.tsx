@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import EscClose from "@/components/shared/EscClose";
 import { AvatarUsuario, EtiquetaChip, PrioridadeBadge } from "./comum";
-import { TarefaResumoDTO, ColunaDTO, ProjetoBoardDTO, diaPrazo } from "./tipos";
+import { TarefaResumoDTO, ColunaDTO, ProjetoBoardDTO, diaPrazo, instantePrazo } from "./tipos";
 
 // ── Propriedades ────────────────────────────────────────────────────────────
 // "nome" é fixa em ambos os lugares; as demais ligam/desligam e reordenam no
@@ -360,7 +360,7 @@ export default function TimelineView({
       case "inicio": return t.dataInicio ? <span>{(modo === "tabela" ? fmtDia : fmtCurto)(diaPrazo(t.dataInicio))}</span> : vazio;
       case "entrega": {
         if (!t.prazo) return vazio;
-        const atrasada = !t.concluidaEm && diaPrazo(t.prazo) < hoje;
+        const atrasada = !t.concluidaEm && instantePrazo(t.prazo, t.prazoHora) < (t.prazoHora ? new Date() : hoje);
         return <span className={cn(atrasada && modo === "tabela" && "text-danger font-semibold")}>{(modo === "tabela" ? fmtDia : fmtCurto)(diaPrazo(t.prazo))}{t.prazoHora ? ` ${t.prazoHora}` : ""}</span>;
       }
       case "duracao": {
@@ -610,7 +610,7 @@ export default function TimelineView({
       {linhas.length === 0 ? (
         <p className="text-sm text-muted-foreground italic text-center py-16">Nenhuma tarefa com datas — defina início/prazo nos cartões.</p>
       ) : (
-      <div ref={rolagemRef} className="border border-border rounded-xl bg-card overflow-x-auto">
+      <div ref={rolagemRef} className="border border-border rounded-xl bg-card overflow-x-auto gantt-scroll">
         <div className="relative" style={{ minWidth: larguraPainel + totalDias * diaPx }}>
           {/* Divisória nomes × grade: arraste para alargar a coluna de nomes. */}
           {config.tabela.mostrar && (
@@ -654,28 +654,37 @@ export default function TimelineView({
                 if (!t || !t.temData) return null;
                 const g = geometria(t);
                 const w = Math.max(diaPx, g.dur * diaPx);
-                const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "");
+                const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
                 const umDia = g.inicio.getTime() === g.fim.getTime();
                 return (
                   <span
-                    className="absolute flex items-center justify-between gap-2 rounded-md bg-muted-foreground/15 text-[11px] text-foreground px-2 whitespace-nowrap pointer-events-none z-10"
-                    style={{ left: g.x0, minWidth: w, height: 18, top: 24 }}
+                    className="absolute flex items-center justify-between gap-5 rounded-full bg-muted-foreground/15 text-xs text-foreground px-3 whitespace-nowrap pointer-events-none z-20"
+                    style={{ left: g.x0 - 6, minWidth: w + 12, height: 24, top: 20 }}
                   >
                     <span>{fmt(g.inicio)}</span>
                     {!umDia && <span>{fmt(g.fim)}</span>}
                   </span>
                 );
               })()}
-              {/* Hoje: bolinha no topo da linha vermelha */}
+              {/* Hoje: dia em círculo vermelho no topo da linha (Notion) */}
               {offHoje >= 0 && offHoje <= totalDias && (
-                <span className="absolute w-2.5 h-2.5 rounded-full bg-danger/80 -ml-[5px] z-10" style={{ left: offHoje * diaPx, bottom: -5 }} />
+                <span
+                  className="absolute z-10 w-6 h-6 -ml-3 rounded-full bg-danger text-white text-[11px] font-semibold inline-flex items-center justify-center"
+                  style={{ left: offHoje * diaPx + diaPx / 2, top: 20 }}
+                >
+                  {hoje.getDate()}
+                </span>
+              )}
+              {offHoje >= 0 && offHoje <= totalDias && (
+                <span className="absolute z-10 w-2.5 h-2.5 -ml-[5px] rounded-full bg-danger" style={{ left: offHoje * diaPx + diaPx / 2, bottom: -5 }} />
               )}
               {dias.map((d, i) => {
                 // Régua de dias: todos os dias nas escalas largas, só as segundas
                 // nas médias, nada nas pequenas (não cabe).
-                const mostra = diaPx >= 24 || (diaPx >= 6 && d.getDay() === 1);
-                if (!mostra) return null;
                 const ehHoje = i === offHoje;
+                // Hoje já aparece no círculo vermelho.
+                const mostra = !ehHoje && (diaPx >= 24 || (diaPx >= 6 && d.getDay() === 1));
+                if (!mostra) return null;
                 return (
                   <span
                     key={i}
@@ -706,7 +715,7 @@ export default function TimelineView({
                   return (
                     <g key={`${s.dependeDeId}>${s.tarefaId}`}>
                       <path d={caminhoSeta(s.x1, s.y1, s.x2, s.y2)} fill="none" strokeWidth={12} stroke="transparent" className={cn("pointer-events-auto", podeEditar && "cursor-pointer")} onClick={() => podeEditar && setDepSelecionada(sel ? null : { tarefaId: s.tarefaId, dependeDeId: s.dependeDeId })} />
-                      <path d={caminhoSeta(s.x1, s.y1, s.x2, s.y2)} fill="none" strokeWidth={sel ? 2.5 : 1.5} className={sel ? "stroke-amber-600" : "stroke-amber-500"} markerEnd="url(#seta-dep)" />
+                      <path d={caminhoSeta(s.x1, s.y1, s.x2, s.y2)} fill="none" strokeWidth={sel ? 3 : 2} strokeLinecap="round" className={sel ? "stroke-amber-600" : "stroke-amber-500"} markerEnd="url(#seta-dep)" />
                     </g>
                   );
                 })}
@@ -734,14 +743,17 @@ export default function TimelineView({
 
             {ordenadas.map((t) => {
               const { inicio, fim, off, dur } = geometria(t);
-              const atrasada = !t.concluidaEm && fim < hoje;
+              // Atrasada: prazo (com hora, se houver) já passou e não concluiu.
+              const atrasada = !t.concluidaEm && (t.prazoHora ? instantePrazo(iso(fim), t.prazoHora) < new Date() : fim < hoje);
               const arrastando = arraste?.id === t.id && arraste.moveu;
               const larguraBarra = Math.max(diaPx, dur * diaPx);
-              const rotuloDentro = larguraBarra > 60;
-              const rotulo = (
-                <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                  <span className={cn(t.concluidaEm && "line-through opacity-80")}>{t.titulo}</span>
-                  {propsBarra.map((k) => <span key={k} className="inline-flex items-center gap-1 opacity-90">{valorProp(t, k, "barra")}</span>)}
+              // Rótulo (Notion): começa dentro da barra e continua para fora em
+              // cinza — a camada de trás é o rótulo inteiro em cinza, a barra
+              // (opaca) cobre o trecho inicial e mostra o mesmo texto escuro.
+              const Rotulo = ({ apagado }: { apagado?: boolean }) => (
+                <span className={cn("inline-flex items-center gap-2 whitespace-nowrap", apagado ? "text-muted-foreground" : t.concluidaEm ? "text-muted-foreground" : atrasada ? "text-danger" : "text-foreground")}>
+                  <span className={cn(t.concluidaEm && "line-through")}>{t.titulo}</span>
+                  {propsBarra.map((k) => <span key={k} className="inline-flex items-center gap-1">{valorProp(t, k, "barra")}</span>)}
                 </span>
               );
               return (
@@ -770,16 +782,29 @@ export default function TimelineView({
                   )}
                   <div
                     className={cn("relative flex-1", podeEditar && !t.temData && "cursor-copy")}
-                    style={{ height: 28 }}
+                    // Linhas verticais dos dias (Notion); nas escalas pequenas, por semana.
+                    style={{
+                      height: 28,
+                      backgroundImage: diaPx >= 6
+                        ? `repeating-linear-gradient(to right, hsl(var(--border) / 0.5) 0, hsl(var(--border) / 0.5) 1px, transparent 1px, transparent ${diaPx}px)`
+                        : `repeating-linear-gradient(to right, hsl(var(--border) / 0.5) 0, hsl(var(--border) / 0.5) 1px, transparent 1px, transparent ${diaPx * 7}px)`,
+                      backgroundPosition: diaPx >= 6 ? "0 0" : `${((1 - minData.getDay() + 7) % 7) * diaPx}px 0`,
+                    }}
                     onClick={(e) => marcarDia(e, t)}
                     title={podeEditar && !t.temData ? "Clique no dia para definir o prazo" : undefined}
                   >
                     {/* linha de hoje */}
                     {offHoje >= 0 && offHoje <= totalDias && (
-                      <span className="absolute top-0 bottom-0 w-px bg-danger/50" style={{ left: offHoje * diaPx }} />
+                      <span className="absolute top-0 bottom-0 w-px bg-danger/50" style={{ left: offHoje * diaPx + diaPx / 2 }} />
                     )}
                     {t.temData && (
                       <>
+                        {/* Camada de trás: rótulo inteiro em cinza (a parte fora da barra) */}
+                        {!arrastando && (
+                          <span className="absolute top-1 h-5 leading-5 text-[11px] pl-2 pointer-events-none" style={{ left: off * diaPx }}>
+                            <Rotulo apagado />
+                          </span>
+                        )}
                         <div
                           onPointerDown={(e) => iniciarArraste(e, t, "mover")}
                           onPointerMove={moverArraste}
@@ -789,15 +814,17 @@ export default function TimelineView({
                           onMouseEnter={() => setHoverId(t.id)}
                           onMouseLeave={() => setHoverId((h) => (h === t.id ? null : h))}
                           className={cn(
-                            "group absolute top-1 h-5 rounded-md text-[10px] text-white px-1.5 text-left select-none touch-none leading-5 overflow-hidden",
+                            "group absolute top-1 h-5 rounded-md border text-[11px] pl-2 text-left select-none touch-none leading-5 overflow-hidden shadow-sm transition-colors",
                             podeEditar ? (arrastando ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer",
                             arrastando && "ring-2 ring-info/60 shadow-md",
-                            t.concluidaEm ? "bg-success/70" : atrasada ? "bg-danger/80" : "bg-blue-500/85 hover:bg-blue-600"
+                            t.concluidaEm ? "bg-success/10 border-success/30 hover:bg-success/20" :
+                            atrasada ? "bg-danger/10 border-danger/40 hover:bg-danger/20" :
+                            "bg-card border-border hover:bg-muted"
                           )}
                           style={{ left: off * diaPx, width: larguraBarra }}
                           title={`${t.titulo} — ${inicio.toLocaleDateString("pt-BR")} → ${fim.toLocaleDateString("pt-BR")}`}
                         >
-                          {rotuloDentro && rotulo}
+                          <Rotulo />
                           {podeEditar && (
                             <>
                               {/* Bordas: início (esquerda) e entrega (direita) */}
@@ -805,23 +832,17 @@ export default function TimelineView({
                                 onPointerDown={(e) => iniciarArraste(e, t, "inicio")}
                                 onPointerMove={moverArraste}
                                 onPointerUp={(e) => { e.stopPropagation(); soltarArraste(t); }}
-                                className="absolute left-0 top-0 h-full w-1.5 rounded-l-md cursor-ew-resize bg-white/0 group-hover:bg-white/40"
+                                className="absolute left-0 top-0 h-full w-1.5 rounded-l-md cursor-ew-resize bg-transparent group-hover:bg-foreground/15"
                               />
                               <span
                                 onPointerDown={(e) => iniciarArraste(e, t, "fim")}
                                 onPointerMove={moverArraste}
                                 onPointerUp={(e) => { e.stopPropagation(); soltarArraste(t); }}
-                                className="absolute right-0 top-0 h-full w-1.5 rounded-r-md cursor-ew-resize bg-white/0 group-hover:bg-white/40"
+                                className="absolute right-0 top-0 h-full w-1.5 rounded-r-md cursor-ew-resize bg-transparent group-hover:bg-foreground/15"
                               />
                             </>
                           )}
                         </div>
-                        {/* Rótulo fora da barra quando ela é curta */}
-                        {!rotuloDentro && !arrastando && (
-                          <span className="absolute top-1 h-5 leading-5 text-[10px] text-foreground pointer-events-none" style={{ left: off * diaPx + larguraBarra + 6 }}>
-                            {rotulo}
-                          </span>
-                        )}
                         {/* Conector de dependência: arraste até outra tarefa */}
                         {podeEditar && cfgDep.dependencias && !arrastando && (
                           <span
@@ -835,7 +856,7 @@ export default function TimelineView({
                               "absolute top-[9px] w-2.5 h-2.5 rounded-full border-2 border-amber-500 bg-card cursor-crosshair z-10",
                               ligacao?.deId === t.id ? "opacity-100" : "opacity-0 hover:opacity-100 hover:scale-125"
                             )}
-                            style={{ left: off * diaPx + larguraBarra + (rotuloDentro ? 2 : 2) }}
+                            style={{ left: off * diaPx + larguraBarra + 2 }}
                             title="Arraste até outra tarefa para criar uma dependência"
                           />
                         )}

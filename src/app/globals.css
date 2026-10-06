@@ -108,3 +108,18 @@ input[type="number"] {
   .print-area { overflow: visible !important; max-height: none !important; }
   @page { margin: 1.2cm; }
 }
+
+/* Barra de rolagem do cronograma (Projetos): fina e arredondada, estilo Notion. */
+.gantt-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+}
+.gantt-scroll::-webkit-scrollbar { height: 10px; width: 10px; }
+.gantt-scroll::-webkit-scrollbar-track { background: transparent; }
+.gantt-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.gantt-scroll::-webkit-scrollbar-thumb:hover { background-color: hsl(var(--muted-foreground) / 0.5); }

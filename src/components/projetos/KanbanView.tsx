@@ -327,7 +327,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                           e.preventDefault();
                           setDropAlvo({ colunaId: coluna.id, aposTarefaId: idx === 0 ? null : lista[idx - 1].id });
                         }}
-                        onDrop={(e) => { e.preventDefault(); soltarCartao(); }}
+                        onDrop={(e) => { e.preventDefault(); e.stopPropagation(); soltarCartao(); }}
                         className={cn(
                           "h-1.5 rounded transition-all",
                           dropAlvo?.colunaId === coluna.id && dropAlvo.aposTarefaId === (idx === 0 ? null : lista[idx - 1].id)
@@ -427,7 +427,7 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                     e.preventDefault();
                     setDropAlvo({ colunaId: coluna.id, aposTarefaId: lista.filter((t) => t.id !== dragTarefaId).slice(-1)[0]?.id ?? null });
                   }}
-                  onDrop={(e) => { e.preventDefault(); soltarCartao(); }}
+                  onDrop={(e) => { e.preventDefault(); e.stopPropagation(); soltarCartao(); }}
                   className={cn(
                     "rounded transition-all",
                     dropAlvo?.colunaId === coluna.id && dropAlvo.aposTarefaId === (lista.filter((t) => t.id !== dragTarefaId).slice(-1)[0]?.id ?? null)
