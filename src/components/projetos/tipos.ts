@@ -57,6 +57,8 @@ export type TarefaResumoDTO = {
   prazoHora?: string | null;
   dataInicio: string | null;
   concluidaEm: string | null;
+  // Ordem manual no cronograma (null = por data).
+  ordemCronograma?: number | null;
   arquivada: boolean;
   temDescricao?: boolean;
   membros: { id: string; nome: string }[];

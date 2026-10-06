@@ -6,12 +6,13 @@
 // linha de uma tarefa sem datas cria o prazo. Dependências: setas entre
 // barras, criadas arrastando o conector da predecessora até a sucessora.
 import { useEffect, useRef, useState } from "react";
-import { Settings2, X, Eye, EyeOff, GripVertical, ArrowLeft, Search, Link2, Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Settings2, X, Eye, EyeOff, GripVertical, ArrowLeft, Search, Link2, Check, ChevronDown, ChevronLeft, ChevronRight, PanelRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import EscClose from "@/components/shared/EscClose";
 import { AvatarUsuario, EtiquetaChip, PrioridadeBadge } from "./comum";
-import { TarefaResumoDTO, ColunaDTO, ProjetoBoardDTO, diaPrazo, instantePrazo, tonsCor } from "./tipos";
+import { MembrosPopover, DatasPopover, EtiquetasPopover } from "./popovers";
+import { TarefaResumoDTO, ColunaDTO, ProjetoBoardDTO, diaPrazo, instantePrazo, tonsCor, PRIORIDADES } from "./tipos";
 
 // ── Propriedades ────────────────────────────────────────────────────────────
 // "nome" é fixa em ambos os lugares; as demais ligam/desligam e reordenam no
@@ -86,6 +87,11 @@ export default function TimelineView({
   const [showEscalas, setShowEscalas] = useState(false);
   // Barra sob o mouse: a régua do cabeçalho mostra o intervalo dela (Notion).
   const [hoverId, setHoverId] = useState<string | null>(null);
+  // "Fantasma": numa tarefa sem datas, uma barra translúcida acompanha o mouse
+  // pela grade (1 semana a partir do dia apontado) e a régua mostra o período;
+  // o clique grava essas datas. Ajuda a planejar sem abrir o cartão.
+  const DIAS_FANTASMA = 7;
+  const [fantasma, setFantasma] = useState<{ tarefaId: string; off: number } | null>(null);
   const rolagemRef = useRef<HTMLDivElement>(null);
   const [arraste, setArraste] = useState<Arraste | null>(null);
   // Datas já soltas e ainda não devolvidas pelo servidor (evita a barra "pular"
@@ -138,6 +144,28 @@ export default function TimelineView({
   const cfgDep = board?.cronograma ?? { dependencias: false, modoDatas: "MARGEM" as const, evitarFds: true };
   const dependencias = board?.dependencias ?? [];
   const [ligacao, setLigacao] = useState<Ligacao | null>(null);
+  // Edição inline pela tabela: célula clicada abre o editor da propriedade
+  // (posição fixa, porque a tabela congelada corta o que vaza dela).
+  const [edicao, setEdicao] = useState<{ tarefaId: string; prop: Prop; top: number; left: number } | null>(null);
+  function abrirEdicao(e: React.MouseEvent, t: TarefaResumoDTO, prop: Prop) {
+    if (!podeEditar || !["responsavel", "status", "inicio", "entrega", "prioridade", "etiquetas"].includes(prop)) { onAbrirTarefa(t.id); return; }
+    e.stopPropagation();
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setEdicao({ tarefaId: t.id, prop, top: Math.min(r.bottom + 4, window.innerHeight - 440), left: Math.min(r.left, window.innerWidth - 340) });
+  }
+  async function patchTarefa(id: string, data: Record<string, unknown>) {
+    await fetch(`/api/projetos/tarefas/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }).catch(() => {});
+    onRecarregar?.();
+  }
+  async function moverTarefa(id: string, colunaId: string) {
+    await fetch(`/api/projetos/tarefas/${id}/mover`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colunaId }) }).catch(() => {});
+    onRecarregar?.();
+  }
+  // Arrastar linhas (ordem manual)
+  const [dragLinha, setDragLinha] = useState<string | null>(null);
+  const [dropLinha, setDropLinha] = useState<string | null>(null);
+  const [ordemLocal, setOrdemLocal] = useState<string[] | null>(null);
+  useEffect(() => { setOrdemLocal(null); }, [tarefas]);
   const linhaHoverRef = useRef<string | null>(null);
   const gradeRef = useRef<HTMLDivElement>(null);
   const [depSelecionada, setDepSelecionada] = useState<{ tarefaId: string; dependeDeId: string } | null>(null);
@@ -265,16 +293,41 @@ export default function TimelineView({
     if (a.delta !== 0 && (inicio.getTime() !== t.inicio.getTime() || fim.getTime() !== t.fim.getTime())) gravar(t, inicio, fim);
   }
 
-  // Tarefa sem datas: o clique num dia da linha marca o prazo ali.
+  function diaNoPonto(e: React.MouseEvent): number {
+    const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
+    return Math.max(0, Math.min(totalDias - 1, Math.floor(x / diaPx)));
+  }
+  // Tarefa sem datas: o clique grava a semana que o fantasma mostrava.
   function marcarDia(e: React.MouseEvent, t: Linha) {
     if (!podeEditar || t.temData) return;
-    const x = e.clientX - e.currentTarget.getBoundingClientRect().left;
-    const dia = somaDias(minData, Math.max(0, Math.min(totalDias - 1, Math.floor(x / diaPx))));
-    gravar(t, dia, dia);
+    const off = diaNoPonto(e);
+    const inicio = somaDias(minData, off);
+    gravar(t, inicio, somaDias(inicio, DIAS_FANTASMA - 1));
+    setFantasma(null);
   }
 
-  // Lista plana: com datas primeiro (por início), depois as sem datas.
-  const ordenadas = [...linhas].sort((a, b) => Number(b.temData) - Number(a.temData) || a.inicio.getTime() - b.inicio.getTime());
+  // Ordem das linhas: manual (ordemCronograma, arrastar e soltar) quando
+  // existe; sem ela, com datas primeiro (por início) e as sem datas no fim.
+  // `ordemLocal` segura a ordem recém-solta até o servidor devolver.
+  const ordenadas = [...linhas].sort((a, b) => {
+    const oa = ordemLocal?.indexOf(a.id) ?? -1, ob = ordemLocal?.indexOf(b.id) ?? -1;
+    if (oa >= 0 || ob >= 0) return (oa >= 0 ? oa : 1e9) - (ob >= 0 ? ob : 1e9);
+    const ma = a.ordemCronograma ?? null, mb = b.ordemCronograma ?? null;
+    if (ma != null || mb != null) return (ma ?? 1e9) - (mb ?? 1e9);
+    return Number(b.temData) - Number(a.temData) || a.inicio.getTime() - b.inicio.getTime();
+  });
+
+  async function soltarLinha(sobreId: string) {
+    if (!dragLinha || dragLinha === sobreId) { setDragLinha(null); return; }
+    const ids = ordenadas.map((t) => t.id).filter((id) => id !== dragLinha);
+    ids.splice(ids.indexOf(sobreId), 0, dragLinha);
+    setOrdemLocal(ids);
+    setDragLinha(null);
+    await fetch(`/api/projetos/${board?.id ?? tarefas[0]?.projetoId}/tarefas/ordem-cronograma`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ordem: ids }),
+    }).catch(() => {});
+    onRecarregar?.();
+  }
   const indice = new Map(ordenadas.map((t, i) => [t.id, i]));
 
   // Geometria das barras (p/ setas de dependência e conector)
@@ -616,6 +669,96 @@ export default function TimelineView({
         </div>
       </div>
 
+      {/* Editor inline da célula clicada */}
+      {edicao && board && (() => {
+        const t = tarefas.find((x) => x.id === edicao.tarefaId);
+        if (!t) return null;
+        const estilo = { top: edicao.top, left: edicao.left };
+        const fechar = () => setEdicao(null);
+        if (edicao.prop === "responsavel") {
+          const atuais = t.membros.map((m) => m.id);
+          return (
+            <MembrosPopover
+              board={board}
+              membros={t.membros}
+              estilo={estilo}
+              onFechar={fechar}
+              onToggle={(id) => patchTarefa(t.id, { membroIds: atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id] })}
+              onCriarConvidado={async (nome) => {
+                const res = await fetch("/api/projetos/usuarios", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }) }).catch(() => null);
+                const j = await res?.json().catch(() => ({}));
+                if (res?.ok && j?.data?.id) await patchTarefa(t.id, { membroIds: [...atuais, j.data.id] });
+              }}
+            />
+          );
+        }
+        if (edicao.prop === "inicio" || edicao.prop === "entrega") {
+          return (
+            <DatasPopover
+              dataInicio={t.dataInicio}
+              prazo={t.prazo}
+              prazoHora={t.prazoHora}
+              estilo={estilo}
+              onFechar={fechar}
+              onSalvar={(v) => { fechar(); patchTarefa(t.id, { dataInicio: v.dataInicio, prazo: v.prazo, prazoHora: v.prazoHora }); }}
+            />
+          );
+        }
+        if (edicao.prop === "etiquetas") {
+          const atuais = t.etiquetas.map((e) => e.id);
+          return (
+            <EtiquetasPopover
+              board={board}
+              aplicadas={atuais}
+              podeGerenciar={podeGerenciar}
+              estilo={estilo}
+              onFechar={fechar}
+              onToggle={(id) => patchTarefa(t.id, { etiquetaIds: atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id] })}
+              onCriar={async (nome, cor) => {
+                const res = await fetch(`/api/projetos/${board.id}/etiquetas`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, cor }) }).catch(() => null);
+                const j = await res?.json().catch(() => ({}));
+                if (res?.ok && j?.data?.id) await patchTarefa(t.id, { etiquetaIds: [...atuais, j.data.id] });
+              }}
+              onEditar={async (id, nome, cor) => {
+                await fetch(`/api/projetos/${board.id}/etiquetas/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, cor }) }).catch(() => {});
+                onRecarregar?.();
+              }}
+              onExcluir={async (id) => {
+                await fetch(`/api/projetos/${board.id}/etiquetas/${id}`, { method: "DELETE" }).catch(() => {});
+                onRecarregar?.();
+              }}
+            />
+          );
+        }
+        // Status (coluna) e Prioridade: lista simples de opções
+        const opcoes = edicao.prop === "status"
+          ? colunas.map((c) => ({ value: c.id, label: c.nome, cor: c.cor ?? "#9ca3af", atual: c.id === t.colunaId }))
+          : Object.entries(PRIORIDADES).map(([k, v]) => ({ value: k, label: v.label, cor: null as string | null, atual: k === t.prioridade, cls: v.cls }));
+        return (
+          <>
+            <div className="fixed inset-0 z-[60]" onMouseDown={fechar} />
+            <div className="fixed z-[70] w-56 bg-card border border-border rounded-xl shadow-xl p-1.5" style={estilo}>
+              <EscClose onClose={fechar} />
+              <p className="px-2 pt-1 pb-1.5 text-xs font-semibold text-muted-foreground">{edicao.prop === "status" ? "Status" : "Prioridade"}</p>
+              {opcoes.map((o) => (
+                <button
+                  key={o.value}
+                  onClick={() => { fechar(); if (edicao.prop === "status") moverTarefa(t.id, o.value); else patchTarefa(t.id, { prioridade: o.value }); }}
+                  className={cn("w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-left hover:bg-muted", o.atual ? "text-foreground font-medium" : "text-foreground")}
+                >
+                  {o.cor ? (
+                    <span className="rounded px-1.5 py-px text-xs" style={{ backgroundColor: `${o.cor}1f`, color: o.cor }}>{o.label}</span>
+                  ) : (
+                    <span className={cn("rounded px-1.5 py-px text-xs", "cls" in o ? o.cls : "")}>{o.label}</span>
+                  )}
+                  {o.atual && <Check className="w-3.5 h-3.5 ml-auto text-info" />}
+                </button>
+              ))}
+            </div>
+          </>
+        );
+      })()}
+
       {linhas.length === 0 ? (
         <p className="text-sm text-muted-foreground italic text-center py-16">Nenhuma tarefa com datas — defina início/prazo nos cartões.</p>
       ) : (
@@ -659,8 +802,13 @@ export default function TimelineView({
               {(() => {
                 const id = arraste?.id ?? hoverId;
                 const t = id ? porId.get(id) : null;
-                if (!t || !t.temData) return null;
-                const g = geometria(t);
+                let g: { inicio: Date; fim: Date; x0: number; dur: number } | null = null;
+                if (t && t.temData) g = geometria(t);
+                else if (fantasma) {
+                  const ini = somaDias(minData, fantasma.off);
+                  g = { inicio: ini, fim: somaDias(ini, DIAS_FANTASMA - 1), x0: fantasma.off * diaPx, dur: DIAS_FANTASMA };
+                }
+                if (!g) return null;
                 const w = Math.max(diaPx, g.dur * diaPx);
                 const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
                 const umDia = g.inicio.getTime() === g.fim.getTime();
@@ -772,21 +920,46 @@ export default function TimelineView({
               return (
                 <div
                   key={t.id}
-                  className={cn("group/linha flex border-b border-border/40 hover:bg-muted/40", ligacao && ligacao.deId !== t.id && "hover:bg-amber-500/10")}
+                  className={cn(
+                    "group/linha flex border-b border-border/40 hover:bg-muted/40",
+                    ligacao && ligacao.deId !== t.id && "hover:bg-amber-500/10",
+                    dragLinha === t.id && "opacity-40",
+                    dropLinha === t.id && dragLinha !== t.id && "shadow-[inset_0_2px_0_0_hsl(var(--info))]"
+                  )}
                   onPointerEnter={() => { linhaHoverRef.current = t.id; }}
                   onPointerLeave={() => { if (linhaHoverRef.current === t.id) linhaHoverRef.current = null; }}
+                  onDragOver={(e) => { if (dragLinha) { e.preventDefault(); if (dropLinha !== t.id) setDropLinha(t.id); } }}
+                  onDragLeave={() => { if (dropLinha === t.id) setDropLinha(null); }}
+                  onDrop={(e) => { if (dragLinha) { e.preventDefault(); setDropLinha(null); soltarLinha(t.id); } }}
                 >
                   {config.tabela.mostrar && (
                     <div className="sticky left-0 z-20 flex shrink-0 bg-card group-hover/linha:bg-muted border-r border-border" style={{ width: larguraPainel }}>
-                      <div className={cn("shrink-0 px-3 py-1.5 text-xs truncate border-r border-border/60 cursor-pointer", t.concluidaEm ? "text-muted-foreground line-through" : "text-foreground")} style={{ width: larguraNomes }} onClick={() => onAbrirTarefa(t.id)} title={t.titulo}>
-                        {t.titulo}
+                      <div className="relative shrink-0 flex items-center gap-1 pl-1 pr-2 border-r border-border/60 cursor-pointer" style={{ width: larguraNomes, height: 28 }} onClick={() => onAbrirTarefa(t.id)} title={t.titulo}>
+                        {/* Punho (Notion): arraste para mudar a ordem das linhas */}
+                        {podeEditar ? (
+                          <span
+                            draggable
+                            onClick={(e) => e.stopPropagation()}
+                            onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = "move"; setDragLinha(t.id); }}
+                            onDragEnd={() => { setDragLinha(null); setDropLinha(null); }}
+                            className="shrink-0 w-4 h-5 inline-flex items-center justify-center rounded text-muted-foreground/60 opacity-0 group-hover/linha:opacity-100 hover:bg-muted hover:text-foreground cursor-grab active:cursor-grabbing"
+                            title="Arraste para mover"
+                          >
+                            <GripVertical className="w-3.5 h-3.5" />
+                          </span>
+                        ) : <span className="w-4 shrink-0" />}
+                        <span className={cn("flex-1 text-xs truncate", t.concluidaEm ? "text-muted-foreground line-through" : "text-foreground")}>{t.titulo}</span>
+                        {/* Abrir (aparece no hover) */}
+                        <span className="shrink-0 hidden group-hover/linha:inline-flex items-center gap-1 px-1.5 h-5 rounded border border-border bg-card text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          <PanelRight className="w-3 h-3" /> Abrir
+                        </span>
                       </div>
                       {colunasTabela.map((c, i) => (
                         <div
                           key={c.key}
-                          className={cn("shrink-0 px-2 flex items-center gap-1.5 text-xs text-foreground overflow-hidden cursor-pointer", i < colunasTabela.length - 1 && "border-r border-border/60")}
+                          className={cn("shrink-0 px-2 flex items-center gap-1.5 text-xs text-foreground overflow-hidden cursor-pointer hover:bg-muted", i < colunasTabela.length - 1 && "border-r border-border/60", edicao?.tarefaId === t.id && edicao.prop === c.key && "ring-2 ring-inset ring-info/50")}
                           style={{ width: c.largura, height: 28 }}
-                          onClick={() => onAbrirTarefa(t.id)}
+                          onClick={(e) => abrirEdicao(e, t, c.key)}
                         >
                           {valorProp(t, c.key, "tabela")}
                         </div>
@@ -804,8 +977,23 @@ export default function TimelineView({
                       backgroundPosition: diaPx >= 6 ? "0 0" : `${((1 - minData.getDay() + 7) % 7) * diaPx}px 0`,
                     }}
                     onClick={(e) => marcarDia(e, t)}
-                    title={podeEditar && !t.temData ? "Clique no dia para definir o prazo" : undefined}
+                    onMouseMove={(e) => {
+                      if (!podeEditar || t.temData || arraste) return;
+                      const off = diaNoPonto(e);
+                      if (fantasma?.tarefaId !== t.id || fantasma.off !== off) setFantasma({ tarefaId: t.id, off });
+                    }}
+                    onMouseLeave={() => { if (fantasma?.tarefaId === t.id) setFantasma(null); }}
+                    title={podeEditar && !t.temData ? "Clique para definir as datas (1 semana a partir do dia)" : undefined}
                   >
+                    {/* Fantasma translúcido acompanhando o mouse (tarefa sem datas) */}
+                    {fantasma?.tarefaId === t.id && !t.temData && (
+                      <span
+                        className="absolute top-1 h-5 rounded-md bg-info/20 border border-dashed border-info/50 text-[11px] text-info leading-5 pl-2 whitespace-nowrap overflow-hidden pointer-events-none"
+                        style={{ left: fantasma.off * diaPx, width: DIAS_FANTASMA * diaPx }}
+                      >
+                        {DIAS_FANTASMA * diaPx > 60 ? t.titulo : ""}
+                      </span>
+                    )}
                     {/* linha de hoje */}
                     {offHoje >= 0 && offHoje <= totalDias && (
                       <span className="absolute top-0 bottom-0 w-px bg-danger/50" style={{ left: offHoje * diaPx + diaPx / 2 }} />

@@ -416,7 +416,7 @@ export function DatasPopover({
 const CORES_ETIQUETA = ["#4ade80", "#facc15", "#fb923c", "#f87171", "#c084fc", "#60a5fa", "#2dd4bf", "#f472b6", "#94a3b8", "#16a34a", "#ca8a04", "#dc2626"];
 
 export function EtiquetasPopover({
-  board, aplicadas, podeGerenciar, onToggle, onCriar, onEditar, onExcluir, onFechar,
+  board, aplicadas, podeGerenciar, onToggle, onCriar, onEditar, onExcluir, onFechar, estilo,
 }: {
   board: ProjetoBoardDTO;
   aplicadas: string[];
@@ -426,6 +426,7 @@ export function EtiquetasPopover({
   onEditar: (etiquetaId: string, nome: string, cor: string) => void;
   onExcluir: (etiquetaId: string) => void;
   onFechar: () => void;
+  estilo?: React.CSSProperties;
 }) {
   const [busca, setBusca] = useState("");
   const [modo, setModo] = useState<"lista" | "criar" | "editar">("lista");
@@ -495,7 +496,7 @@ export function EtiquetasPopover({
   }
 
   return (
-    <Shell titulo="Etiquetas" onFechar={onFechar}>
+    <Shell titulo="Etiquetas" onFechar={onFechar} estilo={estilo}>
       <div className="px-3 pb-3 space-y-2.5">
         <input
           autoFocus

@@ -4664,6 +4664,8 @@ model Tarefa {
   // só a DATA (meia-noite UTC) — a hora vive separada p/ não deslocar o dia.
   prazoHora     String?
   concluidaEm   DateTime?
+  // Ordem manual no cronograma (arrastar linhas); null = ordena por data.
+  ordemCronograma Int?
   arquivada     Boolean               @default(false)
   criadoPor     String?
   atualizadoPor String?
