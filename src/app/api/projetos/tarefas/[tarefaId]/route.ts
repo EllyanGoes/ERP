@@ -2,12 +2,12 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
-import { nivelNoProjeto, podeEditarTarefas, registrarAtividade, notificarAtribuicao, normalizarHora } from "@/lib/projetos";
+import { nivelNoProjeto, podeEditarTarefas, registrarAtividade, notificarAtribuicao, normalizarHora, propagarDependencias } from "@/lib/projetos";
 
 async function carregarComAcesso(session: { sub: string; perfil: "ADMIN" | "USUARIO" }, tarefaId: string) {
   const tarefa = await prismaSemEscopo.tarefa.findUnique({
     where: { id: tarefaId },
-    select: { id: true, projetoId: true, colunaId: true, titulo: true, prazo: true, arquivada: true, membros: { select: { usuarioId: true } } },
+    select: { id: true, projetoId: true, colunaId: true, titulo: true, prazo: true, dataInicio: true, arquivada: true, membros: { select: { usuarioId: true } } },
   });
   if (!tarefa) return null;
   const acesso = await nivelNoProjeto(session, tarefa.projetoId);
@@ -127,6 +127,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { tarefaId: 
 
   if (Object.keys(data).length > 0) {
     await prisma.tarefa.update({ where: { id: params.tarefaId }, data });
+  }
+  // Datas mudaram → empurra as tarefas que dependem desta (se o projeto tiver
+  // dependências ativas).
+  if (data.prazo !== undefined || data.dataInicio !== undefined) {
+    await propagarDependencias(params.tarefaId, ctx.tarefa.prazo ?? ctx.tarefa.dataInicio);
   }
 
   for (const a of atividades) {

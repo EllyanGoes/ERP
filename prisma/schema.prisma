@@ -4587,6 +4587,9 @@ model Projeto {
   // Projeto pode ser DE UMA EMPRESA do grupo ou GERAL (null) — tag e filtro na
   // home; não escopa consultas (projetos são por usuário/visibilidade).
   empresaId     String?
+  // Configuração do cronograma (estilo Notion): { dependencias: bool,
+  // modoDatas: "MARGEM" | "MANTER" | "NAO", evitarFds: bool }.
+  cronograma    Json?
   empresa       Empresa?            @relation(fields: [empresaId], references: [id])
   criadoPor     String?
   atualizadoPor String?
@@ -4598,6 +4601,7 @@ model Projeto {
   etiquetas     ProjetoEtiqueta[]
   tarefas       Tarefa[]
   atividades    TarefaAtividade[]
+  dependencias  TarefaDependencia[]
 
   @@index([status])
   @@index([donoId])
@@ -4623,6 +4627,10 @@ model ProjetoColuna {
   nome          String
   ordem         Int
   cor           String?
+  // Categoria de status (estilo Trello/Jira): INICIO | ANDAMENTO | FIM.
+  // FIM ⇔ concluiTarefa (mantido sincronizado pela API) — toda coluna do
+  // projeto é um status, e a categoria diz em que fase ele está.
+  categoria     String   @default("ANDAMENTO")
   concluiTarefa Boolean  @default(false)
   arquivada     Boolean  @default(false)
   projeto       Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
@@ -4669,9 +4677,29 @@ model Tarefa {
   comentarios   TarefaComentario[]
   anexos        AnexoTarefa[]
   atividades    TarefaAtividade[]
+  // Dependências (cronograma): esta tarefa depende de… / bloqueia…
+  dependeDe     TarefaDependencia[]   @relation("DependenciaTarefa")
+  bloqueia      TarefaDependencia[]   @relation("DependenciaDependeDe")
 
   @@index([projetoId, colunaId, ordem])
   @@index([prazo])
+}
+
+// Dependência entre tarefas do mesmo projeto: `tarefa` só pode começar depois
+// que `dependeDe` termina. Com dependências ativas no projeto, mudar as datas
+// da predecessora empurra as sucessoras (propagarDependencias em lib/projetos).
+model TarefaDependencia {
+  id          String  @id @default(cuid())
+  projetoId   String
+  tarefaId    String
+  dependeDeId String
+  projeto     Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  tarefa      Tarefa  @relation("DependenciaTarefa", fields: [tarefaId], references: [id], onDelete: Cascade)
+  dependeDe   Tarefa  @relation("DependenciaDependeDe", fields: [dependeDeId], references: [id], onDelete: Cascade)
+
+  @@unique([tarefaId, dependeDeId])
+  @@index([projetoId])
+  @@index([dependeDeId])
 }
 
 model TarefaEtiqueta {

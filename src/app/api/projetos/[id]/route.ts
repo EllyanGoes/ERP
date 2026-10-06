@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { nivelNoProjeto, podeGerenciarProjeto, TAREFA_LISTA_SELECT } from "@/lib/projetos";
+import { nivelNoProjeto, podeGerenciarProjeto, TAREFA_LISTA_SELECT, lerConfigCronograma } from "@/lib/projetos";
 import { salvarNaLixeira } from "@/lib/lixeira";
 
 // GET /api/projetos/[id] — payload completo do quadro (todas as visões).
@@ -19,8 +19,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       visibilidade: true, status: true, donoId: true,
       // Sem estes dois o diálogo de configurações abre com "Geral"/"Em
       // andamento" e o salvar SOBRESCREVE o que estava gravado.
-      empresaId: true, situacao: true,
+      empresaId: true, situacao: true, cronograma: true,
       dono: { select: { id: true, nome: true } },
+      dependencias: { select: { tarefaId: true, dependeDeId: true } },
       membros: {
         select: { id: true, usuarioId: true, papel: true, favorito: true, usuario: { select: { id: true, nome: true, email: true } } },
         orderBy: { usuario: { nome: "asc" } },
@@ -29,7 +30,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       colunas: {
         where: { arquivada: false },
         orderBy: { ordem: "asc" },
-        select: { id: true, nome: true, ordem: true, cor: true, concluiTarefa: true },
+        select: { id: true, nome: true, ordem: true, cor: true, categoria: true, concluiTarefa: true },
       },
       tarefas: {
         where: { arquivada: false },
@@ -84,6 +85,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data.situacao = body.situacao;
   }
   if (body.cor !== undefined) data.cor = body.cor || null;
+  // Configuração do cronograma (dependências / mudança automática de datas).
+  if (body.cronograma !== undefined) data.cronograma = lerConfigCronograma(body.cronograma);
   if (body.icone !== undefined) data.icone = body.icone || null;
   if (body.visibilidade !== undefined) data.visibilidade = body.visibilidade === "PUBLICO" ? "PUBLICO" : "PRIVADO";
   if (body.status !== undefined) {

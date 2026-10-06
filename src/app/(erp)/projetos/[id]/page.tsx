@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { AvatarUsuario, ProgressoCirculo, SituacaoMenu } from "@/components/projetos/comum";
 import SelectMenu from "@/components/shared/SelectMenu";
-import { ProjetoBoardDTO, TarefaResumoDTO, prazoInfo } from "@/components/projetos/tipos";
+import { ProjetoBoardDTO, TarefaResumoDTO, CATEGORIAS_COLUNA } from "@/components/projetos/tipos";
 import KanbanView from "@/components/projetos/KanbanView";
 import ListaView from "@/components/projetos/ListaView";
 import CalendarioView from "@/components/projetos/CalendarioView";
@@ -54,7 +54,7 @@ export default function ProjetoBoardPage() {
   const [filtroResp, setFiltroResp] = usePersistedState<string>(`projetos:fresp:${id}`, "");
   const [filtroEtiqueta, setFiltroEtiqueta] = usePersistedState<string>(`projetos:fetq:${id}`, "");
   const [filtroBusca, setFiltroBusca] = useState("");
-  // Status: coluna do quadro ("col:<id>") ou situação derivada do prazo.
+  // Status = colunas do PRÓPRIO projeto ("col:<id>") ou uma categoria delas ("cat:INICIO|ANDAMENTO|FIM").
   const [filtroStatus, setFiltroStatus] = usePersistedState<string>(`projetos:fstatus:${id}`, "");
 
   // Cartão aberto via ?tarefa= (link compartilhável)
@@ -158,13 +158,8 @@ export default function ProjetoBoardPage() {
     if (filtroResp === "__sem__" ? t.membros.length > 0 : filtroResp && !t.membros.some((m) => m.id === filtroResp)) return false;
     if (filtroEtiqueta && !t.etiquetas.some((e) => e.id === filtroEtiqueta)) return false;
     if (filtroBusca && !t.titulo.toLowerCase().includes(filtroBusca.toLowerCase())) return false;
-    if (filtroStatus) {
-      if (filtroStatus.startsWith("col:")) { if (t.colunaId !== filtroStatus.slice(4)) return false; }
-      else if (filtroStatus === "abertas") { if (t.concluidaEm) return false; }
-      else if (filtroStatus === "concluidas") { if (!t.concluidaEm) return false; }
-      else if (filtroStatus === "atrasadas") { if (t.concluidaEm || !t.prazo || !prazoInfo(t.prazo, false, t.prazoHora)?.cls.includes("text-danger")) return false; }
-      else if (filtroStatus === "sem_prazo") { if (t.concluidaEm || t.prazo) return false; }
-    }
+    if (filtroStatus.startsWith("col:") && t.colunaId !== filtroStatus.slice(4)) return false;
+    if (filtroStatus.startsWith("cat:") && board.colunas.find((c) => c.id === t.colunaId)?.categoria !== filtroStatus.slice(4)) return false;
     return true;
   });
 
@@ -329,10 +324,10 @@ export default function ProjetoBoardPage() {
             options={[
               { value: "", label: "Todos os status" },
               ...board.colunas.map((c) => ({ value: `col:${c.id}`, label: c.nome })),
-              { value: "abertas", label: "Abertas (não concluídas)" },
-              { value: "concluidas", label: "Concluídas" },
-              { value: "atrasadas", label: "Atrasadas" },
-              { value: "sem_prazo", label: "Abertas sem prazo" },
+              // Categorias agrupam as colunas do projeto (Início / Andamento / Fim).
+              ...CATEGORIAS_COLUNA
+                .filter((cat) => board.colunas.filter((c) => c.categoria === cat.key).length > 1)
+                .map((cat) => ({ value: `cat:${cat.key}`, label: `${cat.label} (todas)` })),
             ]}
           />
           {(filtroResp || filtroEtiqueta || filtroBusca || filtroStatus) && (
@@ -367,7 +362,7 @@ export default function ProjetoBoardPage() {
           <CalendarioView tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
         )}
         {visao === "timeline" && (
-          <TimelineView tarefas={tarefasFiltradas} colunas={board.colunas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
+          <TimelineView tarefas={tarefasFiltradas} colunas={board.colunas} board={board} podeEditar={podeEditar} podeGerenciar={podeGerenciar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
         )}
         {visao === "atividade" && <AtividadeView projetoId={board.id} onAbrirTarefa={abrirTarefa} />}
       </div>

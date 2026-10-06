@@ -184,3 +184,82 @@ export const TAREFA_LISTA_SELECT = {
 // prisma é reexportado p/ as rotas do módulo usarem o client com autoria
 // carimbada (proxy) mesmo sendo modelos sem escopo de empresa.
 export { prisma as prismaProjetos };
+
+// ── Cronograma: dependências e propagação de datas ───────────────────────────
+export type ConfigCronograma = {
+  dependencias: boolean;
+  // Ao mover a predecessora: MARGEM só empurra a sucessora se ela passar a
+  // começar antes do fim da predecessora; MANTER desloca a sucessora pelo mesmo
+  // delta (preserva o espaço entre elas); NAO não mexe.
+  modoDatas: "MARGEM" | "MANTER" | "NAO";
+  evitarFds: boolean;
+};
+export const CRONOGRAMA_PADRAO: ConfigCronograma = { dependencias: false, modoDatas: "MARGEM", evitarFds: true };
+
+export function lerConfigCronograma(v: unknown): ConfigCronograma {
+  const o = (v && typeof v === "object" ? v : {}) as Partial<ConfigCronograma>;
+  return {
+    dependencias: !!o.dependencias,
+    modoDatas: o.modoDatas === "MANTER" || o.modoDatas === "NAO" ? o.modoDatas : "MARGEM",
+    evitarFds: o.evitarFds !== false,
+  };
+}
+
+const DIA_MS = 86_400_000;
+const somaDiasUtc = (d: Date, n: number) => new Date(d.getTime() + n * DIA_MS);
+// Datas de tarefa são meia-noite UTC (só o dia): fim de semana pelo getUTCDay.
+function pularFds(d: Date, evitar: boolean): Date {
+  if (!evitar) return d;
+  let x = d;
+  while (x.getUTCDay() === 0 || x.getUTCDay() === 6) x = somaDiasUtc(x, 1);
+  return x;
+}
+
+/**
+ * Empurra as tarefas que dependem de `tarefaId` quando as datas dela mudaram.
+ * `fimAnterior` é o prazo que ela tinha antes (para o modo MANTER). Cascateia
+ * pelas sucessoras das sucessoras; ciclos são cortados pelo `visitados`.
+ */
+export async function propagarDependencias(tarefaId: string, fimAnterior: Date | null, visitados = new Set<string>()): Promise<string[]> {
+  if (visitados.has(tarefaId)) return [];
+  visitados.add(tarefaId);
+  const pred = await prismaSemEscopo.tarefa.findUnique({
+    where: { id: tarefaId },
+    select: { prazo: true, dataInicio: true, projeto: { select: { cronograma: true } } },
+  });
+  if (!pred) return [];
+  const cfg = lerConfigCronograma(pred.projeto.cronograma);
+  if (!cfg.dependencias || cfg.modoDatas === "NAO") return [];
+  const fimPred = pred.prazo ?? pred.dataInicio;
+  if (!fimPred) return [];
+  const deltaDias = fimAnterior ? Math.round((fimPred.getTime() - fimAnterior.getTime()) / DIA_MS) : 0;
+
+  const sucessoras = await prismaSemEscopo.tarefaDependencia.findMany({
+    where: { dependeDeId: tarefaId },
+    select: { tarefa: { select: { id: true, dataInicio: true, prazo: true } } },
+  });
+  const alteradas: string[] = [];
+  for (const { tarefa: suc } of sucessoras) {
+    const fimSuc = suc.prazo ?? suc.dataInicio;
+    if (!fimSuc) continue;
+    const iniSuc = suc.dataInicio ?? fimSuc;
+    const duracao = Math.round((fimSuc.getTime() - iniSuc.getTime()) / DIA_MS);
+    let novoIni: Date | null = null;
+    if (cfg.modoDatas === "MANTER") {
+      if (deltaDias !== 0) novoIni = somaDiasUtc(iniSuc, deltaDias);
+    } else {
+      const minimo = somaDiasUtc(fimPred, 1);
+      if (iniSuc < minimo) novoIni = minimo;
+    }
+    if (!novoIni) continue;
+    novoIni = pularFds(novoIni, cfg.evitarFds);
+    const novoFim = pularFds(somaDiasUtc(novoIni, duracao), cfg.evitarFds);
+    await prismaSemEscopo.tarefa.update({
+      where: { id: suc.id },
+      data: { dataInicio: suc.dataInicio ? novoIni : null, prazo: novoFim },
+    });
+    alteradas.push(suc.id);
+    alteradas.push(...(await propagarDependencias(suc.id, fimSuc, visitados)));
+  }
+  return alteradas;
+}

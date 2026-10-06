@@ -22,7 +22,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data.nome = nome;
   }
   if (body.cor !== undefined) data.cor = body.cor || null;
-  if (body.concluiTarefa !== undefined) data.concluiTarefa = !!body.concluiTarefa;
+  // Categoria e concluiTarefa andam juntos: FIM ⇔ conclui.
+  if (body.categoria !== undefined) {
+    if (!["INICIO", "ANDAMENTO", "FIM"].includes(body.categoria)) return NextResponse.json({ error: "Categoria inválida." }, { status: 400 });
+    data.categoria = body.categoria;
+    data.concluiTarefa = body.categoria === "FIM";
+  } else if (body.concluiTarefa !== undefined) {
+    data.concluiTarefa = !!body.concluiTarefa;
+    data.categoria = body.concluiTarefa ? "FIM" : "ANDAMENTO";
+  }
   if (body.arquivada !== undefined) {
     if (body.arquivada) {
       const abertas = await prismaSemEscopo.tarefa.count({ where: { colunaId: params.colunaId, arquivada: false } });

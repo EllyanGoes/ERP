@@ -15,8 +15,16 @@ export type ColunaDTO = {
   nome: string;
   ordem: number;
   cor: string | null;
+  // INICIO | ANDAMENTO | FIM (FIM = coluna de conclusão)
+  categoria: "INICIO" | "ANDAMENTO" | "FIM";
   concluiTarefa: boolean;
 };
+
+export const CATEGORIAS_COLUNA: { key: "INICIO" | "ANDAMENTO" | "FIM"; label: string }[] = [
+  { key: "INICIO", label: "Início" },
+  { key: "ANDAMENTO", label: "Andamento" },
+  { key: "FIM", label: "Fim" },
+];
 
 export type TarefaResumoDTO = {
   id: string;
@@ -55,6 +63,9 @@ export type ProjetoBoardDTO = {
   etiquetas: EtiquetaDTO[];
   colunas: ColunaDTO[];
   tarefas: TarefaResumoDTO[];
+  // Cronograma: dependências entre tarefas e configuração (null = padrão).
+  dependencias: { tarefaId: string; dependeDeId: string }[];
+  cronograma: { dependencias: boolean; modoDatas: "MARGEM" | "MANTER" | "NAO"; evitarFds: boolean } | null;
   meuNivel: "DONO" | "ADMIN" | "MEMBRO" | "LEITURA";
   meuFavorito: boolean;
 };

@@ -29,7 +29,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       projetoId: params.id,
       nome,
       cor: body.cor || null,
-      concluiTarefa: !!body.concluiTarefa,
+      // Categoria (INICIO | ANDAMENTO | FIM); FIM é a coluna de conclusão.
+      categoria: ["INICIO", "ANDAMENTO", "FIM"].includes(body.categoria) ? body.categoria : body.concluiTarefa ? "FIM" : "ANDAMENTO",
+      concluiTarefa: body.categoria === "FIM" || !!body.concluiTarefa,
       ordem: (ultima?.ordem ?? 0) + ORDEM_GAP,
     },
   });

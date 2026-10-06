@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AvatarUsuario, EtiquetaChip, PrioridadeBadge } from "./comum";
-import { ProjetoBoardDTO, TarefaResumoDTO, prazoInfo } from "./tipos";
+import { ProjetoBoardDTO, TarefaResumoDTO, prazoInfo, CATEGORIAS_COLUNA } from "./tipos";
 import TarefaQuickEdit from "./TarefaQuickEdit";
 
 type Props = {
@@ -290,9 +290,22 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                     >
                       Renomear
                     </button>
-                    <button className="w-full text-left px-3 py-2 hover:bg-muted" onClick={() => acaoColuna(coluna.id, { concluiTarefa: !coluna.concluiTarefa })}>
-                      {coluna.concluiTarefa ? "Deixar de concluir tarefas" : "Marcar como coluna de conclusão"}
-                    </button>
+                    {/* Categoria de status: Início / Andamento / Fim (Fim conclui as tarefas). */}
+                    <div className="px-3 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground border-t border-border/60">Categoria do status</div>
+                    <div className="flex gap-1 px-3 pb-2">
+                      {CATEGORIAS_COLUNA.map((c) => (
+                        <button
+                          key={c.key}
+                          onClick={() => acaoColuna(coluna.id, { categoria: c.key })}
+                          className={cn(
+                            "flex-1 px-2 py-1 rounded-md text-xs border transition-colors",
+                            coluna.categoria === c.key ? "bg-info/10 border-info/40 text-info font-medium" : "border-border text-muted-foreground hover:bg-muted"
+                          )}
+                        >
+                          {c.label}
+                        </button>
+                      ))}
+                    </div>
                     <button className="w-full text-left px-3 py-2 text-danger hover:bg-danger/10" onClick={() => acaoColuna(coluna.id, { arquivada: true })}>
                       Arquivar coluna
                     </button>
