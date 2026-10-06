@@ -84,6 +84,8 @@ export default function TimelineView({
   const escala = ESCALAS.find((e) => e.key === escalaKey) ?? ESCALAS[3];
   const diaPx = escala.diaPx;
   const [showEscalas, setShowEscalas] = useState(false);
+  // Barra sob o mouse: a régua do cabeçalho mostra o intervalo dela (Notion).
+  const [hoverId, setHoverId] = useState<string | null>(null);
   const rolagemRef = useRef<HTMLDivElement>(null);
   const [arraste, setArraste] = useState<Arraste | null>(null);
   // Datas já soltas e ainda não devolvidas pelo servidor (evita a barra "pular"
@@ -635,7 +637,7 @@ export default function TimelineView({
                 ))}
               </>
             )}
-            <div className="relative flex-1" style={{ height: 44 }}>
+            <div className="relative flex-1 overflow-visible" style={{ height: 44 }}>
               {(diaPx < 2 ? anos : meses).map((m, i) => (
                 <span
                   key={i}
@@ -645,6 +647,29 @@ export default function TimelineView({
                   {diaPx < 2 || m.dias * diaPx > 40 ? m.label : ""}
                 </span>
               ))}
+              {/* Pílula com o intervalo da barra sob o mouse (ou arrastada) */}
+              {(() => {
+                const id = arraste?.id ?? hoverId;
+                const t = id ? porId.get(id) : null;
+                if (!t || !t.temData) return null;
+                const g = geometria(t);
+                const w = Math.max(diaPx, g.dur * diaPx);
+                const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "");
+                const umDia = g.inicio.getTime() === g.fim.getTime();
+                return (
+                  <span
+                    className="absolute flex items-center justify-between gap-2 rounded-md bg-muted-foreground/15 text-[11px] text-foreground px-2 whitespace-nowrap pointer-events-none z-10"
+                    style={{ left: g.x0, minWidth: w, height: 18, top: 24 }}
+                  >
+                    <span>{fmt(g.inicio)}</span>
+                    {!umDia && <span>{fmt(g.fim)}</span>}
+                  </span>
+                );
+              })()}
+              {/* Hoje: bolinha no topo da linha vermelha */}
+              {offHoje >= 0 && offHoje <= totalDias && (
+                <span className="absolute w-2.5 h-2.5 rounded-full bg-danger/80 -ml-[5px] z-10" style={{ left: offHoje * diaPx, bottom: -5 }} />
+              )}
               {dias.map((d, i) => {
                 // Régua de dias: todos os dias nas escalas largas, só as segundas
                 // nas médias, nada nas pequenas (não cabe).
@@ -761,6 +786,8 @@ export default function TimelineView({
                           onPointerUp={() => soltarArraste(t)}
                           onPointerCancel={() => { arrasteRef.current = null; setArraste(null); }}
                           onClick={() => { if (!podeEditar) onAbrirTarefa(t.id); }}
+                          onMouseEnter={() => setHoverId(t.id)}
+                          onMouseLeave={() => setHoverId((h) => (h === t.id ? null : h))}
                           className={cn(
                             "group absolute top-1 h-5 rounded-md text-[10px] text-white px-1.5 text-left select-none touch-none leading-5 overflow-hidden",
                             podeEditar ? (arrastando ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer",
