@@ -367,7 +367,7 @@ export default function ProjetoBoardPage() {
           <CalendarioView tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
         )}
         {visao === "timeline" && (
-          <TimelineView tarefas={tarefasFiltradas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
+          <TimelineView tarefas={tarefasFiltradas} colunas={board.colunas} podeEditar={podeEditar} onAbrirTarefa={abrirTarefa} onRecarregar={mudou} />
         )}
         {visao === "atividade" && <AtividadeView projetoId={board.id} onAbrirTarefa={abrirTarefa} />}
       </div>
