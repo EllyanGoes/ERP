@@ -166,6 +166,23 @@ export default function TimelineView({
   const [dropLinha, setDropLinha] = useState<string | null>(null);
   const [ordemLocal, setOrdemLocal] = useState<string[] | null>(null);
   useEffect(() => { setOrdemLocal(null); }, [tarefas]);
+  // Linhas da tabela e da grade são elementos separados (só a grade rola na
+  // horizontal): hover e arrastar/soltar são sincronizados por estes helpers.
+  const [linhaHover, setLinhaHover] = useState<string | null>(null);
+  const classesLinha = (id: string) => cn(
+    linhaHover === id && "bg-muted/40",
+    ligacao && ligacao.deId !== id && linhaHover === id && "bg-amber-500/10",
+    dragLinha === id && "opacity-40",
+    dropLinha === id && dragLinha !== id && "shadow-[inset_0_2px_0_0_hsl(var(--info))]"
+  );
+  const eventosLinha = (id: string) => ({
+    onPointerEnter: () => { linhaHoverRef.current = id; setLinhaHover(id); },
+    onPointerLeave: () => { if (linhaHoverRef.current === id) linhaHoverRef.current = null; setLinhaHover((h) => (h === id ? null : h)); },
+    onDragOver: (e: React.DragEvent) => { if (dragLinha) { e.preventDefault(); if (dropLinha !== id) setDropLinha(id); } },
+    onDragLeave: () => { if (dropLinha === id) setDropLinha(null); },
+    onDrop: (e: React.DragEvent) => { if (dragLinha) { e.preventDefault(); setDropLinha(null); soltarLinha(id); } },
+  });
+
   const linhaHoverRef = useRef<string | null>(null);
   const gradeRef = useRef<HTMLDivElement>(null);
   const [depSelecionada, setDepSelecionada] = useState<{ tarefaId: string; dependeDeId: string } | null>(null);
@@ -391,8 +408,8 @@ export default function TimelineView({
   function rolarPara(dia: Date) {
     const el = rolagemRef.current;
     if (!el) return;
-    const x = larguraPainel + difDias(dia, minData) * diaPx;
-    el.scrollTo({ left: Math.max(0, x - larguraPainel - (el.clientWidth - larguraPainel) / 3), behavior: "smooth" });
+    const x = difDias(dia, minData) * diaPx;
+    el.scrollTo({ left: Math.max(0, x - el.clientWidth / 3), behavior: "smooth" });
   }
   function rolarPasso(dir: 1 | -1) {
     rolagemRef.current?.scrollBy({ left: dir * escala.passo * diaPx, behavior: "smooth" });
@@ -762,33 +779,74 @@ export default function TimelineView({
       {linhas.length === 0 ? (
         <p className="text-sm text-muted-foreground italic text-center py-16">Nenhuma tarefa com datas — defina início/prazo nos cartões.</p>
       ) : (
-      <div ref={rolagemRef} className="border border-border rounded-xl bg-card overflow-x-auto gantt-scroll">
-        <div className="relative" style={{ minWidth: larguraPainel + totalDias * diaPx }}>
-          {/* Cabeçalho: meses + régua de dias */}
-          <div className="flex border-b border-border bg-muted sticky top-0">
-            {/* Tabela congelada: fica parada enquanto a grade rola na horizontal */}
-            {config.tabela.mostrar && (
-              <div className="sticky left-0 z-30 flex shrink-0 bg-muted border-r border-border" style={{ width: larguraPainel }}>
-                <div className="shrink-0 px-3 py-1.5 text-xs font-semibold text-muted-foreground border-r border-border/60" style={{ width: larguraNomes }}>Tarefa</div>
+      <div className="flex border border-border rounded-xl bg-card overflow-hidden">
+        {/* Tabela (esquerda): não rola na horizontal */}
+        {config.tabela.mostrar && (
+          <div className="shrink-0 border-r border-border" style={{ width: larguraPainel }}>
+            <div className="relative flex bg-muted border-b border-border" style={{ height: 45 }}>
+              <div className="shrink-0 px-3 py-1.5 text-xs font-semibold text-muted-foreground border-r border-border/60" style={{ width: larguraNomes }}>Tarefa</div>
+              {colunasTabela.map((c, i) => (
+                <div key={c.key} className={cn("shrink-0 px-2 py-1.5 text-xs font-semibold text-muted-foreground truncate", i < colunasTabela.length - 1 && "border-r border-border/60")} style={{ width: c.largura }}>
+                  {c.label}
+                </div>
+              ))}
+              {/* Divisória nomes × grade: arraste para alargar a coluna Tarefa. */}
+              <div
+                onPointerDown={(e) => { if (e.button !== 0) return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); divisoriaRef.current = { x0: e.clientX, w0: larguraNomes }; }}
+                onPointerMove={arrastarDivisoria}
+                onPointerUp={() => { divisoriaRef.current = null; }}
+                onPointerCancel={() => { divisoriaRef.current = null; }}
+                onDoubleClick={() => setLarguraNomes(224)}
+                className="absolute top-0 -right-1 z-20 w-2 cursor-col-resize hover:bg-info/30 active:bg-info/40 touch-none"
+                style={{ height: 45 + ordenadas.length * ALTURA_LINHA }}
+                title="Arraste para ajustar a largura da coluna Tarefa (duplo clique restaura)"
+              />
+            </div>
+            {ordenadas.map((t) => (
+              <div
+                key={t.id}
+                className={cn("group/linha flex border-b border-border/40", classesLinha(t.id))}
+                {...eventosLinha(t.id)}
+              >
+                <div className="relative shrink-0 flex items-center gap-1 pl-1 pr-2 border-r border-border/60 cursor-pointer" style={{ width: larguraNomes, height: 28 }} onClick={() => onAbrirTarefa(t.id)} title={t.titulo}>
+                  {/* Punho (Notion): arraste para mudar a ordem das linhas */}
+                  {podeEditar ? (
+                    <span
+                      draggable
+                      onClick={(e) => e.stopPropagation()}
+                      onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = "move"; setDragLinha(t.id); }}
+                      onDragEnd={() => { setDragLinha(null); setDropLinha(null); }}
+                      className="shrink-0 w-4 h-5 inline-flex items-center justify-center rounded text-muted-foreground/60 opacity-0 group-hover/linha:opacity-100 hover:bg-muted hover:text-foreground cursor-grab active:cursor-grabbing"
+                      title="Arraste para mover"
+                    >
+                      <GripVertical className="w-3.5 h-3.5" />
+                    </span>
+                  ) : <span className="w-4 shrink-0" />}
+                  <span className={cn("flex-1 text-xs truncate", t.concluidaEm ? "text-muted-foreground line-through" : "text-foreground")}>{t.titulo}</span>
+                  {/* Abrir (aparece no hover) */}
+                  <span className="shrink-0 hidden group-hover/linha:inline-flex items-center gap-1 px-1.5 h-5 rounded border border-border bg-card text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <PanelRight className="w-3 h-3" /> Abrir
+                  </span>
+                </div>
                 {colunasTabela.map((c, i) => (
-                  <div key={c.key} className={cn("shrink-0 px-2 py-1.5 text-xs font-semibold text-muted-foreground truncate", i < colunasTabela.length - 1 && "border-r border-border/60")} style={{ width: c.largura }}>
-                    {c.label}
+                  <div
+                    key={c.key}
+                    className={cn("shrink-0 px-2 flex items-center gap-1.5 text-xs text-foreground overflow-hidden cursor-pointer hover:bg-muted", i < colunasTabela.length - 1 && "border-r border-border/60", edicao?.tarefaId === t.id && edicao.prop === c.key && "ring-2 ring-inset ring-info/50")}
+                    style={{ width: c.largura, height: 28 }}
+                    onClick={(e) => abrirEdicao(e, t, c.key)}
+                  >
+                    {valorProp(t, c.key, "tabela")}
                   </div>
                 ))}
-                {/* Divisória nomes × grade: arraste para alargar a coluna Tarefa. */}
-                <div
-                  onPointerDown={(e) => { if (e.button !== 0) return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); divisoriaRef.current = { x0: e.clientX, w0: larguraNomes }; }}
-                  onPointerMove={arrastarDivisoria}
-                  onPointerUp={() => { divisoriaRef.current = null; }}
-                  onPointerCancel={() => { divisoriaRef.current = null; }}
-                  onDoubleClick={() => setLarguraNomes(224)}
-                  className="absolute top-0 -right-1 z-20 w-2 cursor-col-resize hover:bg-info/30 active:bg-info/40 touch-none"
-                  style={{ height: 45 + ordenadas.length * ALTURA_LINHA }}
-                  title="Arraste para ajustar a largura da coluna Tarefa (duplo clique restaura)"
-                />
               </div>
-            )}
-            <div className="relative flex-1 overflow-visible" style={{ height: 44 }}>
+            ))}
+          </div>
+        )}
+        {/* Grade (direita): só ela tem rolagem horizontal */}
+        <div ref={rolagemRef} className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden gantt-scroll">
+          <div className="relative" style={{ minWidth: totalDias * diaPx }}>
+            {/* Cabeçalho: meses + régua de dias */}
+            <div className="relative bg-muted border-b border-border overflow-visible" style={{ height: 45 }}>
               {(diaPx < 2 ? anos : meses).map((m, i) => (
                 <span
                   key={i}
@@ -857,225 +915,178 @@ export default function TimelineView({
                 );
               })}
             </div>
-          </div>
 
-          {/* Linhas + camada das setas (SVG por cima da grade) */}
-          <div className="relative">
-            <div ref={gradeRef} className="absolute top-0 bottom-0 pointer-events-none" style={{ left: larguraPainel, right: 0 }}>
-              <svg className="absolute inset-0 w-full h-full overflow-visible" style={{ zIndex: 5 }}>
-                <defs>
-                  <marker id="seta-dep" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                    <path d="M 0 0 L 8 4 L 0 8 z" className="fill-amber-500" />
-                  </marker>
-                </defs>
-                {setas.map((s) => {
-                  const sel = depSelecionada?.tarefaId === s.tarefaId && depSelecionada?.dependeDeId === s.dependeDeId;
+            {/* Linhas + camada das setas (SVG por cima da grade) */}
+            <div className="relative">
+              <div ref={gradeRef} className="absolute inset-0 pointer-events-none">
+                <svg className="absolute inset-0 w-full h-full overflow-visible" style={{ zIndex: 5 }}>
+                  <defs>
+                    <marker id="seta-dep" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                      <path d="M 0 0 L 8 4 L 0 8 z" className="fill-amber-500" />
+                    </marker>
+                  </defs>
+                  {setas.map((s) => {
+                    const sel = depSelecionada?.tarefaId === s.tarefaId && depSelecionada?.dependeDeId === s.dependeDeId;
+                    return (
+                      <g key={`${s.dependeDeId}>${s.tarefaId}`}>
+                        <path d={caminhoSeta(s.x1, s.y1, s.x2, s.y2)} fill="none" strokeWidth={12} stroke="transparent" className={cn("pointer-events-auto", podeEditar && "cursor-pointer")} onClick={() => podeEditar && setDepSelecionada(sel ? null : { tarefaId: s.tarefaId, dependeDeId: s.dependeDeId })} />
+                        <path d={caminhoSeta(s.x1, s.y1, s.x2, s.y2)} fill="none" strokeWidth={sel ? 3 : 2} strokeLinecap="round" className={sel ? "stroke-amber-600" : "stroke-amber-500"} markerEnd="url(#seta-dep)" />
+                      </g>
+                    );
+                  })}
+                  {ligacao && (() => {
+                    const de = porId.get(ligacao.deId);
+                    if (!de) return null;
+                    const g = geometria(de);
+                    return <path d={`M ${g.x1} ${g.y} L ${ligacao.x} ${ligacao.y}`} fill="none" strokeWidth={1.5} strokeDasharray="4 3" className="stroke-amber-500" />;
+                  })()}
+                </svg>
+                {depSelecionada && (() => {
+                  const s = setas.find((x) => x.tarefaId === depSelecionada.tarefaId && x.dependeDeId === depSelecionada.dependeDeId);
+                  if (!s) return null;
                   return (
-                    <g key={`${s.dependeDeId}>${s.tarefaId}`}>
-                      <path d={caminhoSeta(s.x1, s.y1, s.x2, s.y2)} fill="none" strokeWidth={12} stroke="transparent" className={cn("pointer-events-auto", podeEditar && "cursor-pointer")} onClick={() => podeEditar && setDepSelecionada(sel ? null : { tarefaId: s.tarefaId, dependeDeId: s.dependeDeId })} />
-                      <path d={caminhoSeta(s.x1, s.y1, s.x2, s.y2)} fill="none" strokeWidth={sel ? 3 : 2} strokeLinecap="round" className={sel ? "stroke-amber-600" : "stroke-amber-500"} markerEnd="url(#seta-dep)" />
-                    </g>
+                    <button
+                      onClick={() => removerDependencia(depSelecionada)}
+                      className="absolute z-10 pointer-events-auto px-2 py-1 rounded-md bg-foreground text-background text-[11px] shadow whitespace-nowrap"
+                      style={{ left: (s.x1 + s.x2) / 2, top: (s.y1 + s.y2) / 2 - 24 }}
+                    >
+                      Remover dependência ×
+                    </button>
                   );
-                })}
-                {ligacao && (() => {
-                  const de = porId.get(ligacao.deId);
-                  if (!de) return null;
-                  const g = geometria(de);
-                  return <path d={`M ${g.x1} ${g.y} L ${ligacao.x} ${ligacao.y}`} fill="none" strokeWidth={1.5} strokeDasharray="4 3" className="stroke-amber-500" />;
                 })()}
-              </svg>
-              {depSelecionada && (() => {
-                const s = setas.find((x) => x.tarefaId === depSelecionada.tarefaId && x.dependeDeId === depSelecionada.dependeDeId);
-                if (!s) return null;
-                return (
-                  <button
-                    onClick={() => removerDependencia(depSelecionada)}
-                    className="absolute z-10 pointer-events-auto px-2 py-1 rounded-md bg-foreground text-background text-[11px] shadow whitespace-nowrap"
-                    style={{ left: (s.x1 + s.x2) / 2, top: (s.y1 + s.y2) / 2 - 24 }}
-                  >
-                    Remover dependência ×
-                  </button>
-                );
-              })()}
-            </div>
+              </div>
 
-            {ordenadas.map((t) => {
-              const { inicio, fim, off, dur } = geometria(t);
-              // Atrasada: prazo (com hora, se houver) já passou e não concluiu.
-              const atrasada = !t.concluidaEm && (t.prazoHora ? instantePrazo(iso(fim), t.prazoHora) < new Date() : fim < hoje);
-              const arrastando = arraste?.id === t.id && arraste.moveu;
-              const larguraBarra = Math.max(diaPx, dur * diaPx);
-              // Barra sólida na cor do status (coluna); atraso sobrepõe em vermelho.
-              // Opaca de propósito: o rótulo cinza de trás só aparece fora dela.
-              const corBarra = atrasada ? "hsl(var(--danger))" : (corColuna(t.colunaId) ?? "#3b82f6");
-              // Rótulo (Notion): começa dentro da barra e continua para fora em
-              // cinza — a camada de trás é o rótulo inteiro em cinza, a barra
-              // (opaca) cobre o trecho inicial e mostra o mesmo texto escuro.
-              const Rotulo = ({ apagado }: { apagado?: boolean }) => (
-                <span className={cn("inline-flex items-center gap-2 whitespace-nowrap", apagado ? "text-muted-foreground" : "text-white")}>
-                  <span className={cn(t.concluidaEm && "line-through")}>{t.titulo}</span>
-                  {propsBarra.map((k) => <span key={k} className="inline-flex items-center gap-1">{valorProp(t, k, "barra")}</span>)}
-                </span>
-              );
-              return (
-                <div
-                  key={t.id}
-                  className={cn(
-                    "group/linha flex border-b border-border/40 hover:bg-muted/40",
-                    ligacao && ligacao.deId !== t.id && "hover:bg-amber-500/10",
-                    dragLinha === t.id && "opacity-40",
-                    dropLinha === t.id && dragLinha !== t.id && "shadow-[inset_0_2px_0_0_hsl(var(--info))]"
-                  )}
-                  onPointerEnter={() => { linhaHoverRef.current = t.id; }}
-                  onPointerLeave={() => { if (linhaHoverRef.current === t.id) linhaHoverRef.current = null; }}
-                  onDragOver={(e) => { if (dragLinha) { e.preventDefault(); if (dropLinha !== t.id) setDropLinha(t.id); } }}
-                  onDragLeave={() => { if (dropLinha === t.id) setDropLinha(null); }}
-                  onDrop={(e) => { if (dragLinha) { e.preventDefault(); setDropLinha(null); soltarLinha(t.id); } }}
-                >
-                  {config.tabela.mostrar && (
-                    <div className="sticky left-0 z-20 flex shrink-0 bg-card group-hover/linha:bg-muted border-r border-border" style={{ width: larguraPainel }}>
-                      <div className="relative shrink-0 flex items-center gap-1 pl-1 pr-2 border-r border-border/60 cursor-pointer" style={{ width: larguraNomes, height: 28 }} onClick={() => onAbrirTarefa(t.id)} title={t.titulo}>
-                        {/* Punho (Notion): arraste para mudar a ordem das linhas */}
-                        {podeEditar ? (
-                          <span
-                            draggable
-                            onClick={(e) => e.stopPropagation()}
-                            onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = "move"; setDragLinha(t.id); }}
-                            onDragEnd={() => { setDragLinha(null); setDropLinha(null); }}
-                            className="shrink-0 w-4 h-5 inline-flex items-center justify-center rounded text-muted-foreground/60 opacity-0 group-hover/linha:opacity-100 hover:bg-muted hover:text-foreground cursor-grab active:cursor-grabbing"
-                            title="Arraste para mover"
-                          >
-                            <GripVertical className="w-3.5 h-3.5" />
-                          </span>
-                        ) : <span className="w-4 shrink-0" />}
-                        <span className={cn("flex-1 text-xs truncate", t.concluidaEm ? "text-muted-foreground line-through" : "text-foreground")}>{t.titulo}</span>
-                        {/* Abrir (aparece no hover) */}
-                        <span className="shrink-0 hidden group-hover/linha:inline-flex items-center gap-1 px-1.5 h-5 rounded border border-border bg-card text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                          <PanelRight className="w-3 h-3" /> Abrir
+              {ordenadas.map((t) => {
+                const { inicio, fim, off, dur } = geometria(t);
+                // Atrasada: prazo (com hora, se houver) já passou e não concluiu.
+                const atrasada = !t.concluidaEm && (t.prazoHora ? instantePrazo(iso(fim), t.prazoHora) < new Date() : fim < hoje);
+                const arrastando = arraste?.id === t.id && arraste.moveu;
+                const larguraBarra = Math.max(diaPx, dur * diaPx);
+                // Barra sólida na cor do status (coluna); atraso sobrepõe em vermelho.
+                // Opaca de propósito: o rótulo cinza de trás só aparece fora dela.
+                const corBarra = atrasada ? "hsl(var(--danger))" : (corColuna(t.colunaId) ?? "#3b82f6");
+                // Rótulo (Notion): começa dentro da barra e continua para fora em
+                // cinza — a camada de trás é o rótulo inteiro em cinza, a barra
+                // (opaca) cobre o trecho inicial e mostra o mesmo texto escuro.
+                const Rotulo = ({ apagado }: { apagado?: boolean }) => (
+                  <span className={cn("inline-flex items-center gap-2 whitespace-nowrap", apagado ? "text-muted-foreground" : "text-white")}>
+                    <span className={cn(t.concluidaEm && "line-through")}>{t.titulo}</span>
+                    {propsBarra.map((k) => <span key={k} className="inline-flex items-center gap-1">{valorProp(t, k, "barra")}</span>)}
+                  </span>
+                );
+                return (
+                  <div key={t.id} className={cn("flex border-b border-border/40", classesLinha(t.id))} {...eventosLinha(t.id)}>
+                    <div
+                      className={cn("relative flex-1", podeEditar && !t.temData && "cursor-copy")}
+                      // Linhas verticais dos dias (Notion); nas escalas pequenas, por semana.
+                      style={{
+                        height: 28,
+                        backgroundImage: diaPx >= 6
+                          ? `repeating-linear-gradient(to right, hsl(var(--border) / 0.5) 0, hsl(var(--border) / 0.5) 1px, transparent 1px, transparent ${diaPx}px)`
+                          : `repeating-linear-gradient(to right, hsl(var(--border) / 0.5) 0, hsl(var(--border) / 0.5) 1px, transparent 1px, transparent ${diaPx * 7}px)`,
+                        backgroundPosition: diaPx >= 6 ? "0 0" : `${((1 - minData.getDay() + 7) % 7) * diaPx}px 0`,
+                      }}
+                      onClick={(e) => marcarDia(e, t)}
+                      onMouseMove={(e) => {
+                        if (!podeEditar || t.temData || arraste) return;
+                        const off = diaNoPonto(e);
+                        if (fantasma?.tarefaId !== t.id || fantasma.off !== off) setFantasma({ tarefaId: t.id, off });
+                      }}
+                      onMouseLeave={() => { if (fantasma?.tarefaId === t.id) setFantasma(null); }}
+                      title={podeEditar && !t.temData ? "Clique para definir as datas (1 semana a partir do dia)" : undefined}
+                    >
+                      {/* Fantasma translúcido acompanhando o mouse (tarefa sem datas) */}
+                      {fantasma?.tarefaId === t.id && !t.temData && (
+                        <span
+                          className="absolute top-1 h-5 rounded-md bg-info/20 border border-dashed border-info/50 text-[11px] text-info leading-5 pl-2 whitespace-nowrap overflow-hidden pointer-events-none"
+                          style={{ left: fantasma.off * diaPx, width: DIAS_FANTASMA * diaPx }}
+                        >
+                          {DIAS_FANTASMA * diaPx > 60 ? t.titulo : ""}
                         </span>
-                      </div>
-                      {colunasTabela.map((c, i) => (
-                        <div
-                          key={c.key}
-                          className={cn("shrink-0 px-2 flex items-center gap-1.5 text-xs text-foreground overflow-hidden cursor-pointer hover:bg-muted", i < colunasTabela.length - 1 && "border-r border-border/60", edicao?.tarefaId === t.id && edicao.prop === c.key && "ring-2 ring-inset ring-info/50")}
-                          style={{ width: c.largura, height: 28 }}
-                          onClick={(e) => abrirEdicao(e, t, c.key)}
-                        >
-                          {valorProp(t, c.key, "tabela")}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div
-                    className={cn("relative flex-1", podeEditar && !t.temData && "cursor-copy")}
-                    // Linhas verticais dos dias (Notion); nas escalas pequenas, por semana.
-                    style={{
-                      height: 28,
-                      backgroundImage: diaPx >= 6
-                        ? `repeating-linear-gradient(to right, hsl(var(--border) / 0.5) 0, hsl(var(--border) / 0.5) 1px, transparent 1px, transparent ${diaPx}px)`
-                        : `repeating-linear-gradient(to right, hsl(var(--border) / 0.5) 0, hsl(var(--border) / 0.5) 1px, transparent 1px, transparent ${diaPx * 7}px)`,
-                      backgroundPosition: diaPx >= 6 ? "0 0" : `${((1 - minData.getDay() + 7) % 7) * diaPx}px 0`,
-                    }}
-                    onClick={(e) => marcarDia(e, t)}
-                    onMouseMove={(e) => {
-                      if (!podeEditar || t.temData || arraste) return;
-                      const off = diaNoPonto(e);
-                      if (fantasma?.tarefaId !== t.id || fantasma.off !== off) setFantasma({ tarefaId: t.id, off });
-                    }}
-                    onMouseLeave={() => { if (fantasma?.tarefaId === t.id) setFantasma(null); }}
-                    title={podeEditar && !t.temData ? "Clique para definir as datas (1 semana a partir do dia)" : undefined}
-                  >
-                    {/* Fantasma translúcido acompanhando o mouse (tarefa sem datas) */}
-                    {fantasma?.tarefaId === t.id && !t.temData && (
-                      <span
-                        className="absolute top-1 h-5 rounded-md bg-info/20 border border-dashed border-info/50 text-[11px] text-info leading-5 pl-2 whitespace-nowrap overflow-hidden pointer-events-none"
-                        style={{ left: fantasma.off * diaPx, width: DIAS_FANTASMA * diaPx }}
-                      >
-                        {DIAS_FANTASMA * diaPx > 60 ? t.titulo : ""}
-                      </span>
-                    )}
-                    {/* linha de hoje */}
-                    {offHoje >= 0 && offHoje <= totalDias && (
-                      <span className="absolute top-0 bottom-0 w-px bg-danger/50" style={{ left: offHoje * diaPx + diaPx / 2 }} />
-                    )}
-                    {t.temData && (
-                      <>
-                        {/* Camada de trás: rótulo inteiro em cinza (a parte fora da barra) */}
-                        {!arrastando && (
-                          <span className="absolute top-1 h-5 leading-5 text-[11px] pl-2 pointer-events-none" style={{ left: off * diaPx }}>
-                            <Rotulo apagado />
-                          </span>
-                        )}
-                        <div
-                          onPointerDown={(e) => iniciarArraste(e, t, "mover")}
-                          onPointerMove={moverArraste}
-                          onPointerUp={() => soltarArraste(t)}
-                          onPointerCancel={() => { arrasteRef.current = null; setArraste(null); }}
-                          onClick={() => { if (!podeEditar) onAbrirTarefa(t.id); }}
-                          onMouseEnter={() => setHoverId(t.id)}
-                          onMouseLeave={() => setHoverId((h) => (h === t.id ? null : h))}
-                          className={cn(
-                            "group absolute top-1 h-5 rounded-md text-[11px] pl-2 text-left select-none touch-none leading-5 overflow-hidden shadow-sm transition-[filter]",
-                            podeEditar ? (arrastando ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer",
-                            arrastando && "ring-2 ring-info/60 shadow-md",
-                            t.concluidaEm ? "opacity-70" : "",
-                            "hover:brightness-110"
+                      )}
+                      {/* linha de hoje */}
+                      {offHoje >= 0 && offHoje <= totalDias && (
+                        <span className="absolute top-0 bottom-0 w-px bg-danger/50" style={{ left: offHoje * diaPx + diaPx / 2 }} />
+                      )}
+                      {t.temData && (
+                        <>
+                          {/* Camada de trás: rótulo inteiro em cinza (a parte fora da barra) */}
+                          {!arrastando && (
+                            <span className="absolute top-1 h-5 leading-5 text-[11px] pl-2 pointer-events-none" style={{ left: off * diaPx }}>
+                              <Rotulo apagado />
+                            </span>
                           )}
-                          style={{ left: off * diaPx, width: larguraBarra, backgroundColor: corBarra }}
-                          title={`${t.titulo} — ${inicio.toLocaleDateString("pt-BR")} → ${fim.toLocaleDateString("pt-BR")}`}
-                        >
-                          <span className="relative"><Rotulo /></span>
-                          {podeEditar && (
-                            <>
-                              {/* Bordas: início (esquerda) e entrega (direita) */}
-                              <span
-                                onPointerDown={(e) => iniciarArraste(e, t, "inicio")}
-                                onPointerMove={moverArraste}
-                                onPointerUp={(e) => { e.stopPropagation(); soltarArraste(t); }}
-                                className="absolute left-0 top-0 h-full w-1.5 rounded-l-md cursor-ew-resize bg-transparent group-hover:bg-white/40"
-                              />
-                              <span
-                                onPointerDown={(e) => iniciarArraste(e, t, "fim")}
-                                onPointerMove={moverArraste}
-                                onPointerUp={(e) => { e.stopPropagation(); soltarArraste(t); }}
-                                className="absolute right-0 top-0 h-full w-1.5 rounded-r-md cursor-ew-resize bg-transparent group-hover:bg-white/40"
-                              />
-                            </>
-                          )}
-                        </div>
-                        {/* Conector de dependência: arraste até outra tarefa */}
-                        {podeEditar && cfgDep.dependencias && !arrastando && (
-                          <span
-                            onPointerDown={(e) => {
-                              if (e.button !== 0) return;
-                              e.stopPropagation();
-                              const g = gradeRef.current?.getBoundingClientRect();
-                              setLigacao({ deId: t.id, x: g ? e.clientX - g.left : 0, y: g ? e.clientY - g.top : 0 });
-                            }}
+                          <div
+                            onPointerDown={(e) => iniciarArraste(e, t, "mover")}
+                            onPointerMove={moverArraste}
+                            onPointerUp={() => soltarArraste(t)}
+                            onPointerCancel={() => { arrasteRef.current = null; setArraste(null); }}
+                            onClick={() => { if (!podeEditar) onAbrirTarefa(t.id); }}
+                            onMouseEnter={() => setHoverId(t.id)}
+                            onMouseLeave={() => setHoverId((h) => (h === t.id ? null : h))}
                             className={cn(
-                              "absolute top-[9px] w-2.5 h-2.5 rounded-full border-2 border-amber-500 bg-card cursor-crosshair z-10",
-                              ligacao?.deId === t.id ? "opacity-100" : "opacity-0 hover:opacity-100 hover:scale-125"
+                              "group absolute top-1 h-5 rounded-md text-[11px] pl-2 text-left select-none touch-none leading-5 overflow-hidden shadow-sm transition-[filter]",
+                              podeEditar ? (arrastando ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer",
+                              arrastando && "ring-2 ring-info/60 shadow-md",
+                              t.concluidaEm ? "opacity-70" : "",
+                              "hover:brightness-110"
                             )}
-                            style={{ left: off * diaPx + larguraBarra + 2 }}
-                            title="Arraste até outra tarefa para criar uma dependência"
-                          />
-                        )}
-                      </>
-                    )}
-                    {arrastando && (
-                      <span
-                        className="absolute -top-0.5 z-10 px-1.5 py-0.5 rounded bg-foreground text-background text-[10px] whitespace-nowrap pointer-events-none"
-                        style={{ left: off * diaPx + larguraBarra + 6 }}
-                      >
-                        {inicio.getTime() === fim.getTime()
-                          ? fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
-                          : `${inicio.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} → ${fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`}
-                      </span>
-                    )}
+                            style={{ left: off * diaPx, width: larguraBarra, backgroundColor: corBarra }}
+                            title={`${t.titulo} — ${inicio.toLocaleDateString("pt-BR")} → ${fim.toLocaleDateString("pt-BR")}`}
+                          >
+                            <span className="relative"><Rotulo /></span>
+                            {podeEditar && (
+                              <>
+                                {/* Bordas: início (esquerda) e entrega (direita) */}
+                                <span
+                                  onPointerDown={(e) => iniciarArraste(e, t, "inicio")}
+                                  onPointerMove={moverArraste}
+                                  onPointerUp={(e) => { e.stopPropagation(); soltarArraste(t); }}
+                                  className="absolute left-0 top-0 h-full w-1.5 rounded-l-md cursor-ew-resize bg-transparent group-hover:bg-white/40"
+                                />
+                                <span
+                                  onPointerDown={(e) => iniciarArraste(e, t, "fim")}
+                                  onPointerMove={moverArraste}
+                                  onPointerUp={(e) => { e.stopPropagation(); soltarArraste(t); }}
+                                  className="absolute right-0 top-0 h-full w-1.5 rounded-r-md cursor-ew-resize bg-transparent group-hover:bg-white/40"
+                                />
+                              </>
+                            )}
+                          </div>
+                          {/* Conector de dependência: arraste até outra tarefa */}
+                          {podeEditar && cfgDep.dependencias && !arrastando && (
+                            <span
+                              onPointerDown={(e) => {
+                                if (e.button !== 0) return;
+                                e.stopPropagation();
+                                const g = gradeRef.current?.getBoundingClientRect();
+                                setLigacao({ deId: t.id, x: g ? e.clientX - g.left : 0, y: g ? e.clientY - g.top : 0 });
+                              }}
+                              className={cn(
+                                "absolute top-[9px] w-2.5 h-2.5 rounded-full border-2 border-amber-500 bg-card cursor-crosshair z-10",
+                                ligacao?.deId === t.id ? "opacity-100" : "opacity-0 hover:opacity-100 hover:scale-125"
+                              )}
+                              style={{ left: off * diaPx + larguraBarra + 2 }}
+                              title="Arraste até outra tarefa para criar uma dependência"
+                            />
+                          )}
+                        </>
+                      )}
+                      {arrastando && (
+                        <span
+                          className="absolute -top-0.5 z-10 px-1.5 py-0.5 rounded bg-foreground text-background text-[10px] whitespace-nowrap pointer-events-none"
+                          style={{ left: off * diaPx + larguraBarra + 6 }}
+                        >
+                          {inicio.getTime() === fim.getTime()
+                            ? fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+                            : `${inicio.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} → ${fim.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}`}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
