@@ -5,6 +5,7 @@
 // início/entrega; clicar num dia da linha de uma tarefa sem datas cria o prazo.
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { AvatarUsuario } from "./comum";
 import { TarefaResumoDTO, diaPrazo } from "./tipos";
 
@@ -39,6 +40,15 @@ export default function TimelineView({
   const [pendentes, setPendentes] = useState<Record<string, { inicio: string; fim: string }>>({});
   useEffect(() => { setPendentes({}); }, [tarefas]);
   const arrasteRef = useRef<Arraste | null>(null);
+  // Largura da coluna de nomes: a divisória é arrastável e a medida fica
+  // salva por usuário (nomes longos ficavam cortados nos 224px fixos).
+  const [larguraNomes, setLarguraNomes] = usePersistedState<number>("projetos:timeline:largura-nomes", 224);
+  const divisoriaRef = useRef<{ x0: number; w0: number } | null>(null);
+  function arrastarDivisoria(e: React.PointerEvent) {
+    const d = divisoriaRef.current;
+    if (!d) return;
+    setLarguraNomes(Math.max(140, Math.min(640, d.w0 + (e.clientX - d.x0))));
+  }
 
   const hoje = diaPrazo(iso(new Date()));
 
@@ -177,10 +187,21 @@ export default function TimelineView({
       </div>
 
       <div className="border border-border rounded-xl bg-card overflow-x-auto">
-        <div style={{ minWidth: 224 + totalDias * diaPx }}>
+        <div className="relative" style={{ minWidth: larguraNomes + totalDias * diaPx }}>
+          {/* Divisória nomes × grade: arraste para alargar a coluna de nomes. */}
+          <div
+            onPointerDown={(e) => { if (e.button !== 0) return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); divisoriaRef.current = { x0: e.clientX, w0: larguraNomes }; }}
+            onPointerMove={arrastarDivisoria}
+            onPointerUp={() => { divisoriaRef.current = null; }}
+            onPointerCancel={() => { divisoriaRef.current = null; }}
+            onDoubleClick={() => setLarguraNomes(224)}
+            className="absolute top-0 bottom-0 z-20 w-2 -ml-1 cursor-col-resize hover:bg-info/30 active:bg-info/40 touch-none"
+            style={{ left: larguraNomes }}
+            title="Arraste para ajustar a largura (duplo clique restaura)"
+          />
           {/* Cabeçalho: meses + régua de dias */}
           <div className="flex border-b border-border bg-muted sticky top-0">
-            <div className="w-56 shrink-0 px-3 py-1.5 text-xs font-semibold text-muted-foreground border-r border-border">Responsável / tarefa</div>
+            <div className="shrink-0 px-3 py-1.5 text-xs font-semibold text-muted-foreground border-r border-border" style={{ width: larguraNomes }}>Responsável / tarefa</div>
             <div className="relative flex-1" style={{ height: 44 }}>
               {meses.map((m, i) => (
                 <span
@@ -228,7 +249,7 @@ export default function TimelineView({
                   const arrastando = arraste?.id === t.id && arraste.moveu;
                   return (
                     <div key={t.id} className="flex border-b border-border/40 hover:bg-muted/40">
-                      <div className="w-56 shrink-0 px-3 py-1.5 text-xs text-foreground truncate border-r border-border cursor-pointer" onClick={() => onAbrirTarefa(t.id)} title={t.titulo}>
+                      <div className="shrink-0 px-3 py-1.5 text-xs text-foreground truncate border-r border-border cursor-pointer" style={{ width: larguraNomes }} onClick={() => onAbrirTarefa(t.id)} title={t.titulo}>
                         {t.titulo}
                       </div>
                       <div
