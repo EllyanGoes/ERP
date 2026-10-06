@@ -5,7 +5,7 @@
 // as duas datas; arrastar as bordas muda início/entrega; clicar num dia da
 // linha de uma tarefa sem datas cria o prazo. Dependências: setas entre
 // barras, criadas arrastando o conector da predecessora até a sucessora.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Settings2, X, Eye, EyeOff, GripVertical, ArrowLeft, Search, Link2, Check, ChevronDown, ChevronLeft, ChevronRight, PanelRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -402,6 +402,28 @@ export default function TimelineView({
       const fim = new Date(a, 11, 31) > maxData ? maxData : new Date(a, 11, 31);
       anos.push({ label: String(a), off: difDias(ini, minData), dias: difDias(fim, ini) + 1 });
     }
+  }
+
+  // Posição de rolagem = DATA na borda esquerda da grade (não um pixel):
+  // sobrevive a recarregar o quadro (que muda minData), trocar de visão/aba e
+  // mudar a escala. Guardada por usuário e projeto; sem valor, abre em hoje.
+  const [dataEsquerda, setDataEsquerda] = usePersistedState<string | null>(`projetos:timeline:esq:${board?.id ?? "x"}`, null);
+  const dataEsquerdaRef = useRef<string | null>(dataEsquerda);
+  const restaurandoRef = useRef(false);
+  useLayoutEffect(() => {
+    const el = rolagemRef.current;
+    if (!el) return;
+    const alvo = dataEsquerdaRef.current ? diaPrazo(dataEsquerdaRef.current) : somaDias(hoje, -Math.round(el.clientWidth / 3 / diaPx));
+    restaurandoRef.current = true;
+    el.scrollLeft = Math.max(0, difDias(alvo, minData) * diaPx);
+    restaurandoRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minData.getTime(), diaPx, linhas.length > 0]);
+  function aoRolar() {
+    const el = rolagemRef.current;
+    if (!el || restaurandoRef.current) return;
+    const d = iso(somaDias(minData, Math.round(el.scrollLeft / diaPx)));
+    if (d !== dataEsquerdaRef.current) { dataEsquerdaRef.current = d; setDataEsquerda(d); }
   }
 
   // "< Hoje >": rola a grade até uma data / um passo da escala.
@@ -843,7 +865,7 @@ export default function TimelineView({
           </div>
         )}
         {/* Grade (direita): só ela tem rolagem horizontal */}
-        <div ref={rolagemRef} className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden gantt-scroll">
+        <div ref={rolagemRef} onScroll={aoRolar} className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden gantt-scroll">
           <div className="relative" style={{ minWidth: totalDias * diaPx }}>
             {/* Cabeçalho: meses + régua de dias */}
             <div className="relative bg-muted border-b border-border overflow-visible" style={{ height: 45 }}>
