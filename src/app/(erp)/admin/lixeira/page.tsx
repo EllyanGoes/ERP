@@ -45,6 +45,9 @@ const TIPO_LABEL: Record<string, string> = {
   CONFERENCIA_COMPRA: "Conferência (doc. entrada)",
   ORDEM_PRODUCAO: "Ordem de produção",
   CONTA_BANCARIA: "Conta bancária",
+  PROJETO: "Projeto",
+  DOCUMENTO: "Documento (GED)",
+  SST_REGISTRO: "SST (entrega de EPI / ASO)",
 };
 
 const TIPOS = Object.keys(TIPO_LABEL);

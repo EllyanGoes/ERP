@@ -226,9 +226,9 @@ model Cliente {
 }
 
 model Colaborador {
-  id                         String                @id @default(cuid())
+  id                         String                 @id @default(cuid())
   nome                       String
-  cpf                        String?               @unique
+  cpf                        String?                @unique
   // Matrícula na folha — casa a folha ao colaborador automaticamente (aprendida
   // no 1º vínculo, reusada nas próximas competências).
   matricula                  String?
@@ -241,36 +241,39 @@ model Colaborador {
   // Classificação de custo para o fechamento da folha (rateio MOD/MOI/admin).
   classificacaoCusto         ClassificacaoCusto?
   // Valor da hora de trabalho — puxado no lançamento de diárias (editável lá).
-  valorHora                  Decimal?              @db.Decimal(15, 2)
+  valorHora                  Decimal?               @db.Decimal(15, 2)
   // Vínculo: funcionário (folha de pagamento) ou prestador (lançamento de diaristas).
-  tipoColaborador            TipoColaborador       @default(FUNCIONARIO)
+  tipoColaborador            TipoColaborador        @default(FUNCIONARIO)
   dataAdmissao               DateTime?
   dataDemissao               DateTime?
-  usuarioId                  String?               @unique
-  ativo                      Boolean               @default(true)
+  usuarioId                  String?                @unique
+  ativo                      Boolean                @default(true)
   // Áreas de operação (nomes das etapas do fluxo: Preparação, Conformação, …) em que
   // o colaborador pode atuar. Vazio = sem restrição (aparece como responsável em todas).
-  areasOperacao              String[]              @default([])
+  areasOperacao              String[]               @default([])
   observacoes                String?
-  createdAt                  DateTime              @default(now())
-  updatedAt                  DateTime              @updatedAt
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
   etapasAprovacao            AprovacaoEtapa[]
   folhaItens                 FolhaItem[]
   diariaItens                DiariaItem[]
-  ordensProducaoResponsavel  OrdemProducao[]       @relation("OrdemProducaoResponsavel")
+  ordensProducaoResponsavel  OrdemProducao[]        @relation("OrdemProducaoResponsavel")
   ordensProducaoEquipe       OrdemProducaoEquipe[]
-  usuario                    Usuario?              @relation(fields: [usuarioId], references: [id])
+  usuario                    Usuario?               @relation(fields: [usuarioId], references: [id])
   filiais                    Filial[]
   // Empresas em que o colaborador está presente — define onde ele aparece nos
   // lançamentos e onde a conta contábil dele (Salários a Pagar) é criada.
-  empresas                   Empresa[]             @relation("ColaboradorEmpresas")
+  empresas                   Empresa[]              @relation("ColaboradorEmpresas")
   contasContabeis            ContaContabil[]
-  setor                      Setor?                @relation(fields: [setorId], references: [id])
+  setor                      Setor?                 @relation(fields: [setorId], references: [id])
   solicitacoesCompra         NecessidadeCompra[]
-  requisicoesComoSolicitante RequisicaoMaterial[]  @relation("RM_Solicitante")
-  requisicoesComoAlmoxarife  RequisicaoMaterial[]  @relation("RM_Almoxarife")
+  requisicoesComoSolicitante RequisicaoMaterial[]   @relation("RM_Solicitante")
+  requisicoesComoAlmoxarife  RequisicaoMaterial[]   @relation("RM_Almoxarife")
   inventarios                InventarioMaterial[]
   escalas                    ColaboradorEscala[]
+  sstFuncoes                 SstColaboradorFuncao[]
+  sstEpiEntregas             SstEpiEntrega[]
+  sstAsos                    SstAso[]
   documentos                 Documento[]
 }
 
@@ -1588,6 +1591,13 @@ model CotacaoFornecedorItem {
 }
 
 model Empresa {
+  // SST (docs/sst-prd.md)
+  sstFuncoes                    SstFuncao[]
+  sstEpis                       SstEpi[]
+  sstEpiEntregas                SstEpiEntrega[]
+  sstExameTipos                 SstExameTipo[]
+  sstAsos                       SstAso[]
+  sstObrigacoes                 SstObrigacao[]
   id                            String                    @id @default(cuid())
   razaoSocial                   String
   nomeFantasia                  String?
@@ -1849,6 +1859,7 @@ enum DestinoConsumo {
 }
 
 model Item {
+  sstEpis                   SstEpi[]
   id                        String                     @id @default(cuid())
   codigo                    String                     @unique
   descricao                 String
@@ -2765,44 +2776,45 @@ model UnidadeConversao {
 }
 
 model Usuario {
-  id                 String             @id @default(cuid())
-  nome               String
-  email              String             @unique
-  senha              String
-  perfil             PerfilUsuario      @default(USUARIO)
-  ativo              Boolean            @default(true)
+  sstObrigacoesResponsavel SstObrigacao[]
+  id                       String                @id @default(cuid())
+  nome                     String
+  email                    String                @unique
+  senha                    String
+  perfil                   PerfilUsuario         @default(USUARIO)
+  ativo                    Boolean               @default(true)
   // Membro CONVIDADO (projetos): pessoa sem acesso ao sistema — aparece nos
   // pickers de membro/responsável, mas o login é bloqueado.
-  convidado          Boolean            @default(false)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  perfilAcessoId     String?
-  telefone           String?
-  aprovacaoEtapas    AprovacaoEtapa[]
-  aprovacoesSC       AprovacaoSC[]
-  colaborador        Colaborador?
-  permissoes         Permissao[]
-  perfilAcesso       PerfilAcesso?      @relation(fields: [perfilAcessoId], references: [id])
-  ticketsAbertos     SupportTicket[]    @relation("TicketsAbertos")
-  ticketsRespondidos SupportTicket[]    @relation("TicketsRespondidos")
-  empresas           UsuarioEmpresa[]
-  vendedor           Vendedor?
-  sessoes            UsuarioSessao[]
-  notificacoes       Notificacao[]
+  convidado                Boolean               @default(false)
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  perfilAcessoId           String?
+  telefone                 String?
+  aprovacaoEtapas          AprovacaoEtapa[]
+  aprovacoesSC             AprovacaoSC[]
+  colaborador              Colaborador?
+  permissoes               Permissao[]
+  perfilAcesso             PerfilAcesso?         @relation(fields: [perfilAcessoId], references: [id])
+  ticketsAbertos           SupportTicket[]       @relation("TicketsAbertos")
+  ticketsRespondidos       SupportTicket[]       @relation("TicketsRespondidos")
+  empresas                 UsuarioEmpresa[]
+  vendedor                 Vendedor?
+  sessoes                  UsuarioSessao[]
+  notificacoes             Notificacao[]
   // Gestão de Projetos
-  projetosDono       Projeto[]          @relation("ProjetoDono")
-  projetosMembro     ProjetoMembro[]
-  tarefasMembro      TarefaMembro[]
-  comentariosTarefa  TarefaComentario[]
-  atividadesTarefa   TarefaAtividade[]
-  checklistItens     TarefaChecklistItem[] @relation("ChecklistResponsavel")
-  tarefasInbox       TarefaInbox[]
+  projetosDono             Projeto[]             @relation("ProjetoDono")
+  projetosMembro           ProjetoMembro[]
+  tarefasMembro            TarefaMembro[]
+  comentariosTarefa        TarefaComentario[]
+  atividadesTarefa         TarefaAtividade[]
+  checklistItens           TarefaChecklistItem[] @relation("ChecklistResponsavel")
+  tarefasInbox             TarefaInbox[]
   // Investimentos pessoais (B3)
-  investOperacoes    InvestOperacao[]
-  investProventos    InvestProvento[]
-  documentosResp     Documento[]        @relation("DocumentoResponsavel")
-  documentosAcesso   DocumentoAcesso[]
-  documentosLog      DocumentoLog[]
+  investOperacoes          InvestOperacao[]
+  investProventos          InvestProvento[]
+  documentosResp           Documento[]           @relation("DocumentoResponsavel")
+  documentosAcesso         DocumentoAcesso[]
+  documentosLog            DocumentoLog[]
 }
 
 // Sessão/dispositivo logado de um usuário. id = jti embutido no JWT. Permite
@@ -4659,37 +4671,37 @@ model ProjetoEtiqueta {
 }
 
 model Tarefa {
-  id            String                @id @default(cuid())
-  projetoId     String
-  colunaId      String
-  titulo        String
-  descricao     String?
-  ordem         Int
-  prioridade    PrioridadeTarefa      @default(MEDIA)
-  dataInicio    DateTime?
-  prazo         DateTime?
+  id              String                @id @default(cuid())
+  projetoId       String
+  colunaId        String
+  titulo          String
+  descricao       String?
+  ordem           Int
+  prioridade      PrioridadeTarefa      @default(MEDIA)
+  dataInicio      DateTime?
+  prazo           DateTime?
   // Hora do prazo ("HH:MM", local). Null = dia inteiro. prazo continua sendo
   // só a DATA (meia-noite UTC) — a hora vive separada p/ não deslocar o dia.
-  prazoHora     String?
-  concluidaEm   DateTime?
+  prazoHora       String?
+  concluidaEm     DateTime?
   // Ordem manual no cronograma (arrastar linhas); null = ordena por data.
   ordemCronograma Int?
-  arquivada     Boolean               @default(false)
-  criadoPor     String?
-  atualizadoPor String?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-  projeto       Projeto               @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  coluna        ProjetoColuna         @relation(fields: [colunaId], references: [id])
-  membros       TarefaMembro[]
-  etiquetas     TarefaEtiqueta[]
-  checklist     TarefaChecklistItem[]
-  comentarios   TarefaComentario[]
-  anexos        AnexoTarefa[]
-  atividades    TarefaAtividade[]
+  arquivada       Boolean               @default(false)
+  criadoPor       String?
+  atualizadoPor   String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  projeto         Projeto               @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  coluna          ProjetoColuna         @relation(fields: [colunaId], references: [id])
+  membros         TarefaMembro[]
+  etiquetas       TarefaEtiqueta[]
+  checklist       TarefaChecklistItem[]
+  comentarios     TarefaComentario[]
+  anexos          AnexoTarefa[]
+  atividades      TarefaAtividade[]
   // Dependências (cronograma): esta tarefa depende de… / bloqueia…
-  dependeDe     TarefaDependencia[]   @relation("DependenciaTarefa")
-  bloqueia      TarefaDependencia[]   @relation("DependenciaDependeDe")
+  dependeDe       TarefaDependencia[]   @relation("DependenciaTarefa")
+  bloqueia        TarefaDependencia[]   @relation("DependenciaDependeDe")
 
   @@index([projetoId, colunaId, ordem])
   @@index([prazo])
@@ -4818,14 +4830,15 @@ enum StatusDocumento {
 }
 
 model DocumentoCategoria {
-  id            String      @id @default(cuid())
+  id            String         @id @default(cuid())
   nome          String
-  slug          String      @unique
-  diasAlerta    Int         @default(30)
-  exigeValidade Boolean     @default(false)
-  ordem         Int         @default(0)
-  ativo         Boolean     @default(true)
+  slug          String         @unique
+  diasAlerta    Int            @default(30)
+  exigeValidade Boolean        @default(false)
+  ordem         Int            @default(0)
+  ativo         Boolean        @default(true)
   documentos    Documento[]
+  sstObrigacoes SstObrigacao[]
 }
 
 model Documento {
@@ -4990,4 +5003,204 @@ model InvestProvento {
 
   @@unique([usuarioId, chaveImport])
   @@index([usuarioId, ativoId, data])
+}
+
+// ── SST — Saúde e Segurança do Trabalho (docs/sst-prd.md) ───────────────────
+// Fase 1: funções com requisitos (EPI/exames), vínculo colaborador×função,
+// EPI com ficha de entrega, ASO/exames e obrigações documentais (GED).
+// Módulo de REGISTROS com validade e evidência; executar continua no Projetos.
+
+enum SstTipoEntregaEpi {
+  ENTREGA
+  TROCA
+  DEVOLUCAO
+}
+
+enum SstTipoAso {
+  ADMISSIONAL
+  PERIODICO
+  MUDANCA_RISCO
+  RETORNO
+  DEMISSIONAL
+}
+
+enum SstResultadoAso {
+  APTO
+  INAPTO
+  APTO_RESTRICOES
+}
+
+// Função SST (cargo com requisitos). O Colaborador.cargo (texto) só sugere.
+model SstFuncao {
+  id              String                 @id @default(cuid())
+  empresaId       String
+  nome            String
+  cbo             String?
+  grauRisco       Int?
+  ativo           Boolean                @default(true)
+  criadoPor       String?
+  atualizadoPor   String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  empresa         Empresa                @relation(fields: [empresaId], references: [id])
+  requisitosEpi   SstFuncaoEpi[]
+  requisitosExame SstFuncaoExame[]
+  colaboradores   SstColaboradorFuncao[]
+
+  @@unique([empresaId, nome])
+}
+
+model SstFuncaoEpi {
+  funcaoId    String
+  epiId       String
+  obrigatorio Boolean   @default(true)
+  quantidade  Int       @default(1)
+  funcao      SstFuncao @relation(fields: [funcaoId], references: [id], onDelete: Cascade)
+  epi         SstEpi    @relation(fields: [epiId], references: [id], onDelete: Cascade)
+
+  @@id([funcaoId, epiId])
+}
+
+model SstFuncaoExame {
+  funcaoId           String
+  exameTipoId        String
+  periodicidadeMeses Int
+  funcao             SstFuncao    @relation(fields: [funcaoId], references: [id], onDelete: Cascade)
+  exameTipo          SstExameTipo @relation(fields: [exameTipoId], references: [id], onDelete: Cascade)
+
+  @@id([funcaoId, exameTipoId])
+}
+
+// Vínculo colaborador × função SST com vigência (fim = null → vigente).
+model SstColaboradorFuncao {
+  id            String      @id @default(cuid())
+  colaboradorId String
+  funcaoId      String
+  inicio        DateTime
+  fim           DateTime?
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  funcao        SstFuncao   @relation(fields: [funcaoId], references: [id])
+
+  @@index([colaboradorId, fim])
+  @@index([funcaoId])
+}
+
+// EPI (NR-06). itemId = item do almoxarifado (a entrega dá saída de estoque).
+model SstEpi {
+  id            String          @id @default(cuid())
+  empresaId     String
+  itemId        String?
+  nome          String
+  ca            String?
+  caValidade    DateTime?
+  vidaUtilDias  Int?
+  fabricante    String?
+  ativo         Boolean         @default(true)
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  empresa       Empresa         @relation(fields: [empresaId], references: [id])
+  item          Item?           @relation(fields: [itemId], references: [id])
+  requisitos    SstFuncaoEpi[]
+  entregas      SstEpiEntrega[]
+
+  @@index([empresaId, ativo])
+}
+
+// Ficha de EPI: uma linha por entrega/troca/devolução. documentoId = termo
+// assinado no GED.
+model SstEpiEntrega {
+  id                    String            @id @default(cuid())
+  empresaId             String
+  colaboradorId         String
+  epiId                 String
+  tipo                  SstTipoEntregaEpi @default(ENTREGA)
+  quantidade            Int               @default(1)
+  data                  DateTime
+  motivo                String?
+  vencimentoUso         DateTime?
+  movimentacaoEstoqueId String?
+  documentoId           String?
+  criadoPor             String?
+  atualizadoPor         String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  empresa               Empresa           @relation(fields: [empresaId], references: [id])
+  colaborador           Colaborador       @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  epi                   SstEpi            @relation(fields: [epiId], references: [id])
+
+  @@index([colaboradorId, data])
+  @@index([epiId])
+}
+
+model SstExameTipo {
+  id                 String           @id @default(cuid())
+  empresaId          String
+  nome               String
+  periodicidadeMeses Int?
+  ativo              Boolean          @default(true)
+  empresa            Empresa          @relation(fields: [empresaId], references: [id])
+  requisitos         SstFuncaoExame[]
+  asoExames          SstAsoExame[]
+
+  @@unique([empresaId, nome])
+}
+
+// ASO (NR-07). documentoId = ASO digitalizado no GED (confidencial).
+model SstAso {
+  id            String          @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  tipo          SstTipoAso
+  data          DateTime
+  validade      DateTime?
+  resultado     SstResultadoAso @default(APTO)
+  restricoes    String?
+  medico        String?
+  crm           String?
+  documentoId   String?
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  empresa       Empresa         @relation(fields: [empresaId], references: [id])
+  colaborador   Colaborador     @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  exames        SstAsoExame[]
+
+  @@index([colaboradorId, validade])
+}
+
+model SstAsoExame {
+  asoId       String
+  exameTipoId String
+  data        DateTime
+  resultado   String?
+  documentoId String?
+  aso         SstAso       @relation(fields: [asoId], references: [id], onDelete: Cascade)
+  exameTipo   SstExameTipo @relation(fields: [exameTipoId], references: [id])
+
+  @@id([asoId, exameTipoId])
+}
+
+// Obrigação documental (PGR, PCMSO, LTCAT, AEP, AVCB…) — o documento vive no
+// GED na categoria apontada; o painel resolve o vigente pela validade.
+model SstObrigacao {
+  id                 String             @id @default(cuid())
+  empresaId          String
+  nome               String
+  norma              String?
+  categoriaGedId     String
+  periodicidadeMeses Int?
+  responsavelId      String?
+  observacoes        String?
+  criadoPor          String?
+  atualizadoPor      String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  empresa            Empresa            @relation(fields: [empresaId], references: [id])
+  categoriaGed       DocumentoCategoria @relation(fields: [categoriaGedId], references: [id])
+  responsavel        Usuario?           @relation(fields: [responsavelId], references: [id])
+
+  @@unique([empresaId, nome])
 }

@@ -70,6 +70,8 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "DocumentoFiscalRecebido", "OperacaoFiscal", "RegraTributacao",
   // GED — docs/documentos-prd.md (DocumentoCategoria é compartilhada; filhos escopam via Documento)
   "Documento", "EmpresaDrive",
+  // SST — docs/sst-prd.md (SstColaboradorFuncao/SstFuncaoEpi/SstFuncaoExame/SstAsoExame escopam via pai)
+  "SstFuncao", "SstEpi", "SstEpiEntrega", "SstExameTipo", "SstAso", "SstObrigacao",
 ])
 
 // Mapas montados uma vez a partir do dmmf:

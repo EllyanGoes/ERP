@@ -43,6 +43,8 @@ import {
   UserCog,
   LogOut,
   ShieldCheck,
+  HardHat,
+  Stethoscope,
   HelpCircle,
   User,
   ChevronRight,
@@ -390,6 +392,34 @@ const mainModules: Module[] = [
         kind: "Relatórios",
         items: [
           { href: "/rh/relatorios", label: "Folha & Diárias", icon: BarChart3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "sst",
+    label: "Saúde e Segurança",
+    icon: ShieldCheck,
+    sections: [
+      {
+        kind: "Geral",
+        items: [
+          { href: "/sst", label: "Painel de conformidade", icon: LayoutDashboard, exact: true },
+          { href: "/sst/colaboradores", label: "Colaboradores", icon: UserCog },
+        ],
+      },
+      {
+        kind: "Processos",
+        items: [
+          { href: "/sst/epis", label: "EPIs e entregas", icon: HardHat },
+          { href: "/sst/saude", label: "ASO e exames", icon: Stethoscope },
+          { href: "/sst/obrigacoes", label: "Obrigações (PGR, PCMSO…)", icon: FileCheck2 },
+        ],
+      },
+      {
+        kind: "Configurações",
+        items: [
+          { href: "/sst/configuracoes", label: "Funções e requisitos", icon: Settings2 },
         ],
       },
     ],

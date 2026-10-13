@@ -223,6 +223,19 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "sst",
+    label: "Saúde e Segurança",
+    group: "RH",
+    recursos: [
+      { key: "painel",         label: "Painel de conformidade", acoes: ["ver"] },
+      { key: "colaboradores",  label: "Ficha SST do colaborador", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "epis",           label: "EPIs e entregas",          acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "saude",          label: "ASO e exames",             acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "obrigacoes",     label: "Obrigações documentais",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "configuracoes",  label: "Funções e requisitos",     acoes: ["ver", "inserir", "editar", "excluir"] },
+    ],
+  },
+  {
     key: "documentos",
     label: "Documentos",
     group: "Documentos",
