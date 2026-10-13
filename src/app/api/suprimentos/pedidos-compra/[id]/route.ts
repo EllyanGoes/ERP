@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
 import { getSession } from "@/lib/auth";
 import { reverterEExcluirConferencias, tratarContasPagarDosPedidos, ContaPagarComBaixaError } from "@/lib/compras-cascade";
+import { submeterPedidoParaAprovacao, STATUS_PEDIDO_EDITAVEL, STATUS_PEDIDO_APROVADO } from "@/lib/aprovacao-pedido";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("compras");
@@ -47,6 +48,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       },
       conferencia: { select: { id: true, numero: true, status: true } },
       contasPagar: { orderBy: [{ parcelaNumero: "asc" }, { dataVencimento: "asc" }] },
+      // Pendência de re-aprovação (pedido editado depois de aprovado)
+      aprovacoes: {
+        where: { status: "PENDENTE" },
+        select: { id: true, aprovadorId: true, createdAt: true, aprovador: { select: { nome: true } } },
+      },
       necessidade: {
         select: {
           id: true, numero: true, solicitante: true,
@@ -100,6 +106,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const pedidoId = params.id;
 
   if (body.edit === true) {
+    // Pedido já recebido ou cancelado não se edita; editado DEPOIS de aprovado
+    // volta para aprovação (abaixo).
+    const atual = await prisma.pedidoCompra.findUnique({ where: { id: pedidoId }, select: { status: true } });
+    if (!atual) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+    if (!(STATUS_PEDIDO_EDITAVEL as readonly string[]).includes(atual.status)) {
+      return NextResponse.json({ error: `Pedido ${atual.status === "RECEBIDO" ? "já recebido" : "cancelado"} não pode ser editado.` }, { status: 400 });
+    }
+    const exigeReaprovacao = (STATUS_PEDIDO_APROVADO as readonly string[]).includes(atual.status);
     // Full edit mode: delete all existing items, create new ones, update all fields
     const itens: Array<{
       itemId: string; quantidade: number; precoUnitario: number; desconto?: number | null;
@@ -178,7 +192,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     });
 
-    return NextResponse.json({ data: record });
+    // Editado depois de aprovado → volta para o aprovador decidir de novo.
+    let aprovacao: { aprovacaoId: string | null; semAprovador: boolean } | null = null;
+    if (exigeReaprovacao) {
+      aprovacao = await submeterPedidoParaAprovacao(pedidoId, auth.session.sub);
+    }
+    return NextResponse.json({ data: { ...record, status: exigeReaprovacao ? "AGUARDANDO_APROVACAO" : record.status }, reaprovacao: aprovacao });
   }
 
   // Vincular / desvincular SC (necessidade)

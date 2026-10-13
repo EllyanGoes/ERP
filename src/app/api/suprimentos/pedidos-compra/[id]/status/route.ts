@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { criarConferenciaDePedido } from "@/lib/pedido-compra-de";
 
 const TRANSITIONS: Record<string, string[]> = {
+  // Aguardando (re)aprovação: só o aprovador decide (rota /aprovacao); daqui
+  // só se cancela.
+  AGUARDANDO_APROVACAO: ["CANCELADO"],
   AGUARDANDO_PAGAMENTO: ["EM_TRANSITO", "CANCELADO"],
   EM_TRANSITO:          ["RECEBIDO",    "CANCELADO"],
   CONFIRMADO:           ["RECEBIDO",    "CANCELADO"], // legado — permite migrar

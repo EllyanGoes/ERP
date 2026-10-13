@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
 import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
+import { responderAprovacaoPedido } from "@/lib/aprovacao-pedido";
 
 // POST /api/aprovacoes/bulk-responder
 // Body: { ids: string[], acao: "APROVAR" | "REPROVAR", observacao?: string }
@@ -52,6 +53,18 @@ export async function POST(req: NextRequest) {
         results.push({ id, status: "error", error: "Sem permissão" }); continue;
       }
       if (aprovacao.status !== "PENDENTE") { results.push({ id, status: "skip", error: "Já respondida" }); continue; }
+      if (aprovacao.pedidoCompraId) {
+        try {
+          await responderAprovacaoPedido({
+            pedidoId: aprovacao.pedidoCompraId, aprovacaoId: id, acao, observacao: observacao ?? null,
+            respondente: { id: session.sub, nome: session.nome, perfil: session.perfil },
+          });
+          results.push({ id, status: "ok" });
+        } catch (e) {
+          results.push({ id, status: "error", error: e instanceof Error ? e.message : "Erro" });
+        }
+        continue;
+      }
       if (!aprovacao.cotacaoId) {
         results.push({ id, status: "skip", error: "Aprovação de SC legada (descontinuada)" }); continue;
       }

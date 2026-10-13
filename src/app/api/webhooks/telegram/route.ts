@@ -13,6 +13,7 @@ import { buildRelatorioNecessidades } from "@/lib/relatorio-necessidades";
 import { buildRelatorioSolicitacoes } from "@/lib/relatorio-solicitacoes";
 import { buildRelatorioConsumo } from "@/lib/relatorio-consumo";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
+import { responderAprovacaoPedido } from "@/lib/aprovacao-pedido";
 import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 
@@ -255,6 +256,21 @@ export async function POST(req: NextRequest) {
     }
 
     const novoStatus = acao === "APROVAR" ? "APROVADO" : "REPROVADO";
+
+    // ── Re-aprovação de PEDIDO DE COMPRAS editado ─────────────────────────────
+    if (aprovacao.pedidoCompraId) {
+      try {
+        await responderAprovacaoPedido({
+          pedidoId: aprovacao.pedidoCompraId, aprovacaoId, acao,
+          observacao: novoStatus === "REPROVADO" ? `Reprovado por ${aprovacao.aprovador.nome} via Telegram` : null,
+          respondente: { id: aprovacao.aprovadorId, nome: aprovacao.aprovador.nome, perfil: aprovacao.aprovador.perfil },
+        });
+        await answerCallbackQuery(cq.id, novoStatus === "APROVADO" ? "✅ Pedido aprovado — aguardando pagamento" : "❌ Pedido reprovado");
+      } catch (e) {
+        await answerCallbackQuery(cq.id, e instanceof Error ? e.message.slice(0, 180) : "Erro ao responder");
+      }
+      return NextResponse.json({ ok: true });
+    }
 
     // ── Aprovação de COTAÇÃO → gera o Pedido de Compras ───────────────────────
     if (aprovacao.cotacaoId) {

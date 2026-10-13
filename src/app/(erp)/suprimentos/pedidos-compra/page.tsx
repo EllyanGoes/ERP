@@ -55,6 +55,7 @@ type Pedido = {
 const FILTER_KEY = "erp:pedidos-compra:filters:v2";
 
 const KANBAN_TRANSITIONS: Record<string, string[]> = {
+  AGUARDANDO_APROVACAO: ["CANCELADO"], // aprovação decide (tela do pedido / Aprovações)
   AGUARDANDO_PAGAMENTO: ["EM_TRANSITO", "CANCELADO"],
   EM_TRANSITO:          ["RECEBIDO",    "CANCELADO"],
   CONFIRMADO:           ["RECEBIDO",    "CANCELADO"], // legado
@@ -67,6 +68,7 @@ const KANBAN_TRANSITIONS: Record<string, string[]> = {
 const STATUS_COLS: { key: string; label: string; color: string; bg: string; border: string }[] = [
   { key: "RASCUNHO",             label: "Rascunho",          color: "text-muted-foreground",   bg: "bg-muted",    border: "border-border"   },
   { key: "ENVIADO",              label: "Enviado",            color: "text-info",   bg: "bg-info/10",    border: "border-info/30"   },
+  { key: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação", color: "text-orange-600", bg: "bg-orange-500/10", border: "border-orange-300" },
   { key: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento", color: "text-warning", bg: "bg-warning/10",  border: "border-yellow-200" },
   { key: "EM_TRANSITO",          label: "Em Trânsito",       color: "text-warning",  bg: "bg-warning/10",   border: "border-warning/30"  },
   { key: "RECEBIDO",             label: "Recebido",          color: "text-success",bg: "bg-success/10", border: "border-success/30"},

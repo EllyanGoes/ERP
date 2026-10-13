@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth";
 import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/aprovacao-cotacao";
 import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
+import { responderAprovacaoPedido } from "@/lib/aprovacao-pedido";
 
 export async function POST(
   req: NextRequest,
@@ -47,6 +48,19 @@ export async function POST(
 
     if (aprovacao.status !== "PENDENTE") {
       return NextResponse.json({ error: "Esta aprovação já foi respondida" }, { status: 400 });
+    }
+
+    // ── Re-aprovação de PEDIDO DE COMPRAS editado ──────────────────────────────
+    if (aprovacao.pedidoCompraId) {
+      try {
+        const out = await responderAprovacaoPedido({
+          pedidoId: aprovacao.pedidoCompraId, aprovacaoId: aprovacao.id, acao, observacao: observacao ?? null,
+          respondente: { id: session.sub, nome: session.nome, perfil: session.perfil },
+        });
+        return NextResponse.json({ ok: true, status: out.status });
+      } catch (e) {
+        return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao responder" }, { status: 400 });
+      }
     }
 
     // ── Aprovação legada de SC (descontinuada) ─────────────────────────────────

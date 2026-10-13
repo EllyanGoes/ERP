@@ -103,6 +103,10 @@ export default function EditarPedidoCompraPage() {
     { itemId: "", quantidade: "1", precoUnitario: "", desconto: "", situacao: "CONSIDERA" },
   ]);
 
+  // Status atual: editado depois de aprovado → salvar devolve para aprovação.
+  const [pedidoStatus, setPedidoStatus] = useState("");
+  const exigeReaprovacao = ["AGUARDANDO_PAGAMENTO", "EM_TRANSITO", "CONFIRMADO", "AGUARDANDO_APROVACAO"].includes(pedidoStatus);
+
   // Form state
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
@@ -129,6 +133,7 @@ export default function EditarPedidoCompraPage() {
       if (!pedido) { setError("Pedido não encontrado"); setLoadingPedido(false); return; }
 
       setPedidoNumero(pedido.numero ?? "");
+      setPedidoStatus(pedido.status ?? "");
 
       // Check cache first — restore unsaved user changes; fall back to API data
       const saved = formRestoredRef.current ? null : loadForm();
@@ -377,6 +382,11 @@ export default function EditarPedidoCompraPage() {
       />
 
       <div className="px-8 pb-8 max-w-5xl space-y-6">
+        {exigeReaprovacao && (
+          <div className="bg-orange-500/10 border border-orange-300 text-orange-800 dark:text-orange-200 px-4 py-3 rounded-lg text-sm">
+            Este pedido já foi aprovado. Ao salvar as alterações ele volta para <strong>Aguardando Aprovação</strong> e o aprovador precisa decidir de novo.
+          </div>
+        )}
         {error && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{error}</div>
         )}

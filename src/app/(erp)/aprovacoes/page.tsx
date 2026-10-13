@@ -38,6 +38,12 @@ type Cotacao = {
   fornecedores: { totalCalculado: string | number | null; fornecedor: { razaoSocial: string; nomeFantasia: string | null } }[];
 };
 
+type PedidoAprov = {
+  id: string; numero: string; status: string; valorTotal: string | number | null; createdAt: string;
+  fornecedor: { razaoSocial: string; nomeFantasia: string | null };
+  _count: { itens: number };
+};
+
 type Aprovacao = {
   id: string; etapaOrdem: number; etapaNome: string | null;
   status: "PENDENTE" | "APROVADO" | "REPROVADO";
@@ -46,6 +52,7 @@ type Aprovacao = {
   solicitadoPorNome: string | null;
   necessidade: SC | null;
   cotacao: Cotacao | null;
+  pedidoCompra: PedidoAprov | null;
 };
 
 const PRIORIDADE: Record<number, { label: string; cls: string }> = {
@@ -99,6 +106,67 @@ function AprovacaoCard({
   }
 
   const effectiveStatus = done ?? item.status;
+
+  // ── Re-aprovação de PEDIDO DE COMPRAS editado ─────────────────────────────
+  const ped = item.pedidoCompra;
+  if (!sc && ped) {
+    const forn = ped.fornecedor.nomeFantasia || ped.fornecedor.razaoSocial;
+    const total = ped.valorTotal != null ? Number(ped.valorTotal) : null;
+    return (
+      <div
+        className={cn(
+          "bg-card rounded-xl border shadow-sm overflow-hidden transition-all p-4",
+          effectiveStatus === "APROVADO" ? "border-success/30 bg-success/10" :
+          effectiveStatus === "REPROVADO" ? "border-danger/30 bg-danger/10" :
+          "border-border hover:border-border"
+        )}
+      >
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href={`/suprimentos/pedidos-compra/${ped.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm">
+            {ped.numero}
+          </Link>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-info/10 text-info font-medium border border-info/30">Pedido de Compras · alterado</span>
+        </div>
+        <div className="mt-2 text-sm text-muted-foreground">
+          Fornecedor: <span className="font-medium text-foreground">{forn}</span>
+          {total != null && <> · <span className="tabular-nums">{total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span></>}
+          <> · {ped._count.itens} item{ped._count.itens !== 1 ? "ns" : ""}</>
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          {item.solicitadoPorNome ? <>Alterado por <span className="font-medium text-foreground">{item.solicitadoPorNome}</span> em </> : <>Alterado em </>}
+          {new Date(item.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+          <> — o pedido já tinha sido aprovado; aprovar devolve para Aguardando Pagamento.</>
+        </div>
+
+        {showObs && isPendente && (
+          <textarea
+            value={obs} onChange={(e) => setObs(e.target.value)}
+            placeholder="Motivo da reprovação (opcional)"
+            className="mt-3 w-full h-16 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        )}
+        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+
+        {isPendente ? (
+          <div className="mt-3 flex items-center gap-2">
+            <button onClick={() => responder("APROVAR")} disabled={!!loading}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60">
+              {loading === "APROVAR" ? "Aprovando..." : "Aprovar pedido"}
+            </button>
+            <button onClick={() => responder("REPROVAR")} disabled={!!loading}
+              className="px-3 py-1.5 rounded-lg border border-danger/30 text-danger text-sm font-medium hover:bg-danger/10 disabled:opacity-60">
+              {loading === "REPROVAR" ? "Reprovando..." : showObs ? "Confirmar reprovação" : "Reprovar"}
+            </button>
+          </div>
+        ) : (
+          <div className="mt-3 text-xs font-medium text-muted-foreground">
+            {effectiveStatus === "APROVADO" ? "✅ Aprovado — pedido em Aguardando Pagamento" : "❌ Reprovado — pedido voltou para rascunho"}
+            {item.observacao && <> · {item.observacao}</>}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // ── Aprovação de COTAÇÃO (gera o Pedido de Compras) ───────────────────────
   const cot = item.cotacao;

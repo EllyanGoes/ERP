@@ -125,6 +125,8 @@ export async function gerarPedidoDeCotacao(
   const pedidoCompra = await tx.pedidoCompra.create({
     data: {
       numero,
+      // Aprovado → já entra em Aguardando Pagamento (não fica em rascunho).
+      status: "AGUARDANDO_PAGAMENTO",
       empresaId: cotacao.empresaId,
       cotacaoId: cotacao.id,
       fornecedorId: melhor.fornecedorId,

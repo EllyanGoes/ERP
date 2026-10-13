@@ -49,6 +49,8 @@ model AprovacaoSC {
   id             String             @id @default(cuid())
   necessidadeId  String?
   cotacaoId      String?
+  // Re-aprovação de Pedido de Compras editado (3º alvo possível da pendência)
+  pedidoCompraId String?
   etapaOrdem     Int
   etapaNome      String?
   aprovadorId    String
@@ -68,6 +70,9 @@ model AprovacaoSC {
   fluxo          AprovacaoFluxo?    @relation(fields: [fluxoId], references: [id])
   necessidade    NecessidadeCompra? @relation(fields: [necessidadeId], references: [id], onDelete: Cascade)
   cotacao        CotacaoCompra?     @relation(fields: [cotacaoId], references: [id], onDelete: Cascade)
+  pedidoCompra   PedidoCompra?      @relation(fields: [pedidoCompraId], references: [id], onDelete: Cascade)
+
+  @@index([pedidoCompraId])
 }
 
 // Notificação in-app por usuário (toast estilo macOS + sino). Criada por eventos
@@ -2271,6 +2276,7 @@ model PedidoCompra {
   fornecedor           Fornecedor             @relation(fields: [fornecedorId], references: [id])
   pedidoVendaEspelho   PedidoVenda?           @relation("EspelhoIntragrupo", fields: [pedidoVendaEspelhoId], references: [id])
   itens                PedidoCompraItem[]
+  aprovacoes           AprovacaoSC[]
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -3402,6 +3408,8 @@ enum StatusNecessidade {
 }
 
 enum StatusPedidoCompra {
+  // Pedido editado depois de aprovado volta para cá até o aprovador decidir
+  AGUARDANDO_APROVACAO
   AGUARDANDO_PAGAMENTO
   EM_TRANSITO
   CONFIRMADO

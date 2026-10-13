@@ -20,9 +20,10 @@ import { useTabTitle } from "@/lib/tabs-context";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, CheckCircle2, FileInput, Link2, FileText } from "lucide-react";
+import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, CheckCircle2, FileInput, Link2, FileText, Pencil } from "lucide-react";
 
 const STATUS_FLOW: { value: string; label: string }[] = [
+  { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
   { value: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento" },
   { value: "EM_TRANSITO",          label: "Em Trânsito"       },
   { value: "RECEBIDO",             label: "Recebido"          },
@@ -102,6 +103,8 @@ type PedidoCompra = {
   }>;
   conferencia: { id: string; numero: string; status: string } | null;
   cotacaoFornecedor: CotacaoFornecedor | null;
+  // Pendência de re-aprovação (pedido editado depois de aprovado)
+  aprovacoes?: { id: string; aprovadorId: string; createdAt: string; aprovador: { nome: string } }[];
   criadoPor?: string | null;
   atualizadoPor?: string | null;
 };
@@ -333,6 +336,30 @@ export default function PedidoCompraDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [waDropdownOpen]);
 
+  // Re-aprovação: aprovador designado ou ADMIN decide direto aqui.
+  const [aprovObs, setAprovObs] = useState("");
+  const [aprovShowObs, setAprovShowObs] = useState(false);
+  async function responderAprovacao(acao: "APROVAR" | "REPROVAR") {
+    if (acao === "REPROVAR" && !aprovShowObs) { setAprovShowObs(true); return; }
+    setActioning(true);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/suprimentos/pedidos-compra/${id}/aprovacao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao, observacao: aprovObs || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setActionError(json.error || "Erro na operação"); return; }
+      setAprovShowObs(false); setAprovObs("");
+      await load();
+    } catch {
+      setActionError("Erro de conexão");
+    } finally {
+      setActioning(false);
+    }
+  }
+
   async function changeStatus(status: string) {
     setActioning(true);
     setActionError("");
@@ -518,11 +545,18 @@ async function openWAModal() {
         action={
           <div className="flex items-center gap-2">
             <FinanceiroCompraBadge status={pedido.statusFinanceiro} />
+            {/* Editar: itens, preços, encargos… Depois de aprovado, salvar
+                devolve o pedido para aprovação. */}
+            {!["RECEBIDO", "CANCELADO"].includes(pedido.status) && (
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => router.push(`/suprimentos/pedidos-compra/${id}/editar`)}>
+                <Pencil className="w-3.5 h-3.5" /> Editar
+              </Button>
+            )}
             {/* Status inline selector */}
             <Select
               value={pedido.status}
               onValueChange={(v) => changeStatus(v)}
-              disabled={actioning || pedido.status === "CANCELADO" || pedido.status === "RECEBIDO"}
+              disabled={actioning || ["CANCELADO", "RECEBIDO", "AGUARDANDO_APROVACAO"].includes(pedido.status)}
             >
               <SelectTrigger className="h-8 w-48 text-xs font-medium">
                 <SelectValue />
@@ -558,6 +592,37 @@ async function openWAModal() {
         {actionError && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
         )}
+
+        {/* Faixa de re-aprovação: pedido editado depois de aprovado */}
+        {pedido.status === "AGUARDANDO_APROVACAO" && (() => {
+          const pend = pedido.aprovacoes?.[0] ?? null;
+          const podeDecidir = isAdmin || (pend ? pend.aprovadorId === user?.id : false);
+          return (
+            <div className="bg-orange-500/10 border border-orange-300 rounded-xl px-4 py-3 text-sm space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-orange-700">Aguardando aprovação</span>
+                <span className="text-muted-foreground">
+                  {pend
+                    ? <>Este pedido foi alterado depois de aprovado e aguarda a decisão de <span className="font-medium text-foreground">{pend.aprovador.nome}</span>.</>
+                    : <>Este pedido foi alterado depois de aprovado. Não há aprovador configurado no fluxo Pedido de Compras — um administrador decide aqui.</>}
+                </span>
+              </div>
+              {podeDecidir && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {aprovShowObs && (
+                    <Input value={aprovObs} onChange={(e) => setAprovObs(e.target.value)} placeholder="Motivo da reprovação (opcional)" className="h-8 w-72 text-xs" />
+                  )}
+                  <Button size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={actioning} onClick={() => responderAprovacao("APROVAR")}>
+                    Aprovar pedido
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 border-danger/30 text-danger hover:bg-danger/10" disabled={actioning} onClick={() => responderAprovacao("REPROVAR")}>
+                    {aprovShowObs ? "Confirmar reprovação" : "Reprovar"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Descrição ──────────────────────────────────────────────────── */}
         {(() => {

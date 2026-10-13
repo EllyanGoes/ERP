@@ -56,6 +56,13 @@ export async function GET(req: NextRequest) {
             },
           },
         },
+        pedidoCompra: {
+          select: {
+            id: true, numero: true, status: true, valorTotal: true, createdAt: true,
+            fornecedor: { select: { razaoSocial: true, nomeFantasia: true } },
+            _count: { select: { itens: true } },
+          },
+        },
         cotacao: {
           select: {
             id: true,
