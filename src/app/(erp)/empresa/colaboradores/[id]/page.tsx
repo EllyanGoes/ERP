@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import DocumentosDaEntidade from "@/components/documentos/DocumentosDaEntidade";
+import FichaSstColaborador from "@/components/sst/FichaSstColaborador";
+import { useSession } from "@/lib/session-context";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
@@ -114,7 +116,8 @@ export default function ColaboradorDetailPage() {
   const [error,   setError]           = useState("");
 
   // Abas (mesmo padrão do cadastro de produtos)
-  const [tab, setTab] = useState<"pessoais" | "funcionais" | "escala" | "diarias" | "aprovacoes" | "observacoes" | "documentos">("pessoais");
+  const [tab, setTab] = useState<"pessoais" | "funcionais" | "escala" | "diarias" | "aprovacoes" | "observacoes" | "documentos" | "sst">("pessoais");
+  const { canAccess } = useSession();
 
   // Escala de trabalho (vigências: a partir de <data>, segue <horário>)
   const [escalas, setEscalas] = useState<Escala[]>([]);
@@ -381,6 +384,8 @@ export default function ColaboradorDetailPage() {
     { key: "aprovacoes",  label: `Aprovações (${colaborador.etapasAprovacao?.length ?? 0})` },
     { key: "observacoes", label: "Observações" },
     { key: "documentos",  label: "Documentos (GED)" },
+    // Ficha SST (função, EPIs, ASO, treinamentos) — só p/ quem tem o módulo.
+    ...(canAccess("sst") ? [{ key: "sst" as const, label: "Saúde e Segurança" }] : []),
   ] as const;
 
   return (
@@ -885,6 +890,8 @@ export default function ColaboradorDetailPage() {
         {tab === "documentos" && (
           <DocumentosDaEntidade tipo="colaborador" id={colaborador.id} />
         )}
+
+        {tab === "sst" && <FichaSstColaborador id={colaborador.id} embutido />}
 
         {tab === "observacoes" && (
           <Card>

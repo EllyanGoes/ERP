@@ -1,5 +1,5 @@
 // GED — regras compartilhadas do módulo de Documentos (docs/documentos-prd.md).
-import { put } from "@vercel/blob";
+import { uploadBlob } from "@/lib/blob";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { driveAtivo, garantirPasta, uploadArquivo } from "@/lib/drive";
 import type { SessionPayload } from "@/lib/auth";
@@ -75,10 +75,10 @@ export async function salvarArquivoDocumento(opts: {
     const fileId = await uploadArquivo(pastaId, opts.nomeArquivo, opts.mime, opts.conteudo);
     return { provider: "DRIVE", driveFileId: fileId, url: null };
   }
-  const blob = await put(
+  const blob = await uploadBlob(
     `documentos/${opts.empresaId}/${opts.categoriaSlug}/${Date.now()}-${opts.nomeArquivo}`,
     opts.conteudo,
-    { access: "public", contentType: opts.mime || "application/octet-stream" },
+    opts.mime || "application/octet-stream",
   );
   return { provider: "BLOB", driveFileId: null, url: blob.url };
 }

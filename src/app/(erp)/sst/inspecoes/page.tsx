@@ -105,7 +105,7 @@ export default function SstInspecoesPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader><DialogTitle>Nova inspeção</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">

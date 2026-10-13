@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 // Blob, mesmo padrão dos anexos de cotação/OP.
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { put } from "@vercel/blob";
+import { uploadBlob } from "@/lib/blob";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: { id: string } };
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (file.size > 20 * 1024 * 1024)
     return NextResponse.json({ error: "Arquivo muito grande (máx. 20 MB)" }, { status: 413 });
 
-  const blob = await put(`titulos/receber/${params.id}/${Date.now()}-${file.name}`, file, { access: "public" });
+  const blob = await uploadBlob(`titulos/receber/${params.id}/${Date.now()}-${file.name}`, file);
 
   const anexo = await prisma.anexoTitulo.create({
     data: {

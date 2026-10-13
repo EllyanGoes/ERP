@@ -8,7 +8,7 @@ import { prismaSemEscopo } from "@/lib/prisma";
 export type SeveridadeSst = "CRITICA" | "ALTA" | "MEDIA" | "BAIXA";
 export type TipoPendenciaSst =
   | "SEM_FUNCAO"
-  | "EPI_NAO_ENTREGUE" | "EPI_VENCIDO" | "EPI_VENCE_EM_BREVE" | "EPI_CA_VENCIDO"
+  | "EPI_NAO_ENTREGUE" | "EPI_VENCIDO" | "EPI_VENCE_EM_BREVE" | "EPI_CA_VENCIDO" | "FICHA_EPI_SEM_ASSINATURA"
   | "ASO_INEXISTENTE" | "ASO_VENCIDO" | "ASO_VENCE_EM_BREVE" | "ASO_INAPTO" | "ASO_DEMISSIONAL_PENDENTE"
   | "EXAME_PENDENTE"
   | "TREINAMENTO_FALTANDO" | "TREINAMENTO_VENCIDO" | "TREINAMENTO_VENCE_EM_BREVE"
@@ -60,6 +60,7 @@ export type ColaboradorSst = {
   }[];
   sstTreinamentos: { validade: Date | null; aprovado: boolean; treinamento: { tipoId: string; data: Date } }[];
   sstEpiEntregas: { epiId: string; tipo: "ENTREGA" | "TROCA" | "DEVOLUCAO"; data: Date; vencimentoUso: Date | null; quantidade: number }[];
+  sstEpiFichas: { id: string; numero: number; data: Date }[];
   sstAsos: { id: string; tipo: string; data: Date; validade: Date | null; resultado: string; exames: { exameTipoId: string; data: Date }[] }[];
 };
 
@@ -84,6 +85,7 @@ export const COLABORADOR_SST_SELECT = {
   },
   sstTreinamentos: { select: { validade: true, aprovado: true, treinamento: { select: { tipoId: true, data: true } } } },
   sstEpiEntregas: { orderBy: { data: "desc" as const }, select: { epiId: true, tipo: true, data: true, vencimentoUso: true, quantidade: true } },
+  sstEpiFichas: { where: { documentoId: null }, select: { id: true, numero: true, data: true } },
   sstAsos: { orderBy: { data: "desc" as const }, select: { id: true, tipo: true, data: true, validade: true, resultado: true, exames: { select: { exameTipoId: true, data: true } } } },
 } as const;
 
@@ -143,6 +145,12 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
     if (r.epi.caValidade && r.epi.caValidade.getTime() < hoje.getTime()) {
       out.push({ ...base, tipo: "EPI_CA_VENCIDO", severidade: "ALTA", titulo: `CA vencido: ${r.epi.nome}${r.epi.ca ? ` (CA ${r.epi.ca})` : ""}`, referenciaId: r.epi.id, vence: r.epi.caValidade, link: `/sst/epis` });
     }
+  }
+
+  // Fichas de EPI sem o termo assinado arquivado (carência de 5 dias p/ colher a assinatura)
+  for (const fi of c.sstEpiFichas ?? []) {
+    const d = -diasAte(fi.data, hoje);
+    if (d >= 5) out.push({ ...base, tipo: "FICHA_EPI_SEM_ASSINATURA", severidade: "MEDIA", titulo: `Ficha de EPI nº ${String(fi.numero).padStart(4, "0")} sem termo assinado`, detalhe: `Entregue há ${d} dia(s) — anexe o termo assinado`, referenciaId: fi.id, link: `/sst/epis?aba=fichas` });
   }
 
   // ASO

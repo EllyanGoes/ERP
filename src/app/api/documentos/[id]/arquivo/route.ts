@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { podeVerDocumento, registrarLogDocumento } from "@/lib/documentos";
 import { baixarArquivo } from "@/lib/drive";
+import { streamBlob } from "@/lib/blob";
 
 // GET /api/documentos/[id]/arquivo?versao=N&download=1 — stream do arquivo
 // (proxy autenticado; Drive nunca é linkado direto).
@@ -42,6 +43,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: "Arquivo indisponível no Drive no momento." }, { status: 502 });
     }
   }
-  if (versao.url) return NextResponse.redirect(versao.url);
+  if (versao.url) {
+    // Blob privado: stream pelo proxy (URL pública direta só em registros legados).
+    if (versao.url.startsWith("/api/arquivos/") || versao.url.includes(".blob.vercel-storage.com")) {
+      const arq = await streamBlob(versao.url);
+      if (!arq) return NextResponse.json({ error: "Arquivo não encontrado no Blob." }, { status: 404 });
+      return new NextResponse(arq.stream, {
+        headers: { "Content-Type": versao.mime || arq.contentType, "Content-Disposition": disposition, "Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff" },
+      });
+    }
+    return NextResponse.redirect(versao.url);
+  }
   return NextResponse.json({ error: "Arquivo sem localização registrada." }, { status: 500 });
 }

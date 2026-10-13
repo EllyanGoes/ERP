@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { uploadBlob } from "@/lib/blob";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { nivelNoProjeto, podeEditarTarefas } from "@/lib/projetos";
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { tarefaId: s
   if (!file) return NextResponse.json({ error: "Arquivo ausente." }, { status: 400 });
   if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `Máx. ${MAX_MB} MB por arquivo.` }, { status: 400 });
 
-  const blob = await put(`projetos/tarefas/${params.tarefaId}/${Date.now()}-${file.name}`, file, { access: "public" });
+  const blob = await uploadBlob(`projetos/tarefas/${params.tarefaId}/${Date.now()}-${file.name}`, file);
   const anexo = await prisma.anexoTarefa.create({
     data: { tarefaId: params.tarefaId, nome: file.name, url: blob.url, tamanho: file.size, tipo: file.type || "application/octet-stream" },
   });

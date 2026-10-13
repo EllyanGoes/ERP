@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { uploadBlob } from "@/lib/blob";
 import { getSession } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -18,11 +18,7 @@ export async function POST(req: NextRequest) {
   if (!allowed.includes(file.type))
     return NextResponse.json({ error: "Apenas imagens são permitidas (JPEG, PNG, GIF, WebP)" }, { status: 400 });
 
-  const blob = await put(
-    `suporte/${session.sub}/${Date.now()}-${file.name}`,
-    file,
-    { access: "public" }
-  );
+  const blob = await uploadBlob(`suporte/${session.sub}/${Date.now()}-${file.name}`, file);
 
   return NextResponse.json({ url: blob.url, nome: file.name });
 }

@@ -145,7 +145,7 @@ export default function SstTreinamentosPage() {
       </div>
 
       <Dialog open={dlgTipo} onOpenChange={setDlgTipo}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>{editId ? "Editar tipo" : "Novo tipo de treinamento"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Nome</Label><Input value={tNome} onChange={(e) => setTNome(e.target.value)} placeholder="NR-12 Operação segura de máquinas" /></div>
@@ -161,7 +161,7 @@ export default function SstTreinamentosPage() {
       </Dialog>
 
       <Dialog open={dlgTurma} onOpenChange={setDlgTurma}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader><DialogTitle>Nova turma</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">

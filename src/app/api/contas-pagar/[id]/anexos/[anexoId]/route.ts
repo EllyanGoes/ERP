@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { del } from "@vercel/blob";
+import { deleteBlob } from "@/lib/blob";
 import { prisma } from "@/lib/prisma";
 
 type Params = { params: { id: string; anexoId: string } };
@@ -16,7 +16,7 @@ export async function DELETE(_: NextRequest, { params }: Params) {
   });
   if (!anexo) return NextResponse.json({ error: "Anexo não encontrado" }, { status: 404 });
 
-  await del(anexo.url).catch(() => {}); // arquivo já ausente no Blob não trava
+  await deleteBlob(anexo.url); // arquivo já ausente no Blob não trava
   await prisma.anexoTitulo.delete({ where: { id: anexo.id } });
   return NextResponse.json({ ok: true });
 }

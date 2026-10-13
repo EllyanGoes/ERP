@@ -3,7 +3,6 @@
 // Cadastro de EPIs (CA, validade, vida útil, item de estoque) + entrega em lote.
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
-import SelectMenu from "@/components/shared/SelectMenu";
 import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
@@ -13,11 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Pencil, Trash2, Users } from "lucide-react";
-import { fmtData, hojeISO, useLookups, TIPO_ENTREGA } from "@/components/sst/comum";
+import Link from "next/link";
+import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip } from "lucide-react";
+import { fmtData, useLookups, UploadAnexo, DocLink } from "@/components/sst/comum";
+import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 
 type Epi = { id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean; item: { id: string; codigo: string; descricao: string } | null; _count: { entregas: number; requisitos: number } };
 type Colab = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null };
+type FichaRow = { id: string; numero: number; data: string; documentoId: string | null; assinadaEm: string | null; colaborador: { id: string; nome: string }; itens: { id: string; quantidade: number; epi: { nome: string } }[] };
 
 export default function SstEpisPage() {
   useTabTitle("SST — EPIs");
@@ -25,8 +27,25 @@ export default function SstEpisPage() {
   const [loading, setLoading] = useState(true);
   const lk = useLookups();
   const [colabs, setColabs] = useState<Colab[]>([]);
-  async function load() { setLoading(true); const j = await fetch("/api/sst/epis").then((r) => r.json()); setEpis(j.data ?? []); setLoading(false); }
+  const [fichas, setFichas] = useState<FichaRow[]>([]);
+  const [aba, setAba] = useState<"epis" | "fichas">("epis");
+  // ?aba=fichas (link das pendências) — lido após a hidratação p/ não divergir do SSR.
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("aba") === "fichas") setAba("fichas"); }, []);
+  const [soPendentes, setSoPendentes] = useState(false);
+  async function load() {
+    setLoading(true);
+    const [j, jf] = await Promise.all([fetch("/api/sst/epis").then((r) => r.json()), fetch("/api/sst/entregas/fichas").then((r) => r.json())]);
+    setEpis(j.data ?? []); setFichas(jf.data ?? []); setLoading(false);
+  }
   useEffect(() => { load(); fetch("/api/sst/colaboradores").then((r) => r.json()).then((j) => setColabs(j.data ?? [])); }, []);
+  const [anexarFicha, setAnexarFicha] = useState<FichaRow | null>(null);
+  const [delFicha, setDelFicha] = useState<FichaRow | null>(null);
+  async function anexarAssinada(documentoId: string | null) {
+    if (!anexarFicha) return;
+    await fetch(`/api/sst/entregas/fichas/${anexarFicha.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentoId }) });
+    setAnexarFicha(null); load();
+  }
+  async function excluirFicha() { if (!delFicha) return; setSaving(true); await fetch(`/api/sst/entregas/fichas/${delFicha.id}`, { method: "DELETE" }); setSaving(false); setDelFicha(null); load(); }
 
   // form
   const [open, setOpen] = useState(false);
@@ -49,27 +68,45 @@ export default function SstEpisPage() {
   async function excluir() { if (!del) return; setSaving(true); const res = await fetch(`/api/sst/epis/${del.id}`, { method: "DELETE" }); const j = await res.json().catch(() => ({})); setSaving(false); if (!res.ok) { alert(j.error || "Erro"); } setDel(null); load(); }
   async function alternarAtivo(e: Epi) { await fetch(`/api/sst/epis/${e.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: !e.ativo }) }); load(); }
 
-  // entrega em lote
-  const [lote, setLote] = useState(false);
-  const [lEpiId, setLEpiId] = useState(""); const [lSel, setLSel] = useState<Record<string, boolean>>({}); const [lData, setLData] = useState(hojeISO()); const [lLocal, setLLocal] = useState(""); const [lTipo, setLTipo] = useState("ENTREGA"); const [lBusca, setLBusca] = useState("");
-  const epiLote = epis.find((e) => e.id === lEpiId);
-  async function salvarLote() {
-    const ids = Object.entries(lSel).filter(([, v]) => v).map(([k]) => k);
-    if (!lEpiId || ids.length === 0) { setErro("Escolha o EPI e ao menos um colaborador."); return; }
-    setSaving(true); setErro("");
-    const res = await fetch("/api/sst/entregas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorIds: ids, epiId: lEpiId, tipo: lTipo, quantidade: 1, data: lData, localEstoqueId: lLocal || null, motivo: "Entrega em lote" }) });
-    const j = await res.json().catch(() => ({}));
-    setSaving(false);
-    if (!res.ok) { setErro(j.error || "Erro"); return; }
-    setLote(false); setLSel({}); load();
-  }
+  const [entrega, setEntrega] = useState(false);
 
   return (
     <div>
       <PageHeader title="EPIs e entregas" subtitle="Equipamentos de proteção individual (NR-06)" breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "EPIs" }]}
-        action={<div className="flex gap-2"><Button variant="outline" onClick={() => { setErro(""); setLote(true); }} className="gap-1.5"><Users className="w-4 h-4" /> Entrega em lote</Button><Button onClick={() => abrir()} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Novo EPI</Button></div>} />
+        action={<div className="flex gap-2"><Button variant="outline" onClick={() => setEntrega(true)} className="gap-1.5"><HardHat className="w-4 h-4" /> Nova entrega</Button><Button onClick={() => abrir()} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Novo EPI</Button></div>} />
       <div className="px-8 pb-8">
-        {loading ? <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : (
+        <div className="flex items-center gap-1 mb-4 border-b border-border">
+          {([["epis", "Cadastro de EPIs"], ["fichas", `Fichas de entrega${fichas.filter((f) => !f.documentoId).length ? ` · ${fichas.filter((f) => !f.documentoId).length} sem termo` : ""}`]] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setAba(k)} className={cn("px-3 py-2 text-sm -mb-px border-b-2", aba === k ? "border-info text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>{label}</button>
+          ))}
+          {aba === "fichas" && <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer"><input type="checkbox" className="rounded" checked={soPendentes} onChange={(e) => setSoPendentes(e.target.checked)} /> só sem termo assinado</label>}
+        </div>
+        {loading ? <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : aba === "fichas" ? (
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted text-xs text-muted-foreground"><tr>
+                <th className="text-left px-4 py-2 font-semibold">Ficha</th><th className="text-left px-3 py-2 font-semibold">Data</th><th className="text-left px-3 py-2 font-semibold">Colaborador</th><th className="text-left px-3 py-2 font-semibold">Itens</th><th className="text-left px-3 py-2 font-semibold">Termo assinado</th><th className="px-3 py-2"></th>
+              </tr></thead>
+              <tbody>
+                {fichas.filter((f) => !soPendentes || !f.documentoId).map((f) => (
+                  <tr key={f.id} className="border-t border-border/60">
+                    <td className="px-4 py-2 tabular-nums text-foreground">nº {String(f.numero).padStart(4, "0")}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{fmtData(f.data)}</td>
+                    <td className="px-3 py-2"><Link href={`/sst/colaboradores/${f.colaborador.id}`} className="text-foreground hover:text-info">{f.colaborador.nome}</Link></td>
+                    <td className="px-3 py-2 text-muted-foreground text-xs">{f.itens.map((i) => `${i.quantidade}× ${i.epi.nome}`).join(", ")}</td>
+                    <td className="px-3 py-2">{f.documentoId ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-success font-medium">arquivado {fmtData(f.assinadaEm)}</span><DocLink id={f.documentoId} label="ver" /></span> : <span className="text-xs font-medium text-warning">aguardando assinatura</span>}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <Link href={`/sst/epis/fichas/${f.id}`} target="_blank" className="inline-flex text-muted-foreground hover:text-foreground mr-2" title="Imprimir termo"><Printer className="w-3.5 h-3.5" /></Link>
+                      {!f.documentoId && <button onClick={() => setAnexarFicha(f)} className="text-muted-foreground hover:text-foreground mr-2" title="Anexar termo assinado"><Paperclip className="w-3.5 h-3.5" /></button>}
+                      <button onClick={() => setDelFicha(f)} className="text-muted-foreground hover:text-danger" title="Desfazer ficha"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </td>
+                  </tr>
+                ))}
+                {fichas.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma ficha de entrega ainda — use &quot;Nova entrega&quot; → &quot;Para um colaborador&quot;.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        ) : (
           <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted text-xs text-muted-foreground"><tr>
@@ -103,7 +140,7 @@ export default function SstEpisPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>{editId ? "Editar EPI" : "Novo EPI"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Protetor auricular tipo plug" /></div>
@@ -122,37 +159,18 @@ export default function SstEpisPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={lote} onOpenChange={setLote}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>Entrega em lote</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2"><Label>EPI</Label><SelectMenu value={lEpiId} onChange={setLEpiId} placeholder="Selecionar…" options={epis.filter((e) => e.ativo).map((e) => ({ value: e.id, label: e.ca ? `${e.nome} · CA ${e.ca}` : e.nome }))} /></div>
-              <div><Label>Data</Label><DatePicker value={lData} onChange={setLData} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Tipo</Label><SelectMenu value={lTipo} onChange={setLTipo} options={Object.entries(TIPO_ENTREGA).filter(([k]) => k !== "DEVOLUCAO").map(([value, label]) => ({ value, label }))} /></div>
-              {epiLote?.itemId && <div><Label>Baixar do estoque (local)</Label><SelectMenu value={lLocal} onChange={setLLocal} options={[{ value: "", label: "— Não baixar —" }, ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} /></div>}
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1"><Label>Colaboradores ({Object.values(lSel).filter(Boolean).length} selecionados)</Label>
-                <input value={lBusca} onChange={(e) => setLBusca(e.target.value)} placeholder="filtrar…" className="text-xs border border-border rounded px-2 py-1 bg-card" /></div>
-              <div className="max-h-80 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
-                {colabs.filter((c) => c.ativo && (!lBusca || c.nome.toLowerCase().includes(lBusca.toLowerCase()))).map((c) => (
-                  <label key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
-                    <input type="checkbox" className="rounded" checked={!!lSel[c.id]} onChange={(e) => setLSel({ ...lSel, [c.id]: e.target.checked })} />
-                    <span className="flex-1 text-foreground">{c.nome}</span><span className="text-xs text-muted-foreground">{c.funcao?.nome ?? "sem função"}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">O termo assinado pode ser anexado depois, na ficha de cada colaborador.</p>
-            {erro && <p className="text-sm text-danger">{erro}</p>}
-          </div>
-          <DialogFooter><Button variant="outline" onClick={() => setLote(false)}>Cancelar</Button><Button onClick={salvarLote} disabled={saving}>{saving ? "Registrando…" : "Registrar entregas"}</Button></DialogFooter>
+      <EntregaEpiDialog open={entrega} onOpenChange={setEntrega} epis={epis} colabs={colabs} lk={lk} onSaved={load} />
+
+      <Dialog open={!!anexarFicha} onOpenChange={(o) => !o && setAnexarFicha(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Arquivar termo assinado — ficha nº {anexarFicha ? String(anexarFicha.numero).padStart(4, "0") : ""}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{anexarFicha?.colaborador.nome} · {fmtData(anexarFicha?.data)}. O arquivo vai para o GED (categoria SST — Termo de EPI) e fica ligado a cada item da ficha.</p>
+          {anexarFicha && <UploadAnexo tipo="termo-epi" titulo={`Ficha de EPI nº ${String(anexarFicha.numero).padStart(4, "0")} — ${anexarFicha.colaborador.nome}`} colaboradorId={anexarFicha.colaborador.id} value={null} onChange={anexarAssinada} label="Enviar termo assinado (PDF/foto)" />}
+          <DialogFooter><Button variant="outline" onClick={() => setAnexarFicha(null)}>Cancelar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
+      <ConfirmDialog open={!!delFicha} onOpenChange={(o) => !o && setDelFicha(null)} title="Desfazer ficha de entrega?" description={`Ficha nº ${delFicha ? String(delFicha.numero).padStart(4, "0") : ""} — ${delFicha?.colaborador.nome ?? ""}: as ${delFicha?.itens.length ?? 0} entregas são apagadas e o estoque (se baixado) é estornado.`} onConfirm={excluirFicha} loading={saving} confirmLabel="Desfazer" />
       <ConfirmDialog open={!!del} onOpenChange={(o) => !o && setDel(null)} title="Excluir EPI?" description={`${del?.nome ?? ""} — só é possível sem entregas registradas.`} onConfirm={excluir} loading={saving} confirmLabel="Excluir" />
     </div>
   );

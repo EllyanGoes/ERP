@@ -100,7 +100,7 @@ export default function SstMaquinasPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>Nova máquina</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Exaustor 04" /></div>
@@ -119,7 +119,7 @@ export default function SstMaquinasPage() {
       </Dialog>
 
       <Dialog open={imp} onOpenChange={setImp}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader><DialogTitle>Importar ativos do Engeman</DialogTitle></DialogHeader>
           {ativos === null ? <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : (
             <div className="space-y-3">

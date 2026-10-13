@@ -273,6 +273,7 @@ model Colaborador {
   escalas                    ColaboradorEscala[]
   sstFuncoes                 SstColaboradorFuncao[]
   sstEpiEntregas             SstEpiEntrega[]
+  sstEpiFichas               SstEpiFicha[]
   sstAsos                    SstAso[]
   sstTreinamentos            SstTreinamentoParticipante[]
   sstIncidentes              SstIncidente[]
@@ -1600,6 +1601,7 @@ model Empresa {
   sstFuncoes                    SstFuncao[]
   sstEpis                       SstEpi[]
   sstEpiEntregas                SstEpiEntrega[]
+  sstEpiFichas                  SstEpiFicha[]
   sstTreinamentoTipos           SstTreinamentoTipo[]
   sstTreinamentos               SstTreinamento[]
   sstIncidentes                 SstIncidente[]
@@ -5138,6 +5140,7 @@ model SstEpiEntrega {
   vencimentoUso         DateTime?
   movimentacaoEstoqueId String?
   documentoId           String?
+  fichaId               String?
   criadoPor             String?
   atualizadoPor         String?
   createdAt             DateTime          @default(now())
@@ -5145,9 +5148,34 @@ model SstEpiEntrega {
   empresa               Empresa           @relation(fields: [empresaId], references: [id])
   colaborador           Colaborador       @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
   epi                   SstEpi            @relation(fields: [epiId], references: [id])
+  ficha                 SstEpiFicha?      @relation(fields: [fichaId], references: [id])
 
   @@index([colaboradorId, data])
   @@index([epiId])
+  @@index([fichaId])
+}
+
+// Ficha de entrega por colaborador: agrupa as linhas entregues de uma vez,
+// gera o termo p/ assinatura e recebe o termo assinado (documentoId no GED).
+model SstEpiFicha {
+  id            String          @id @default(cuid())
+  empresaId     String
+  numero        Int
+  colaboradorId String
+  data          DateTime
+  observacoes   String?
+  documentoId   String?
+  assinadaEm    DateTime?
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  empresa       Empresa         @relation(fields: [empresaId], references: [id])
+  colaborador   Colaborador     @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  itens         SstEpiEntrega[]
+
+  @@unique([empresaId, numero])
+  @@index([colaboradorId, data])
 }
 
 model SstExameTipo {
