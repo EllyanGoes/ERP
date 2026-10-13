@@ -69,7 +69,6 @@ export default function SstColaboradoresPage() {
                   <th className="text-left px-3 py-2 font-semibold">Situação</th>
                   <th className="text-right px-3 py-2 font-semibold">EPI</th>
                   <th className="text-right px-3 py-2 font-semibold">ASO/exames</th>
-                  <th className="text-left px-3 py-2 font-semibold">Principal pendência</th>
                 </tr>
               </thead>
               <tbody>
@@ -81,10 +80,9 @@ export default function SstColaboradoresPage() {
                     <td className="px-3 py-2"><Semaforo s={l.semaforo} /></td>
                     <td className={cn("px-3 py-2 text-right tabular-nums", l.nEpi > 0 ? "text-danger font-medium" : "text-muted-foreground")}>{l.nEpi}</td>
                     <td className={cn("px-3 py-2 text-right tabular-nums", l.nAso > 0 ? "text-danger font-medium" : "text-muted-foreground")}>{l.nAso}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground truncate max-w-xs">{l.pendencias[0]?.titulo ?? ""}</td>
                   </tr>
                 ))}
-                {visiveis.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum colaborador.</td></tr>}
+                {visiveis.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum colaborador.</td></tr>}
               </tbody>
             </table>
           </div>
