@@ -27,6 +27,8 @@ export default function SstColaboradoresPage() {
   const [filtro, setFiltro] = usePersistedState<string>("sst:colaboradores:semaforo", sp.get("semaforo") ?? "");
   const [somenteAtivos, setSomenteAtivos] = usePersistedState<boolean>("sst:colaboradores:ativos", true);
 
+  // ?funcao=<id> (vindo da tabela de funções) restringe a lista àquela função.
+  const funcaoId = sp.get("funcao") ?? "";
   useEffect(() => { const s = sp.get("semaforo"); if (s) setFiltro(s); }, [sp]); // eslint-disable-line
   useEffect(() => {
     fetch("/api/sst/colaboradores").then((r) => r.json()).then((j) => setLinhas(j.data ?? [])).finally(() => setLoading(false));
@@ -36,8 +38,9 @@ export default function SstColaboradoresPage() {
     .filter((l) => !somenteAtivos || l.ativo)
     .filter((l) => !busca || l.nome.toLowerCase().includes(busca.toLowerCase()) || (l.setor ?? "").toLowerCase().includes(busca.toLowerCase()))
     .filter((l) => !filtro || (filtro === "SEM_FUNCAO" ? !l.funcao : l.semaforo === filtro))
+    .filter((l) => !funcaoId || l.funcao?.id === funcaoId)
     .sort((a, b) => ({ CRITICO: 0, ATENCAO: 1, OK: 2 }[a.semaforo] - { CRITICO: 0, ATENCAO: 1, OK: 2 }[b.semaforo]) || a.nome.localeCompare(b.nome)),
-  [linhas, busca, filtro, somenteAtivos]);
+  [linhas, busca, filtro, somenteAtivos, funcaoId]);
 
   return (
     <div>
@@ -52,6 +55,7 @@ export default function SstColaboradoresPage() {
             { value: "", label: "Todos" }, { value: "CRITICO", label: "Com pendência" }, { value: "ATENCAO", label: "Com atenção" }, { value: "OK", label: "Regulares" }, { value: "SEM_FUNCAO", label: "Sem função SST" },
           ]} />
           <label className="inline-flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" className="rounded" checked={somenteAtivos} onChange={(e) => setSomenteAtivos(e.target.checked)} /> só ativos</label>
+          {funcaoId && <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-info/30 bg-info/5 text-info">função: {linhas.find((l) => l.funcao?.id === funcaoId)?.funcao?.nome ?? "…"}<button onClick={() => router.replace("/sst/colaboradores")} className="hover:text-foreground" title="Remover filtro">×</button></span>}
           <span className="text-xs text-muted-foreground ml-auto">{visiveis.length} de {linhas.length}</span>
         </div>
         {loading ? <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : (
