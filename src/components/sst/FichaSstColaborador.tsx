@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap } from "lucide-react";
-import { ListaPendencias, Semaforo, UploadAnexo, DocLink, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
+import { Semaforo, UploadAnexo, DocLink, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 
 type Ficha = {
@@ -129,8 +129,8 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
         action={<div className="flex items-center gap-2"><Semaforo s={semaforo} /><Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5"><Printer className="w-3.5 h-3.5" /> Ficha</Button></div>}
       />
       )}
-      <div className={cn("grid lg:grid-cols-3 gap-6", !embutido && "px-8 pb-8")}>
-        <div className="lg:col-span-2 space-y-6">
+      <div className={cn("max-w-5xl", !embutido && "px-8 pb-8")}>
+        <div className="space-y-6">
           {/* Função */}
           <section className="bg-card rounded-xl border border-border">
             <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
@@ -299,14 +299,6 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             )}
           </section>
         </div>
-
-        {/* Pendências */}
-        <aside className="space-y-6">
-          <section className="bg-card rounded-xl border border-border">
-            <div className="px-4 py-3 border-b border-border bg-muted"><h2 className="font-semibold text-sm text-foreground">Pendências</h2></div>
-            <div className="px-4"><ListaPendencias itens={f.pendencias} vazio="Tudo regular para este colaborador." /></div>
-          </section>
-        </aside>
       </div>
 
       {/* Dialog função */}
