@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap } from "lucide-react";
-import { Semaforo, UploadAnexo, DocLink, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
+import { Semaforo, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 
 type Ficha = {
@@ -176,22 +176,38 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 </tbody>
               </table>
             )}
-            <div className="px-4 py-2 border-t border-border/60">
-              <p className="text-xs font-semibold text-muted-foreground mb-1">Ficha de entregas</p>
-              {f.sstEpiEntregas.length === 0 ? <p className="text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (
-                <ul className="divide-y divide-border/60">
-                  {f.sstEpiEntregas.map((e) => (
-                    <li key={e.id} className="py-1.5 flex items-center gap-3 text-sm">
-                      <span className="text-xs text-muted-foreground w-20">{fmtData(e.data)}</span>
-                      <span className={cn("text-[11px] px-1.5 rounded border", e.tipo === "DEVOLUCAO" ? "border-border text-muted-foreground" : "border-info/30 text-info bg-info/5")}>{TIPO_ENTREGA[e.tipo]}</span>
-                      <span className="text-foreground flex-1 truncate">{e.quantidade}× {e.epi.nome}{e.motivo ? <span className="text-xs text-muted-foreground"> — {e.motivo}</span> : null}</span>
-                      {e.movimentacaoEstoqueId && <span className="text-[10px] text-muted-foreground">estoque</span>}
-                      {e.ficha && <Link href={`/sst/epis/fichas/${e.ficha.id}`} target="_blank" className="text-[11px] text-muted-foreground hover:text-info" title="Imprimir termo da ficha">ficha {String(e.ficha.numero).padStart(4, "0")}</Link>}
-                      <DocLink id={e.documentoId} label="termo" />
-                      <button onClick={() => setExcluir({ tipo: "entrega", id: e.id })} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </li>
-                  ))}
-                </ul>
+            <div className="border-t border-border/60">
+              <div className="px-4 py-2 flex items-center justify-between">
+                <p className="text-xs font-semibold text-muted-foreground">Histórico de entregas</p>
+                <span className="text-[11px] text-muted-foreground">{f.sstEpiEntregas.length} registro(s)</span>
+              </div>
+              {f.sstEpiEntregas.length === 0 ? <p className="px-4 pb-3 text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-muted-foreground bg-muted/50"><tr>
+                    <th className="text-left px-4 py-1.5 font-semibold">Data</th><th className="text-left px-3 py-1.5 font-semibold">Tipo</th><th className="text-left px-3 py-1.5 font-semibold">EPI</th><th className="text-left px-3 py-1.5 font-semibold">CA</th><th className="text-right px-3 py-1.5 font-semibold">Qtd</th><th className="text-left px-3 py-1.5 font-semibold">Troca prevista</th><th className="text-left px-3 py-1.5 font-semibold">Cautela</th><th className="text-left px-3 py-1.5 font-semibold">Termo</th><th className="px-2 py-1.5"></th>
+                  </tr></thead>
+                  <tbody>
+                    {f.sstEpiEntregas.map((e) => {
+                      const vencida = e.vencimentoUso ? new Date(e.vencimentoUso).getTime() < Date.now() : false;
+                      return (
+                        <tr key={e.id} className="border-t border-border/60">
+                          <td className="px-4 py-1.5 text-muted-foreground whitespace-nowrap">{fmtData(e.data)}</td>
+                          <td className="px-3 py-1.5"><span className={cn("text-[11px] px-1.5 rounded border", e.tipo === "DEVOLUCAO" ? "border-border text-muted-foreground" : e.tipo === "TROCA" ? "border-warning/30 text-warning bg-warning/5" : "border-info/30 text-info bg-info/5")}>{TIPO_ENTREGA[e.tipo]}</span></td>
+                          <td className="px-3 py-1.5 text-foreground">{e.epi.nome}{e.motivo && <p className="text-[11px] text-muted-foreground">{e.motivo}</p>}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{e.epi.ca ?? "—"}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{e.quantidade}</td>
+                          <td className={cn("px-3 py-1.5 whitespace-nowrap", vencida ? "text-danger" : "text-muted-foreground")}>{e.vencimentoUso ? fmtData(e.vencimentoUso) : "—"}</td>
+                          <td className="px-3 py-1.5">{e.ficha ? <Link href={`/sst/epis/fichas/${e.ficha.id}`} target="_blank" className="text-xs text-info hover:underline">nº {String(e.ficha.numero).padStart(4, "0")}</Link> : <span className="text-xs text-muted-foreground/60">{e.movimentacaoEstoqueId ? "lote/avulsa · estoque" : "lote/avulsa"}</span>}</td>
+                          <td className="px-3 py-1.5"><DocLink id={e.documentoId} label="assinado" /></td>
+                          <td className="px-2 py-1.5 text-right"><AcoesLinha acoes={[
+                            ...(e.ficha ? [{ label: "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, href: `/sst/epis/fichas/${e.ficha.id}` }] : []),
+                            { label: "Excluir entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: e.id }), danger: true, separadorAntes: !!e.ficha },
+                          ]} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               )}
             </div>
           </section>
