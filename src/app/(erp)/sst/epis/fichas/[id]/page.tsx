@@ -1,94 +1,127 @@
 "use client";
 
-// Termo de entrega de EPI (NR-06, item 6.6.1) — impressão A4 para assinatura
-// do colaborador; o escaneado volta pelo botão "Anexar assinada" da ficha.
+// Cautela de EPI — "Declaração de Recebimento de Equipamento de Proteção
+// Individual e Responsabilidade de Uso e Guarda" (padrão SOC usado pela
+// empresa): dados do funcionário, declaração (CLT 166/167, NR-06, NR-01),
+// assinatura e tabela dos EPIs com assinatura por item. A4 retrato; o
+// escaneado volta pelo "Anexar termo assinado" da ficha.
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useTabTitle } from "@/lib/tabs-context";
-import { fmtData, TIPO_ENTREGA } from "@/components/sst/comum";
+import { fmtData } from "@/components/sst/comum";
 
 type Ficha = {
   id: string; numero: number; data: string; observacoes: string | null; documentoId: string | null;
-  empresa: { razaoSocial: string; nomeFantasia: string | null; cnpj: string };
-  colaborador: { nome: string; cpf: string | null; matricula: string | null; cargo: string | null; setor: { nome: string } | null; sstFuncoes: { funcao: { nome: string } }[] };
+  empresa: { razaoSocial: string; nomeFantasia: string | null; cnpj: string; telefone: string | null; logradouro: string | null; numero: string | null; bairro: string | null; cidade: string | null; estado: string | null };
+  colaborador: { nome: string; cpf: string | null; rg: string | null; matricula: string | null; cargo: string | null; dataAdmissao: string | null; setor: { nome: string } | null; sstFuncoes: { funcao: { nome: string } }[] };
   itens: { id: string; tipo: string; quantidade: number; motivo: string | null; vencimentoUso: string | null; epi: { nome: string; ca: string | null; vidaUtilDias: number | null } }[];
 };
 
-const fmtCpf = (v: string | null) => (v && v.replace(/\D/g, "").length === 11 ? v.replace(/\D/g, "").replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : v ?? "—");
 const fmtCnpj = (v: string) => (v.replace(/\D/g, "").length === 14 ? v.replace(/\D/g, "").replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") : v);
 
-export default function FichaEpiImprimir() {
+export default function CautelaEpiImprimir() {
   const { id } = useParams<{ id: string }>();
-  useTabTitle("Termo de EPI");
+  useTabTitle("Cautela de EPI");
   const [f, setF] = useState<Ficha | null>(null);
   useEffect(() => { fetch(`/api/sst/entregas/fichas/${id}`).then((r) => r.json()).then((j) => setF(j.data ?? null)).catch(() => {}); }, [id]);
   if (!f) return <div className="p-8 text-sm text-muted-foreground">Carregando…</div>;
 
-  const funcao = f.colaborador.sstFuncoes[0]?.funcao.nome ?? f.colaborador.cargo ?? "—";
+  const emp = f.empresa;
+  const nomeEmpresa = (emp.nomeFantasia || emp.razaoSocial).toUpperCase();
+  const endereco = [[emp.logradouro, emp.numero].filter(Boolean).join(", "), emp.bairro, [emp.cidade, emp.estado].filter(Boolean).join("/")].filter(Boolean).join(" · ");
+  const cargo = (f.colaborador.sstFuncoes[0]?.funcao.nome.split(" — ")[0] ?? f.colaborador.cargo ?? "—").toUpperCase();
   const numero = String(f.numero).padStart(4, "0");
-  const cell = { border: "1px solid #000", padding: "4px 6px", fontSize: 11 } as const;
+
+  const label = { fontWeight: 400, color: "#444" } as const;
+  const val = { fontWeight: 700 } as const;
+  const th = { border: "1px solid #000", padding: "4px 5px", fontSize: 9.5, fontWeight: 700, background: "#e9e9e9", textAlign: "center" as const };
+  const td = { border: "1px solid #000", padding: "5px 5px", fontSize: 10, verticalAlign: "middle" as const };
 
   return (
-    <div className="print-area bg-white text-black mx-auto my-4" style={{ width: "190mm", padding: "8mm", fontFamily: "Arial, sans-serif", fontSize: 12 }}>
-      <style>{`@media print { @page { size: A4 portrait; margin: 10mm; } }`}</style>
+    <div className="print-area bg-white text-black mx-auto my-4" style={{ width: "190mm", padding: "8mm 9mm", fontFamily: "Arial, Helvetica, sans-serif", fontSize: 10.5, lineHeight: 1.35 }}>
+      <style>{`@media print { @page { size: A4 portrait; margin: 9mm; } }`}</style>
       <div className="no-print mb-3 flex items-center justify-end gap-3">
         <button onClick={() => window.print()} className="border border-gray-400 rounded px-3 py-1 text-sm">Imprimir / Salvar PDF</button>
       </div>
 
-      <div style={{ borderBottom: "2px solid #000", paddingBottom: 6, marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{f.empresa.nomeFantasia || f.empresa.razaoSocial}</div>
-          <div style={{ fontSize: 10 }}>{f.empresa.razaoSocial} · CNPJ {fmtCnpj(f.empresa.cnpj)}</div>
+      {/* Cabeçalho */}
+      <div style={{ display: "flex", gap: 14, alignItems: "stretch", borderBottom: "2px solid #000", paddingBottom: 8 }}>
+        <div style={{ width: 150, minHeight: 78, border: "1px solid #000", borderRadius: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 6, textAlign: "center" }}>
+          <div style={{ fontSize: 9, letterSpacing: 1, color: "#444" }}>CERÂMICA</div>
+          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 0.5, lineHeight: 1 }}>{(emp.nomeFantasia ?? emp.razaoSocial).replace(/^cer[aâ]mica\s+/i, "")}</div>
+          {emp.telefone && <div style={{ fontSize: 8.5, marginTop: 4, color: "#444" }}>{emp.telefone}</div>}
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontWeight: 700, fontSize: 13 }}>FICHA DE ENTREGA DE EPI</div>
-          <div style={{ fontSize: 10 }}>Nº {numero} · NR-06 · {fmtData(f.data)}</div>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.25, textTransform: "uppercase", letterSpacing: 0.3 }}>Declaração de Recebimento de Equipamento de Proteção Individual e Responsabilidade de Uso e Guarda</div>
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontWeight: 700, fontSize: 11.5 }}>{emp.razaoSocial.toUpperCase()}</div>
+            <div style={{ fontSize: 10 }}>CNPJ: {fmtCnpj(emp.cnpj)}{endereco ? ` · ${endereco}` : ""}</div>
+          </div>
         </div>
+        <div style={{ textAlign: "right", fontSize: 9.5, color: "#444", whiteSpace: "nowrap" }}>Cautela nº <b style={{ color: "#000" }}>{numero}</b><br />{fmtData(f.data)}</div>
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
-        <tbody>
-          <tr><td style={{ ...cell, width: "18%", fontWeight: 700, background: "#eee" }}>Colaborador</td><td style={cell} colSpan={3}>{f.colaborador.nome}</td></tr>
-          <tr>
-            <td style={{ ...cell, fontWeight: 700, background: "#eee" }}>CPF</td><td style={cell}>{fmtCpf(f.colaborador.cpf)}</td>
-            <td style={{ ...cell, width: "18%", fontWeight: 700, background: "#eee" }}>Matrícula</td><td style={cell}>{f.colaborador.matricula ?? "—"}</td>
-          </tr>
-          <tr>
-            <td style={{ ...cell, fontWeight: 700, background: "#eee" }}>Função</td><td style={cell}>{funcao}</td>
-            <td style={{ ...cell, fontWeight: 700, background: "#eee" }}>Setor</td><td style={cell}>{f.colaborador.setor?.nome ?? "—"}</td>
-          </tr>
-        </tbody>
-      </table>
+      {/* Informações do funcionário */}
+      <div style={{ fontWeight: 700, fontSize: 11, margin: "9px 0 4px", borderBottom: "1px solid #000", paddingBottom: 2 }}>Informações do Funcionário</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", columnGap: 18, rowGap: 2, fontSize: 10.5 }}>
+        <div><span style={label}>Funcionário: </span><span style={val}>{f.colaborador.nome.toUpperCase()}</span></div>
+        <div><span style={label}>Setor: </span><span style={val}>{(f.colaborador.setor?.nome ?? "—").toUpperCase()}</span></div>
+        <div><span style={label}>Empresa: </span><span style={val}>{emp.razaoSocial.toUpperCase()}</span></div>
+        <div><span style={label}>Matrícula: </span><span style={val}>{f.colaborador.matricula ?? "—"}</span></div>
+        <div><span style={label}>Cargo: </span><span style={val}>{cargo}</span></div>
+        <div><span style={label}>Admissão: </span><span style={val}>{f.colaborador.dataAdmissao ? fmtData(f.colaborador.dataAdmissao) : "—"}</span></div>
+        <div><span style={label}>Unidade: </span><span style={val}>{nomeEmpresa}</span></div>
+        <div><span style={label}>CPF: </span><span style={val}>{f.colaborador.cpf ?? "—"}</span>{"   "}<span style={label}>RG: </span><span style={val}>{f.colaborador.rg ?? "—"}</span></div>
+      </div>
 
+      {/* Declaração */}
+      <div style={{ marginTop: 10, textAlign: "justify", fontSize: 10 }}>
+        <p>Eu, <b>{f.colaborador.nome.toUpperCase()}</b>, declaro para todos os efeitos previstos na legislação, haver recebido gratuitamente, conforme descrito na C.L.T. nos artigos 166, 167 e demais artigos adstritos à matéria, na NR-06 e nos itens 1.4.2 e 1.5.5.1.2 da NR-01 — Disposições Gerais e Gerenciamento de Riscos Ocupacionais, após treinamento e orientação do uso adequado, aplicação, guarda, conservação, substituição e requisitos de higiene, ministrados pelo Serviço Especializado em Segurança e Medicina do Trabalho da empresa <b>{emp.razaoSocial.toUpperCase()}</b>{endereco ? `, situada em ${endereco}` : ""}, o(s) equipamento(s) de proteção individual abaixo descrito(s) e designado(s) como EPIs, os quais obrigo-me a usá-lo(s) sistematicamente em meu trabalho, mediante ainda os termos seguintes:</p>
+        <ol type="a" style={{ paddingLeft: 18, marginTop: 4 }}>
+          <li>O EPI será usado unicamente para a finalidade a que se destina, e qualquer alteração que o torne parcial ou totalmente danificado será por mim comunicada à empresa;</li>
+          <li>Declaro que me responsabilizo pela guarda e conservação dos EPIs que me foram confiados e que, na impossibilidade de seu uso, deverei comunicar à chefia imediatamente, para as providências que se fizerem necessárias, e os devolverei após o vencimento da duração estipulada;</li>
+          <li>Estou ciente e de pleno acordo que a falta de uso, por mim, dos EPIs fornecidos pela empresa constitui ato faltoso, sujeito às sanções disciplinares previstas na legislação pertinente, no Regulamento Interno e nas Normas de Segurança da empresa;</li>
+          <li>Reconheço expressamente que a sua não utilização configura falta grave capitulada na letra &quot;h&quot; do artigo 482 da C.L.T., como ato de indisciplina ou de insubordinação, ensejadora da rescisão do meu contrato de trabalho por justa causa;</li>
+          <li>Autorizo expressamente a empresa a proceder descontos nos meus salários, vencimentos, gratificações e indenizações dos valores dos EPIs que porventura por mim forem: danificados propositadamente; extraviados; não devolvidos à empresa para substituição;</li>
+          <li>Tomei ciência e estou de acordo com os termos da declaração acima, assinando-a de livre e espontânea vontade, após sua leitura nesta data.</li>
+        </ol>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 22 }}>
+        <div style={{ fontSize: 10.5 }}>Data: ______ / ______ / __________</div>
+        <div style={{ width: "46%", textAlign: "center", borderTop: "1px solid #000", paddingTop: 3, fontSize: 10 }}>{f.colaborador.nome.toUpperCase()}</div>
+      </div>
+
+      {/* Informações dos EPIs */}
+      <div style={{ fontWeight: 700, fontSize: 11, margin: "14px 0 4px", borderBottom: "1px solid #000", paddingBottom: 2 }}>Informações dos EPIs</div>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr style={{ background: "#eee" }}>
-            <th style={{ ...cell, width: "5%" }}>#</th><th style={{ ...cell, textAlign: "left" }}>EPI</th><th style={{ ...cell, width: "12%" }}>CA</th>
-            <th style={{ ...cell, width: "7%" }}>Qtd</th><th style={{ ...cell, width: "11%" }}>Tipo</th><th style={{ ...cell, width: "13%" }}>Troca prevista</th><th style={{ ...cell, width: "20%" }}>Motivo / obs.</th>
+          <tr>
+            <th style={{ ...th, width: "13%" }}>Data de entrega</th>
+            <th style={{ ...th, width: "6%" }}>Qtd.</th>
+            <th style={{ ...th, textAlign: "left" }}>EPI</th>
+            <th style={{ ...th, width: "9%" }}>CA</th>
+            <th style={{ ...th, width: "9%" }}>Tamanho</th>
+            <th style={{ ...th, width: "26%" }}>Assinatura</th>
+            <th style={{ ...th, width: "7%" }}>Ativo</th>
           </tr>
         </thead>
         <tbody>
-          {f.itens.map((it, i) => (
-            <tr key={it.id}>
-              <td style={{ ...cell, textAlign: "center" }}>{i + 1}</td><td style={cell}>{it.epi.nome}</td><td style={{ ...cell, textAlign: "center" }}>{it.epi.ca ?? "—"}</td>
-              <td style={{ ...cell, textAlign: "center" }}>{it.quantidade}</td><td style={{ ...cell, textAlign: "center" }}>{TIPO_ENTREGA[it.tipo] ?? it.tipo}</td>
-              <td style={{ ...cell, textAlign: "center" }}>{it.vencimentoUso ? fmtData(it.vencimentoUso) : "—"}</td><td style={{ ...cell, fontSize: 10 }}>{it.motivo ?? ""}</td>
+          {f.itens.map((it) => (
+            <tr key={it.id} style={{ height: 26 }}>
+              <td style={{ ...td, textAlign: "center" }}>{fmtData(f.data)}</td>
+              <td style={{ ...td, textAlign: "center" }}>{it.quantidade}</td>
+              <td style={td}>{it.epi.nome.toUpperCase()}{it.tipo === "DEVOLUCAO" ? " (DEVOLUÇÃO)" : it.tipo === "TROCA" ? " (TROCA)" : ""}{it.motivo ? <span style={{ fontSize: 8.5, color: "#555" }}> — {it.motivo}</span> : null}</td>
+              <td style={{ ...td, textAlign: "center" }}>{it.epi.ca ?? "—"}</td>
+              <td style={{ ...td, textAlign: "center" }}>N/A</td>
+              <td style={td}></td>
+              <td style={{ ...td, textAlign: "center" }}>{it.tipo === "DEVOLUCAO" ? "Não" : "Sim"}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      {f.observacoes && <p style={{ fontSize: 10, marginTop: 6 }}><b>Observações:</b> {f.observacoes}</p>}
-
-      <div style={{ marginTop: 14, fontSize: 10, textAlign: "justify", lineHeight: 1.45 }}>
-        <p style={{ fontWeight: 700, marginBottom: 4 }}>TERMO DE RESPONSABILIDADE</p>
-        <p>Declaro que recebi gratuitamente da empresa os Equipamentos de Proteção Individual acima relacionados, em perfeito estado de conservação e funcionamento, e que fui orientado(a) quanto ao seu uso correto. Comprometo-me, nos termos da NR-06 (item 6.7) e do art. 158 da CLT, a: (a) usar o EPI apenas para a finalidade a que se destina; (b) responsabilizar-me pela guarda e conservação; (c) comunicar ao empregador qualquer alteração que o torne impróprio para uso; (d) devolvê-lo quando solicitado, na troca ou no desligamento. Estou ciente de que a recusa injustificada ao uso do EPI constitui ato faltoso, e de que, em caso de perda ou dano por mau uso comprovado, poderá haver desconto do valor correspondente, conforme art. 462, §1º da CLT.</p>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24, marginTop: 36 }}>
-        <div style={{ flex: 1, textAlign: "center", borderTop: "1px solid #000", paddingTop: 4, fontSize: 10 }}>{f.colaborador.nome}<br />Assinatura do colaborador</div>
-        <div style={{ flex: 1, textAlign: "center", borderTop: "1px solid #000", paddingTop: 4, fontSize: 10 }}>Responsável pela entrega<br />(nome legível e assinatura)</div>
-      </div>
-      <p style={{ fontSize: 9, marginTop: 18, color: "#444" }}>Local e data: ______________________, ____ / ____ / ________ · Ficha nº {numero} gerada pelo ERP em {new Date().toLocaleDateString("pt-BR")}</p>
+      {f.observacoes && <p style={{ fontSize: 9.5, marginTop: 6 }}><b>Observações:</b> {f.observacoes}</p>}
+      <p style={{ fontSize: 8.5, marginTop: 10, color: "#555", display: "flex", justifyContent: "space-between" }}><span>{nomeEmpresa} · Cautela de EPI nº {numero}</span><span>gerada pelo ERP em {new Date().toLocaleDateString("pt-BR")}</span></p>
     </div>
   );
 }

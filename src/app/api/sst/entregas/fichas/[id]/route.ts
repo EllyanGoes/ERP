@@ -9,7 +9,7 @@ import { FICHA_INCLUDE, estornarEstoqueEntrega } from "@/lib/sst-epi";
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
-  const f = await prisma.sstEpiFicha.findUnique({ where: { id: params.id }, include: { ...FICHA_INCLUDE, empresa: { select: { razaoSocial: true, nomeFantasia: true, cnpj: true } } } });
+  const f = await prisma.sstEpiFicha.findUnique({ where: { id: params.id }, include: { ...FICHA_INCLUDE, empresa: { select: { razaoSocial: true, nomeFantasia: true, cnpj: true, telefone: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true } } } });
   if (!f) return NextResponse.json({ error: "Ficha não encontrada" }, { status: 404 });
   return NextResponse.json({ data: f });
 }
