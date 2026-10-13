@@ -333,3 +333,47 @@ export async function conformidadeEmpresa(empresaId: string, hoje = new Date()) 
     pendencias: todas,
   };
 }
+
+// ── Indicadores (NBR 14280): TF = acidentes c/ afastamento × 1e6 / HHT;
+// TG = dias perdidos × 1e6 / HHT. HHT = horas-homem trabalhadas do período
+// (SstHorasMes; sem lançamento, estima empregados ativos × 220h).
+export async function indicadoresAno(empresaId: string, ano: number) {
+  const [horas, incidentes, nAtivos] = await Promise.all([
+    prismaSemEscopo.sstHorasMes.findMany({ where: { empresaId, ano }, orderBy: { mes: "asc" } }),
+    prismaSemEscopo.sstIncidente.findMany({ where: { empresaId, data: { gte: new Date(ano, 0, 1), lt: new Date(ano + 1, 0, 1) } }, select: { tipo: true, data: true, diasAfastamento: true } }),
+    prismaSemEscopo.colaborador.count({ where: { empresas: { some: { id: empresaId } }, tipoColaborador: "FUNCIONARIO", ativo: true } }),
+  ]);
+  const meses = Array.from({ length: 12 }, (_, i) => {
+    const mes = i + 1;
+    const h = horas.find((x) => x.mes === mes);
+    const horasMes = h ? Number(h.horas) : null;
+    const estimadas = nAtivos * 220;
+    const hht = horasMes ?? estimadas;
+    const doMes = incidentes.filter((x) => x.data.getMonth() === i);
+    const comAfast = doMes.filter((x) => x.tipo === "ACIDENTE_COM_AFASTAMENTO").length;
+    const semAfast = doMes.filter((x) => x.tipo === "ACIDENTE_SEM_AFASTAMENTO").length;
+    const dias = doMes.reduce((a, x) => a + (x.diasAfastamento ?? 0), 0);
+    return {
+      mes, horas: horasMes, estimadas, empregados: h?.empregados ?? null, estimado: horasMes == null,
+      ocorrencias: doMes.length, comAfastamento: comAfast, semAfastamento: semAfast, quaseAcidentes: doMes.filter((x) => x.tipo === "QUASE_ACIDENTE").length, diasPerdidos: dias,
+      tf: hht > 0 ? Math.round((comAfast * 1_000_000 / hht) * 100) / 100 : null,
+      tg: hht > 0 ? Math.round((dias * 1_000_000 / hht) * 100) / 100 : null,
+    };
+  });
+  const hoje = new Date();
+  const ateAgora = ano < hoje.getFullYear() ? meses : meses.filter((m) => m.mes <= hoje.getMonth() + 1);
+  const hhtAno = ateAgora.reduce((a, m) => a + (m.horas ?? m.estimadas), 0);
+  const comAfastAno = ateAgora.reduce((a, m) => a + m.comAfastamento, 0);
+  const diasAno = ateAgora.reduce((a, m) => a + m.diasPerdidos, 0);
+  return {
+    ano, empregadosAtivos: nAtivos, meses,
+    acumulado: { hht: hhtAno, ocorrencias: ateAgora.reduce((a, m) => a + m.ocorrencias, 0), comAfastamento: comAfastAno, diasPerdidos: diasAno, tf: hhtAno > 0 ? Math.round((comAfastAno * 1_000_000 / hhtAno) * 100) / 100 : null, tg: hhtAno > 0 ? Math.round((diasAno * 1_000_000 / hhtAno) * 100) / 100 : null, mesesEstimados: ateAgora.filter((m) => m.estimado).length },
+  };
+}
+
+/** Grava a foto do dia (idempotente por empresa+dia). */
+export async function gravarSnapshot(empresaId: string, c: Awaited<ReturnType<typeof conformidadeEmpresa>>) {
+  const dia = new Date(Date.UTC(c.geradoEm.getFullYear(), c.geradoEm.getMonth(), c.geradoEm.getDate()));
+  const totais = { ...c.totais, porSeveridade: c.porSeveridade, porTipo: c.porTipo, maquinas: c.maquinas, incidentes: c.incidentes, obrigacoes: c.obrigacoes.map((o) => ({ nome: o.nome, situacao: o.situacao })) };
+  await prismaSemEscopo.sstConformidadeSnapshot.upsert({ where: { empresaId_data: { empresaId, data: dia } }, create: { empresaId, data: dia, totais }, update: { totais } });
+}

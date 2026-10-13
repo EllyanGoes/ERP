@@ -284,7 +284,7 @@ export default function SstFichaPage() {
 
       {/* Dialog função */}
       <Dialog open={dlgFuncao} onOpenChange={setDlgFuncao}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>{vinculo ? "Mudar função SST" : "Atribuir função SST"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Função</Label><SelectMenu value={fFuncaoId} onChange={setFFuncaoId} placeholder="Selecionar…" options={[{ value: "", label: "— Sem função —" }, ...funcoes.filter((x) => x.ativo).map((x) => ({ value: x.id, label: x.nome }))]} /></div>
@@ -298,7 +298,7 @@ export default function SstFichaPage() {
 
       {/* Dialog entrega de EPI */}
       <Dialog open={dlgEpi} onOpenChange={setDlgEpi}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Entrega de EPI</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>EPI</Label><SelectMenu value={eEpiId} onChange={setEEpiId} placeholder="Selecionar…" options={epis.filter((e) => e.ativo).map((e) => ({ value: e.id, label: e.ca ? `${e.nome} · CA ${e.ca}` : e.nome }))} /></div>
@@ -321,7 +321,7 @@ export default function SstFichaPage() {
 
       {/* Dialog ASO */}
       <Dialog open={dlgAso} onOpenChange={setDlgAso}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>Lançar ASO</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">

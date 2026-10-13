@@ -90,7 +90,7 @@ export default function SstConfigPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>{editId ? "Editar função" : "Nova função SST"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-4 gap-3">

@@ -145,7 +145,7 @@ export default function SstTreinamentosPage() {
       </div>
 
       <Dialog open={dlgTipo} onOpenChange={setDlgTipo}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>{editId ? "Editar tipo" : "Novo tipo de treinamento"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Nome</Label><Input value={tNome} onChange={(e) => setTNome(e.target.value)} placeholder="NR-12 Operação segura de máquinas" /></div>
@@ -161,7 +161,7 @@ export default function SstTreinamentosPage() {
       </Dialog>
 
       <Dialog open={dlgTurma} onOpenChange={setDlgTurma}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>Nova turma</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
@@ -175,7 +175,7 @@ export default function SstTreinamentosPage() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1"><Label>Participantes ({Object.values(uSel).filter(Boolean).length})</Label><input value={uBusca} onChange={(e) => setUBusca(e.target.value)} placeholder="filtrar…" className="text-xs border border-border rounded px-2 py-1 bg-card" /></div>
-              <div className="max-h-56 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
+              <div className="max-h-80 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
                 {colabs.filter((c) => c.ativo && (!uBusca || c.nome.toLowerCase().includes(uBusca.toLowerCase()))).map((c) => (
                   <label key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
                     <input type="checkbox" className="rounded" checked={!!uSel[c.id]} onChange={(e) => setUSel({ ...uSel, [c.id]: e.target.checked })} />

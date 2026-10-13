@@ -1605,6 +1605,8 @@ model Empresa {
   sstIncidentes                 SstIncidente[]
   sstInspecoes                  SstInspecao[]
   sstCipaMandatos               SstCipaMandato[]
+  sstHorasMes                   SstHorasMes[]
+  sstSnapshots                  SstConformidadeSnapshot[]
   sstMaquinas                   SstMaquina[]
   sstExameTipos                 SstExameTipo[]
   sstAsos                       SstAso[]
@@ -5468,4 +5470,36 @@ model SstCipaReuniao {
   mandato        SstCipaMandato @relation(fields: [mandatoId], references: [id], onDelete: Cascade)
 
   @@index([mandatoId, data])
+}
+
+// ── SST fase 4: horas trabalhadas, indicadores e histórico de conformidade ──
+// Horas-homem trabalhadas no mês (base da taxa de frequência/gravidade).
+// Lançamento manual por empresa; sugestão = empregados ativos × 220h.
+model SstHorasMes {
+  id            String   @id @default(cuid())
+  empresaId     String
+  ano           Int
+  mes           Int
+  horas         Decimal  @db.Decimal(12, 2)
+  empregados    Int?
+  observacoes   String?
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  empresa       Empresa  @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, ano, mes])
+}
+
+// Foto diária da conformidade (gravada pelo cron) — histórico/tendência.
+model SstConformidadeSnapshot {
+  id        String   @id @default(cuid())
+  empresaId String
+  data      DateTime
+  totais    Json
+  createdAt DateTime @default(now())
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, data])
 }

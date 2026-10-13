@@ -425,6 +425,13 @@ const mainModules: Module[] = [
         ],
       },
       {
+        kind: "Relatórios",
+        items: [
+          { href: "/sst/indicadores", label: "Indicadores (TF/TG)", icon: BarChart3 },
+          { href: "/sst/esocial", label: "Pré-eSocial (CAT/ASO)", icon: FileText },
+        ],
+      },
+      {
         kind: "Configurações",
         items: [
           { href: "/sst/configuracoes", label: "Funções e requisitos", icon: Settings2 },

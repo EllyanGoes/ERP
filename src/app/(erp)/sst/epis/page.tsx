@@ -103,7 +103,7 @@ export default function SstEpisPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>{editId ? "Editar EPI" : "Novo EPI"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Protetor auricular tipo plug" /></div>
@@ -123,7 +123,7 @@ export default function SstEpisPage() {
       </Dialog>
 
       <Dialog open={lote} onOpenChange={setLote}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>Entrega em lote</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
@@ -137,7 +137,7 @@ export default function SstEpisPage() {
             <div>
               <div className="flex items-center justify-between mb-1"><Label>Colaboradores ({Object.values(lSel).filter(Boolean).length} selecionados)</Label>
                 <input value={lBusca} onChange={(e) => setLBusca(e.target.value)} placeholder="filtrar…" className="text-xs border border-border rounded px-2 py-1 bg-card" /></div>
-              <div className="max-h-64 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
+              <div className="max-h-80 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
                 {colabs.filter((c) => c.ativo && (!lBusca || c.nome.toLowerCase().includes(lBusca.toLowerCase()))).map((c) => (
                   <label key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
                     <input type="checkbox" className="rounded" checked={!!lSel[c.id]} onChange={(e) => setLSel({ ...lSel, [c.id]: e.target.checked })} />

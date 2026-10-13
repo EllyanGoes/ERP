@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { conformidadeEmpresa } from "@/lib/sst";
+import { conformidadeEmpresa, gravarSnapshot } from "@/lib/sst";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 import { sendTelegramDM, escMD } from "@/lib/telegram";
 
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
   const resumo: Record<string, unknown>[] = [];
   for (const emp of empresas) {
     const c = await conformidadeEmpresa(emp.id);
+    await gravarSnapshot(emp.id, c).catch((e) => console.warn("[sst-vencimentos] snapshot falhou:", e));
     const criticas = c.pendencias.filter((p) => p.severidade === "CRITICA");
     const altas = c.pendencias.filter((p) => p.severidade === "ALTA");
     resumo.push({ empresa: emp.id, criticas: criticas.length, altas: altas.length, medias: c.porSeveridade.MEDIA });

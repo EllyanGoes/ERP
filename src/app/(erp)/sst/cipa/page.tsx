@@ -96,10 +96,10 @@ export default function SstCipaPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader><DialogTitle>{editId ? "Editar mandato" : "Novo mandato da CIPA"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-[1fr_1fr_1.4fr] gap-3">
               <div><Label>Início</Label><DatePicker value={f.inicio} onChange={(v) => setF({ ...f, inicio: v })} /></div>
               <div><Label>Fim</Label><DatePicker value={f.fim} onChange={(v) => setF({ ...f, fim: v })} /></div>
               <div><Label>Ata de eleição</Label><UploadAnexo tipo="outro" titulo={`Ata de eleição CIPA — ${f.inicio}`} value={ata} onChange={setAta} /></div>
@@ -125,7 +125,7 @@ export default function SstCipaPage() {
         </DialogContent>
       </Dialog>
       <Dialog open={!!dlgReu} onOpenChange={(o) => !o && setDlgReu(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>Reunião da CIPA</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Data</Label><DatePicker value={reu.data} onChange={(v) => setReu({ ...reu, data: v })} /></div>

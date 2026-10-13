@@ -164,7 +164,7 @@ export default function SstMaquinaPage() {
       </div>
 
       <Dialog open={edit} onOpenChange={setEdit}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Editar máquina</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Nome</Label><Input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} /></div>

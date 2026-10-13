@@ -73,7 +73,7 @@ const MODELOS_ESCOPADOS = new Set<string>([
   // SST — docs/sst-prd.md (SstColaboradorFuncao/SstFuncaoEpi/SstFuncaoExame/SstAsoExame escopam via pai)
   "SstFuncao", "SstEpi", "SstEpiEntrega", "SstExameTipo", "SstAso", "SstObrigacao",
   "SstTreinamentoTipo", "SstTreinamento", "SstMaquina",
-  "SstIncidente", "SstInspecao", "SstCipaMandato",
+  "SstIncidente", "SstInspecao", "SstCipaMandato", "SstHorasMes", "SstConformidadeSnapshot",
 ])
 
 // Mapas montados uma vez a partir do dmmf:
