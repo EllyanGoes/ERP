@@ -11,7 +11,7 @@ import EscClose from "@/components/shared/EscClose";
 import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2, MoreHorizontal, ExternalLink, Trash2, LayoutGrid, List, Settings2 } from "lucide-react";
+import { Loader2, Plus, Star, FolderKanban, Users, AlertTriangle, X, Archive, Search, Building2, MoreHorizontal, ExternalLink, Trash2, LayoutGrid, List, Settings2, CheckCircle2 } from "lucide-react";
 import { AvatarUsuario, SituacaoMenu, SITUACOES_PROJETO } from "@/components/projetos/comum";
 import { ProjetoHomeDTO, CORES_PROJETO, ProjetoBoardDTO } from "@/components/projetos/tipos";
 import ProjetoConfigDialog from "@/components/projetos/ProjetoConfigDialog";
@@ -29,7 +29,9 @@ export default function ProjetosHomePage() {
   const [projetos, setProjetos] = useState<ProjetoHomeDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [aba, setAba] = useState<"ativos" | "arquivados">("ativos");
+  // Ativos = em uso; Concluídos = situação CONCLUIDO (saem dos ativos sem
+  // precisar arquivar — voltam se a situação mudar); Arquivados = status.
+  const [aba, setAba] = useState<"ativos" | "concluidos" | "arquivados">("ativos");
   const [busca, setBusca] = useState("");
   // Filtro por empresa: "TODAS" | "GERAL" (sem empresa) | empresaId.
   const [filtroEmpresa, setFiltroEmpresa] = useState("TODAS");
@@ -207,7 +209,10 @@ export default function ProjetosHomePage() {
   }
 
   const visiveis = projetos
-    .filter((p) => (aba === "ativos" ? p.status === "ATIVO" : p.status === "ARQUIVADO"))
+    .filter((p) =>
+      aba === "arquivados" ? p.status === "ARQUIVADO"
+      : aba === "concluidos" ? p.status === "ATIVO" && p.situacao === "CONCLUIDO"
+      : p.status === "ATIVO" && p.situacao !== "CONCLUIDO")
     .filter((p) => !busca || p.nome.toLowerCase().includes(busca.toLowerCase()))
     .filter((p) =>
       filtroEmpresa === "TODAS" ? true
@@ -218,6 +223,7 @@ export default function ProjetosHomePage() {
   const meus = visiveis.filter((p) => !p.favorito && p.souMembro);
   const publicos = visiveis.filter((p) => !p.favorito && !p.souMembro);
   const nArquivados = projetos.filter((p) => p.status === "ARQUIVADO").length;
+  const nConcluidos = projetos.filter((p) => p.status === "ATIVO" && p.situacao === "CONCLUIDO").length;
 
   // Círculo de progresso (estilo Things): pizza preenchida na proporção de
   // tarefas concluídas do projeto, na cor dele. Vazio = nada concluído.
@@ -479,6 +485,12 @@ export default function ProjetosHomePage() {
                 Ativos
               </button>
               <button
+                onClick={() => setAba("concluidos")}
+                className={cn("px-3 py-2 inline-flex items-center gap-1.5 transition-colors", aba === "concluidos" ? "bg-info/10 text-info font-medium" : "text-muted-foreground hover:bg-muted")}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" /> Concluídos{nConcluidos > 0 ? ` (${nConcluidos})` : ""}
+              </button>
+              <button
                 onClick={() => setAba("arquivados")}
                 className={cn("px-3 py-2 inline-flex items-center gap-1.5 transition-colors", aba === "arquivados" ? "bg-info/10 text-info font-medium" : "text-muted-foreground hover:bg-muted")}
               >
@@ -499,7 +511,7 @@ export default function ProjetosHomePage() {
         ) : visiveis.length === 0 ? (
           <div className="text-center py-24 text-muted-foreground">
             <FolderKanban className="w-10 h-10 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">{aba === "arquivados" ? "Nenhum projeto arquivado." : "Nenhum projeto ainda — crie o primeiro."}</p>
+            <p className="text-sm">{aba === "arquivados" ? "Nenhum projeto arquivado." : aba === "concluidos" ? "Nenhum projeto concluído." : "Nenhum projeto ainda — crie o primeiro."}</p>
           </div>
         ) : (
           <>

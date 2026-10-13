@@ -6,7 +6,7 @@
 // linha de uma tarefa sem datas cria o prazo. Dependências: setas entre
 // barras, criadas arrastando o conector da predecessora até a sucessora.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Settings2, X, Eye, EyeOff, GripVertical, ArrowLeft, Search, Link2, Check, ChevronDown, ChevronLeft, ChevronRight, PanelRight } from "lucide-react";
+import { Settings2, X, Eye, EyeOff, GripVertical, ArrowLeft, Search, Link2, Check, ChevronDown, ChevronLeft, ChevronRight, PanelRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import EscClose from "@/components/shared/EscClose";
@@ -166,6 +166,25 @@ export default function TimelineView({
   const [dropLinha, setDropLinha] = useState<string | null>(null);
   const [ordemLocal, setOrdemLocal] = useState<string[] | null>(null);
   useEffect(() => { setOrdemLocal(null); }, [tarefas]);
+  // Nova tarefa direto do cronograma (linha "+ Nova tarefa" no fim da tabela
+  // e botão na barra): entra na 1ª coluna do quadro (categoria Início).
+  const [novaTitulo, setNovaTitulo] = useState<string | null>(null);
+  const [criando, setCriando] = useState(false);
+  const novaRef = useRef<HTMLInputElement>(null);
+  async function criarTarefa() {
+    const titulo = (novaTitulo ?? "").trim();
+    const projetoId = board?.id ?? tarefas[0]?.projetoId;
+    if (!titulo || !projetoId || criando) return;
+    const coluna = [...colunas].sort((a, b) => a.ordem - b.ordem).find((c) => c.categoria === "INICIO") ?? colunas.find((c) => !c.concluiTarefa) ?? colunas[0];
+    if (!coluna) return;
+    setCriando(true);
+    const res = await fetch(`/api/projetos/${projetoId}/tarefas`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ titulo, colunaId: coluna.id }),
+    }).catch(() => null);
+    setCriando(false);
+    if (res?.ok) { setNovaTitulo(""); onRecarregar?.(); setTimeout(() => novaRef.current?.focus(), 0); }
+  }
+
   // Linhas da tabela e da grade são elementos separados (só a grade rola na
   // horizontal): hover e arrastar/soltar são sincronizados por estes helpers.
   const [linhaHover, setLinhaHover] = useState<string | null>(null);
@@ -689,6 +708,29 @@ export default function TimelineView({
         )}
         <div className={cn("relative flex items-center gap-1.5", !podeEditar && "ml-auto")}>
           {painel && <div className="fixed inset-0 z-40" onMouseDown={() => setPainel(null)} />}
+          {podeEditar && (
+            <button
+              onClick={() => { setNovaTitulo(""); setTimeout(() => novaRef.current?.focus(), 0); }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
+              title="Nova tarefa"
+            >
+              <Plus className="w-3.5 h-3.5" /> Nova tarefa
+            </button>
+          )}
+          {/* Tabela oculta: o input aparece aqui mesmo na barra */}
+          {podeEditar && !config.tabela.mostrar && novaTitulo !== null && (
+            <input
+              ref={novaRef}
+              autoFocus
+              value={novaTitulo}
+              disabled={criando}
+              onChange={(e) => setNovaTitulo(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); criarTarefa(); } if (e.key === "Escape") setNovaTitulo(null); }}
+              onBlur={() => { if (!(novaTitulo ?? "").trim()) setNovaTitulo(null); }}
+              placeholder="Título da tarefa — Enter cria"
+              className="h-8 w-64 px-2.5 text-xs border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
           <button
             onClick={() => setPainel(painel === "dependencias" ? null : "dependencias")}
             className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs", painel === "dependencias" ? "bg-muted text-foreground" : cfgDep.dependencias ? "text-info border-info/40 hover:bg-info/10" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
@@ -862,6 +904,34 @@ export default function TimelineView({
                 ))}
               </div>
             ))}
+            {/* + Nova tarefa (Notion): vira input; Enter cria e já abre outro */}
+            {podeEditar && (
+              <div className="flex items-center border-b border-border/40" style={{ height: ALTURA_LINHA }}>
+                {novaTitulo === null ? (
+                  <button
+                    onClick={() => { setNovaTitulo(""); setTimeout(() => novaRef.current?.focus(), 0); }}
+                    className="flex items-center gap-1.5 px-3 text-xs text-muted-foreground hover:text-foreground w-full h-full text-left"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Nova tarefa
+                  </button>
+                ) : (
+                  <input
+                    ref={novaRef}
+                    autoFocus
+                    value={novaTitulo}
+                    disabled={criando}
+                    onChange={(e) => setNovaTitulo(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); criarTarefa(); }
+                      if (e.key === "Escape") setNovaTitulo(null);
+                    }}
+                    onBlur={() => { if (!(novaTitulo ?? "").trim()) setNovaTitulo(null); }}
+                    placeholder="Título da tarefa — Enter para criar, Esc para cancelar"
+                    className="w-full h-full px-3 text-xs bg-transparent text-foreground focus:outline-none focus:ring-2 focus:ring-inset focus:ring-info/50"
+                  />
+                )}
+              </div>
+            )}
           </div>
         )}
         {/* Grade (direita): só ela tem rolagem horizontal */}
