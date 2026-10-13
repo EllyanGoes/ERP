@@ -232,6 +232,8 @@ export const MODULOS: ModuloDef[] = [
       { key: "epis",           label: "EPIs e entregas",          acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "saude",          label: "ASO e exames",             acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "obrigacoes",     label: "Obrigações documentais",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "treinamentos",   label: "Treinamentos",             acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "maquinas",       label: "Máquinas (NR-12)",         acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "configuracoes",  label: "Funções e requisitos",     acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },

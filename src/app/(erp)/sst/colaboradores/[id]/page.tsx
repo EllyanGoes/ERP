@@ -4,6 +4,7 @@
 // trocar / devolver com termo e saída de estoque), ASOs e exames.
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
 import DatePicker from "@/components/shared/DatePicker";
@@ -14,13 +15,14 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer } from "lucide-react";
+import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap } from "lucide-react";
 import { ListaPendencias, Semaforo, UploadAnexo, DocLink, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 
 type Ficha = {
   id: string; nome: string; ativo: boolean; cargo: string | null; matricula: string | null; dataAdmissao: string | null; dataDemissao: string | null;
   setor: { nome: string } | null;
-  sstFuncoes: { id: string; inicio: string; fim: string | null; funcao: { id: string; nome: string; requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[] } }[];
+  sstFuncoes: { id: string; inicio: string; fim: string | null; funcao: { id: string; nome: string; requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[] } }[];
+  sstTreinamentos: { validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; treinamento: { id: string; tipoId: string; data: string; instrutor: string | null; cargaHoraria: number | null; tipo: { nome: string; norma: string | null } } }[];
   sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null } }[];
   sstAsos: { id: string; tipo: string; data: string; validade: string | null; resultado: string; restricoes: string | null; medico: string | null; crm: string | null; documentoId: string | null; exames: { exameTipoId: string; data: string; resultado: string | null; exameTipo: { nome: string } }[] }[];
   pendencias: Pendencia[];
@@ -204,6 +206,36 @@ export default function SstFichaPage() {
                 </ul>
               )}
             </div>
+          </section>
+
+          {/* Treinamentos */}
+          <section className="bg-card rounded-xl border border-border">
+            <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
+              <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2"><GraduationCap className="w-4 h-4" /> Treinamentos</h2>
+              <Link href="/sst/treinamentos" className="text-xs text-info hover:underline">nova turma</Link>
+            </div>
+            {vinculo && vinculo.funcao.requisitosTreinamento.length > 0 && (
+              <div className="px-4 py-2 flex flex-wrap gap-1.5 border-b border-border/60">
+                {vinculo.funcao.requisitosTreinamento.map((r) => {
+                  const parts = f.sstTreinamentos.filter((t) => t.aprovado && t.treinamento.tipoId === r.treinamentoTipo.id);
+                  const ult = parts[0];
+                  const vencido = ult?.validade ? new Date(ult.validade).getTime() < Date.now() : false;
+                  return <span key={r.treinamentoTipo.id} className={cn("text-xs px-2 py-0.5 rounded-full border", !ult ? "border-danger/30 text-danger bg-danger/5" : vencido ? "border-danger/30 text-danger" : "border-success/30 text-success bg-success/5")}>{r.treinamentoTipo.nome}: {!ult ? "faltando" : vencido ? "vencido" : "ok"}</span>;
+                })}
+              </div>
+            )}
+            {f.sstTreinamentos.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum treinamento registrado.</p> : (
+              <ul className="divide-y divide-border/60 px-4">
+                {f.sstTreinamentos.map((t) => (
+                  <li key={t.treinamento.id} className="py-2 text-sm flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground w-20">{fmtData(t.treinamento.data)}</span>
+                    <span className="text-foreground flex-1">{t.treinamento.tipo.nome}{t.treinamento.tipo.norma ? <span className="text-xs text-muted-foreground"> · {t.treinamento.tipo.norma}</span> : null}{t.treinamento.cargaHoraria ? <span className="text-xs text-muted-foreground"> · {t.treinamento.cargaHoraria}h</span> : null}{!t.aprovado && <span className="text-xs text-danger"> · reprovado</span>}</span>
+                    <span className={cn("text-xs", t.validade && new Date(t.validade).getTime() < Date.now() ? "text-danger font-medium" : "text-muted-foreground")}>{t.validade ? `válido até ${fmtData(t.validade)}` : "não vence"}</span>
+                    <DocLink id={t.certificadoDocumentoId} label="certificado" />
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           {/* ASOs */}

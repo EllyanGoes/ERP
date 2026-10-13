@@ -11,6 +11,8 @@ export type TipoPendenciaSst =
   | "EPI_NAO_ENTREGUE" | "EPI_VENCIDO" | "EPI_VENCE_EM_BREVE" | "EPI_CA_VENCIDO"
   | "ASO_INEXISTENTE" | "ASO_VENCIDO" | "ASO_VENCE_EM_BREVE" | "ASO_INAPTO" | "ASO_DEMISSIONAL_PENDENTE"
   | "EXAME_PENDENTE"
+  | "TREINAMENTO_FALTANDO" | "TREINAMENTO_VENCIDO" | "TREINAMENTO_VENCE_EM_BREVE"
+  | "MAQUINA_NAO_AVALIADA" | "MAQUINA_NAO_CONFORME" | "MAQUINA_INTERDITADA"
   | "OBRIGACAO_INEXISTENTE" | "OBRIGACAO_VENCIDA" | "OBRIGACAO_VENCE_EM_BREVE";
 
 export type PendenciaSst = {
@@ -50,8 +52,10 @@ export type ColaboradorSst = {
       id: string; nome: string;
       requisitosEpi: { obrigatorio: boolean; quantidade: number; epi: { id: string; nome: string; vidaUtilDias: number | null; caValidade: Date | null; ca: string | null } }[];
       requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[];
+      requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[];
     };
   }[];
+  sstTreinamentos: { validade: Date | null; aprovado: boolean; treinamento: { tipoId: string; data: Date } }[];
   sstEpiEntregas: { epiId: string; tipo: "ENTREGA" | "TROCA" | "DEVOLUCAO"; data: Date; vencimentoUso: Date | null; quantidade: number }[];
   sstAsos: { id: string; tipo: string; data: Date; validade: Date | null; resultado: string; exames: { exameTipoId: string; data: Date }[] }[];
 };
@@ -70,10 +74,12 @@ export const COLABORADOR_SST_SELECT = {
           id: true, nome: true,
           requisitosEpi: { select: { obrigatorio: true, quantidade: true, epi: { select: { id: true, nome: true, vidaUtilDias: true, caValidade: true, ca: true } } } },
           requisitosExame: { select: { periodicidadeMeses: true, exameTipo: { select: { id: true, nome: true } } } },
+          requisitosTreinamento: { select: { treinamentoTipo: { select: { id: true, nome: true, validadeMeses: true } } } },
         },
       },
     },
   },
+  sstTreinamentos: { select: { validade: true, aprovado: true, treinamento: { select: { tipoId: true, data: true } } } },
   sstEpiEntregas: { orderBy: { data: "desc" as const }, select: { epiId: true, tipo: true, data: true, vencimentoUso: true, quantidade: true } },
   sstAsos: { orderBy: { data: "desc" as const }, select: { id: true, tipo: true, data: true, validade: true, resultado: true, exames: { select: { exameTipoId: true, data: true } } } },
 } as const;
@@ -165,7 +171,34 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
       out.push({ ...base, tipo: "EXAME_PENDENTE", severidade: "ALTA", titulo: `Exame pendente: ${r.exameTipo.nome}`, detalhe: ultimoExame ? `Último em ${ultimoExame.data.toLocaleDateString("pt-BR")} (a cada ${r.periodicidadeMeses} meses)` : "Nunca realizado", referenciaId: r.exameTipo.id, vence: limite });
     }
   }
+  // Treinamentos obrigatórios (NR-10/12/35…): participação aprovada e vigente
+  for (const r of f.requisitosTreinamento) {
+    const t = r.treinamentoTipo;
+    const parts = c.sstTreinamentos.filter((p) => p.aprovado && p.treinamento.tipoId === t.id).sort((a, b) => b.treinamento.data.getTime() - a.treinamento.data.getTime());
+    const ultimo = parts[0] ?? null;
+    if (!ultimo) { out.push({ ...base, tipo: "TREINAMENTO_FALTANDO", severidade: "ALTA", titulo: `Treinamento faltando: ${t.nome}`, referenciaId: t.id }); continue; }
+    if (ultimo.validade) {
+      const d = diasAte(ultimo.validade, hoje);
+      if (d < 0) out.push({ ...base, tipo: "TREINAMENTO_VENCIDO", severidade: "ALTA", titulo: `Reciclagem vencida: ${t.nome}`, detalhe: `Venceu em ${ultimo.validade.toLocaleDateString("pt-BR")}`, referenciaId: t.id, vence: ultimo.validade });
+      else if (d <= 60) out.push({ ...base, tipo: "TREINAMENTO_VENCE_EM_BREVE", severidade: "MEDIA", titulo: `Reciclagem em ${d} dia(s): ${t.nome}`, referenciaId: t.id, vence: ultimo.validade });
+    }
+  }
   return out;
+}
+
+/** Pendências das máquinas (NR-12) da empresa. */
+export async function pendenciasMaquinas(empresaId: string): Promise<{ pendencias: PendenciaSst[]; totais: { total: number; conformes: number; emAdequacao: number; naoConformes: number; naoAvaliadas: number; interditadas: number } }> {
+  const maquinas = await prismaSemEscopo.sstMaquina.findMany({ where: { empresaId, status: { not: "DESATIVADA" } }, select: { id: true, nome: true, local: true, status: true, protecoes: { select: { conforme: true } } } });
+  const out: PendenciaSst[] = [];
+  for (const m of maquinas) {
+    const link = `/sst/maquinas/${m.id}`;
+    const pend = m.protecoes.filter((p) => !p.conforme).length;
+    if (m.status === "INTERDITADA") out.push({ tipo: "MAQUINA_INTERDITADA", severidade: "CRITICA", titulo: `${m.nome}: interditada`, detalhe: m.local ?? undefined, referenciaId: m.id, link });
+    else if (m.status === "NAO_AVALIADA") out.push({ tipo: "MAQUINA_NAO_AVALIADA", severidade: "MEDIA", titulo: `${m.nome}: sem apreciação de risco`, detalhe: m.local ?? undefined, referenciaId: m.id, link });
+    else if (m.status === "NAO_CONFORME" || m.status === "EM_ADEQUACAO" || pend > 0) out.push({ tipo: "MAQUINA_NAO_CONFORME", severidade: "ALTA", titulo: `${m.nome}: ${m.status === "EM_ADEQUACAO" ? "em adequação" : "não conforme"}${pend ? ` (${pend} proteção(ões) pendente(s))` : ""}`, detalhe: m.local ?? undefined, referenciaId: m.id, link });
+  }
+  const n = (s: string) => maquinas.filter((m) => m.status === s).length;
+  return { pendencias: out, totais: { total: maquinas.length, conformes: n("CONFORME"), emAdequacao: n("EM_ADEQUACAO"), naoConformes: n("NAO_CONFORME"), naoAvaliadas: n("NAO_AVALIADA"), interditadas: n("INTERDITADA") } };
 }
 
 /** Semáforo resumido para listas. */
@@ -229,7 +262,8 @@ export async function conformidadeEmpresa(empresaId: string, hoje = new Date()) 
     return { id: c.id, nome: c.nome, ativo: c.ativo, setor: c.setor?.nome ?? null, funcao: c.sstFuncoes[0]?.funcao.nome ?? null, pendencias: pend, semaforo: semaforo(pend) };
   });
   const { pendencias: pendObrig, obrigacoes } = await pendenciasObrigacoes(empresaId, hoje);
-  const todas = [...porColaborador.flatMap((c) => c.pendencias), ...pendObrig];
+  const { pendencias: pendMaq, totais: maquinas } = await pendenciasMaquinas(empresaId);
+  const todas = [...porColaborador.flatMap((c) => c.pendencias), ...pendObrig, ...pendMaq];
   const porSeveridade = { CRITICA: 0, ALTA: 0, MEDIA: 0, BAIXA: 0 } as Record<SeveridadeSst, number>;
   const porTipo: Record<string, number> = {};
   for (const p of todas) { porSeveridade[p.severidade]++; porTipo[p.tipo] = (porTipo[p.tipo] ?? 0) + 1; }
@@ -248,6 +282,7 @@ export async function conformidadeEmpresa(empresaId: string, hoje = new Date()) 
     porTipo,
     colaboradores: porColaborador,
     obrigacoes,
+    maquinas,
     pendencias: todas,
   };
 }

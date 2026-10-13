@@ -8,7 +8,7 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, ShieldCheck, Users, HardHat, Stethoscope, FileCheck2, RefreshCw } from "lucide-react";
+import { Loader2, ShieldCheck, Users, HardHat, Stethoscope, FileCheck2, RefreshCw, GraduationCap, Cog } from "lucide-react";
 import { ListaPendencias, SEVERIDADE, fmtData, type Pendencia, type Severidade } from "@/components/sst/comum";
 
 type Painel = {
@@ -18,12 +18,15 @@ type Painel = {
   porTipo: Record<string, number>;
   colaboradores: { id: string; nome: string; ativo: boolean; setor: string | null; funcao: string | null; semaforo: "OK" | "ATENCAO" | "CRITICO"; pendencias: Pendencia[] }[];
   obrigacoes: { id: string; nome: string; norma: string | null; situacao: string; documento: { id: string; titulo: string; validade: string | null } | null }[];
+  maquinas: { total: number; conformes: number; emAdequacao: number; naoConformes: number; naoAvaliadas: number; interditadas: number };
   pendencias: Pendencia[];
 };
 
 const GRUPOS: { key: string; label: string; icon: typeof Users; tipos: string[]; link: string }[] = [
   { key: "epi", label: "EPI (NR-06)", icon: HardHat, tipos: ["EPI_NAO_ENTREGUE", "EPI_VENCIDO", "EPI_VENCE_EM_BREVE", "EPI_CA_VENCIDO"], link: "/sst/epis" },
   { key: "saude", label: "ASO e exames (NR-07)", icon: Stethoscope, tipos: ["ASO_INEXISTENTE", "ASO_VENCIDO", "ASO_VENCE_EM_BREVE", "ASO_INAPTO", "ASO_DEMISSIONAL_PENDENTE", "EXAME_PENDENTE"], link: "/sst/saude" },
+  { key: "trein", label: "Treinamentos", icon: GraduationCap, tipos: ["TREINAMENTO_FALTANDO", "TREINAMENTO_VENCIDO", "TREINAMENTO_VENCE_EM_BREVE"], link: "/sst/treinamentos" },
+  { key: "maq", label: "Máquinas (NR-12)", icon: Cog, tipos: ["MAQUINA_NAO_AVALIADA", "MAQUINA_NAO_CONFORME", "MAQUINA_INTERDITADA"], link: "/sst/maquinas" },
   { key: "obrig", label: "Obrigações (PGR, PCMSO…)", icon: FileCheck2, tipos: ["OBRIGACAO_INEXISTENTE", "OBRIGACAO_VENCIDA", "OBRIGACAO_VENCE_EM_BREVE"], link: "/sst/obrigacoes" },
   { key: "funcao", label: "Funções", icon: Users, tipos: ["SEM_FUNCAO"], link: "/sst/colaboradores" },
 ];
@@ -79,7 +82,7 @@ export default function SstPainelPage() {
             </div>
 
             {/* Por norma/grupo */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
               {GRUPOS.map((g) => {
                 const n = g.tipos.reduce((acc, t) => acc + (p.porTipo[t] ?? 0), 0);
                 const criticas = p.pendencias.filter((x) => g.tipos.includes(x.tipo) && x.severidade === "CRITICA").length;
@@ -107,6 +110,19 @@ export default function SstPainelPage() {
                   <ListaPendencias itens={pendFiltradas} mostrarColaborador vazio="Nenhuma pendência — tudo regular." />
                 </div>
               </div>
+              <div className="space-y-6">
+              {/* Máquinas NR-12 */}
+              <div className="bg-card rounded-xl border border-border">
+                <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
+                  <h2 className="font-semibold text-sm text-foreground">Máquinas (NR-12)</h2>
+                  <Link href="/sst/maquinas" className="text-xs text-info hover:underline">inventário</Link>
+                </div>
+                <div className="p-4 grid grid-cols-3 gap-2 text-center">
+                  {[["Conformes", p.maquinas.conformes, "text-success"], ["Em adequação", p.maquinas.emAdequacao, "text-warning"], ["Não conformes", p.maquinas.naoConformes, "text-danger"], ["Não avaliadas", p.maquinas.naoAvaliadas, "text-muted-foreground"], ["Interditadas", p.maquinas.interditadas, "text-danger"], ["Total", p.maquinas.total, "text-foreground"]].map(([l, v, c]) => (
+                    <div key={String(l)}><div className={cn("text-xl font-semibold", String(c))}>{v}</div><div className="text-[11px] text-muted-foreground">{l}</div></div>
+                  ))}
+                </div>
+              </div>
               {/* Obrigações */}
               <div className="bg-card rounded-xl border border-border">
                 <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
@@ -123,6 +139,7 @@ export default function SstPainelPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
               </div>
             </div>
           </>

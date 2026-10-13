@@ -6,6 +6,7 @@ import { prisma, prismaSemEscopo } from "@/lib/prisma";
 const INCLUDE = {
   requisitosEpi: { include: { epi: { select: { id: true, nome: true, ca: true } } } },
   requisitosExame: { include: { exameTipo: { select: { id: true, nome: true } } } },
+  requisitosTreinamento: { include: { treinamentoTipo: { select: { id: true, nome: true, validadeMeses: true } } } },
   _count: { select: { colaboradores: { where: { fim: null } } } },
 };
 
@@ -35,6 +36,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await tx.sstFuncaoExame.createMany({
         data: (b.exames as { exameTipoId: string; periodicidadeMeses: number }[]).filter((e) => e?.exameTipoId && Number(e.periodicidadeMeses) > 0)
           .map((e) => ({ funcaoId: params.id, exameTipoId: e.exameTipoId, periodicidadeMeses: Number(e.periodicidadeMeses) })),
+        skipDuplicates: true,
+      });
+    }
+    if (Array.isArray(b.treinamentos)) {
+      await tx.sstFuncaoTreinamento.deleteMany({ where: { funcaoId: params.id } });
+      await tx.sstFuncaoTreinamento.createMany({
+        data: (b.treinamentos as { treinamentoTipoId: string }[]).filter((t) => t?.treinamentoTipoId).map((t) => ({ funcaoId: params.id, treinamentoTipoId: t.treinamentoTipoId })),
         skipDuplicates: true,
       });
     }

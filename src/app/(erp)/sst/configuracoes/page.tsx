@@ -13,7 +13,8 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2, X } from "lucide-react";
 
-type Funcao = { id: string; nome: string; cbo: string | null; grauRisco: number | null; ativo: boolean; requisitosEpi: { epiId: string; obrigatorio: boolean; quantidade: number; epi: { id: string; nome: string; ca: string | null } }[]; requisitosExame: { exameTipoId: string; periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; _count: { colaboradores: number } };
+type TreinTipo = { id: string; nome: string; norma: string | null; ativo: boolean };
+type Funcao = { id: string; nome: string; cbo: string | null; grauRisco: number | null; ativo: boolean; requisitosTreinamento: { treinamentoTipoId: string; treinamentoTipo: { id: string; nome: string } }[]; requisitosEpi: { epiId: string; obrigatorio: boolean; quantidade: number; epi: { id: string; nome: string; ca: string | null } }[]; requisitosExame: { exameTipoId: string; periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; _count: { colaboradores: number } };
 type Epi = { id: string; nome: string; ca: string | null; ativo: boolean };
 type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean };
 
@@ -22,11 +23,14 @@ export default function SstConfigPage() {
   const [funcoes, setFuncoes] = useState<Funcao[]>([]);
   const [epis, setEpis] = useState<Epi[]>([]);
   const [tipos, setTipos] = useState<ExameTipo[]>([]);
+  const [treinos, setTreinos] = useState<TreinTipo[]>([]);
+  const [rTreinos, setRTreinos] = useState<string[]>([]);
+  const [addTreino, setAddTreino] = useState("");
   const [loading, setLoading] = useState(true);
   async function load() {
     setLoading(true);
-    const [f, e, t] = await Promise.all([fetch("/api/sst/funcoes").then((r) => r.json()), fetch("/api/sst/epis").then((r) => r.json()), fetch("/api/sst/exames-tipos").then((r) => r.json())]);
-    setFuncoes(f.data ?? []); setEpis(e.data ?? []); setTipos(t.data ?? []); setLoading(false);
+    const [f, e, t, tr] = await Promise.all([fetch("/api/sst/funcoes").then((r) => r.json()), fetch("/api/sst/epis").then((r) => r.json()), fetch("/api/sst/exames-tipos").then((r) => r.json()), fetch("/api/sst/treinamentos-tipos").then((r) => r.json())]);
+    setFuncoes(f.data ?? []); setEpis(e.data ?? []); setTipos(t.data ?? []); setTreinos(tr.data ?? []); setLoading(false);
   }
   useEffect(() => { load(); }, []);
 
@@ -40,12 +44,13 @@ export default function SstConfigPage() {
     setEditId(f?.id ?? null); setNome(f?.nome ?? ""); setCbo(f?.cbo ?? ""); setGrau(f?.grauRisco ? String(f.grauRisco) : "");
     setREpis(f?.requisitosEpi.map((r) => ({ epiId: r.epiId, obrigatorio: r.obrigatorio, quantidade: r.quantidade })) ?? []);
     setRExames(f?.requisitosExame.map((r) => ({ exameTipoId: r.exameTipoId, periodicidadeMeses: r.periodicidadeMeses })) ?? []);
+    setRTreinos(f?.requisitosTreinamento.map((r) => r.treinamentoTipoId) ?? []); setAddTreino("");
     setAddEpi(""); setAddExame(""); setErro(""); setOpen(true);
   }
   async function salvar() {
     if (!nome.trim()) { setErro("Informe o nome da função."); return; }
     setSaving(true); setErro("");
-    const res = await fetch(editId ? `/api/sst/funcoes/${editId}` : "/api/sst/funcoes", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, cbo: cbo || null, grauRisco: grau || null, epis: rEpis, exames: rExames }) });
+    const res = await fetch(editId ? `/api/sst/funcoes/${editId}` : "/api/sst/funcoes", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, cbo: cbo || null, grauRisco: grau || null, epis: rEpis, exames: rExames, treinamentos: rTreinos.map((treinamentoTipoId) => ({ treinamentoTipoId })) }) });
     const j = await res.json().catch(() => ({})); setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
     setOpen(false); load();
@@ -72,7 +77,9 @@ export default function SstConfigPage() {
               <button onClick={() => abrir(f)} className="text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /></button>
               <button onClick={() => setDel(f)} className="text-muted-foreground hover:text-danger"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
-            <div className="mt-2 grid md:grid-cols-2 gap-3 text-sm">
+            <div className="mt-2 grid md:grid-cols-3 gap-3 text-sm">
+              <div><p className="text-xs font-semibold text-muted-foreground mb-1">Treinamentos</p>
+                {f.requisitosTreinamento.length === 0 ? <p className="text-xs text-muted-foreground italic">nenhum</p> : <div className="flex flex-wrap gap-1">{f.requisitosTreinamento.map((r) => <span key={r.treinamentoTipoId} className="text-xs px-2 py-0.5 rounded-full border border-border text-foreground">{r.treinamentoTipo.nome}</span>)}</div>}</div>
               <div><p className="text-xs font-semibold text-muted-foreground mb-1">EPIs</p>
                 {f.requisitosEpi.length === 0 ? <p className="text-xs text-muted-foreground italic">nenhum</p> : <div className="flex flex-wrap gap-1">{f.requisitosEpi.map((r) => <span key={r.epiId} className={cn("text-xs px-2 py-0.5 rounded-full border", r.obrigatorio ? "border-info/30 bg-info/5 text-info" : "border-border text-muted-foreground")}>{r.quantidade > 1 ? `${r.quantidade}× ` : ""}{r.epi.nome}{!r.obrigatorio && " (opcional)"}</span>)}</div>}</div>
               <div><p className="text-xs font-semibold text-muted-foreground mb-1">Exames</p>
@@ -123,6 +130,16 @@ export default function SstConfigPage() {
                   <Button size="sm" variant="outline" disabled={!addExame} onClick={() => { const t = tipos.find((x) => x.id === addExame); setRExames([...rExames, { exameTipoId: addExame, periodicidadeMeses: t?.periodicidadeMeses ?? 12 }]); setAddExame(""); }}><Plus className="w-4 h-4" /></Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground">A menor periodicidade vira a validade padrão do ASO periódico. Tipos de exame: em ASO e exames.</p>
+              </div>
+            </div>
+            <div>
+              <Label>Treinamentos obrigatórios</Label>
+              <div className="mt-1 space-y-1">
+                {rTreinos.map((id) => <div key={id} className="flex items-center gap-2 text-sm"><span className="flex-1 text-foreground">{treinos.find((t) => t.id === id)?.nome ?? id}</span><button onClick={() => setRTreinos(rTreinos.filter((x) => x !== id))} className="text-muted-foreground hover:text-danger"><X className="w-3.5 h-3.5" /></button></div>)}
+                <div className="flex gap-2">
+                  <SelectMenu value={addTreino} onChange={setAddTreino} placeholder="Adicionar treinamento…" className="flex-1" options={treinos.filter((t) => t.ativo && !rTreinos.includes(t.id)).map((t) => ({ value: t.id, label: t.norma ? `${t.nome} (${t.norma})` : t.nome }))} />
+                  <Button size="sm" variant="outline" disabled={!addTreino} onClick={() => { setRTreinos([...rTreinos, addTreino]); setAddTreino(""); }}><Plus className="w-4 h-4" /></Button>
+                </div>
               </div>
             </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}

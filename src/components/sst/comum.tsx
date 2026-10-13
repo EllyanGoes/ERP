@@ -46,6 +46,19 @@ export const RESULTADO_ASO: Record<string, { label: string; cls: string }> = {
   APTO_RESTRICOES: { label: "Apto c/ restrições", cls: "bg-warning/15 text-warning" },
   INAPTO: { label: "Inapto", cls: "bg-danger/15 text-danger" },
 };
+export const STATUS_MAQUINA: Record<string, { label: string; cls: string; dot: string }> = {
+  NAO_AVALIADA: { label: "Não avaliada", cls: "bg-muted text-muted-foreground", dot: "bg-muted-foreground" },
+  NAO_CONFORME: { label: "Não conforme", cls: "bg-danger/15 text-danger", dot: "bg-danger" },
+  EM_ADEQUACAO: { label: "Em adequação", cls: "bg-warning/15 text-warning", dot: "bg-warning" },
+  CONFORME:     { label: "Conforme", cls: "bg-success/15 text-success", dot: "bg-success" },
+  INTERDITADA:  { label: "Interditada", cls: "bg-danger text-white", dot: "bg-white" },
+  DESATIVADA:   { label: "Desativada", cls: "bg-muted text-muted-foreground line-through", dot: "bg-muted-foreground" },
+};
+export function StatusMaquinaBadge({ s }: { s: string }) {
+  const m = STATUS_MAQUINA[s] ?? STATUS_MAQUINA.NAO_AVALIADA;
+  return <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full", m.cls)}><span className={cn("w-2 h-2 rounded-full", m.dot)} />{m.label}</span>;
+}
+
 export const TIPO_ENTREGA: Record<string, string> = { ENTREGA: "Entrega", TROCA: "Troca", DEVOLUCAO: "Devolução" };
 
 /** Lista de pendências (painel e ficha). */
@@ -72,9 +85,9 @@ export function ListaPendencias({ itens, mostrarColaborador = false, vazio = "Ne
 }
 
 /** Lookups dos formulários (locais, categorias GED, usuários, itens). */
-export type Lookups = { locais: { id: string; nome: string }[]; categorias: { id: string; nome: string; slug: string }[]; usuarios: { id: string; nome: string }[]; itens: { id: string; codigo: string; descricao: string }[] };
+export type Lookups = { locais: { id: string; nome: string }[]; categorias: { id: string; nome: string; slug: string }[]; usuarios: { id: string; nome: string }[]; itens: { id: string; codigo: string; descricao: string }[]; setores: { id: string; nome: string }[]; projetos: { id: string; nome: string }[] };
 export function useLookups() {
-  const [lk, setLk] = useState<Lookups>({ locais: [], categorias: [], usuarios: [], itens: [] });
+  const [lk, setLk] = useState<Lookups>({ locais: [], categorias: [], usuarios: [], itens: [], setores: [], projetos: [] });
   useEffect(() => { fetch("/api/sst/lookups").then((r) => r.json()).then((j) => j.data && setLk(j.data)).catch(() => {}); }, []);
   return lk;
 }

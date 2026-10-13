@@ -45,6 +45,8 @@ import {
   ShieldCheck,
   HardHat,
   Stethoscope,
+  GraduationCap,
+  Cog,
   HelpCircle,
   User,
   ChevronRight,
@@ -414,6 +416,8 @@ const mainModules: Module[] = [
           { href: "/sst/epis", label: "EPIs e entregas", icon: HardHat },
           { href: "/sst/saude", label: "ASO e exames", icon: Stethoscope },
           { href: "/sst/obrigacoes", label: "Obrigações (PGR, PCMSO…)", icon: FileCheck2 },
+          { href: "/sst/treinamentos", label: "Treinamentos", icon: GraduationCap },
+          { href: "/sst/maquinas", label: "Máquinas (NR-12)", icon: Cog },
         ],
       },
       {

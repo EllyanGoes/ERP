@@ -6,6 +6,7 @@ import { prisma, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 const INCLUDE = {
   requisitosEpi: { include: { epi: { select: { id: true, nome: true, ca: true } } } },
   requisitosExame: { include: { exameTipo: { select: { id: true, nome: true } } } },
+  requisitosTreinamento: { include: { treinamentoTipo: { select: { id: true, nome: true, validadeMeses: true } } } },
   _count: { select: { colaboradores: { where: { fim: null } } } },
 };
 
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
         nome, cbo: b.cbo?.trim() || null, grauRisco: b.grauRisco ? Number(b.grauRisco) : null,
         requisitosEpi: { create: epis.map((e) => ({ epiId: e.epiId, obrigatorio: e.obrigatorio !== false, quantidade: Math.max(1, Number(e.quantidade) || 1) })) },
         requisitosExame: { create: exames.map((e) => ({ exameTipoId: e.exameTipoId, periodicidadeMeses: Number(e.periodicidadeMeses) })) },
+        requisitosTreinamento: { create: (Array.isArray(b.treinamentos) ? (b.treinamentos as { treinamentoTipoId: string }[]).filter((t) => t?.treinamentoTipoId) : []).map((t) => ({ treinamentoTipoId: t.treinamentoTipoId })) },
       },
       include: INCLUDE,
     });
