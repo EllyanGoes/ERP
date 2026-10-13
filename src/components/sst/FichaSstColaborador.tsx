@@ -232,6 +232,45 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
               <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2"><Stethoscope className="w-4 h-4" /> ASO e exames (NR-07)</h2>
               <Button size="sm" onClick={abrirAso} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Lançar ASO</Button>
             </div>
+            {/* Situação do ASO + exames exigidos pela função (o que o motor cobra) */}
+            {(() => {
+              const asoPend = f.pendencias.filter((p) => p.tipo.startsWith("ASO"));
+              const exigidos = vinculo?.funcao.requisitosExame ?? [];
+              if (asoPend.length === 0 && exigidos.length === 0) return null;
+              const feitos = f.sstAsos.flatMap((a) => a.exames.map((e) => ({ ...e, asoData: a.data })));
+              return (
+                <div className="border-b border-border/60">
+                  {asoPend.length > 0 && (
+                    <div className="px-4 py-2 flex flex-wrap gap-1.5">
+                      {asoPend.map((p, i) => <span key={i} className={cn("text-xs px-2 py-0.5 rounded-full border", p.severidade === "CRITICA" ? "border-danger/30 text-danger bg-danger/5" : "border-warning/30 text-warning bg-warning/5")}>{p.titulo}{p.vence ? ` · ${fmtData(p.vence)}` : ""}</span>)}
+                    </div>
+                  )}
+                  {exigidos.length > 0 && (
+                    <table className="w-full text-sm">
+                      <thead className="text-xs text-muted-foreground"><tr><th className="text-left px-4 py-1.5 font-semibold">Exame exigido pela função</th><th className="text-left px-3 py-1.5 font-semibold">Situação</th><th className="text-left px-3 py-1.5 font-semibold">Último</th><th className="text-left px-3 py-1.5 font-semibold">Próximo</th></tr></thead>
+                      <tbody>
+                        {exigidos.map((r) => {
+                          const doTipo = feitos.filter((e) => e.exameTipoId === r.exameTipo.id).sort((x, y) => new Date(y.data).getTime() - new Date(x.data).getTime());
+                          const ult = doTipo[0] ?? null;
+                          const prox = ult ? new Date(new Date(ult.data).setMonth(new Date(ult.data).getMonth() + r.periodicidadeMeses)) : null;
+                          const dias = prox ? Math.ceil((prox.getTime() - Date.now()) / 86_400_000) : null;
+                          const st = !ult ? { t: "nunca realizado", cls: "text-danger" } : dias! < 0 ? { t: "vencido", cls: "text-danger" } : dias! <= 30 ? { t: `vence em ${dias} d`, cls: "text-warning" } : { t: "em dia", cls: "text-success" };
+                          return (
+                            <tr key={r.exameTipo.id} className="border-t border-border/60">
+                              <td className="px-4 py-1.5 text-foreground">{r.exameTipo.nome} <span className="text-xs text-muted-foreground">· a cada {r.periodicidadeMeses} m</span></td>
+                              <td className={cn("px-3 py-1.5 text-xs font-medium", st.cls)}>{st.t}</td>
+                              <td className="px-3 py-1.5 text-muted-foreground">{ult ? fmtData(ult.data) : "—"}</td>
+                              <td className={cn("px-3 py-1.5", dias !== null && dias < 0 ? "text-danger" : "text-muted-foreground")}>{prox ? fmtData(prox) : "—"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
+            })()}
+            <p className="px-4 pt-2 text-xs font-semibold text-muted-foreground">ASOs lançados</p>
             {f.sstAsos.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum ASO registrado.</p> : (
               <ul className="divide-y divide-border/60 px-4">
                 {f.sstAsos.map((a) => {
