@@ -59,6 +59,20 @@ export function StatusMaquinaBadge({ s }: { s: string }) {
   return <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full", m.cls)}><span className={cn("w-2 h-2 rounded-full", m.dot)} />{m.label}</span>;
 }
 
+export const TIPO_INCIDENTE: Record<string, { label: string; cls: string }> = {
+  QUASE_ACIDENTE: { label: "Quase acidente", cls: "bg-muted text-muted-foreground" },
+  ACIDENTE_SEM_AFASTAMENTO: { label: "Acidente sem afastamento", cls: "bg-warning/15 text-warning" },
+  ACIDENTE_COM_AFASTAMENTO: { label: "Acidente com afastamento", cls: "bg-danger/15 text-danger" },
+  TRAJETO: { label: "Acidente de trajeto", cls: "bg-orange-500/15 text-orange-700 dark:text-orange-300" },
+  DOENCA_OCUPACIONAL: { label: "Doença ocupacional", cls: "bg-danger/15 text-danger" },
+};
+export const STATUS_INCIDENTE: Record<string, { label: string; cls: string }> = {
+  ABERTO: { label: "Aberto", cls: "bg-danger/15 text-danger" }, EM_INVESTIGACAO: { label: "Em investigação", cls: "bg-warning/15 text-warning" },
+  ACAO_DEFINIDA: { label: "Ação definida", cls: "bg-info/15 text-info" }, ENCERRADO: { label: "Encerrado", cls: "bg-success/15 text-success" },
+};
+export const TIPOS_INSPECAO = ["EXTINTOR", "MAQUINA", "INSTALACAO", "ELETRICA", "ALTURA", "CHECKLIST_NR18", "CIPA", "OUTRO"];
+export const TIPO_INSPECAO_LABEL: Record<string, string> = { EXTINTOR: "Extintores", MAQUINA: "Máquina", INSTALACAO: "Instalações", ELETRICA: "Elétrica", ALTURA: "Trabalho em altura", CHECKLIST_NR18: "Checklist NR-18", CIPA: "Inspeção da CIPA", OUTRO: "Outro" };
+
 export const TIPO_ENTREGA: Record<string, string> = { ENTREGA: "Entrega", TROCA: "Troca", DEVOLUCAO: "Devolução" };
 
 /** Lista de pendências (painel e ficha). */
@@ -85,9 +99,9 @@ export function ListaPendencias({ itens, mostrarColaborador = false, vazio = "Ne
 }
 
 /** Lookups dos formulários (locais, categorias GED, usuários, itens). */
-export type Lookups = { locais: { id: string; nome: string }[]; categorias: { id: string; nome: string; slug: string }[]; usuarios: { id: string; nome: string }[]; itens: { id: string; codigo: string; descricao: string }[]; setores: { id: string; nome: string }[]; projetos: { id: string; nome: string }[] };
+export type Lookups = { locais: { id: string; nome: string }[]; categorias: { id: string; nome: string; slug: string }[]; usuarios: { id: string; nome: string }[]; itens: { id: string; codigo: string; descricao: string }[]; setores: { id: string; nome: string }[]; projetos: { id: string; nome: string }[]; maquinas: { id: string; nome: string; local: string | null }[] };
 export function useLookups() {
-  const [lk, setLk] = useState<Lookups>({ locais: [], categorias: [], usuarios: [], itens: [], setores: [], projetos: [] });
+  const [lk, setLk] = useState<Lookups>({ locais: [], categorias: [], usuarios: [], itens: [], setores: [], projetos: [], maquinas: [] });
   useEffect(() => { fetch("/api/sst/lookups").then((r) => r.json()).then((j) => j.data && setLk(j.data)).catch(() => {}); }, []);
   return lk;
 }

@@ -13,6 +13,9 @@ export type TipoPendenciaSst =
   | "EXAME_PENDENTE"
   | "TREINAMENTO_FALTANDO" | "TREINAMENTO_VENCIDO" | "TREINAMENTO_VENCE_EM_BREVE"
   | "MAQUINA_NAO_AVALIADA" | "MAQUINA_NAO_CONFORME" | "MAQUINA_INTERDITADA"
+  | "CAT_NAO_EMITIDA" | "INCIDENTE_SEM_ACAO" | "ACAO_ATRASADA"
+  | "INSPECAO_ATRASADA" | "INSPECAO_VENCE_EM_BREVE"
+  | "CIPA_SEM_MANDATO" | "CIPA_MANDATO_VENCENDO"
   | "OBRIGACAO_INEXISTENTE" | "OBRIGACAO_VENCIDA" | "OBRIGACAO_VENCE_EM_BREVE";
 
 export type PendenciaSst = {
@@ -201,6 +204,48 @@ export async function pendenciasMaquinas(empresaId: string): Promise<{ pendencia
   return { pendencias: out, totais: { total: maquinas.length, conformes: n("CONFORME"), emAdequacao: n("EM_ADEQUACAO"), naoConformes: n("NAO_CONFORME"), naoAvaliadas: n("NAO_AVALIADA"), interditadas: n("INTERDITADA") } };
 }
 
+/** Pendências de incidentes, ações corretivas, inspeções e CIPA. */
+export async function pendenciasProcessos(empresaId: string, nColaboradores: number, hoje = new Date()): Promise<{ pendencias: PendenciaSst[]; incidentes: { ano: number; comAfastamento: number; diasPerdidos: number; abertos: number } }> {
+  const out: PendenciaSst[] = [];
+  const inicioAno = new Date(hoje.getFullYear(), 0, 1);
+  const incidentes = await prismaSemEscopo.sstIncidente.findMany({
+    where: { empresaId },
+    select: { id: true, numero: true, tipo: true, data: true, status: true, catNumero: true, diasAfastamento: true, acoes: { select: { id: true, descricao: true, prazo: true, concluidaEm: true } } },
+  });
+  for (const i of incidentes) {
+    const link = `/sst/incidentes/${i.id}`;
+    const exigeCat = i.tipo === "ACIDENTE_COM_AFASTAMENTO" || i.tipo === "DOENCA_OCUPACIONAL" || i.tipo === "TRAJETO";
+    if (exigeCat && !i.catNumero) out.push({ tipo: "CAT_NAO_EMITIDA", severidade: "CRITICA", titulo: `${i.numero}: CAT não emitida`, detalhe: "Acidente com afastamento/trajeto/doença exige CAT até o 1º dia útil seguinte", referenciaId: i.id, vence: i.data, link });
+    if (i.status !== "ENCERRADO" && i.acoes.length === 0 && diasAte(i.data, hoje) < -15) out.push({ tipo: "INCIDENTE_SEM_ACAO", severidade: "MEDIA", titulo: `${i.numero}: sem ação corretiva há mais de 15 dias`, referenciaId: i.id, link });
+    for (const a of i.acoes) if (!a.concluidaEm && a.prazo && a.prazo.getTime() < hoje.getTime()) out.push({ tipo: "ACAO_ATRASADA", severidade: "ALTA", titulo: `${i.numero}: ação atrasada — ${a.descricao}`, referenciaId: a.id, vence: a.prazo, link });
+  }
+  // Inspeções: só a MAIS RECENTE de cada tipo+alvo conta (a anterior foi substituída).
+  const inspecoes = await prismaSemEscopo.sstInspecao.findMany({ where: { empresaId }, orderBy: { data: "desc" }, select: { id: true, tipo: true, descricao: true, proxima: true, maquinaId: true, acoes: { select: { id: true, descricao: true, prazo: true, concluidaEm: true } } } });
+  const vistas = new Set<string>();
+  for (const ins of inspecoes) {
+    for (const a of ins.acoes) if (!a.concluidaEm && a.prazo && a.prazo.getTime() < hoje.getTime()) out.push({ tipo: "ACAO_ATRASADA", severidade: "ALTA", titulo: `Inspeção ${ins.descricao}: ação atrasada — ${a.descricao}`, referenciaId: a.id, vence: a.prazo, link: "/sst/inspecoes" });
+    const k = `${ins.tipo}|${ins.maquinaId ?? ins.descricao.toLowerCase()}`;
+    if (vistas.has(k)) continue;
+    vistas.add(k);
+    if (!ins.proxima) continue;
+    const d = diasAte(ins.proxima, hoje);
+    if (d < 0) out.push({ tipo: "INSPECAO_ATRASADA", severidade: "ALTA", titulo: `Inspeção atrasada: ${ins.descricao}`, detalhe: `${ins.tipo} · prevista para ${ins.proxima.toLocaleDateString("pt-BR")}`, referenciaId: ins.id, vence: ins.proxima, link: "/sst/inspecoes" });
+    else if (d <= 30) out.push({ tipo: "INSPECAO_VENCE_EM_BREVE", severidade: "MEDIA", titulo: `Inspeção em ${d} dia(s): ${ins.descricao}`, referenciaId: ins.id, vence: ins.proxima, link: "/sst/inspecoes" });
+  }
+  // CIPA (NR-05): obrigatória a partir de 20 empregados (dimensionamento
+  // simplificado — o grau de risco muda o nº de membros, não a obrigação).
+  if (nColaboradores >= 20) {
+    const mandato = await prismaSemEscopo.sstCipaMandato.findFirst({ where: { empresaId, inicio: { lte: hoje }, fim: { gte: hoje } }, select: { id: true, fim: true } });
+    if (!mandato) out.push({ tipo: "CIPA_SEM_MANDATO", severidade: "ALTA", titulo: "CIPA sem mandato vigente", detalhe: `${nColaboradores} empregados — NR-05 exige CIPA a partir de 20`, link: "/sst/cipa" });
+    else if (diasAte(mandato.fim, hoje) <= 60) out.push({ tipo: "CIPA_MANDATO_VENCENDO", severidade: "MEDIA", titulo: `Mandato da CIPA termina em ${diasAte(mandato.fim, hoje)} dia(s) — convocar eleição`, vence: mandato.fim, link: "/sst/cipa" });
+  }
+  const doAno = incidentes.filter((i) => i.data >= inicioAno);
+  return {
+    pendencias: out,
+    incidentes: { ano: doAno.length, comAfastamento: doAno.filter((i) => i.tipo === "ACIDENTE_COM_AFASTAMENTO").length, diasPerdidos: doAno.reduce((s, i) => s + (i.diasAfastamento ?? 0), 0), abertos: incidentes.filter((i) => i.status !== "ENCERRADO").length },
+  };
+}
+
 /** Semáforo resumido para listas. */
 export function semaforo(pend: PendenciaSst[]): "OK" | "ATENCAO" | "CRITICO" {
   if (pend.some((p) => p.severidade === "CRITICA" || p.severidade === "ALTA")) return "CRITICO";
@@ -263,7 +308,8 @@ export async function conformidadeEmpresa(empresaId: string, hoje = new Date()) 
   });
   const { pendencias: pendObrig, obrigacoes } = await pendenciasObrigacoes(empresaId, hoje);
   const { pendencias: pendMaq, totais: maquinas } = await pendenciasMaquinas(empresaId);
-  const todas = [...porColaborador.flatMap((c) => c.pendencias), ...pendObrig, ...pendMaq];
+  const { pendencias: pendProc, incidentes } = await pendenciasProcessos(empresaId, porColaborador.filter((c) => c.ativo).length, hoje);
+  const todas = [...porColaborador.flatMap((c) => c.pendencias), ...pendObrig, ...pendMaq, ...pendProc];
   const porSeveridade = { CRITICA: 0, ALTA: 0, MEDIA: 0, BAIXA: 0 } as Record<SeveridadeSst, number>;
   const porTipo: Record<string, number> = {};
   for (const p of todas) { porSeveridade[p.severidade]++; porTipo[p.tipo] = (porTipo[p.tipo] ?? 0) + 1; }
@@ -283,6 +329,7 @@ export async function conformidadeEmpresa(empresaId: string, hoje = new Date()) 
     colaboradores: porColaborador,
     obrigacoes,
     maquinas,
+    incidentes,
     pendencias: todas,
   };
 }

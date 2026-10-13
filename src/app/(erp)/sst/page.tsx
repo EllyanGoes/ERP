@@ -8,7 +8,7 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, ShieldCheck, Users, HardHat, Stethoscope, FileCheck2, RefreshCw, GraduationCap, Cog } from "lucide-react";
+import { Loader2, ShieldCheck, Users, HardHat, Stethoscope, FileCheck2, RefreshCw, GraduationCap, Cog, Siren, ClipboardCheck, Users2 } from "lucide-react";
 import { ListaPendencias, SEVERIDADE, fmtData, type Pendencia, type Severidade } from "@/components/sst/comum";
 
 type Painel = {
@@ -19,6 +19,7 @@ type Painel = {
   colaboradores: { id: string; nome: string; ativo: boolean; setor: string | null; funcao: string | null; semaforo: "OK" | "ATENCAO" | "CRITICO"; pendencias: Pendencia[] }[];
   obrigacoes: { id: string; nome: string; norma: string | null; situacao: string; documento: { id: string; titulo: string; validade: string | null } | null }[];
   maquinas: { total: number; conformes: number; emAdequacao: number; naoConformes: number; naoAvaliadas: number; interditadas: number };
+  incidentes: { ano: number; comAfastamento: number; diasPerdidos: number; abertos: number };
   pendencias: Pendencia[];
 };
 
@@ -28,6 +29,9 @@ const GRUPOS: { key: string; label: string; icon: typeof Users; tipos: string[];
   { key: "trein", label: "Treinamentos", icon: GraduationCap, tipos: ["TREINAMENTO_FALTANDO", "TREINAMENTO_VENCIDO", "TREINAMENTO_VENCE_EM_BREVE"], link: "/sst/treinamentos" },
   { key: "maq", label: "Máquinas (NR-12)", icon: Cog, tipos: ["MAQUINA_NAO_AVALIADA", "MAQUINA_NAO_CONFORME", "MAQUINA_INTERDITADA"], link: "/sst/maquinas" },
   { key: "obrig", label: "Obrigações (PGR, PCMSO…)", icon: FileCheck2, tipos: ["OBRIGACAO_INEXISTENTE", "OBRIGACAO_VENCIDA", "OBRIGACAO_VENCE_EM_BREVE"], link: "/sst/obrigacoes" },
+  { key: "inc", label: "Incidentes e CAT", icon: Siren, tipos: ["CAT_NAO_EMITIDA", "INCIDENTE_SEM_ACAO", "ACAO_ATRASADA"], link: "/sst/incidentes" },
+  { key: "insp", label: "Inspeções", icon: ClipboardCheck, tipos: ["INSPECAO_ATRASADA", "INSPECAO_VENCE_EM_BREVE"], link: "/sst/inspecoes" },
+  { key: "cipa", label: "CIPA", icon: Users2, tipos: ["CIPA_SEM_MANDATO", "CIPA_MANDATO_VENCENDO"], link: "/sst/cipa" },
   { key: "funcao", label: "Funções", icon: Users, tipos: ["SEM_FUNCAO"], link: "/sst/colaboradores" },
 ];
 
@@ -82,7 +86,7 @@ export default function SstPainelPage() {
             </div>
 
             {/* Por norma/grupo */}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
               {GRUPOS.map((g) => {
                 const n = g.tipos.reduce((acc, t) => acc + (p.porTipo[t] ?? 0), 0);
                 const criticas = p.pendencias.filter((x) => g.tipos.includes(x.tipo) && x.severidade === "CRITICA").length;
@@ -111,6 +115,18 @@ export default function SstPainelPage() {
                 </div>
               </div>
               <div className="space-y-6">
+              {/* Acidentes do ano */}
+              <div className="bg-card rounded-xl border border-border">
+                <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
+                  <h2 className="font-semibold text-sm text-foreground">Acidentes em {new Date().getFullYear()}</h2>
+                  <Link href="/sst/incidentes" className="text-xs text-info hover:underline">ocorrências</Link>
+                </div>
+                <div className="p-4 grid grid-cols-4 gap-2 text-center">
+                  {[["Ocorrências", p.incidentes.ano, "text-foreground"], ["C/ afastamento", p.incidentes.comAfastamento, "text-danger"], ["Dias perdidos", p.incidentes.diasPerdidos, "text-danger"], ["Em aberto", p.incidentes.abertos, "text-warning"]].map(([l, v, c]) => (
+                    <div key={String(l)}><div className={cn("text-xl font-semibold", String(c))}>{v}</div><div className="text-[11px] text-muted-foreground">{l}</div></div>
+                  ))}
+                </div>
+              </div>
               {/* Máquinas NR-12 */}
               <div className="bg-card rounded-xl border border-border">
                 <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">

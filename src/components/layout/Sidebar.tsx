@@ -47,6 +47,7 @@ import {
   Stethoscope,
   GraduationCap,
   Cog,
+  Siren,
   HelpCircle,
   User,
   ChevronRight,
@@ -418,6 +419,9 @@ const mainModules: Module[] = [
           { href: "/sst/obrigacoes", label: "Obrigações (PGR, PCMSO…)", icon: FileCheck2 },
           { href: "/sst/treinamentos", label: "Treinamentos", icon: GraduationCap },
           { href: "/sst/maquinas", label: "Máquinas (NR-12)", icon: Cog },
+          { href: "/sst/incidentes", label: "Incidentes e CAT", icon: Siren },
+          { href: "/sst/inspecoes", label: "Inspeções", icon: ClipboardCheck },
+          { href: "/sst/cipa", label: "CIPA", icon: Users2 },
         ],
       },
       {

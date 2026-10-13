@@ -275,6 +275,8 @@ model Colaborador {
   sstEpiEntregas             SstEpiEntrega[]
   sstAsos                    SstAso[]
   sstTreinamentos            SstTreinamentoParticipante[]
+  sstIncidentes              SstIncidente[]
+  sstCipa                    SstCipaMembro[]
   documentos                 Documento[]
 }
 
@@ -465,6 +467,7 @@ model DiariaItem {
 
 model Setor {
   sstMaquinas          SstMaquina[]
+  sstIncidentes        SstIncidente[]
   id                   String               @id @default(cuid())
   nome                 String
   descricao            String?
@@ -1599,6 +1602,9 @@ model Empresa {
   sstEpiEntregas                SstEpiEntrega[]
   sstTreinamentoTipos           SstTreinamentoTipo[]
   sstTreinamentos               SstTreinamento[]
+  sstIncidentes                 SstIncidente[]
+  sstInspecoes                  SstInspecao[]
+  sstCipaMandatos               SstCipaMandato[]
   sstMaquinas                   SstMaquina[]
   sstExameTipos                 SstExameTipo[]
   sstAsos                       SstAso[]
@@ -2782,6 +2788,8 @@ model UnidadeConversao {
 
 model Usuario {
   sstObrigacoesResponsavel SstObrigacao[]
+  sstAcoesResponsavel      SstAcaoCorretiva[]
+  sstInspecoesResponsavel  SstInspecao[]
   id                       String                @id @default(cuid())
   nome                     String
   email                    String                @unique
@@ -5302,6 +5310,8 @@ model SstMaquina {
   empresa                    Empresa              @relation(fields: [empresaId], references: [id])
   setor                      Setor?               @relation(fields: [setorId], references: [id])
   protecoes                  SstMaquinaProtecao[]
+  incidentes                 SstIncidente[]
+  inspecoes                  SstInspecao[]
 
   @@index([empresaId, status])
 }
@@ -5319,4 +5329,143 @@ model SstMaquinaProtecao {
   maquina              SstMaquina @relation(fields: [maquinaId], references: [id], onDelete: Cascade)
 
   @@index([maquinaId])
+}
+
+// ── SST fase 3: incidentes/CAT, ações corretivas, inspeções, CIPA ────────────
+enum SstTipoIncidente {
+  QUASE_ACIDENTE
+  ACIDENTE_SEM_AFASTAMENTO
+  ACIDENTE_COM_AFASTAMENTO
+  TRAJETO
+  DOENCA_OCUPACIONAL
+}
+
+enum SstStatusIncidente {
+  ABERTO
+  EM_INVESTIGACAO
+  ACAO_DEFINIDA
+  ENCERRADO
+}
+
+enum SstResultadoInspecao {
+  CONFORME
+  NAO_CONFORME
+}
+
+model SstIncidente {
+  id              String             @id @default(cuid())
+  empresaId       String
+  numero          String
+  tipo            SstTipoIncidente
+  data            DateTime
+  local           String?
+  setorId         String?
+  maquinaId       String?
+  colaboradorId   String?
+  descricao       String
+  parteCorpo      String?
+  agente          String?
+  diasAfastamento Int?
+  catNumero       String?
+  catEmitidaEm    DateTime?
+  catDocumentoId  String?
+  investigacao    String?
+  status          SstStatusIncidente @default(ABERTO)
+  evidencias      String[]           @default([])
+  criadoPor       String?
+  atualizadoPor   String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  empresa         Empresa            @relation(fields: [empresaId], references: [id])
+  setor           Setor?             @relation(fields: [setorId], references: [id])
+  maquina         SstMaquina?        @relation(fields: [maquinaId], references: [id])
+  colaborador     Colaborador?       @relation(fields: [colaboradorId], references: [id])
+  acoes           SstAcaoCorretiva[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, data])
+}
+
+model SstAcaoCorretiva {
+  id            String        @id @default(cuid())
+  incidenteId   String?
+  inspecaoId    String?
+  descricao     String
+  responsavelId String?
+  prazo         DateTime?
+  concluidaEm   DateTime?
+  tarefaId      String?
+  createdAt     DateTime      @default(now())
+  incidente     SstIncidente? @relation(fields: [incidenteId], references: [id], onDelete: Cascade)
+  inspecao      SstInspecao?  @relation(fields: [inspecaoId], references: [id], onDelete: Cascade)
+  responsavel   Usuario?      @relation(fields: [responsavelId], references: [id])
+
+  @@index([incidenteId])
+  @@index([inspecaoId])
+}
+
+// Inspeções periódicas (extintores, máquinas, instalações, checklists).
+model SstInspecao {
+  id            String               @id @default(cuid())
+  empresaId     String
+  tipo          String
+  maquinaId     String?
+  descricao     String
+  data          DateTime
+  proxima       DateTime?
+  resultado     SstResultadoInspecao @default(CONFORME)
+  itens         Json?
+  responsavelId String?
+  documentoId   String?
+  observacoes   String?
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  empresa       Empresa              @relation(fields: [empresaId], references: [id])
+  maquina       SstMaquina?          @relation(fields: [maquinaId], references: [id])
+  responsavel   Usuario?             @relation(fields: [responsavelId], references: [id])
+  acoes         SstAcaoCorretiva[]
+
+  @@index([empresaId, proxima])
+}
+
+model SstCipaMandato {
+  id                    String           @id @default(cuid())
+  empresaId             String
+  inicio                DateTime
+  fim                   DateTime
+  ataEleicaoDocumentoId String?
+  observacoes           String?
+  criadoPor             String?
+  atualizadoPor         String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  empresa               Empresa          @relation(fields: [empresaId], references: [id])
+  membros               SstCipaMembro[]
+  reunioes              SstCipaReuniao[]
+
+  @@index([empresaId, fim])
+}
+
+model SstCipaMembro {
+  mandatoId     String
+  colaboradorId String
+  papel         String
+  representa    String
+  mandato       SstCipaMandato @relation(fields: [mandatoId], references: [id], onDelete: Cascade)
+  colaborador   Colaborador    @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@id([mandatoId, colaboradorId])
+}
+
+model SstCipaReuniao {
+  id             String         @id @default(cuid())
+  mandatoId      String
+  data           DateTime
+  pauta          String?
+  ataDocumentoId String?
+  mandato        SstCipaMandato @relation(fields: [mandatoId], references: [id], onDelete: Cascade)
+
+  @@index([mandatoId, data])
 }
