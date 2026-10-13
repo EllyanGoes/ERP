@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2, ExternalLink } from "lucide-react";
-import { fmtData, useLookups } from "@/components/sst/comum";
+import { fmtData, useLookups, AcoesLinha } from "@/components/sst/comum";
 
 type Obrig = { id: string; nome: string; norma: string | null; periodicidadeMeses: number | null; observacoes: string | null; categoriaGed: { id: string; nome: string; slug: string }; responsavel: { id: string; nome: string } | null; documento: { id: string; titulo: string; validade: string | null; emissao: string | null } | null; situacao: "VIGENTE" | "VENCE_EM_BREVE" | "VENCIDA" | "INEXISTENTE" };
 const SIT: Record<Obrig["situacao"], { label: string; cls: string }> = {
@@ -71,7 +71,7 @@ export default function SstObrigacoesPage() {
                     <td className="px-3 py-2">{o.documento ? <Link href={`/documentos/${o.documento.id}`} className="text-info hover:underline inline-flex items-center gap-1">{o.documento.titulo} <ExternalLink className="w-3 h-3" /></Link> : <Link href={`/documentos?categoria=${o.categoriaGed.slug}`} className="text-xs text-info hover:underline">anexar no GED</Link>}</td>
                     <td className={cn("px-3 py-2", o.situacao === "VENCIDA" ? "text-danger font-medium" : "text-muted-foreground")}>{o.documento?.validade ? fmtData(o.documento.validade) : "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{o.responsavel?.nome ?? "—"}</td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap"><button onClick={() => abrir(o)} className="text-muted-foreground hover:text-foreground mr-2"><Pencil className="w-3.5 h-3.5" /></button><button onClick={() => setDel(o)} className="text-muted-foreground hover:text-danger"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap"><AcoesLinha acoes={[{ label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => abrir(o) }, { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDel(o), danger: true, separadorAntes: true }]} /></td>
                   </tr>
                 ))}
                 {lista.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma obrigação cadastrada. Sugestões abaixo.</td></tr>}

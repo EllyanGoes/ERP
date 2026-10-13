@@ -13,8 +13,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip } from "lucide-react";
-import { fmtData, useLookups, UploadAnexo, DocLink } from "@/components/sst/comum";
+import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power } from "lucide-react";
+import { fmtData, useLookups, UploadAnexo, DocLink, AcoesLinha } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 
 type Epi = { id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean; item: { id: string; codigo: string; descricao: string } | null; _count: { entregas: number; requisitos: number } };
@@ -96,9 +96,11 @@ export default function SstEpisPage() {
                     <td className="px-3 py-2 text-muted-foreground text-xs">{f.itens.map((i) => `${i.quantidade}× ${i.epi.nome}`).join(", ")}</td>
                     <td className="px-3 py-2">{f.documentoId ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-success font-medium">arquivado {fmtData(f.assinadaEm)}</span><DocLink id={f.documentoId} label="ver" /></span> : <span className="text-xs font-medium text-warning">aguardando assinatura</span>}</td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <Link href={`/sst/epis/fichas/${f.id}`} target="_blank" className="inline-flex text-muted-foreground hover:text-foreground mr-2" title="Imprimir termo"><Printer className="w-3.5 h-3.5" /></Link>
-                      {!f.documentoId && <button onClick={() => setAnexarFicha(f)} className="text-muted-foreground hover:text-foreground mr-2" title="Anexar termo assinado"><Paperclip className="w-3.5 h-3.5" /></button>}
-                      <button onClick={() => setDelFicha(f)} className="text-muted-foreground hover:text-danger" title="Desfazer ficha"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <AcoesLinha acoes={[
+                        { label: "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, href: `/sst/epis/fichas/${f.id}` },
+                        ...(!f.documentoId ? [{ label: "Anexar termo assinado", icon: <Paperclip className="w-4 h-4 mr-2" />, onClick: () => setAnexarFicha(f) }] : []),
+                        { label: "Desfazer ficha", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDelFicha(f), danger: true, separadorAntes: true },
+                      ]} />
                     </td>
                   </tr>
                 ))}
@@ -125,9 +127,11 @@ export default function SstEpisPage() {
                       <td className="px-3 py-2 text-right tabular-nums">{e._count.entregas}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{e._count.requisitos}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <button onClick={() => alternarAtivo(e)} className="text-xs text-muted-foreground hover:text-foreground mr-2">{e.ativo ? "inativar" : "ativar"}</button>
-                        <button onClick={() => abrir(e)} className="text-muted-foreground hover:text-foreground mr-2" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => setDel(e)} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <AcoesLinha acoes={[
+                          { label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => abrir(e) },
+                          { label: e.ativo ? "Inativar" : "Ativar", icon: <Power className="w-4 h-4 mr-2" />, onClick: () => alternarAtivo(e) },
+                          { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDel(e), danger: true, separadorAntes: true },
+                        ]} />
                       </td>
                     </tr>
                   );

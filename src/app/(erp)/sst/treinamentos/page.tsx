@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2, GraduationCap } from "lucide-react";
-import { SeveridadeBadge, UploadAnexo, DocLink, fmtData, hojeISO, type Pendencia } from "@/components/sst/comum";
+import { SeveridadeBadge, UploadAnexo, DocLink, fmtData, hojeISO, type Pendencia, AcoesLinha } from "@/components/sst/comum";
 
 type Tipo = { id: string; nome: string; norma: string | null; cargaHoraria: number | null; validadeMeses: number | null; ativo: boolean; _count: { requisitos: number; turmas: number } };
 type Turma = { id: string; data: string; instrutor: string | null; entidade: string | null; cargaHoraria: number | null; listaPresencaDocumentoId: string | null; tipo: { id: string; nome: string; norma: string | null; validadeMeses: number | null }; participantes: { colaboradorId: string; validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; colaborador: { id: string; nome: string } }[] };
@@ -134,7 +134,7 @@ export default function SstTreinamentosPage() {
                     <td className="px-4 py-2 text-foreground">{t.nome}</td><td className="px-3 py-2 text-muted-foreground">{t.norma ?? "—"}</td>
                     <td className="px-3 py-2 text-right text-muted-foreground">{t.cargaHoraria ? `${t.cargaHoraria}h` : "—"}</td><td className="px-3 py-2 text-right text-muted-foreground">{t.validadeMeses ? `${t.validadeMeses} m` : "não vence"}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{t._count.requisitos}</td><td className="px-3 py-2 text-right tabular-nums">{t._count.turmas}</td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap"><button onClick={() => abrirTipo(t)} className="text-muted-foreground hover:text-foreground mr-2"><Pencil className="w-3.5 h-3.5" /></button><button onClick={() => setDelTipo(t)} className="text-muted-foreground hover:text-danger"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap"><AcoesLinha acoes={[{ label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => abrirTipo(t) }, { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDelTipo(t), danger: true, separadorAntes: true }]} /></td>
                   </tr>
                 ))}
                 {tipos.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum tipo. Ex.: NR-12 Operação segura de máquinas (8h, 24 m), NR-35 Trabalho em altura (8h, 24 m), NR-10 Básico (40h, 24 m).</td></tr>}

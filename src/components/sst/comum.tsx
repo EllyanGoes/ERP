@@ -2,9 +2,10 @@
 
 // Peças compartilhadas do módulo SST: semáforo, severidade, upload de anexo
 // (vira Documento no GED), formatação e lookups dos formulários.
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Paperclip, Loader2, FileText, X } from "lucide-react";
+import { Paperclip, Loader2, FileText, X, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 export type Severidade = "CRITICA" | "ALTA" | "MEDIA" | "BAIXA";
@@ -152,4 +153,28 @@ export function UploadAnexo({ tipo, titulo, colaboradorId, validade, value, onCh
 export function DocLink({ id, label = "Ver anexo" }: { id?: string | null; label?: string }) {
   if (!id) return <span className="text-xs text-muted-foreground/60">sem anexo</span>;
   return <Link href={`/documentos/${id}`} className="inline-flex items-center gap-1 text-xs text-info hover:underline"><FileText className="w-3 h-3" />{label}</Link>;
+}
+
+/** Menu de ações da linha (3 pontinhos): [{ label, icon?, onClick, danger?, href? }]. */
+export type AcaoLinha = { label: string; icon?: React.ReactNode; onClick?: () => void; href?: string; danger?: boolean; separadorAntes?: boolean };
+export function AcoesLinha({ acoes, title = "Ações" }: { acoes: AcaoLinha[]; title?: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<button type="button" className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title={title} />}>
+        <MoreHorizontal className="w-4 h-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        {acoes.map((a, i) => (
+          <Fragment key={i}>
+            {a.separadorAntes && <DropdownMenuSeparator />}
+            {a.href ? (
+              <DropdownMenuItem render={<Link href={a.href} target="_blank" />} variant={a.danger ? "destructive" : "default"}>{a.icon}{a.label}</DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={a.onClick} variant={a.danger ? "destructive" : "default"}>{a.icon}{a.label}</DropdownMenuItem>
+            )}
+          </Fragment>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }

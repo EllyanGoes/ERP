@@ -6,6 +6,7 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
+import { AcoesLinha } from "@/components/sst/comum";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Pencil, Trash2, X, Search } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, X, Search, Copy, Power } from "lucide-react";
 
 type TreinTipo = { id: string; nome: string; norma: string | null; ativo: boolean };
 type Funcao = { id: string; nome: string; cbo: string | null; grauRisco: number | null; ativo: boolean; requisitosTreinamento: { treinamentoTipoId: string; treinamentoTipo: { id: string; nome: string } }[]; requisitosEpi: { epiId: string; obrigatorio: boolean; quantidade: number; epi: { id: string; nome: string; ca: string | null } }[]; requisitosExame: { exameTipoId: string; periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; _count: { colaboradores: number } };
@@ -42,7 +43,20 @@ export default function SstConfigPage() {
   const [rExames, setRExames] = useState<{ exameTipoId: string; periodicidadeMeses: number }[]>([]);
   const [addEpi, setAddEpi] = useState(""); const [addExame, setAddExame] = useState("");
   const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
+  const [copiarDe, setCopiarDe] = useState("");
+  /** Copia EPIs/exames/treinamentos/grau de risco de outra função p/ o formulário. */
+  function copiarRequisitos(id: string) {
+    setCopiarDe(id);
+    const f = funcoes.find((x) => x.id === id); if (!f) return;
+    setGrau(f.grauRisco ? String(f.grauRisco) : "");
+    setREpis(f.requisitosEpi.map((r) => ({ epiId: r.epiId, obrigatorio: r.obrigatorio, quantidade: r.quantidade })));
+    setRExames(f.requisitosExame.map((r) => ({ exameTipoId: r.exameTipoId, periodicidadeMeses: r.periodicidadeMeses })));
+    setRTreinos(f.requisitosTreinamento.map((r) => r.treinamentoTipoId));
+  }
+  /** Nova função a partir de outra (nome "Cópia de …", mesmos requisitos). */
+  function duplicar(f: Funcao) { abrir(); copiarRequisitos(f.id); setNome(`${f.nome} (cópia)`); setCbo(f.cbo ?? ""); }
   function abrir(f?: Funcao) {
+    setCopiarDe("");
     setEditId(f?.id ?? null); setNome(f?.nome ?? ""); setCbo(f?.cbo ?? ""); setGrau(f?.grauRisco ? String(f.grauRisco) : "");
     setREpis(f?.requisitosEpi.map((r) => ({ epiId: r.epiId, obrigatorio: r.obrigatorio, quantidade: r.quantidade })) ?? []);
     setRExames(f?.requisitosExame.map((r) => ({ exameTipoId: r.exameTipoId, periodicidadeMeses: r.periodicidadeMeses })) ?? []);
@@ -118,9 +132,12 @@ export default function SstConfigPage() {
                       <td className="px-3 py-2">{f.requisitosTreinamento.length === 0 ? <span className="text-xs text-muted-foreground italic">nenhum</span> : <div className="flex flex-wrap gap-1">{f.requisitosTreinamento.map((r) => <span key={r.treinamentoTipoId} className="text-[11px] px-1.5 py-0.5 rounded-full border border-border text-foreground">{r.treinamentoTipo.nome.replace(/^(NR-\d+)\s.*$/, "$1")}</span>)}</div>}</td>
                       <td className="px-3 py-2 text-right tabular-nums"><Link href={`/sst/colaboradores?funcao=${f.id}`} className={cn("font-medium hover:underline", f._count.colaboradores > 0 ? "text-foreground" : "text-muted-foreground")}>{f._count.colaboradores}</Link></td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <button onClick={() => alternarAtivo(f)} className="text-xs text-muted-foreground hover:text-foreground mr-2">{f.ativo ? "inativar" : "ativar"}</button>
-                        <button onClick={() => abrir(f)} className="text-muted-foreground hover:text-foreground mr-2" title="Editar"><Pencil className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => setDel(f)} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <AcoesLinha acoes={[
+                          { label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => abrir(f) },
+                          { label: "Duplicar", icon: <Copy className="w-4 h-4 mr-2" />, onClick: () => duplicar(f) },
+                          { label: f.ativo ? "Inativar" : "Ativar", icon: <Power className="w-4 h-4 mr-2" />, onClick: () => alternarAtivo(f) },
+                          { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDel(f), danger: true, separadorAntes: true },
+                        ]} />
                       </td>
                     </tr>
                   );
@@ -136,6 +153,13 @@ export default function SstConfigPage() {
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader><DialogTitle>{editId ? "Editar função" : "Nova função SST"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            {!editId && funcoes.length > 0 && (
+              <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 flex items-center gap-3">
+                <Copy className="w-4 h-4 text-muted-foreground shrink-0" />
+                <div className="flex-1"><Label className="text-xs">Copiar requisitos de outra função</Label><p className="text-[11px] text-muted-foreground">Traz EPIs, exames, treinamentos e grau de risco — depois é só ajustar.</p></div>
+                <SelectMenu value={copiarDe} onChange={copiarRequisitos} className="w-72" placeholder="Escolher função…" options={[...funcoes].sort((x, y) => x.nome.localeCompare(y.nome)).map((x) => ({ value: x.id, label: x.nome }))} />
+              </div>
+            )}
             <div className="grid grid-cols-4 gap-3">
               <div className="col-span-2"><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Operador de máquinas" /></div>
               <div><Label>CBO</Label><Input value={cbo} onChange={(e) => setCbo(e.target.value)} /></div>

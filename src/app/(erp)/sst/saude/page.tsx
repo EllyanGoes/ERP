@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
-import { SeveridadeBadge, fmtData, type Pendencia } from "@/components/sst/comum";
+import { SeveridadeBadge, fmtData, type Pendencia, AcoesLinha } from "@/components/sst/comum";
 
 type Colab = { id: string; nome: string; ativo: boolean; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
 type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; _count: { requisitos: number; asoExames: number } };
@@ -89,8 +89,7 @@ export default function SstSaudePage() {
               <li key={t.id} className={cn("px-4 py-2 flex items-center gap-2 text-sm", !t.ativo && "opacity-50")}>
                 <span className="flex-1 text-foreground">{t.nome}</span>
                 <span className="text-xs text-muted-foreground">{t.periodicidadeMeses ? `${t.periodicidadeMeses} m` : ""}</span>
-                <button onClick={() => abrir(t)} className="text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                <button onClick={() => setDel(t)} className="text-muted-foreground hover:text-danger"><Trash2 className="w-3.5 h-3.5" /></button>
+                <AcoesLinha acoes={[{ label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => abrir(t) }, { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDel(t), danger: true, separadorAntes: true }]} />
               </li>
             ))}
             {tipos.length === 0 && <li className="px-4 py-4 text-sm text-muted-foreground italic">Nenhum tipo. Ex.: Clínico, Audiometria, Espirometria, Hemograma, Raio-X de tórax.</li>}
