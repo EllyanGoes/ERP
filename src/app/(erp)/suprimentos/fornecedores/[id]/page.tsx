@@ -22,6 +22,7 @@ function maskCpfCnpj(value: string, tipo: string): string {
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import DocumentosDaEntidade from "@/components/documentos/DocumentosDaEntidade";
+import ContratosDaEntidade from "@/components/contratos/ContratosDaEntidade";
 import EscClose from "@/components/shared/EscClose";
 import { Autoria } from "@/components/shared/Autoria";
 import { lookupParceiro, type ParceiroLookup } from "@/lib/parceiro-lookup";
@@ -173,7 +174,7 @@ const CONTA_STATUS_COLOR: Record<string, string> = {
   PARCIAL:   "bg-warning/15 text-warning",
 };
 
-type PageTab = "dados" | "produtos" | "pedidos" | "contatos" | "documentos" | "contas" | "arquivos";
+type PageTab = "dados" | "produtos" | "pedidos" | "contatos" | "documentos" | "contas" | "arquivos" | "contratos";
 
 type ProdutoItem = { id: string; codigo: string; descricao: string };
 
@@ -431,6 +432,7 @@ export default function FornecedorDetailPage() {
     { key: "documentos", label: "Documentos de Entrada", count: fornecedor.documentosEntrada?.length ?? 0 },
     { key: "contas",    label: "Contas a Pagar", count: fornecedor.contasPagar?.length ?? 0 },
     { key: "arquivos",  label: "Documentos (GED)" },
+    { key: "contratos", label: "Contratos" },
   ];
 
   return (
@@ -1232,6 +1234,10 @@ export default function FornecedorDetailPage() {
         {/* ── Contas a Pagar ────────────────────────────────────────────── */}
         {activeTab === "arquivos" && (
           <DocumentosDaEntidade tipo="fornecedor" id={fornecedor.id} />
+        )}
+
+        {activeTab === "contratos" && (
+          <ContratosDaEntidade id={fornecedor.id} />
         )}
 
         {activeTab === "contas" && (

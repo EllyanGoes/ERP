@@ -242,6 +242,17 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "contratos",
+    label: "Contratos",
+    group: "Documentos",
+    recursos: [
+      { key: "painel",        label: "Painel de contratos",        acoes: ["ver"] },
+      { key: "lista",         label: "Contratos (cadastro)",       acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "aditivos",      label: "Aditivos e ações",           acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "alertas",       label: "Receber alertas",            acoes: ["ver"] },
+    ],
+  },
+  {
     key: "documentos",
     label: "Documentos",
     group: "Documentos",

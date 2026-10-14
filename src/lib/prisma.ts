@@ -74,6 +74,8 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "SstFuncao", "SstEpi", "SstEpiEntrega", "SstEpiFicha", "SstExameTipo", "SstAso", "SstObrigacao",
   "SstTreinamentoTipo", "SstTreinamento", "SstMaquina",
   "SstIncidente", "SstInspecao", "SstCipaMandato", "SstHorasMes", "SstConformidadeSnapshot",
+  // Contratos — docs/contratos-prd.md (aditivos/eventos escopam via pai)
+  "Contrato",
 ])
 
 // Mapas montados uma vez a partir do dmmf:

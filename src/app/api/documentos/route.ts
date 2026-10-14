@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const entidade = sp.get("entidade"); // "fornecedor:<id>" | "cliente:" | "colaborador:" | "imobilizado:"
   if (entidade) {
     const [tipo, id] = entidade.split(":");
-    const campo = { fornecedor: "fornecedorId", cliente: "clienteId", colaborador: "colaboradorId", imobilizado: "imobilizadoId" }[tipo];
+    const campo = { fornecedor: "fornecedorId", cliente: "clienteId", colaborador: "colaboradorId", imobilizado: "imobilizadoId", contrato: "contratoId" }[tipo];
     if (campo && id) where[campo] = id;
   }
   const busca = sp.get("busca")?.trim();
@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
       clienteId: str("clienteId"),
       colaboradorId: str("colaboradorId"),
       imobilizadoId: str("imobilizadoId"),
+      contratoId: str("contratoId"),
       tags: String(form.get("tags") ?? "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean),
     },
     select: { id: true, empresaId: true },

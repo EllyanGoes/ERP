@@ -124,6 +124,8 @@ model CentroCusto {
   criadoPor              String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor          String? // autoria: última edição manual (proxy de sessão)
 
+  contratos Contrato[]
+
   @@unique([empresaId, codigo])
   @@index([grupoCentroCustoId])
   @@index([empresaId])
@@ -220,6 +222,8 @@ model Cliente {
   criadoPor              String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor          String? // autoria: última edição manual (proxy de sessão)
   documentos             Documento[]
+
+  contratos Contrato[]
 
   @@index([cpfCnpj])
   @@index([status])
@@ -1201,6 +1205,8 @@ model NaturezaFinanceira {
   criadoPor            String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor        String? // autoria: última edição manual (proxy de sessão)
 
+  contratos Contrato[]
+
   @@unique([empresaId, sistemaChave])
   @@unique([empresaId, codigo])
   @@index([empresaId])
@@ -1702,6 +1708,7 @@ model Empresa {
   leadsMarketing                Lead[]
   lancamentosMetrica            LancamentoManualMetrica[]
   empresaDrive                  EmpresaDrive?
+  contratos                     Contrato[]
 }
 
 model EnderecoEstoque {
@@ -1833,6 +1840,7 @@ model Fornecedor {
   criadoPor           String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor       String? // autoria: última edição manual (proxy de sessão)
   documentos          Documento[]
+  contratos           Contrato[]
 }
 
 model FornecedorContato {
@@ -2832,6 +2840,7 @@ model Usuario {
   documentosResp           Documento[]           @relation("DocumentoResponsavel")
   documentosAcesso         DocumentoAcesso[]
   documentosLog            DocumentoLog[]
+  contratosResponsavel     Contrato[]            @relation("ContratoResponsavel")
 }
 
 // Sessão/dispositivo logado de um usuário. id = jti embutido no JWT. Permite
@@ -4894,6 +4903,9 @@ model Documento {
   acessos         DocumentoAcesso[]
   logs            DocumentoLog[]
 
+  contratoId String?
+  contrato   Contrato? @relation(fields: [contratoId], references: [id])
+
   @@index([empresaId, categoriaId])
   @@index([validade])
   @@index([fornecedorId])
@@ -5530,4 +5542,201 @@ model SstConformidadeSnapshot {
   empresa   Empresa  @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, data])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contratos — docs/contratos-prd.md. Contrato = documento assinado (GED) +
+// vigência/renovação/reajuste + obrigações financeiras. Aditivo = versão de
+// termos com data de efeito; os termos vigentes numa data são resolvidos por
+// termosVigentes() em src/lib/contratos.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+enum TipoContrato {
+  FORNECIMENTO
+  SERVICO
+  LOCACAO
+  SOFTWARE_ASSINATURA
+  SEGURO
+  PLANO_SAUDE
+  TRANSPORTE
+  OBRA
+  VENDA_RECORRENTE
+  VENDA_A_ORDEM
+  TERCEIRIZACAO
+  OUTRO
+}
+
+enum LadoContrato {
+  DESPESA
+  RECEITA
+}
+
+enum StatusContrato {
+  MINUTA
+  EM_APROVACAO
+  VIGENTE
+  EM_RENOVACAO
+  SUSPENSO
+  ENCERRADO
+  RESCINDIDO
+}
+
+enum TipoRenovacao {
+  NENHUMA
+  AUTOMATICA
+  MANUAL
+}
+
+enum ModalidadeValorContrato {
+  FIXO_MENSAL
+  FIXO_UNICO
+  POR_MEDICAO
+  POR_CONSUMO
+  ESTIMADO
+}
+
+enum PeriodicidadeContrato {
+  MENSAL
+  BIMESTRAL
+  TRIMESTRAL
+  SEMESTRAL
+  ANUAL
+}
+
+enum TipoReajuste {
+  NENHUM
+  INDICE
+  PERCENTUAL
+  NEGOCIADO
+}
+
+enum IndiceReajuste {
+  IPCA
+  IGPM
+  INPC
+  SELIC
+  OUTRO
+}
+
+enum TipoAditivo {
+  PRAZO
+  VALOR
+  OBJETO
+  REAJUSTE
+  OUTRO
+}
+
+enum TipoEventoContrato {
+  CRIADO
+  APROVADO
+  ASSINADO
+  ATIVADO
+  ADITIVO
+  REAJUSTE_PROJETADO
+  REAJUSTE_APLICADO
+  JANELA_AVISO_PREVIO
+  FIM_VIGENCIA
+  RENOVADO
+  ENCERRADO
+  RESCINDIDO
+  SUSPENSO
+  REATIVADO
+  ALERTA_ENVIADO
+  OBSERVACAO
+}
+
+model Contrato {
+  id                   String                  @id @default(cuid())
+  empresaId            String
+  numero               String
+  titulo               String
+  tipo                 TipoContrato
+  lado                 LadoContrato            @default(DESPESA)
+  fornecedorId         String?
+  clienteId            String?
+  responsavelId        String
+  centroCustoId        String?
+  naturezaFinanceiraId String?
+  objeto               String?
+  status               StatusContrato          @default(MINUTA)
+  inicio               DateTime
+  fim                  DateTime?
+  renovacao            TipoRenovacao           @default(NENHUMA)
+  renovacaoMeses       Int?
+  avisoPrevioDias      Int?
+  modalidade           ModalidadeValorContrato @default(FIXO_MENSAL)
+  valor                Decimal?                @db.Decimal(15, 2)
+  valorTotalEstimado   Decimal?                @db.Decimal(15, 2)
+  periodicidade        PeriodicidadeContrato?
+  diaVencimento        Int?
+  primeiroVencimento   DateTime?
+  reajusteTipo         TipoReajuste            @default(NENHUM)
+  reajusteIndice       IndiceReajuste?
+  reajustePercentual   Decimal?                @db.Decimal(7, 4)
+  reajusteMesBase      Int?
+  reajusteProximo      DateTime?
+  multaRescisoria      String?
+  garantia             String?
+  documentoId          String?
+  assinadoEm           DateTime?
+  observacoes          String?
+  tags                 String[]                @default([])
+  encerradoEm          DateTime?
+  motivoEncerramento   String?
+  criadoPor            String?
+  atualizadoPor        String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  empresa              Empresa                 @relation(fields: [empresaId], references: [id])
+  fornecedor           Fornecedor?             @relation(fields: [fornecedorId], references: [id])
+  cliente              Cliente?                @relation(fields: [clienteId], references: [id])
+  responsavel          Usuario                 @relation("ContratoResponsavel", fields: [responsavelId], references: [id])
+  centroCusto          CentroCusto?            @relation(fields: [centroCustoId], references: [id])
+  naturezaFinanceira   NaturezaFinanceira?     @relation(fields: [naturezaFinanceiraId], references: [id])
+  aditivos             ContratoAditivo[]
+  eventos              ContratoEvento[]
+  documentos           Documento[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, status, fim])
+  @@index([fornecedorId])
+  @@index([clienteId])
+  @@index([responsavelId])
+}
+
+model ContratoAditivo {
+  id                     String                 @id @default(cuid())
+  contratoId             String
+  numero                 Int
+  tipo                   TipoAditivo
+  efeitoEm               DateTime
+  descricao              String
+  novoFim                DateTime?
+  novoValor              Decimal?               @db.Decimal(15, 2)
+  novaPeriodicidade      PeriodicidadeContrato?
+  novoReajusteTipo       TipoReajuste?
+  novoReajusteIndice     IndiceReajuste?
+  novoReajustePercentual Decimal?               @db.Decimal(7, 4)
+  documentoId            String?
+  assinadoEm             DateTime?
+  aplicadoEm             DateTime?
+  criadoPor              String?
+  createdAt              DateTime               @default(now())
+  contrato               Contrato               @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@unique([contratoId, numero])
+}
+
+model ContratoEvento {
+  id         String             @id @default(cuid())
+  contratoId String
+  tipo       TipoEventoContrato
+  data       DateTime
+  descricao  String
+  dados      Json?
+  projetado  Boolean            @default(false)
+  usuarioId  String?
+  createdAt  DateTime           @default(now())
+  contrato   Contrato           @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@index([contratoId, data])
 }

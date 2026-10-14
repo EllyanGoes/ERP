@@ -17,6 +17,7 @@ import {
   BarChart3,
   FileBarChart2,
   FileText,
+  FileSignature,
   Building2,
   Truck,
   ClipboardList,
@@ -435,6 +436,20 @@ const mainModules: Module[] = [
         kind: "Configurações",
         items: [
           { href: "/sst/configuracoes", label: "Funções e requisitos", icon: Settings2 },
+        ],
+      },
+    ],
+  },
+  {
+    id: "contratos",
+    label: "Contratos",
+    icon: FileSignature,
+    sections: [
+      {
+        kind: "Geral",
+        items: [
+          { href: "/contratos", label: "Painel", icon: LayoutDashboard, exact: true },
+          { href: "/contratos/lista", label: "Contratos", icon: FileSignature },
         ],
       },
     ],

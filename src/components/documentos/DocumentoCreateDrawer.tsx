@@ -22,7 +22,7 @@ export default function DocumentoCreateDrawer({
 }: {
   onFechar: () => void;
   onCriado: (id: string) => void;
-  vinculo?: { tipo: "fornecedor" | "cliente" | "colaborador" | "imobilizado"; id: string };
+  vinculo?: { tipo: "fornecedor" | "cliente" | "colaborador" | "imobilizado" | "contrato"; id: string };
 }) {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [lookups, setLookups] = useState<Lookups | null>(null);
@@ -168,7 +168,8 @@ export default function DocumentoCreateDrawer({
             </div>
           </div>
 
-          {/* Vínculo */}
+          {/* Vínculo (contrato: fixo, vem da página do contrato) */}
+          {vinculo?.tipo === "contrato" ? <p className="text-xs text-muted-foreground">Vinculado ao contrato desta página.</p> : (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Vincular a</Label>
@@ -200,6 +201,7 @@ export default function DocumentoCreateDrawer({
               </div>
             )}
           </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Descrição</Label>

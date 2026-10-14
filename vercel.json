@@ -51,6 +51,10 @@
     {
       "path": "/api/cron/sst-vencimentos",
       "schedule": "30 10 * * 1-5"
+    },
+    {
+      "path": "/api/cron/contratos-vencimentos",
+      "schedule": "45 10 * * 1-5"
     }
   ],
   "functions": {
