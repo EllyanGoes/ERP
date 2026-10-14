@@ -21,6 +21,7 @@ export async function GET() {
       pendencias: pend,
       nEpi: pend.filter((p) => p.tipo.startsWith("EPI")).length,
       nAso: pend.filter((p) => p.tipo.startsWith("ASO") || p.tipo === "EXAME_PENDENTE").length,
+      nTreino: pend.filter((p) => p.tipo.startsWith("TREINAMENTO")).length,
     };
   });
   return NextResponse.json({ data });
