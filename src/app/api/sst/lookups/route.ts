@@ -17,5 +17,10 @@ export async function GET() {
     prismaSemEscopo.projeto.findMany({ where: { status: "ATIVO", OR: [{ donoId: auth.session.sub }, { membros: { some: { usuarioId: auth.session.sub } } }] }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     prisma.sstMaquina.findMany({ where: { status: { not: "DESATIVADA" } }, orderBy: { nome: "asc" }, select: { id: true, nome: true, local: true } }),
   ]);
-  return NextResponse.json({ data: { locais, categorias, usuarios, itens, setores, projetos, maquinas } });
+  // Saldo físico próprio da empresa ativa por item (somado entre locais) — o
+  // seletor de item do EPI mostra quanto há em estoque.
+  const saldos = await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { clienteDonoId: null }, _sum: { quantidadeAtual: true } });
+  const porItem = new Map(saldos.map((x) => [x.itemId, Number(x._sum.quantidadeAtual ?? 0)]));
+  const itensComSaldo = itens.map((i) => ({ ...i, saldo: porItem.get(i.id) ?? 0 }));
+  return NextResponse.json({ data: { locais, categorias, usuarios, itens: itensComSaldo, setores, projetos, maquinas } });
 }

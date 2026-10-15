@@ -100,7 +100,7 @@ export function ListaPendencias({ itens, mostrarColaborador = false, vazio = "Ne
 }
 
 /** Lookups dos formulários (locais, categorias GED, usuários, itens). */
-export type Lookups = { locais: { id: string; nome: string }[]; categorias: { id: string; nome: string; slug: string }[]; usuarios: { id: string; nome: string }[]; itens: { id: string; codigo: string; descricao: string }[]; setores: { id: string; nome: string }[]; projetos: { id: string; nome: string }[]; maquinas: { id: string; nome: string; local: string | null }[] };
+export type Lookups = { locais: { id: string; nome: string }[]; categorias: { id: string; nome: string; slug: string }[]; usuarios: { id: string; nome: string }[]; itens: { id: string; codigo: string; descricao: string; saldo?: number }[]; setores: { id: string; nome: string }[]; projetos: { id: string; nome: string }[]; maquinas: { id: string; nome: string; local: string | null }[] };
 export function useLookups() {
   const [lk, setLk] = useState<Lookups>({ locais: [], categorias: [], usuarios: [], itens: [], setores: [], projetos: [], maquinas: [] });
   useEffect(() => { fetch("/api/sst/lookups").then((r) => r.json()).then((j) => j.data && setLk(j.data)).catch(() => {}); }, []);

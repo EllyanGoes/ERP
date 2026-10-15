@@ -158,7 +158,7 @@ export default function SstEpisPage() {
             </div>
             <div><Label>Fabricante</Label><Input value={fab} onChange={(e) => setFab(e.target.value)} /></div>
             <div><Label>Item do almoxarifado (opcional)</Label>
-              <ComboboxWithCreate value={itemId} onChange={setItemId} allowNone noneLabel="Sem vínculo com estoque" placeholder="Buscar item…" options={lk.itens.map((i) => ({ value: i.id, label: i.descricao, code: i.codigo }))} />
+              <ComboboxWithCreate value={itemId} onChange={setItemId} allowNone noneLabel="Sem vínculo com estoque" placeholder="Buscar item…" options={lk.itens.map((i) => ({ value: i.id, label: i.descricao, code: i.codigo, saldo: i.saldo }))} />
               <p className="text-[11px] text-muted-foreground mt-0.5">Com item vinculado, a entrega pode dar saída de estoque.</p></div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
