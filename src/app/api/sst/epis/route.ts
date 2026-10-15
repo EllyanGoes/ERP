@@ -1,27 +1,35 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prisma, EMPRESA_PADRAO_ID } from "@/lib/prisma";
+import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
+import { salvarTamanhosEpi } from "@/lib/sst-epi";
 
-// GET /api/sst/epis — EPIs da empresa ativa (com item de estoque, saldo físico
-// próprio somado entre locais e nº de entregas vigentes).
+// GET /api/sst/epis — EPIs da empresa ativa com os tamanhos (item de estoque +
+// saldo físico próprio somado entre locais) e nº de entregas/funções.
 export async function GET() {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
   const epis = await prisma.sstEpi.findMany({
     orderBy: { nome: "asc" },
-    include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } }, _count: { select: { entregas: true, requisitos: true } } },
+    include: {
+      item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } },
+      itens: { orderBy: [{ ordem: "asc" }, { tamanho: "asc" }], select: { itemId: true, tamanho: true, item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } } },
+      _count: { select: { entregas: true, requisitos: true } },
+    },
   });
-  const itemIds = Array.from(new Set(epis.map((e) => e.itemId).filter((x): x is string => !!x)));
+  const itemIds = Array.from(new Set(epis.flatMap((e) => e.itens.map((i) => i.itemId))));
   const saldos = itemIds.length
     ? await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: itemIds }, clienteDonoId: null }, _sum: { quantidadeAtual: true } })
     : [];
   const porItem = new Map(saldos.map((s) => [s.itemId, Number(s._sum.quantidadeAtual ?? 0)]));
-  const data = epis.map((e) => ({ ...e, saldoEstoque: e.itemId ? porItem.get(e.itemId) ?? 0 : null }));
+  const data = epis.map((e) => {
+    const itens = e.itens.map((i) => ({ ...i, saldo: porItem.get(i.itemId) ?? 0 }));
+    return { ...e, itens, saldoEstoque: itens.length ? itens.reduce((s, i) => s + i.saldo, 0) : null };
+  });
   return NextResponse.json({ data });
 }
 
-// POST /api/sst/epis { nome, ca?, caValidade?, vidaUtilDias?, fabricante?, itemId? }
+// POST /api/sst/epis { nome, ca?, caValidade?, vidaUtilDias?, fabricante?, itens?: [{ itemId, tamanho }] | itemId? }
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
@@ -33,8 +41,9 @@ export async function POST(req: NextRequest) {
       empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID,
       nome, ca: b.ca?.trim() || null, caValidade: b.caValidade ? new Date(b.caValidade) : null,
       vidaUtilDias: b.vidaUtilDias ? Number(b.vidaUtilDias) : null, fabricante: b.fabricante?.trim() || null,
-      itemId: b.itemId || null,
     },
   });
+  const linhas = Array.isArray(b.itens) ? b.itens : b.itemId ? [{ itemId: b.itemId }] : [];
+  if (linhas.length) await prismaSemEscopo.$transaction((tx) => salvarTamanhosEpi(tx, epi.id, linhas));
   return NextResponse.json({ data: epi }, { status: 201 });
 }

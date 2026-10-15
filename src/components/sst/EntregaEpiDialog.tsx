@@ -19,14 +19,25 @@ import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Printer, User, Users } from "lucide-react";
 import { fmtData, hojeISO, UploadAnexo, TIPO_ENTREGA, type Lookups } from "@/components/sst/comum";
 
-export type EpiOpt = { id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean };
+export type EpiOpt = {
+  id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean;
+  /** Tamanhos (um item de estoque cada). Com 2+ a entrega exige escolher o tamanho. */
+  itens?: { itemId: string; tamanho: string | null; saldo?: number }[];
+};
+const temEstoque = (e: EpiOpt) => !!e.itemId || (e.itens?.length ?? 0) > 0;
+const grade = (e?: EpiOpt | null) => (e?.itens ?? []).filter((i) => i.tamanho);
+// Botão mostra só o tamanho; a lista mostra também o saldo de cada um.
+const opcoesTamanho = (e: EpiOpt) => grade(e).map((i) => ({
+  value: i.tamanho!, label: i.tamanho!,
+  render: () => <span>{i.tamanho}{i.saldo !== undefined && <span className={cn("ml-1.5 text-xs", i.saldo <= 0 ? "text-danger" : "text-muted-foreground")}>{i.saldo.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} em estoque</span>}</span>,
+}));
 export type ColabOpt = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null };
 type FichaCriada = { id: string; numero: number; colaborador: { id: string; nome: string }; itens: { id: string }[] };
 
-type Linha = { sel: boolean; qtd: string; tipo: string; motivo: string; local: string };
+type Linha = { sel: boolean; qtd: string; tipo: string; motivo: string; local: string; tamanho: string };
 type DetalheColab = {
   episStatus: { epi: { id: string }; obrigatorio: boolean; quantidade: number; entregaVigente: { data: string; vencimentoUso: string | null } | null }[];
-  sstEpiEntregas: { epiId: string; tipo: string; data: string; vencimentoUso: string | null }[];
+  sstEpiEntregas: { epiId: string; tipo: string; data: string; vencimentoUso: string | null; tamanho?: string | null }[];
 };
 
 export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk, colaboradorFixo, epiInicialId, onSaved }: {
@@ -56,7 +67,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
     if (!open) return;
     setErro(""); setFicha(null); setDocAssinado(null); setObs(""); setData(hojeISO());
     setColabId(colaboradorFixo?.id ?? ""); setDetalhe(null); setLinhas({});
-    setLEpiId(""); setLSel({}); setLMotivo(""); setLPrecisa([]);
+    setLEpiId(""); setLSel({}); setLMotivo(""); setLPrecisa([]); setLTam({});
     if (colaboradorFixo) setModo("colaborador");
   }, [open, colaboradorFixo]);
 
@@ -71,7 +82,10 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
         const req = d?.episStatus.find((s) => s.epi.id === e.id);
         const vig = vigente(d, e.id);
         const vencido = vig?.vencimentoUso ? new Date(vig.vencimentoUso).getTime() < Date.now() : false;
-        ini[e.id] = { sel: (!!req && (!vig || vencido)) || e.id === epiInicialId, qtd: String(req?.quantidade ?? 1), tipo: vig ? "TROCA" : "ENTREGA", motivo: "", local: "" };
+        // Tamanho: o da última entrega desse EPI p/ o colaborador (se ainda existir na grade).
+        const ultTam = d?.sstEpiEntregas.filter((x) => x.epiId === e.id && x.tamanho).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())[0]?.tamanho ?? "";
+        const tamanho = grade(e).some((i) => i.tamanho === ultTam) ? ultTam : grade(e).length === 1 ? grade(e)[0].tamanho! : "";
+        ini[e.id] = { sel: (!!req && (!vig || vencido)) || e.id === epiInicialId, qtd: String(req?.quantidade ?? 1), tipo: vig ? "TROCA" : "ENTREGA", motivo: "", local: "", tamanho };
       }
       setLinhas(ini);
     }).catch(() => {});
@@ -102,10 +116,12 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
     if (selecionadas.length === 0) { setErro("Selecione ao menos um EPI."); return; }
     const semMotivo = selecionadas.filter(([id, l]) => l.tipo !== "DEVOLUCAO" && antecipada(id) && !l.motivo.trim());
     if (semMotivo.length > 0) { setErro("Há EPI retirado antes do prazo: informe o motivo nas linhas destacadas."); return; }
+    const semTamanho = selecionadas.filter(([id, l]) => l.tipo !== "DEVOLUCAO" && grade(episAtivos.find((e) => e.id === id)).length > 1 && !l.tamanho);
+    if (semTamanho.length > 0) { setErro("Escolha o tamanho dos EPIs destacados."); return; }
     setSaving(true); setErro("");
     const itens = selecionadas.map(([epiId, l]) => {
       const epi = episAtivos.find((e) => e.id === epiId)!;
-      return { epiId, quantidade: Number(l.qtd) || 1, tipo: l.tipo, motivo: l.motivo || null, localEstoqueId: epi.itemId ? (l.local || localPadrao || null) : null };
+      return { epiId, quantidade: Number(l.qtd) || 1, tipo: l.tipo, motivo: l.motivo || null, tamanho: l.tamanho || null, localEstoqueId: temEstoque(epi) ? (l.local || localPadrao || null) : null };
     });
     const res = await fetch("/api/sst/entregas/fichas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorId: colabId, data, observacoes: obs || null, itens }) });
     const j = await res.json().catch(() => ({}));
@@ -128,12 +144,16 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
   const [lBusca, setLBusca] = useState("");
   const [lMotivo, setLMotivo] = useState("");
   const [lPrecisa, setLPrecisa] = useState<{ colaboradorId: string; ate: string }[]>([]);
+  const [lTam, setLTam] = useState<Record<string, string>>({});
   const epiLote = epis.find((e) => e.id === lEpiId);
+  const loteComTamanho = grade(epiLote).length > 0;
   async function salvarLote() {
     const ids = Object.entries(lSel).filter(([, v]) => v).map(([k]) => k);
     if (!lEpiId || ids.length === 0) { setErro("Escolha o EPI e ao menos um colaborador."); return; }
+    if (grade(epiLote).length > 1 && ids.some((id) => !lTam[id])) { setErro("Escolha o tamanho de cada colaborador selecionado."); return; }
     setSaving(true); setErro("");
-    const res = await fetch("/api/sst/entregas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorIds: ids, epiId: lEpiId, tipo: lTipo, quantidade: 1, data, localEstoqueId: lLocal || null, motivo: lMotivo || null }) });
+    const tamanhos = Object.fromEntries(ids.map((id) => [id, lTam[id] || null]));
+    const res = await fetch("/api/sst/entregas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorIds: ids, epiId: lEpiId, tipo: lTipo, quantidade: 1, data, localEstoqueId: lLocal || null, motivo: lMotivo || null, tamanhos }) });
     const j = await res.json().catch(() => ({}));
     setSaving(false);
     if (res.status === 422 && j.precisaMotivo) { setLPrecisa(j.precisaMotivo); setErro("Alguns colaboradores ainda estão dentro do prazo deste EPI — informe o motivo da troca antecipada."); return; }
@@ -192,7 +212,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                   <div className="rounded-lg border border-border">
                     <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-t-lg text-xs text-muted-foreground">
                       <span><b className="text-foreground">{selecionadas.length}</b> EPI(s) selecionado(s) · os exigidos pela função aparecem primeiro</span>
-                      {episAtivos.some((e) => e.itemId) && (
+                      {episAtivos.some(temEstoque) && (
                         <span className="inline-flex items-center gap-2">Baixar do estoque:
                           <SelectMenu value={localPadrao} onChange={setLocalPadrao} triggerClassName="h-7 text-xs" options={[{ value: "", label: "— Não baixar —" }, ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} />
                         </span>
@@ -206,7 +226,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                         const ate = l.sel && l.tipo !== "DEVOLUCAO" ? antecipada(e.id) : null;
                         const vencido = vig?.vencimentoUso ? new Date(vig.vencimentoUso).getTime() < Date.now() : false;
                         return (
-                          <div key={e.id} className={cn("px-3 py-2", l.sel && "bg-info/5", ate && !l.motivo.trim() && "bg-warning/5")}>
+                          <div key={e.id} className={cn("px-3 py-2", l.sel && "bg-info/5", ((ate && !l.motivo.trim()) || (l.sel && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && !l.tamanho)) && "bg-warning/5")}>
                             <div className="flex items-center gap-3">
                               <input type="checkbox" className="rounded" checked={l.sel} onChange={(ev) => setLinha(e.id, { sel: ev.target.checked })} />
                               <div className="flex-1 min-w-0">
@@ -221,8 +241,9 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                               {l.sel && (
                                 <>
                                   <SelectMenu value={l.tipo} onChange={(v) => setLinha(e.id, { tipo: v })} triggerClassName="h-8 w-[120px] text-xs" options={Object.entries(TIPO_ENTREGA).map(([value, label]) => ({ value, label }))} />
+                                  {grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[92px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}
                                   <Input type="number" min={1} value={l.qtd} onChange={(ev) => setLinha(e.id, { qtd: ev.target.value })} className="h-8 w-16 text-xs text-center" title="Quantidade" />
-                                  {e.itemId && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[150px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}
+                                  {temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[150px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}
                                 </>
                               )}
                             </div>
@@ -255,13 +276,14 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Tipo</Label><SelectMenu value={lTipo} onChange={setLTipo} options={Object.entries(TIPO_ENTREGA).filter(([k]) => k !== "DEVOLUCAO").map(([value, label]) => ({ value, label }))} /></div>
-                  {epiLote?.itemId && <div><Label>Baixar do estoque (local)</Label><SelectMenu value={lLocal} onChange={setLLocal} options={[{ value: "", label: "— Não baixar —" }, ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} /></div>}
+                  {epiLote && temEstoque(epiLote) && <div><Label>Baixar do estoque (local)</Label><SelectMenu value={lLocal} onChange={setLLocal} options={[{ value: "", label: "— Não baixar —" }, ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} /></div>}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1"><Label>Colaboradores ({Object.values(lSel).filter(Boolean).length} selecionados)</Label>
                     <div className="flex items-center gap-2">
                       <button type="button" className="text-xs text-info hover:underline" onClick={() => setLSel(Object.fromEntries(colabs.filter((c) => c.ativo).map((c) => [c.id, true])))}>todos</button>
                       <button type="button" className="text-xs text-muted-foreground hover:underline" onClick={() => setLSel({})}>nenhum</button>
+                      {loteComTamanho && epiLote && <SelectMenu value="" onChange={(v) => setLTam(Object.fromEntries(Object.entries(lSel).filter(([, x]) => x).map(([k]) => [k, v])))} placeholder="tamanho p/ todos" triggerClassName="h-7 text-xs w-[140px]" options={opcoesTamanho(epiLote)} />}
                       <input value={lBusca} onChange={(e) => setLBusca(e.target.value)} placeholder="filtrar…" className="text-xs border border-border rounded px-2 py-1 bg-card" />
                     </div></div>
                   <div className="max-h-72 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
@@ -272,6 +294,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                           <input type="checkbox" className="rounded" checked={!!lSel[c.id]} onChange={(e) => setLSel({ ...lSel, [c.id]: e.target.checked })} />
                           <span className="flex-1 text-foreground">{c.nome}</span>
                           {p && <span className="text-[11px] text-warning">dentro do prazo até {fmtData(p.ate)}</span>}
+                          {loteComTamanho && epiLote && lSel[c.id] && <span onClick={(ev) => ev.preventDefault()}><SelectMenu value={lTam[c.id] ?? ""} onChange={(v) => setLTam((t) => ({ ...t, [c.id]: v }))} placeholder="Tam." triggerClassName={cn("h-7 text-xs w-[80px]", !lTam[c.id] && grade(epiLote).length > 1 && "border-warning")} options={opcoesTamanho(epiLote)} /></span>}
                           <span className="text-xs text-muted-foreground">{c.funcao?.nome ?? "sem função"}</span>
                         </label>
                       );

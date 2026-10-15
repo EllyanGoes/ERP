@@ -1884,6 +1884,7 @@ enum DestinoConsumo {
 
 model Item {
   sstEpis                   SstEpi[]
+  sstEpiTamanhos            SstEpiItem[]               @relation("SstEpiItemTamanho")
   id                        String                     @id @default(cuid())
   codigo                    String                     @unique
   descricao                 String
@@ -5134,10 +5135,26 @@ model SstEpi {
   updatedAt     DateTime        @updatedAt
   empresa       Empresa         @relation(fields: [empresaId], references: [id])
   item          Item?           @relation(fields: [itemId], references: [id])
+  // Tamanhos: um EPI (um CA) pode ter vários itens de estoque, um por tamanho.
+  // itemId acima = item do 1º tamanho (compatibilidade com quem só lê um item).
+  itens         SstEpiItem[]
   requisitos    SstFuncaoEpi[]
   entregas      SstEpiEntrega[]
 
   @@index([empresaId, ativo])
+}
+
+model SstEpiItem {
+  id      String  @id @default(cuid())
+  epiId   String
+  itemId  String
+  tamanho String?
+  ordem   Int     @default(0)
+  epi     SstEpi  @relation(fields: [epiId], references: [id], onDelete: Cascade)
+  item    Item    @relation("SstEpiItemTamanho", fields: [itemId], references: [id])
+
+  @@unique([epiId, itemId])
+  @@index([itemId])
 }
 
 // Ficha de EPI: uma linha por entrega/troca/devolução. documentoId = termo
@@ -5155,6 +5172,9 @@ model SstEpiEntrega {
   movimentacaoEstoqueId String?
   documentoId           String?
   fichaId               String?
+  // Tamanho entregue e o item de estoque baixado (EPIs com vários tamanhos).
+  tamanho               String?
+  itemId                String?
   criadoPor             String?
   atualizadoPor         String?
   createdAt             DateTime          @default(now())

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { FICHA_INCLUDE, TIPOS_ENTREGA, entregaDentroDoPrazo, proximoNumeroFicha, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
+import { EPI_ENTREGA_SELECT, FICHA_INCLUDE, TIPOS_ENTREGA, entregaDentroDoPrazo, proximoNumeroFicha, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
 
 // GET /api/sst/entregas/fichas?colaboradorId=&pendentes=1 — fichas (mais recentes primeiro)
 export async function GET(req: NextRequest) {
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/sst/entregas/fichas — entrega de vários EPIs p/ UM colaborador.
-// { colaboradorId, data, observacoes?, itens: [{ epiId, quantidade, tipo, motivo?, localEstoqueId? }] }
+// { colaboradorId, data, observacoes?, itens: [{ epiId, quantidade, tipo, motivo?, localEstoqueId?, tamanho?, itemId? }] }
 // Item retirado antes do fim da vida útil sem motivo → 422 { precisaMotivo: [{ epiId, ate }] }.
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("sst");
@@ -29,10 +29,10 @@ export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}));
   const empresaId = auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID;
   if (!b.colaboradorId) return NextResponse.json({ error: "Informe o colaborador." }, { status: 400 });
-  const itensIn: { epiId: string; quantidade?: number; tipo?: string; motivo?: string; localEstoqueId?: string | null }[] = Array.isArray(b.itens) ? b.itens : [];
+  const itensIn: { epiId: string; quantidade?: number; tipo?: string; motivo?: string; localEstoqueId?: string | null; tamanho?: string | null; itemId?: string | null }[] = Array.isArray(b.itens) ? b.itens : [];
   if (itensIn.length === 0) return NextResponse.json({ error: "Selecione ao menos um EPI." }, { status: 400 });
   const data = b.data ? new Date(b.data) : new Date();
-  const epis = await prisma.sstEpi.findMany({ where: { id: { in: itensIn.map((i) => i.epiId) } }, select: { id: true, nome: true, vidaUtilDias: true, itemId: true, item: { select: { descricao: true } } } });
+  const epis = await prisma.sstEpi.findMany({ where: { id: { in: itensIn.map((i) => i.epiId) } }, select: EPI_ENTREGA_SELECT });
   const porId = new Map(epis.map((e) => [e.id, e]));
   if (epis.length !== new Set(itensIn.map((i) => i.epiId)).size) return NextResponse.json({ error: "EPI não encontrado." }, { status: 404 });
 
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
         await registrarEntregaEpi(tx, {
           empresaId, colaboradorId: b.colaboradorId, epi: porId.get(i.epiId)!, tipo, quantidade: Number(i.quantidade) || 1, data,
           motivo: i.motivo?.trim() || null, localEstoqueId: i.localEstoqueId || null, documentoId: null, fichaId: f.id, criadoPor: auth.session.nome,
+          tamanho: i.tamanho ?? null, itemId: i.itemId ?? null,
         });
       }
       return tx.sstEpiFicha.findUnique({ where: { id: f.id }, include: FICHA_INCLUDE });

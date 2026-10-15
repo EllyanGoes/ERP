@@ -26,7 +26,7 @@ type Ficha = {
   setor: { nome: string } | null;
   sstFuncoes: { id: string; inicio: string; fim: string | null; funcao: { id: string; nome: string; requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[] } }[];
   sstTreinamentos: { validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; treinamento: { id: string; tipoId: string; data: string; instrutor: string | null; cargaHoraria: number | null; tipo: { nome: string; norma: string | null } } }[];
-  sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null } | null }[];
+  sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null } | null }[];
   sstAsos: { id: string; tipo: string; data: string; validade: string | null; resultado: string; restricoes: string | null; medico: string | null; crm: string | null; documentoId: string | null; exames: { exameTipoId: string; data: string; resultado: string | null; exameTipo: { nome: string } }[] }[];
   pendencias: Pendencia[];
   episStatus: { epi: { id: string; nome: string; vidaUtilDias: number | null; ca: string | null }; obrigatorio: boolean; quantidade: number; entregaVigente: { data: string; vencimentoUso: string | null } | null }[];
@@ -199,7 +199,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                         <tr key={e.id} className="border-t border-border/60">
                           <td className="px-4 py-1.5 text-muted-foreground whitespace-nowrap">{fmtData(e.data)}</td>
                           <td className="px-3 py-1.5"><span className={cn("text-[11px] px-1.5 rounded border", e.tipo === "DEVOLUCAO" ? "border-border text-muted-foreground" : e.tipo === "TROCA" ? "border-warning/30 text-warning bg-warning/5" : "border-info/30 text-info bg-info/5")}>{TIPO_ENTREGA[e.tipo]}</span></td>
-                          <td className="px-3 py-1.5 text-foreground">{e.epi.nome}{e.motivo && <p className="text-[11px] text-muted-foreground">{e.motivo}</p>}</td>
+                          <td className="px-3 py-1.5 text-foreground">{e.epi.nome}{e.tamanho && <span className="ml-1 text-[11px] px-1 rounded border border-border text-muted-foreground">tam. {e.tamanho}</span>}{e.motivo && <p className="text-[11px] text-muted-foreground">{e.motivo}</p>}</td>
                           <td className="px-3 py-1.5 text-muted-foreground">{e.epi.ca ?? "—"}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">{e.quantidade}</td>
                           <td className={cn("px-3 py-1.5 whitespace-nowrap", vencida ? "text-danger" : "text-muted-foreground")}>{e.vencimentoUso ? fmtData(e.vencimentoUso) : "—"}</td>

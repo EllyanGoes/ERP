@@ -1,6 +1,6 @@
 "use client";
 
-// Cadastro de EPIs (CA, validade, vida útil, item de estoque) + entrega em lote.
+// Cadastro de EPIs (CA, validade, vida útil, tamanhos ↔ itens de estoque) + entrega em lote.
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import DatePicker from "@/components/shared/DatePicker";
@@ -13,11 +13,17 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power, X } from "lucide-react";
 import { fmtData, useLookups, UploadAnexo, DocLink, AcoesLinha } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 
-type Epi = { id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean; item: { id: string; codigo: string; descricao: string; unidadeMedida: string } | null; saldoEstoque: number | null; _count: { entregas: number; requisitos: number } };
+type ItemRef = { id: string; codigo: string; descricao: string; unidadeMedida: string };
+type Epi = {
+  id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean;
+  item: ItemRef | null; itens: { itemId: string; tamanho: string | null; saldo: number; item: ItemRef }[]; saldoEstoque: number | null; _count: { entregas: number; requisitos: number };
+};
+type LinhaTamanho = { key: number; tamanho: string; itemId: string };
+const fmtQtd = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 type Colab = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null };
 type FichaRow = { id: string; numero: number; data: string; documentoId: string | null; assinadaEm: string | null; colaborador: { id: string; nome: string }; itens: { id: string; quantidade: number; epi: { nome: string } }[] };
 
@@ -50,15 +56,20 @@ export default function SstEpisPage() {
   // form
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [nome, setNome] = useState(""); const [ca, setCa] = useState(""); const [caValidade, setCaValidade] = useState(""); const [vida, setVida] = useState(""); const [fab, setFab] = useState(""); const [itemId, setItemId] = useState("");
+  const [nome, setNome] = useState(""); const [ca, setCa] = useState(""); const [caValidade, setCaValidade] = useState(""); const [vida, setVida] = useState(""); const [fab, setFab] = useState("");
+  const [tamanhos, setTamanhos] = useState<LinhaTamanho[]>([]);
   const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
   function abrir(e?: Epi) {
-    setEditId(e?.id ?? null); setNome(e?.nome ?? ""); setCa(e?.ca ?? ""); setCaValidade(e?.caValidade ? e.caValidade.slice(0, 10) : ""); setVida(e?.vidaUtilDias ? String(e.vidaUtilDias) : ""); setFab(e?.fabricante ?? ""); setItemId(e?.itemId ?? ""); setErro(""); setOpen(true);
+    setEditId(e?.id ?? null); setNome(e?.nome ?? ""); setCa(e?.ca ?? ""); setCaValidade(e?.caValidade ? e.caValidade.slice(0, 10) : ""); setVida(e?.vidaUtilDias ? String(e.vidaUtilDias) : ""); setFab(e?.fabricante ?? "");
+    const base = e?.itens.length ? e.itens.map((i, k) => ({ key: k, tamanho: i.tamanho ?? "", itemId: i.itemId })) : [{ key: 0, tamanho: "", itemId: "" }];
+    setTamanhos(base); setErro(""); setOpen(true);
   }
   async function salvar() {
     if (!nome.trim()) { setErro("Informe o nome."); return; }
+    const preenchidas = tamanhos.filter((t) => t.itemId);
+    if (preenchidas.length > 1 && preenchidas.some((t) => !t.tamanho.trim())) { setErro("Com mais de um item, informe o tamanho de cada um."); return; }
     setSaving(true); setErro("");
-    const res = await fetch(editId ? `/api/sst/epis/${editId}` : "/api/sst/epis", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, ca: ca || null, caValidade: caValidade || null, vidaUtilDias: vida || null, fabricante: fab || null, itemId: itemId || null }) });
+    const res = await fetch(editId ? `/api/sst/epis/${editId}` : "/api/sst/epis", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, ca: ca || null, caValidade: caValidade || null, vidaUtilDias: vida || null, fabricante: fab || null, itens: tamanhos.filter((t) => t.itemId).map((t) => ({ itemId: t.itemId, tamanho: t.tamanho || null })) }) });
     const j = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
@@ -123,9 +134,22 @@ export default function SstEpisPage() {
                       <td className="px-3 py-2 text-muted-foreground">{e.ca ?? "—"}</td>
                       <td className={cn("px-3 py-2", caVencido ? "text-danger font-medium" : "text-muted-foreground")}>{fmtData(e.caValidade)}{caVencido && " (vencido)"}</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">{e.vidaUtilDias ? `${e.vidaUtilDias} d` : "—"}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{e.item ? <Link href={`/suprimentos/produtos/${e.item.id}`} className="hover:text-info hover:underline" title="Abrir cadastro do produto">{e.item.codigo} {e.item.descricao}</Link> : "—"}</td>
-                      <td className={cn("px-3 py-2 text-right tabular-nums whitespace-nowrap", e.saldoEstoque == null ? "text-muted-foreground" : e.saldoEstoque <= 0 ? "text-danger font-medium" : "text-foreground")} title={e.saldoEstoque == null ? "Sem item de estoque vinculado" : "Saldo próprio somado em todos os locais"}>
-                        {e.saldoEstoque == null ? "—" : <>{e.saldoEstoque.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} <span className="text-xs text-muted-foreground font-normal">{e.item?.unidadeMedida?.toLowerCase()}</span></>}
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {e.itens.length === 0 ? "—" : e.itens.length === 1 && !e.itens[0].tamanho ? (
+                          <Link href={`/suprimentos/produtos/${e.itens[0].item.id}`} className="hover:text-info hover:underline" title="Abrir cadastro do produto">{e.itens[0].item.codigo} {e.itens[0].item.descricao}</Link>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {e.itens.map((i) => (
+                              <Link key={i.itemId} href={`/suprimentos/produtos/${i.item.id}`} title={`${i.item.codigo} ${i.item.descricao} — saldo ${fmtQtd(i.saldo)}`}
+                                className={cn("text-[11px] px-1.5 py-0.5 rounded border tabular-nums hover:border-info hover:text-info", i.saldo <= 0 ? "border-danger/30 text-danger bg-danger/5" : "border-border text-foreground")}>
+                                {i.tamanho || i.item.codigo} <span className="text-muted-foreground">· {fmtQtd(i.saldo)}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className={cn("px-3 py-2 text-right tabular-nums whitespace-nowrap", e.saldoEstoque == null ? "text-muted-foreground" : e.saldoEstoque <= 0 ? "text-danger font-medium" : "text-foreground")} title={e.saldoEstoque == null ? "Sem item de estoque vinculado" : e.itens.length > 1 ? e.itens.map((i) => `${i.tamanho || i.item.codigo}: ${fmtQtd(i.saldo)}`).join("\n") : "Saldo próprio somado em todos os locais"}>
+                        {e.saldoEstoque == null ? "—" : <>{fmtQtd(e.saldoEstoque)} <span className="text-xs text-muted-foreground font-normal">{e.itens[0]?.item.unidadeMedida?.toLowerCase()}</span></>}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{e._count.entregas}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{e._count.requisitos}</td>
@@ -157,9 +181,23 @@ export default function SstEpisPage() {
               <div><Label>Vida útil (dias)</Label><Input type="number" min={1} value={vida} onChange={(e) => setVida(e.target.value)} placeholder="troca a cada" /></div>
             </div>
             <div><Label>Fabricante</Label><Input value={fab} onChange={(e) => setFab(e.target.value)} /></div>
-            <div><Label>Item do almoxarifado (opcional)</Label>
-              <ComboboxWithCreate value={itemId} onChange={setItemId} allowNone noneLabel="Sem vínculo com estoque" placeholder="Buscar item…" options={lk.itens.map((i) => ({ value: i.id, label: i.descricao, code: i.codigo, saldo: i.saldo }))} />
-              <p className="text-[11px] text-muted-foreground mt-0.5">Com item vinculado, a entrega pode dar saída de estoque.</p></div>
+            <div>
+              <div className="flex items-center justify-between"><Label>Itens do almoxarifado por tamanho (opcional)</Label>
+                <button type="button" onClick={() => setTamanhos((l) => [...l, { key: Date.now(), tamanho: "", itemId: "" }])} className="text-xs text-info hover:underline inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Tamanho</button>
+              </div>
+              <div className="space-y-1.5 mt-1">
+                {tamanhos.map((t) => (
+                  <div key={t.key} className="flex items-center gap-2">
+                    <Input value={t.tamanho} onChange={(ev) => setTamanhos((l) => l.map((x) => x.key === t.key ? { ...x, tamanho: ev.target.value.toUpperCase() } : x))} placeholder={tamanhos.length > 1 ? "Tam." : "Tam. (opc.)"} className="w-24 shrink-0" />
+                    <ComboboxWithCreate className="flex-1 min-w-0" value={t.itemId} onChange={(v) => setTamanhos((l) => l.map((x) => x.key === t.key ? { ...x, itemId: v } : x))} allowNone noneLabel="Sem vínculo com estoque" placeholder="Buscar item…" menuMinWidth={420}
+                      disabledValues={tamanhos.filter((x) => x.key !== t.key && x.itemId).map((x) => x.itemId)}
+                      options={lk.itens.map((i) => ({ value: i.id, label: i.descricao, code: i.codigo, saldo: i.saldo }))} />
+                    <button type="button" onClick={() => setTamanhos((l) => l.length > 1 ? l.filter((x) => x.key !== t.key) : [{ key: Date.now(), tamanho: "", itemId: "" }])} className="text-muted-foreground hover:text-danger shrink-0" title="Remover"><X className="w-4 h-4" /></button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Um EPI (um CA) pode ter um item por tamanho — ex.: bota 37…44, camisa P/M/G. Na entrega escolhe-se o tamanho e o sistema baixa o item certo.</p>
+            </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={salvar} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button></DialogFooter>

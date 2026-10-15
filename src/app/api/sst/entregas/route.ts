@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
-import { TIPOS_ENTREGA, entregaDentroDoPrazo, estornarEstoqueEntrega, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
+import { EPI_ENTREGA_SELECT, TIPOS_ENTREGA, entregaDentroDoPrazo, estornarEstoqueEntrega, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
 
 const INCLUDE = {
   epi: { select: { id: true, nome: true, ca: true, vidaUtilDias: true, itemId: true } },
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/sst/entregas — uma entrega (ou várias: { colaboradorIds: [] })
-// { colaboradorId | colaboradorIds, epiId, tipo, quantidade, data, motivo, documentoId?, localEstoqueId? }
+// { colaboradorId | colaboradorIds, epiId, tipo, quantidade, data, motivo, documentoId?, localEstoqueId?, tamanho? | tamanhos?: {colaboradorId: tamanho} }
 // Com localEstoqueId e EPI ligado a item do almoxarifado: dá SAÍDA de estoque
 // (hard block sem saldo, como no resto do sistema). Retirada antes do fim da
 // vida útil exige motivo (422 { precisaMotivo: [{ colaboradorId, ate }] }).
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   const quantidade = Math.max(1, Number(b.quantidade) || 1);
   const data = b.data ? new Date(b.data) : new Date();
   const motivo: string | null = b.motivo?.trim() || null;
-  const epi = await prisma.sstEpi.findUnique({ where: { id: b.epiId }, select: { id: true, nome: true, vidaUtilDias: true, itemId: true, item: { select: { descricao: true } } } });
+  const epi = await prisma.sstEpi.findUnique({ where: { id: b.epiId }, select: EPI_ENTREGA_SELECT });
   if (!epi) return NextResponse.json({ error: "EPI não encontrado" }, { status: 404 });
 
   try {
@@ -67,6 +67,8 @@ export async function POST(req: NextRequest) {
         out.push(await registrarEntregaEpi(tx, {
           empresaId, colaboradorId, epi, tipo, quantidade, data, motivo,
           localEstoqueId: b.localEstoqueId || null, documentoId: b.documentoId || null, fichaId: null, criadoPor: auth.session.nome,
+          // Lote: tamanho por pessoa (tamanhos[colaboradorId]) ou um só p/ todos.
+          tamanho: (b.tamanhos && typeof b.tamanhos === "object" ? b.tamanhos[colaboradorId] : null) ?? b.tamanho ?? null,
         }));
       }
       return out;

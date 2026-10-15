@@ -14,7 +14,7 @@ type Ficha = {
   id: string; numero: number; data: string; observacoes: string | null; documentoId: string | null;
   empresa: { razaoSocial: string; nomeFantasia: string | null; cnpj: string; telefone: string | null; logradouro: string | null; numero: string | null; bairro: string | null; cidade: string | null; estado: string | null };
   colaborador: { nome: string; cpf: string | null; rg: string | null; matricula: string | null; cargo: string | null; dataAdmissao: string | null; setor: { nome: string } | null; sstFuncoes: { funcao: { nome: string } }[] };
-  itens: { id: string; tipo: string; quantidade: number; motivo: string | null; vencimentoUso: string | null; epi: { nome: string; ca: string | null; vidaUtilDias: number | null } }[];
+  itens: { id: string; tipo: string; quantidade: number; tamanho: string | null; motivo: string | null; vencimentoUso: string | null; epi: { nome: string; ca: string | null; vidaUtilDias: number | null } }[];
 };
 
 const fmtCnpj = (v: string) => (v.replace(/\D/g, "").length === 14 ? v.replace(/\D/g, "").replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") : v);
@@ -113,7 +113,7 @@ export default function CautelaEpiImprimir() {
               <td style={{ ...td, textAlign: "center" }}>{it.quantidade}</td>
               <td style={td}>{it.epi.nome.toUpperCase()}{it.tipo === "DEVOLUCAO" ? " (DEVOLUÇÃO)" : it.tipo === "TROCA" ? " (TROCA)" : ""}{it.motivo ? <span style={{ fontSize: 8.5, color: "#555" }}> — {it.motivo}</span> : null}</td>
               <td style={{ ...td, textAlign: "center" }}>{it.epi.ca ?? "—"}</td>
-              <td style={{ ...td, textAlign: "center" }}>N/A</td>
+              <td style={{ ...td, textAlign: "center" }}>{it.tamanho || "N/A"}</td>
               <td style={td}></td>
               <td style={{ ...td, textAlign: "center" }}>{it.tipo === "DEVOLUCAO" ? "Não" : "Sim"}</td>
             </tr>
