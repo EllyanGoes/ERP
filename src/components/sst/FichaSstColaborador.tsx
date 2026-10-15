@@ -129,7 +129,9 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
         action={<div className="flex items-center gap-2"><Semaforo s={semaforo} /><Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5"><Printer className="w-3.5 h-3.5" /> Ficha</Button></div>}
       />
       )}
-      <div className={cn("max-w-5xl", !embutido && "px-8 pb-8")}>
+      <div className={cn(!embutido && "px-8 pb-8")}>
+        {/* Função no topo (largura toda); abaixo, duas colunas: EPIs à esquerda,
+            ASO + treinamentos à direita. Abaixo de xl volta a uma coluna. */}
         <div className="space-y-6">
           {/* Função */}
           <section className="bg-card rounded-xl border border-border">
@@ -150,6 +152,8 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             </div>
           </section>
 
+          <div className="grid xl:grid-cols-2 gap-6 items-start">
+            <div className="space-y-6 min-w-0">
           {/* EPIs */}
           <section className="bg-card rounded-xl border border-border">
             <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
@@ -182,7 +186,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 <span className="text-[11px] text-muted-foreground">{f.sstEpiEntregas.length} registro(s)</span>
               </div>
               {f.sstEpiEntregas.length === 0 ? <p className="px-4 pb-3 text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto"><table className="w-full text-sm">
                   <thead className="text-xs text-muted-foreground bg-muted/50"><tr>
                     <th className="text-left px-4 py-1.5 font-semibold">Data</th><th className="text-left px-3 py-1.5 font-semibold">Tipo</th><th className="text-left px-3 py-1.5 font-semibold">EPI</th><th className="text-left px-3 py-1.5 font-semibold">CA</th><th className="text-right px-3 py-1.5 font-semibold">Qtd</th><th className="text-left px-3 py-1.5 font-semibold">Troca prevista</th><th className="text-left px-3 py-1.5 font-semibold">Cautela</th><th className="text-left px-3 py-1.5 font-semibold">Termo</th><th className="px-2 py-1.5"></th>
                   </tr></thead>
@@ -207,41 +211,12 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                       );
                     })}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
           </section>
-
-          {/* Treinamentos */}
-          <section className="bg-card rounded-xl border border-border">
-            <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-              <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2"><GraduationCap className="w-4 h-4" /> Treinamentos</h2>
-              <Link href="/sst/treinamentos" className="text-xs text-info hover:underline">nova turma</Link>
             </div>
-            {vinculo && vinculo.funcao.requisitosTreinamento.length > 0 && (
-              <div className="px-4 py-2 flex flex-wrap gap-1.5 border-b border-border/60">
-                {vinculo.funcao.requisitosTreinamento.map((r) => {
-                  const parts = f.sstTreinamentos.filter((t) => t.aprovado && t.treinamento.tipoId === r.treinamentoTipo.id);
-                  const ult = parts[0];
-                  const vencido = ult?.validade ? new Date(ult.validade).getTime() < Date.now() : false;
-                  return <span key={r.treinamentoTipo.id} className={cn("text-xs px-2 py-0.5 rounded-full border", !ult ? "border-danger/30 text-danger bg-danger/5" : vencido ? "border-danger/30 text-danger" : "border-success/30 text-success bg-success/5")}>{r.treinamentoTipo.nome}: {!ult ? "faltando" : vencido ? "vencido" : "ok"}</span>;
-                })}
-              </div>
-            )}
-            {f.sstTreinamentos.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum treinamento registrado.</p> : (
-              <ul className="divide-y divide-border/60 px-4">
-                {f.sstTreinamentos.map((t) => (
-                  <li key={t.treinamento.id} className="py-2 text-sm flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground w-20">{fmtData(t.treinamento.data)}</span>
-                    <span className="text-foreground flex-1">{t.treinamento.tipo.nome}{t.treinamento.tipo.norma ? <span className="text-xs text-muted-foreground"> · {t.treinamento.tipo.norma}</span> : null}{t.treinamento.cargaHoraria ? <span className="text-xs text-muted-foreground"> · {t.treinamento.cargaHoraria}h</span> : null}{!t.aprovado && <span className="text-xs text-danger"> · reprovado</span>}</span>
-                    <span className={cn("text-xs", t.validade && new Date(t.validade).getTime() < Date.now() ? "text-danger font-medium" : "text-muted-foreground")}>{t.validade ? `válido até ${fmtData(t.validade)}` : "não vence"}</span>
-                    <DocLink id={t.certificadoDocumentoId} label="certificado" />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
+            <div className="space-y-6 min-w-0">
           {/* ASOs */}
           <section className="bg-card rounded-xl border border-border">
             <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
@@ -314,6 +289,38 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
               </ul>
             )}
           </section>
+          {/* Treinamentos */}
+          <section className="bg-card rounded-xl border border-border">
+            <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
+              <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2"><GraduationCap className="w-4 h-4" /> Treinamentos</h2>
+              <Link href="/sst/treinamentos" className="text-xs text-info hover:underline">nova turma</Link>
+            </div>
+            {vinculo && vinculo.funcao.requisitosTreinamento.length > 0 && (
+              <div className="px-4 py-2 flex flex-wrap gap-1.5 border-b border-border/60">
+                {vinculo.funcao.requisitosTreinamento.map((r) => {
+                  const parts = f.sstTreinamentos.filter((t) => t.aprovado && t.treinamento.tipoId === r.treinamentoTipo.id);
+                  const ult = parts[0];
+                  const vencido = ult?.validade ? new Date(ult.validade).getTime() < Date.now() : false;
+                  return <span key={r.treinamentoTipo.id} className={cn("text-xs px-2 py-0.5 rounded-full border", !ult ? "border-danger/30 text-danger bg-danger/5" : vencido ? "border-danger/30 text-danger" : "border-success/30 text-success bg-success/5")}>{r.treinamentoTipo.nome}: {!ult ? "faltando" : vencido ? "vencido" : "ok"}</span>;
+                })}
+              </div>
+            )}
+            {f.sstTreinamentos.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum treinamento registrado.</p> : (
+              <ul className="divide-y divide-border/60 px-4">
+                {f.sstTreinamentos.map((t) => (
+                  <li key={t.treinamento.id} className="py-2 text-sm flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground w-20">{fmtData(t.treinamento.data)}</span>
+                    <span className="text-foreground flex-1">{t.treinamento.tipo.nome}{t.treinamento.tipo.norma ? <span className="text-xs text-muted-foreground"> · {t.treinamento.tipo.norma}</span> : null}{t.treinamento.cargaHoraria ? <span className="text-xs text-muted-foreground"> · {t.treinamento.cargaHoraria}h</span> : null}{!t.aprovado && <span className="text-xs text-danger"> · reprovado</span>}</span>
+                    <span className={cn("text-xs", t.validade && new Date(t.validade).getTime() < Date.now() ? "text-danger font-medium" : "text-muted-foreground")}>{t.validade ? `válido até ${fmtData(t.validade)}` : "não vence"}</span>
+                    <DocLink id={t.certificadoDocumentoId} label="certificado" />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+            </div>
+          </div>
         </div>
       </div>
 
