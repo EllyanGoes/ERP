@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data });
 }
 
-// POST /api/sst/asos { colaboradorId, tipo, data, validade?, resultado, restricoes?, medico?, crm?, documentoId?, exames: [{exameTipoId, data?, resultado?}] }
+// POST /api/sst/asos { colaboradorId, tipo, data, validade?, resultado, restricoes?, medicoId? | (medico?, crm?), documentoId?, exames: [{exameTipoId, data?, resultado?}] }
 // Sem validade informada: periódico = data + periodicidade da função (menor
 // periodicidade dos exames exigidos; default 12 meses).
 export async function POST(req: NextRequest) {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response;
   const b = await req.json().catch(() => ({}));
   if (!b.colaboradorId) return NextResponse.json({ error: "Informe o colaborador." }, { status: 400 });
-  const tipo = ["ADMISSIONAL", "PERIODICO", "MUDANCA_RISCO", "RETORNO", "DEMISSIONAL"].includes(b.tipo) ? b.tipo : "PERIODICO";
+  const tipo = ["ADMISSIONAL", "PERIODICO", "MUDANCA_FUNCAO", "MUDANCA_RISCO", "RETORNO", "DEMISSIONAL"].includes(b.tipo) ? b.tipo : "PERIODICO";
   const resultado = ["APTO", "INAPTO", "APTO_RESTRICOES"].includes(b.resultado) ? b.resultado : "APTO";
   const data = b.data ? new Date(b.data) : new Date();
   let validade: Date | null = b.validade ? new Date(b.validade) : null;
@@ -44,12 +44,17 @@ export async function POST(req: NextRequest) {
     const periodos = vinculo?.funcao.requisitosExame.map((r) => r.periodicidadeMeses) ?? [];
     validade = somaMeses(data, periodos.length ? Math.min(...periodos) : 12);
   }
+  // Médico do cadastro: nome/CRM vêm dele (retrato no ASO); sem cadastro, texto livre.
+  const med = b.medicoId ? await prisma.sstMedico.findUnique({ where: { id: String(b.medicoId) }, select: { id: true, nome: true, crm: true, uf: true } }) : null;
   const exames: { exameTipoId: string; data?: string; resultado?: string }[] = Array.isArray(b.exames) ? b.exames.filter((e: { exameTipoId?: string }) => e?.exameTipoId) : [];
   const aso = await prisma.sstAso.create({
     data: {
       empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID,
       colaboradorId: b.colaboradorId, tipo, data, validade, resultado,
-      restricoes: b.restricoes?.trim() || null, medico: b.medico?.trim() || null, crm: b.crm?.trim() || null,
+      restricoes: b.restricoes?.trim() || null,
+      medicoId: med?.id ?? null,
+      medico: med ? med.nome : b.medico?.trim() || null,
+      crm: med ? (med.uf ? `${med.crm}/${med.uf}` : med.crm) : b.crm?.trim() || null,
       documentoId: b.documentoId || null,
       exames: { create: exames.map((e) => ({ exameTipoId: e.exameTipoId, data: e.data ? new Date(e.data) : data, resultado: e.resultado?.trim() || null })) },
     },

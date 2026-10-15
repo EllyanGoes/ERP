@@ -123,7 +123,7 @@ export default function SstEpisPage() {
                       <td className="px-3 py-2 text-muted-foreground">{e.ca ?? "—"}</td>
                       <td className={cn("px-3 py-2", caVencido ? "text-danger font-medium" : "text-muted-foreground")}>{fmtData(e.caValidade)}{caVencido && " (vencido)"}</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">{e.vidaUtilDias ? `${e.vidaUtilDias} d` : "—"}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{e.item ? `${e.item.codigo} ${e.item.descricao}` : "—"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{e.item ? <Link href={`/suprimentos/produtos/${e.item.id}`} className="hover:text-info hover:underline" title="Abrir cadastro do produto">{e.item.codigo} {e.item.descricao}</Link> : "—"}</td>
                       <td className={cn("px-3 py-2 text-right tabular-nums whitespace-nowrap", e.saldoEstoque == null ? "text-muted-foreground" : e.saldoEstoque <= 0 ? "text-danger font-medium" : "text-foreground")} title={e.saldoEstoque == null ? "Sem item de estoque vinculado" : "Saldo próprio somado em todos os locais"}>
                         {e.saldoEstoque == null ? "—" : <>{e.saldoEstoque.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} <span className="text-xs text-muted-foreground font-normal">{e.item?.unidadeMedida?.toLowerCase()}</span></>}
                       </td>

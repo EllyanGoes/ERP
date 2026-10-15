@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap } from "lucide-react";
 import { Semaforo, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
+import MedicoSelect, { crmCompleto } from "@/components/sst/MedicoSelect";
 
 type Ficha = {
   id: string; nome: string; ativo: boolean; cargo: string | null; matricula: string | null; dataAdmissao: string | null; dataDemissao: string | null;
@@ -83,10 +84,11 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   const [aRestricoes, setARestricoes] = useState("");
   const [aMedico, setAMedico] = useState("");
   const [aCrm, setACrm] = useState("");
+  const [aMedicoId, setAMedicoId] = useState("");
   const [aDoc, setADoc] = useState<string | null>(null);
   const [aExames, setAExames] = useState<Record<string, boolean>>({});
   function abrirAso() {
-    setATipo("PERIODICO"); setAData(hojeISO()); setAValidade(""); setAResultado("APTO"); setARestricoes(""); setAMedico(""); setACrm(""); setADoc(null); setErro("");
+    setATipo("PERIODICO"); setAData(hojeISO()); setAValidade(""); setAResultado("APTO"); setARestricoes(""); setAMedico(""); setACrm(""); setAMedicoId(""); setADoc(null); setErro("");
     // pré-marca os exames exigidos pela função
     const exigidos = f?.sstFuncoes.find((v) => !v.fim)?.funcao.requisitosExame.map((r) => r.exameTipo.id) ?? [];
     setAExames(Object.fromEntries(exigidos.map((e) => [e, true])));
@@ -95,7 +97,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   async function salvarAso() {
     setSalvando(true); setErro("");
     const exames = Object.entries(aExames).filter(([, v]) => v).map(([exameTipoId]) => ({ exameTipoId, data: aData }));
-    const res = await fetch("/api/sst/asos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorId: id, tipo: aTipo, data: aData, validade: aValidade || null, resultado: aResultado, restricoes: aRestricoes || null, medico: aMedico || null, crm: aCrm || null, documentoId: aDoc, exames }) });
+    const res = await fetch("/api/sst/asos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorId: id, tipo: aTipo, data: aData, validade: aValidade || null, resultado: aResultado, restricoes: aRestricoes || null, medicoId: aMedicoId || null, medico: aMedico || null, crm: aCrm || null, documentoId: aDoc, exames }) });
     const j = await res.json().catch(() => ({}));
     setSalvando(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
@@ -353,8 +355,8 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Resultado</Label><SelectMenu value={aResultado} onChange={setAResultado} options={Object.entries(RESULTADO_ASO).map(([value, v]) => ({ value, label: v.label }))} /></div>
-              <div><Label>Médico</Label><Input value={aMedico} onChange={(e) => setAMedico(e.target.value)} /></div>
-              <div><Label>CRM</Label><Input value={aCrm} onChange={(e) => setACrm(e.target.value)} /></div>
+              <div><Label>Médico</Label><MedicoSelect value={aMedicoId} onChange={(m) => { setAMedicoId(m?.id ?? ""); setAMedico(m?.nome ?? ""); setACrm(m ? crmCompleto(m) : ""); }} /></div>
+              <div><Label>CRM</Label><Input value={aCrm} readOnly={!!aMedicoId} onChange={(e) => setACrm(e.target.value)} className={cn(aMedicoId && "bg-muted text-muted-foreground")} placeholder="preenchido pelo médico" /></div>
             </div>
             {aResultado === "APTO_RESTRICOES" && <div><Label>Restrições</Label><Input value={aRestricoes} onChange={(e) => setARestricoes(e.target.value)} /></div>}
             {exameTipos.length > 0 && (

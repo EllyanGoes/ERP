@@ -41,7 +41,7 @@ export function Semaforo({ s, label = true }: { s: "OK" | "ATENCAO" | "CRITICO";
   return <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full", m.cls)}><span className={cn("w-2 h-2 rounded-full", m.dot)} />{label && m.t}</span>;
 }
 
-export const TIPO_ASO: Record<string, string> = { ADMISSIONAL: "Admissional", PERIODICO: "Periódico", MUDANCA_RISCO: "Mudança de risco", RETORNO: "Retorno ao trabalho", DEMISSIONAL: "Demissional" };
+export const TIPO_ASO: Record<string, string> = { ADMISSIONAL: "Admissional", PERIODICO: "Periódico", MUDANCA_FUNCAO: "Mudança de função", MUDANCA_RISCO: "Mudança de risco", RETORNO: "Retorno ao trabalho", DEMISSIONAL: "Demissional" };
 export const RESULTADO_ASO: Record<string, { label: string; cls: string }> = {
   APTO: { label: "Apto", cls: "bg-success/15 text-success" },
   APTO_RESTRICOES: { label: "Apto c/ restrições", cls: "bg-warning/15 text-warning" },

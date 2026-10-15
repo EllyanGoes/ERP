@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   } else if (evento === "S2220") {
     // Monitoramento da saúde — ASO
     const asos = await prismaSemEscopo.sstAso.findMany({ where: { empresaId, data: periodo }, orderBy: { data: "asc" }, include: { colaborador: { select: { nome: true, cpf: true, matricula: true } }, exames: { include: { exameTipo: { select: { nome: true } } } } } });
-    const tp: Record<string, string> = { ADMISSIONAL: "0", PERIODICO: "1", RETORNO: "2", MUDANCA_RISCO: "3", DEMISSIONAL: "9" };
+    const tp: Record<string, string> = { ADMISSIONAL: "0", PERIODICO: "1", RETORNO: "2", MUDANCA_FUNCAO: "3", MUDANCA_RISCO: "3", DEMISSIONAL: "9" };
     linhas = asos.map((a) => ({
       evento: "S-2220", cpfTrabalhador: a.colaborador.cpf ?? "", nomeTrabalhador: a.colaborador.nome, matricula: a.colaborador.matricula ?? "",
       dtAso: a.data.toISOString().slice(0, 10), tpExameOcup: `${tp[a.tipo] ?? ""} (${a.tipo})`, resAso: a.resultado === "APTO" ? "1 (apto)" : a.resultado === "INAPTO" ? "2 (inapto)" : "1 (apto c/ restrições)",

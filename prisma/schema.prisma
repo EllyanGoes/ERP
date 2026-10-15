@@ -1605,6 +1605,7 @@ model CotacaoFornecedorItem {
 model Empresa {
   // SST (docs/sst-prd.md)
   sstFuncoes                    SstFuncao[]
+  sstMedicos                    SstMedico[]
   sstEpis                       SstEpi[]
   sstEpiEntregas                SstEpiEntrega[]
   sstEpiFichas                  SstEpiFicha[]
@@ -5048,6 +5049,7 @@ enum SstTipoEntregaEpi {
 enum SstTipoAso {
   ADMISSIONAL
   PERIODICO
+  MUDANCA_FUNCAO
   MUDANCA_RISCO
   RETORNO
   DEMISSIONAL
@@ -5213,6 +5215,9 @@ model SstAso {
   validade      DateTime?
   resultado     SstResultadoAso @default(APTO)
   restricoes    String?
+  // medico/crm ficam como retrato do ASO (impressão/eSocial); medicoId liga ao
+  // cadastro de médicos, de onde o formulário puxa nome + CRM.
+  medicoId      String?
   medico        String?
   crm           String?
   documentoId   String?
@@ -5222,9 +5227,29 @@ model SstAso {
   updatedAt     DateTime        @updatedAt
   empresa       Empresa         @relation(fields: [empresaId], references: [id])
   colaborador   Colaborador     @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  medicoRef     SstMedico?      @relation(fields: [medicoId], references: [id])
   exames        SstAsoExame[]
 
   @@index([colaboradorId, validade])
+}
+
+// Médicos examinadores (PCMSO/ASO) — cadastro por empresa; o ASO puxa nome+CRM.
+model SstMedico {
+  id            String   @id @default(cuid())
+  empresaId     String
+  nome          String
+  crm           String
+  uf            String?
+  especialidade String?
+  ativo         Boolean  @default(true)
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  empresa       Empresa  @relation(fields: [empresaId], references: [id])
+  asos          SstAso[]
+
+  @@unique([empresaId, crm])
 }
 
 model SstAsoExame {
