@@ -3,14 +3,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 
-// GET /api/sst/epis — EPIs da empresa ativa (com item de estoque e nº de entregas vigentes).
+// GET /api/sst/epis — EPIs da empresa ativa (com item de estoque, saldo físico
+// próprio somado entre locais e nº de entregas vigentes).
 export async function GET() {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
-  const data = await prisma.sstEpi.findMany({
+  const epis = await prisma.sstEpi.findMany({
     orderBy: { nome: "asc" },
-    include: { item: { select: { id: true, codigo: true, descricao: true } }, _count: { select: { entregas: true, requisitos: true } } },
+    include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } }, _count: { select: { entregas: true, requisitos: true } } },
   });
+  const itemIds = Array.from(new Set(epis.map((e) => e.itemId).filter((x): x is string => !!x)));
+  const saldos = itemIds.length
+    ? await prisma.estoqueItem.groupBy({ by: ["itemId"], where: { itemId: { in: itemIds }, clienteDonoId: null }, _sum: { quantidadeAtual: true } })
+    : [];
+  const porItem = new Map(saldos.map((s) => [s.itemId, Number(s._sum.quantidadeAtual ?? 0)]));
+  const data = epis.map((e) => ({ ...e, saldoEstoque: e.itemId ? porItem.get(e.itemId) ?? 0 : null }));
   return NextResponse.json({ data });
 }
 

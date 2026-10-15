@@ -17,7 +17,7 @@ import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power } fro
 import { fmtData, useLookups, UploadAnexo, DocLink, AcoesLinha } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 
-type Epi = { id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean; item: { id: string; codigo: string; descricao: string } | null; _count: { entregas: number; requisitos: number } };
+type Epi = { id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean; item: { id: string; codigo: string; descricao: string; unidadeMedida: string } | null; saldoEstoque: number | null; _count: { entregas: number; requisitos: number } };
 type Colab = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null };
 type FichaRow = { id: string; numero: number; data: string; documentoId: string | null; assinadaEm: string | null; colaborador: { id: string; nome: string }; itens: { id: string; quantidade: number; epi: { nome: string } }[] };
 
@@ -112,7 +112,7 @@ export default function SstEpisPage() {
           <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted text-xs text-muted-foreground"><tr>
-                <th className="text-left px-4 py-2 font-semibold">EPI</th><th className="text-left px-3 py-2 font-semibold">CA</th><th className="text-left px-3 py-2 font-semibold">Validade do CA</th><th className="text-right px-3 py-2 font-semibold">Vida útil</th><th className="text-left px-3 py-2 font-semibold">Item de estoque</th><th className="text-right px-3 py-2 font-semibold">Entregas</th><th className="text-right px-3 py-2 font-semibold">Funções</th><th className="px-3 py-2"></th>
+                <th className="text-left px-4 py-2 font-semibold">EPI</th><th className="text-left px-3 py-2 font-semibold">CA</th><th className="text-left px-3 py-2 font-semibold">Validade do CA</th><th className="text-right px-3 py-2 font-semibold">Vida útil</th><th className="text-left px-3 py-2 font-semibold">Item de estoque</th><th className="text-right px-3 py-2 font-semibold">Em estoque</th><th className="text-right px-3 py-2 font-semibold">Entregas</th><th className="text-right px-3 py-2 font-semibold">Funções</th><th className="px-3 py-2"></th>
               </tr></thead>
               <tbody>
                 {epis.map((e) => {
@@ -124,6 +124,9 @@ export default function SstEpisPage() {
                       <td className={cn("px-3 py-2", caVencido ? "text-danger font-medium" : "text-muted-foreground")}>{fmtData(e.caValidade)}{caVencido && " (vencido)"}</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">{e.vidaUtilDias ? `${e.vidaUtilDias} d` : "—"}</td>
                       <td className="px-3 py-2 text-muted-foreground">{e.item ? `${e.item.codigo} ${e.item.descricao}` : "—"}</td>
+                      <td className={cn("px-3 py-2 text-right tabular-nums whitespace-nowrap", e.saldoEstoque == null ? "text-muted-foreground" : e.saldoEstoque <= 0 ? "text-danger font-medium" : "text-foreground")} title={e.saldoEstoque == null ? "Sem item de estoque vinculado" : "Saldo próprio somado em todos os locais"}>
+                        {e.saldoEstoque == null ? "—" : <>{e.saldoEstoque.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} <span className="text-xs text-muted-foreground font-normal">{e.item?.unidadeMedida?.toLowerCase()}</span></>}
+                      </td>
                       <td className="px-3 py-2 text-right tabular-nums">{e._count.entregas}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{e._count.requisitos}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -136,7 +139,7 @@ export default function SstEpisPage() {
                     </tr>
                   );
                 })}
-                {epis.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum EPI cadastrado.</td></tr>}
+                {epis.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum EPI cadastrado.</td></tr>}
               </tbody>
             </table>
           </div>
