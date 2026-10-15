@@ -4,7 +4,8 @@
 // o popup nativo do navegador destoa do visual; o modelo é o do seletor de
 // empresas do topo). Para listas de entidades com busca/criação continue usando
 // ComboboxWithCreate.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,11 +39,45 @@ export default function SelectMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  // Menu em portal com position:fixed (mesmo padrão do ComboboxWithCreate):
+  // escapa do overflow de dialogs/tabelas, que cortavam as opções. Posição
+  // calculada pelo gatilho e travada na janela — abre para cima e alinha pela
+  // direita quando não cabe.
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; minWidth: number; maxHeight: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const calcular = useCallback(() => {
+    const host = ref.current;
+    if (!host) return;
+    const r = host.getBoundingClientRect();
+    const M = 8, MAX_H = 288;
+    const largura = menuRef.current?.offsetWidth ?? r.width;
+    const abaixo = window.innerHeight - r.bottom - M, acima = r.top - M;
+    const cima = abaixo < Math.min(MAX_H, (menuRef.current?.scrollHeight ?? MAX_H)) && acima > abaixo;
+    const left = Math.max(M, Math.min(r.left, window.innerWidth - largura - M));
+    setPos(cima
+      ? { bottom: window.innerHeight - r.top + 4, left, minWidth: r.width, maxHeight: Math.min(MAX_H, acima) }
+      : { top: r.bottom + 4, left, minWidth: r.width, maxHeight: Math.min(MAX_H, abaixo) });
+  }, []);
+
+  // 1º cálculo antes do paint; o 2º usa a largura real do menu já montado.
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    calcular();
+    const raf = requestAnimationFrame(calcular);
+    window.addEventListener("scroll", calcular, true);
+    window.addEventListener("resize", calcular);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", calcular, true); window.removeEventListener("resize", calcular); };
+  }, [open, calcular]);
 
   useEffect(() => {
     if (!open) return;
     function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (ref.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
@@ -65,9 +100,9 @@ export default function SelectMenu({
         <span className={cn("truncate", !atual && "text-muted-foreground")}>{atual?.label ?? placeholder}</span>
         <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
       </button>
-      {open && (
-        <div className={cn(
-          "absolute left-0 top-full mt-1 z-50 min-w-full w-max max-w-80 max-h-72 overflow-y-auto bg-card border border-border rounded-xl shadow-xl py-1",
+      {mounted && open && createPortal(
+        <div ref={menuRef} style={{ position: "fixed", zIndex: 9999, top: pos?.top, bottom: pos?.bottom, left: pos?.left ?? 0, minWidth: pos?.minWidth, maxHeight: pos?.maxHeight, visibility: pos ? "visible" : "hidden" }} className={cn(
+          "w-max max-w-80 overflow-y-auto bg-card border border-border rounded-xl shadow-xl py-1",
           menuClassName,
         )}>
           {options.map((o) => (
@@ -82,7 +117,8 @@ export default function SelectMenu({
             </button>
           ))}
           {options.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">Nenhuma opção.</p>}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

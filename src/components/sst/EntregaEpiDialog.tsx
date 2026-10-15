@@ -189,8 +189,8 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                 </div>
 
                 {colabId && (
-                  <div className="rounded-lg border border-border overflow-hidden">
-                    <div className="flex items-center justify-between px-3 py-2 bg-muted text-xs text-muted-foreground">
+                  <div className="rounded-lg border border-border">
+                    <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-t-lg text-xs text-muted-foreground">
                       <span><b className="text-foreground">{selecionadas.length}</b> EPI(s) selecionado(s) · os exigidos pela função aparecem primeiro</span>
                       {episAtivos.some((e) => e.itemId) && (
                         <span className="inline-flex items-center gap-2">Baixar do estoque:

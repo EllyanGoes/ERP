@@ -16,14 +16,13 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
-import { SeveridadeBadge, SEVERIDADE, fmtData, type Pendencia, type Severidade, AcoesLinha } from "@/components/sst/comum";
+import { fmtData, type Pendencia, AcoesLinha } from "@/components/sst/comum";
 
 type Colab = { id: string; nome: string; ativo: boolean; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
 type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; _count: { requisitos: number; asoExames: number } };
 type Linha = Pendencia & { colaboradorNome: string; setor: string | null; funcao?: string };
 
 const TIPOS_SAUDE = ["ASO_INEXISTENTE", "ASO_VENCIDO", "ASO_VENCE_EM_BREVE", "ASO_INAPTO", "ASO_DEMISSIONAL_PENDENTE", "EXAME_PENDENTE"];
-const ORDEM_SEV: Severidade[] = ["CRITICA", "ALTA", "MEDIA", "BAIXA"];
 
 // Agrupamentos da agenda. A chave é o que junta as linhas; o rótulo abre o grupo.
 const AGRUPAMENTOS: Record<string, { label: string; chave: (l: Linha) => string; rotulo?: (chave: string, primeira: Linha) => string }> = {
@@ -31,7 +30,6 @@ const AGRUPAMENTOS: Record<string, { label: string; chave: (l: Linha) => string;
   funcao: { label: "Função", chave: (l) => l.funcao ?? "Sem função" },
   setor: { label: "Setor", chave: (l) => l.setor ?? "Sem setor" },
   pendencia: { label: "Tipo de pendência", chave: (l) => l.titulo },
-  severidade: { label: "Severidade", chave: (l) => l.severidade, rotulo: (c) => SEVERIDADE[c as Severidade]?.label ?? c },
   nenhum: { label: "Sem agrupamento", chave: () => "" },
 };
 
@@ -51,6 +49,8 @@ export default function SstSaudePage() {
     setColabs(c.data ?? []); setTipos(t.data ?? []); setLoading(false);
   }
   useEffect(() => { load(); }, []);
+  // Agrupamento salvo que deixou de existir (ex.: severidade) volta ao padrão.
+  useEffect(() => { if (!AGRUPAMENTOS[agrupar]) setAgrupar("colaborador"); }, [agrupar, setAgrupar]);
 
   const agenda = useMemo<Linha[]>(() => {
     const lim = Date.now() + Number(janela) * 86_400_000;
@@ -61,8 +61,7 @@ export default function SstSaudePage() {
       .sort((a, b) => (a.vence ? new Date(a.vence).getTime() : 0) - (b.vence ? new Date(b.vence).getTime() : 0));
   }, [colabs, janela, busca]);
 
-  // Grupos na ordem em que aparecem (agenda já vem ordenada por vencimento),
-  // exceto severidade, que segue a ordem crítica → baixa.
+  // Grupos em ordem alfabética; dentro do grupo, por vencimento.
   const grupos = useMemo(() => {
     const def = AGRUPAMENTOS[agrupar] ?? AGRUPAMENTOS.colaborador;
     const mapa = new Map<string, { rotulo: string; linhas: Linha[] }>();
@@ -72,8 +71,7 @@ export default function SstSaudePage() {
       mapa.get(k)!.linhas.push(l);
     }
     const lista = Array.from(mapa.entries()).map(([chave, g]) => ({ chave, ...g }));
-    if (agrupar === "severidade") lista.sort((a, b) => ORDEM_SEV.indexOf(a.chave as Severidade) - ORDEM_SEV.indexOf(b.chave as Severidade));
-    else if (agrupar !== "nenhum") lista.sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+    if (agrupar !== "nenhum") lista.sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
     return lista;
   }, [agenda, agrupar]);
   const semGrupo = agrupar === "nenhum";
@@ -84,7 +82,7 @@ export default function SstSaudePage() {
     const linhas = grupos.flatMap((g) => g.linhas.map((l) => ({
       ...(semGrupo ? {} : { [def.label]: g.rotulo }),
       Colaborador: l.colaboradorNome, Setor: l.setor ?? "", Função: l.funcao ?? "",
-      Pendência: l.titulo, Detalhe: l.detalhe ?? "", Severidade: SEVERIDADE[l.severidade].label,
+      Pendência: l.titulo, Detalhe: l.detalhe ?? "",
       Vence: l.vence ? fmtData(l.vence) : "", Situação: l.vence && new Date(l.vence).getTime() < Date.now() ? "Vencido" : "A vencer",
     })));
     const ws = XLSX.utils.json_to_sheet(linhas);
@@ -133,7 +131,6 @@ export default function SstSaudePage() {
                 {(semGrupo || agrupar !== "colaborador") && <th className="text-left px-4 py-1.5 font-semibold">Colaborador</th>}
                 {agrupar !== "funcao" && <th className="text-left px-3 py-1.5 font-semibold">Função</th>}
                 <th className="text-left px-3 py-1.5 font-semibold">Pendência</th>
-                {agrupar !== "severidade" && <th className="text-left px-3 py-1.5 font-semibold">Severidade</th>}
                 <th className="text-left px-3 py-1.5 font-semibold">Vence</th>
               </tr></thead>
               <tbody>
@@ -142,7 +139,7 @@ export default function SstSaudePage() {
                     {!semGrupo && (
                       <tr className="border-t border-border bg-muted/50">
                         <td colSpan={5} className="px-4 py-1.5 text-xs font-semibold text-foreground">
-                          {agrupar === "colaborador" ? <Link href={g.linhas[0].link} className="hover:text-info">{g.rotulo}</Link> : agrupar === "severidade" ? <SeveridadeBadge s={g.chave as Severidade} /> : g.rotulo}
+                          {agrupar === "colaborador" ? <Link href={g.linhas[0].link} className="hover:text-info">{g.rotulo}</Link> : g.rotulo}
                           <span className="ml-2 font-normal text-muted-foreground">{g.linhas.length}</span>
                         </td>
                       </tr>
@@ -152,7 +149,6 @@ export default function SstSaudePage() {
                         {(semGrupo || agrupar !== "colaborador") && <td className="px-4 py-2"><Link href={p.link} className="text-foreground hover:text-info">{p.colaboradorNome}</Link><span className="text-xs text-muted-foreground"> {p.setor ? `· ${p.setor}` : ""}</span></td>}
                         {agrupar !== "funcao" && <td className={cn("px-3 py-2 text-muted-foreground", agrupar === "colaborador" && "pl-8")}>{p.funcao ?? "—"}</td>}
                         <td className="px-3 py-2 text-foreground">{p.titulo}{p.detalhe && <span className="text-xs text-muted-foreground"> — {p.detalhe}</span>}</td>
-                        {agrupar !== "severidade" && <td className="px-3 py-2"><SeveridadeBadge s={p.severidade} /></td>}
                         <td className={cn("px-3 py-2 text-xs", p.vence && new Date(p.vence).getTime() < Date.now() ? "text-danger font-medium" : "text-muted-foreground")}>{p.vence ? fmtData(p.vence) : "—"}</td>
                       </tr>
                     ))}
