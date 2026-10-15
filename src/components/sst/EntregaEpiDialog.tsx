@@ -69,11 +69,22 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
     setColabId(colaboradorFixo?.id ?? ""); setDetalhe(null); setLinhas({});
     setLEpiId(""); setLSel({}); setLMotivo(""); setLPrecisa([]); setLTam({});
     if (colaboradorFixo) setModo("colaborador");
-  }, [open, colaboradorFixo]);
+    // Só abrir/trocar de colaborador zera o formulário. Depender do objeto
+    // colaboradorFixo (recriado a cada render da ficha) zerava as linhas no meio
+    // do preenchimento — a lista de EPIs "sumia".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, colaboradorFixo?.id]);
 
+  // Recarrega a cada abertura (não só quando o colaborador muda): reabrir para o
+  // mesmo colaborador — sempre o caso na ficha dele — limpava as linhas no
+  // reset acima e a lista de EPIs ficava em branco. `vivo` descarta resposta
+  // atrasada de uma abertura/colaborador anterior.
   useEffect(() => {
+    if (!open) return;
     if (!colabId) { setDetalhe(null); setLinhas({}); return; }
+    let vivo = true;
     fetch(`/api/sst/colaboradores/${colabId}`).then((r) => r.json()).then((j) => {
+      if (!vivo) return;
       const d: DetalheColab | null = j.data ?? null;
       setDetalhe(d);
       // Pré-marca o que a função exige e ainda não foi entregue (ou venceu).
@@ -89,7 +100,8 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
       }
       setLinhas(ini);
     }).catch(() => {});
-  }, [colabId, episAtivos, epiInicialId]);
+    return () => { vivo = false; };
+  }, [open, colabId, episAtivos, epiInicialId]);
 
   function vigente(d: DetalheColab | null, epiId: string) {
     const ult = d?.sstEpiEntregas.filter((x) => x.epiId === epiId).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())[0];
