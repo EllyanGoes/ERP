@@ -16,9 +16,10 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap } from "lucide-react";
+import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText } from "lucide-react";
 import { Semaforo, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
+import CautelaEpi from "@/components/sst/CautelaEpi";
 import MedicoSelect, { crmCompleto } from "@/components/sst/MedicoSelect";
 
 type Ficha = {
@@ -105,11 +106,12 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   }
 
   // ── Exclusões ──
-  const [excluir, setExcluir] = useState<{ tipo: "entrega" | "aso"; id: string } | null>(null);
+  const [excluir, setExcluir] = useState<{ tipo: "entrega" | "aso" | "ficha"; id: string } | null>(null);
+  const [cautelaAberta, setCautelaAberta] = useState<string | null>(null);
   async function confirmarExclusao() {
     if (!excluir) return;
     setSalvando(true);
-    const url = excluir.tipo === "entrega" ? `/api/sst/entregas?id=${excluir.id}` : `/api/sst/asos/${excluir.id}`;
+    const url = excluir.tipo === "entrega" ? `/api/sst/entregas?id=${excluir.id}` : excluir.tipo === "ficha" ? `/api/sst/entregas/fichas/${excluir.id}` : `/api/sst/asos/${excluir.id}`;
     await fetch(url, { method: "DELETE" }).catch(() => {});
     setSalvando(false); setExcluir(null); load();
   }
@@ -185,36 +187,65 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             <div className="border-t border-border/60">
               <div className="px-4 py-2 flex items-center justify-between">
                 <p className="text-xs font-semibold text-muted-foreground">Histórico de entregas</p>
-                <span className="text-[11px] text-muted-foreground">{f.sstEpiEntregas.length} registro(s)</span>
+                <span className="text-[11px] text-muted-foreground">{f.sstEpiEntregas.length} entrega(s)</span>
               </div>
-              {f.sstEpiEntregas.length === 0 ? <p className="px-4 pb-3 text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (
-                <div className="overflow-x-auto"><table className="w-full text-sm">
-                  <thead className="text-xs text-muted-foreground bg-muted/50"><tr>
-                    <th className="text-left px-4 py-1.5 font-semibold">Data</th><th className="text-left px-3 py-1.5 font-semibold">Tipo</th><th className="text-left px-3 py-1.5 font-semibold">EPI</th><th className="text-left px-3 py-1.5 font-semibold">CA</th><th className="text-right px-3 py-1.5 font-semibold">Qtd</th><th className="text-left px-3 py-1.5 font-semibold">Troca prevista</th><th className="text-left px-3 py-1.5 font-semibold">Cautela</th><th className="text-left px-3 py-1.5 font-semibold">Termo</th><th className="px-2 py-1.5"></th>
-                  </tr></thead>
-                  <tbody>
-                    {f.sstEpiEntregas.map((e) => {
-                      const vencida = e.vencimentoUso ? new Date(e.vencimentoUso).getTime() < Date.now() : false;
-                      return (
-                        <tr key={e.id} className="border-t border-border/60">
-                          <td className="px-4 py-1.5 text-muted-foreground whitespace-nowrap">{fmtData(e.data)}</td>
-                          <td className="px-3 py-1.5"><span className={cn("text-[11px] px-1.5 rounded border", e.tipo === "DEVOLUCAO" ? "border-border text-muted-foreground" : e.tipo === "TROCA" ? "border-warning/30 text-warning bg-warning/5" : "border-info/30 text-info bg-info/5")}>{TIPO_ENTREGA[e.tipo]}</span></td>
-                          <td className="px-3 py-1.5 text-foreground">{e.epi.nome}{e.tamanho && <span className="ml-1 text-[11px] px-1 rounded border border-border text-muted-foreground">tam. {e.tamanho}</span>}{e.motivo && <p className="text-[11px] text-muted-foreground">{e.motivo}</p>}</td>
-                          <td className="px-3 py-1.5 text-muted-foreground">{e.epi.ca ?? "—"}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">{e.quantidade}</td>
-                          <td className={cn("px-3 py-1.5 whitespace-nowrap", vencida ? "text-danger" : "text-muted-foreground")}>{e.vencimentoUso ? fmtData(e.vencimentoUso) : "—"}</td>
-                          <td className="px-3 py-1.5">{e.ficha ? <Link href={`/sst/epis/fichas/${e.ficha.id}`} target="_blank" className="text-xs text-info hover:underline">nº {String(e.ficha.numero).padStart(4, "0")}</Link> : <span className="text-xs text-muted-foreground/60">{e.movimentacaoEstoqueId ? "lote/avulsa · estoque" : "lote/avulsa"}</span>}</td>
-                          <td className="px-3 py-1.5"><DocLink id={e.documentoId} label="assinado" /></td>
-                          <td className="px-2 py-1.5 text-right"><AcoesLinha acoes={[
-                            ...(e.ficha ? [{ label: "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, href: `/sst/epis/fichas/${e.ficha.id}` }] : []),
-                            { label: "Excluir entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: e.id }), danger: true, separadorAntes: !!e.ficha },
-                          ]} /></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table></div>
-              )}
+              {f.sstEpiEntregas.length === 0 ? <p className="px-4 pb-3 text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (() => {
+                // Uma linha por cautela (ficha); entregas em lote/avulsas ficam uma por linha.
+                type Ent = Ficha["sstEpiEntregas"][number];
+                const grupos: { chave: string; data: string; ficha: Ent["ficha"]; itens: Ent[] }[] = [];
+                for (const e of f.sstEpiEntregas) {
+                  const chave = e.ficha ? `f:${e.ficha.id}` : `e:${e.id}`;
+                  const g = grupos.find((x) => x.chave === chave);
+                  if (g) g.itens.push(e); else grupos.push({ chave, data: e.data, ficha: e.ficha, itens: [e] });
+                }
+                return (
+                  <div className="overflow-x-auto"><table className="w-full text-sm">
+                    <thead className="text-xs text-muted-foreground bg-muted/50"><tr>
+                      <th className="text-left px-4 py-1.5 font-semibold">Data</th><th className="text-left px-3 py-1.5 font-semibold">Cautela</th><th className="text-left px-3 py-1.5 font-semibold">EPIs</th><th className="text-left px-3 py-1.5 font-semibold">Termo</th><th className="px-2 py-1.5"></th>
+                    </tr></thead>
+                    <tbody>
+                      {grupos.map((g) => {
+                        const termo = g.ficha?.documentoId ?? g.itens.find((i) => i.documentoId)?.documentoId ?? null;
+                        return (
+                          <tr key={g.chave} className="border-t border-border/60 align-top">
+                            <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">{fmtData(g.data)}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              {g.ficha
+                                ? <button onClick={() => setCautelaAberta(g.ficha!.id)} className="inline-flex items-center gap-1 text-xs font-medium text-info hover:underline"><FileText className="w-3.5 h-3.5" /> nº {String(g.ficha.numero).padStart(4, "0")}</button>
+                                : <span className="text-xs text-muted-foreground/70">{g.itens[0].movimentacaoEstoqueId ? "lote/avulsa · estoque" : "lote/avulsa"}</span>}
+                            </td>
+                            <td className="px-3 py-2">
+                              <ul className="space-y-0.5">
+                                {g.itens.map((e) => {
+                                  const vencida = e.vencimentoUso ? new Date(e.vencimentoUso).getTime() < Date.now() : false;
+                                  return (
+                                    <li key={e.id} className="text-sm text-foreground leading-snug">
+                                      {e.quantidade > 1 && <span className="tabular-nums text-muted-foreground">{e.quantidade}× </span>}
+                                      {e.epi.nome}
+                                      {e.tamanho && <span className="ml-1 text-[11px] px-1 rounded border border-border text-muted-foreground">tam. {e.tamanho}</span>}
+                                      {e.tipo !== "ENTREGA" && <span className={cn("ml-1 text-[11px] px-1 rounded border", e.tipo === "DEVOLUCAO" ? "border-border text-muted-foreground" : "border-warning/30 text-warning bg-warning/5")}>{TIPO_ENTREGA[e.tipo]}</span>}
+                                      <span className="text-[11px] text-muted-foreground">{e.epi.ca ? ` · CA ${e.epi.ca}` : ""}{e.vencimentoUso && <> · troca <span className={cn(vencida && "text-danger font-medium")}>{fmtData(e.vencimentoUso)}</span></>}</span>
+                                      {e.motivo && <span className="block text-[11px] text-muted-foreground">{e.motivo}</span>}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </td>
+                            <td className="px-3 py-2"><DocLink id={termo} label="assinado" /></td>
+                            <td className="px-2 py-2 text-right"><AcoesLinha acoes={g.ficha ? [
+                              { label: "Ver cautela", icon: <FileText className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(g.ficha!.id) },
+                              { label: "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, href: `/sst/epis/fichas/${g.ficha.id}` },
+                              { label: "Excluir cautela", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "ficha", id: g.ficha!.id }), danger: true, separadorAntes: true },
+                            ] : [
+                              { label: "Excluir entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: g.itens[0].id }), danger: true },
+                            ]} /></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table></div>
+                );
+              })()}
             </div>
           </section>
             </div>
@@ -242,21 +273,22 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                     <table className="w-full text-sm">
                       <thead className="text-xs text-muted-foreground"><tr><th className="text-left px-4 py-1.5 font-semibold">Exame exigido pela função</th><th className="text-left px-3 py-1.5 font-semibold">Situação</th><th className="text-left px-3 py-1.5 font-semibold">Último</th><th className="text-left px-3 py-1.5 font-semibold">Próximo</th></tr></thead>
                       <tbody>
+                        {/* Em dia no topo, depois vencendo, vencidos e, por fim, nunca realizados. */}
                         {exigidos.map((r) => {
                           const doTipo = feitos.filter((e) => e.exameTipoId === r.exameTipo.id).sort((x, y) => new Date(y.data).getTime() - new Date(x.data).getTime());
                           const ult = doTipo[0] ?? null;
                           const prox = ult ? new Date(new Date(ult.data).setMonth(new Date(ult.data).getMonth() + r.periodicidadeMeses)) : null;
                           const dias = prox ? Math.ceil((prox.getTime() - Date.now()) / 86_400_000) : null;
-                          const st = !ult ? { t: "nunca realizado", cls: "text-danger" } : dias! < 0 ? { t: "vencido", cls: "text-danger" } : dias! <= 30 ? { t: `vence em ${dias} d`, cls: "text-warning" } : { t: "em dia", cls: "text-success" };
-                          return (
-                            <tr key={r.exameTipo.id} className="border-t border-border/60">
-                              <td className="px-4 py-1.5 text-foreground">{r.exameTipo.nome} <span className="text-xs text-muted-foreground">· a cada {r.periodicidadeMeses} m</span></td>
-                              <td className={cn("px-3 py-1.5 text-xs font-medium", st.cls)}>{st.t}</td>
-                              <td className="px-3 py-1.5 text-muted-foreground">{ult ? fmtData(ult.data) : "—"}</td>
-                              <td className={cn("px-3 py-1.5", dias !== null && dias < 0 ? "text-danger" : "text-muted-foreground")}>{prox ? fmtData(prox) : "—"}</td>
-                            </tr>
-                          );
-                        })}
+                          const st = !ult ? { t: "nunca realizado", cls: "text-danger", ordem: 3 } : dias! < 0 ? { t: "vencido", cls: "text-danger", ordem: 2 } : dias! <= 30 ? { t: `vence em ${dias} d`, cls: "text-warning", ordem: 1 } : { t: "em dia", cls: "text-success", ordem: 0 };
+                          return { r, ult, prox, dias, st };
+                        }).sort((a, b) => a.st.ordem - b.st.ordem).map(({ r, ult, prox, dias, st }) => (
+                          <tr key={r.exameTipo.id} className="border-t border-border/60">
+                            <td className="px-4 py-1.5 text-foreground">{r.exameTipo.nome} <span className="text-xs text-muted-foreground">· a cada {r.periodicidadeMeses} m</span></td>
+                            <td className={cn("px-3 py-1.5 text-xs font-medium", st.cls)}>{st.t}</td>
+                            <td className="px-3 py-1.5 text-muted-foreground">{ult ? fmtData(ult.data) : "—"}</td>
+                            <td className={cn("px-3 py-1.5", dias !== null && dias < 0 ? "text-danger" : "text-muted-foreground")}>{prox ? fmtData(prox) : "—"}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   )}
@@ -377,7 +409,18 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)} title={excluir?.tipo === "entrega" ? "Excluir entrega de EPI?" : "Excluir ASO?"} description={excluir?.tipo === "entrega" ? "A saída de estoque (se houve) é estornada. O registro vai para a lixeira." : "O registro vai para a lixeira."} onConfirm={confirmarExclusao} loading={salvando} confirmLabel="Excluir" />
+      {/* Popup da cautela */}
+      <Dialog open={!!cautelaAberta} onOpenChange={(o) => !o && setCautelaAberta(null)}>
+        <DialogContent className="sm:max-w-[820px] max-h-[92vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Cautela de EPI</DialogTitle></DialogHeader>
+          {cautelaAberta && <div className="overflow-x-auto rounded-lg border border-border"><CautelaEpi id={cautelaAberta} emDialog /></div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCautelaAberta(null)}>Fechar</Button>
+            {cautelaAberta && <Link href={`/sst/epis/fichas/${cautelaAberta}`} target="_blank"><Button className="gap-1.5"><Printer className="w-4 h-4" /> Imprimir</Button></Link>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <ConfirmDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)} title={excluir?.tipo === "entrega" ? "Excluir entrega de EPI?" : excluir?.tipo === "ficha" ? "Excluir cautela?" : "Excluir ASO?"} description={excluir?.tipo === "aso" ? "O registro vai para a lixeira." : excluir?.tipo === "ficha" ? "Todas as entregas da cautela são excluídas e as saídas de estoque estornadas. Vai para a lixeira." : "A saída de estoque (se houve) é estornada. O registro vai para a lixeira."} onConfirm={confirmarExclusao} loading={salvando} confirmLabel="Excluir" />
     </div>
   );
 }
