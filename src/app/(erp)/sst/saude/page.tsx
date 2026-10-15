@@ -20,7 +20,7 @@ import { fmtData, type Pendencia, AcoesLinha } from "@/components/sst/comum";
 import { MedicoDialog, useMedicos, crmCompleto, type Medico } from "@/components/sst/MedicoSelect";
 
 type Colab = { id: string; nome: string; ativo: boolean; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
-type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; _count: { requisitos: number; asoExames: number } };
+type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; _count: { requisitos: number; exames: number } };
 type Linha = Pendencia & { colaboradorNome: string; setor: string | null; funcao?: string };
 
 const TIPOS_SAUDE = ["ASO_INEXISTENTE", "ASO_VENCIDO", "ASO_VENCE_EM_BREVE", "ASO_INAPTO", "ASO_DEMISSIONAL_PENDENTE", "EXAME_PENDENTE"];

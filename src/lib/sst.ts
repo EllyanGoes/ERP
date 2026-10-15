@@ -62,6 +62,8 @@ export type ColaboradorSst = {
   sstEpiEntregas: { epiId: string; tipo: "ENTREGA" | "TROCA" | "DEVOLUCAO"; data: Date; vencimentoUso: Date | null; quantidade: number }[];
   sstEpiFichas: { id: string; numero: number; data: Date }[];
   sstAsos: { id: string; tipo: string; data: Date; validade: Date | null; resultado: string; exames: { exameTipoId: string; data: Date }[] }[];
+  /** Exames realizados — com ou sem ASO (fonte do "último exame"). */
+  sstExames: { exameTipoId: string; data: Date }[];
 };
 
 export const COLABORADOR_SST_SELECT = {
@@ -87,6 +89,7 @@ export const COLABORADOR_SST_SELECT = {
   sstEpiEntregas: { orderBy: { data: "desc" as const }, select: { epiId: true, tipo: true, data: true, vencimentoUso: true, quantidade: true } },
   sstEpiFichas: { where: { documentoId: null }, select: { id: true, numero: true, data: true } },
   sstAsos: { orderBy: { data: "desc" as const }, select: { id: true, tipo: true, data: true, validade: true, resultado: true, exames: { select: { exameTipoId: true, data: true } } } },
+  sstExames: { orderBy: { data: "desc" as const }, select: { exameTipoId: true, data: true } },
 } as const;
 
 /** EPI vigente do colaborador: última ENTREGA/TROCA sem DEVOLUCAO posterior. */
@@ -175,7 +178,7 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
 
   // Exames complementares por periodicidade
   for (const r of f.requisitosExame) {
-    const feitos = c.sstAsos.flatMap((a) => a.exames).filter((e) => e.exameTipoId === r.exameTipo.id).sort((a, b) => b.data.getTime() - a.data.getTime());
+    const feitos = c.sstExames.filter((e) => e.exameTipoId === r.exameTipo.id).sort((a, b) => b.data.getTime() - a.data.getTime());
     const ultimoExame = feitos[0] ?? null;
     const limite = ultimoExame ? somaMeses(ultimoExame.data, r.periodicidadeMeses) : null;
     if (!ultimoExame || (limite && limite.getTime() < hoje.getTime())) {

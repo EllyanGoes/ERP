@@ -28,13 +28,14 @@ type Ficha = {
   sstFuncoes: { id: string; inicio: string; fim: string | null; funcao: { id: string; nome: string; requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[] } }[];
   sstTreinamentos: { validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; treinamento: { id: string; tipoId: string; data: string; instrutor: string | null; cargaHoraria: number | null; tipo: { nome: string; norma: string | null } } }[];
   sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null } | null }[];
+  sstExames: { id: string; exameTipoId: string; data: string; resultado: string | null; observacao: string | null; documentoId: string | null; asoId: string | null; exameTipo: { nome: string }; aso: { tipo: string; data: string } | null }[];
   sstAsos: { id: string; tipo: string; data: string; validade: string | null; resultado: string; restricoes: string | null; medico: string | null; crm: string | null; documentoId: string | null; exames: { exameTipoId: string; data: string; resultado: string | null; exameTipo: { nome: string } }[] }[];
   pendencias: Pendencia[];
   episStatus: { epi: { id: string; nome: string; vidaUtilDias: number | null; ca: string | null }; obrigatorio: boolean; quantidade: number; entregaVigente: { data: string; vencimentoUso: string | null } | null }[];
 };
 type Funcao = { id: string; nome: string; ativo: boolean };
 type Epi = { id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean };
-type ExameTipo = { id: string; nome: string };
+type ExameTipo = { id: string; nome: string; ativo?: boolean };
 
 /** Cartão das faixas da ficha (exigência à esquerda, registro à direita). */
 function Card({ icon, titulo, acao, children }: { icon: React.ReactNode; titulo: string; acao?: React.ReactNode; children: React.ReactNode }) {
@@ -91,6 +92,14 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
 
   // ── ASO ──
   const [dlgAso, setDlgAso] = useState(false);
+  // Lançar exame avulso (com vínculo opcional a um ASO já lançado).
+  const [dlgExame, setDlgExame] = useState(false);
+  const [eData, setEData] = useState(hojeISO());
+  const [eSel, setESel] = useState<Record<string, boolean>>({});
+  const [eResultado, setEResultado] = useState("");
+  const [eObs, setEObs] = useState("");
+  const [eAsoId, setEAsoId] = useState("");
+  const [eDoc, setEDoc] = useState<string | null>(null);
   const [aTipo, setATipo] = useState("PERIODICO");
   const [aData, setAData] = useState(hojeISO());
   const [aValidade, setAValidade] = useState("");
@@ -117,14 +126,32 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
     if (!res.ok) { setErro(j.error || "Erro"); return; }
     setDlgAso(false); load();
   }
+  function abrirExame() {
+    setEData(hojeISO()); setEResultado(""); setEObs(""); setEDoc(null); setErro("");
+    // Pré-marca os exames exigidos que estão pendentes (nunca feitos ou vencidos).
+    const pend = f?.pendencias.filter((p) => p.tipo === "EXAME_PENDENTE" && p.referenciaId).map((p) => p.referenciaId!) ?? [];
+    setESel(Object.fromEntries(pend.map((x) => [x, true])));
+    setEAsoId(f?.sstAsos[0]?.id ?? "");
+    setDlgExame(true);
+  }
+  async function salvarExame() {
+    const exames = Object.entries(eSel).filter(([, v]) => v).map(([exameTipoId]) => ({ exameTipoId, resultado: eResultado || null }));
+    if (exames.length === 0) { setErro("Selecione ao menos um exame."); return; }
+    setSalvando(true); setErro("");
+    const res = await fetch("/api/sst/exames", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorId: id, data: eData, asoId: eAsoId || null, documentoId: eDoc, observacao: eObs || null, exames }) });
+    const j = await res.json().catch(() => ({}));
+    setSalvando(false);
+    if (!res.ok) { setErro(j.error || "Erro"); return; }
+    setDlgExame(false); load();
+  }
 
   // ── Exclusões ──
-  const [excluir, setExcluir] = useState<{ tipo: "entrega" | "aso" | "ficha"; id: string } | null>(null);
+  const [excluir, setExcluir] = useState<{ tipo: "entrega" | "aso" | "ficha" | "exame"; id: string } | null>(null);
   const [cautelaAberta, setCautelaAberta] = useState<string | null>(null);
   async function confirmarExclusao() {
     if (!excluir) return;
     setSalvando(true);
-    const url = excluir.tipo === "entrega" ? `/api/sst/entregas?id=${excluir.id}` : excluir.tipo === "ficha" ? `/api/sst/entregas/fichas/${excluir.id}` : `/api/sst/asos/${excluir.id}`;
+    const url = excluir.tipo === "entrega" ? `/api/sst/entregas?id=${excluir.id}` : excluir.tipo === "ficha" ? `/api/sst/entregas/fichas/${excluir.id}` : excluir.tipo === "exame" ? `/api/sst/exames/${excluir.id}` : `/api/sst/asos/${excluir.id}`;
     await fetch(url, { method: "DELETE" }).catch(() => {});
     setSalvando(false); setExcluir(null); load();
   }
@@ -274,7 +301,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
               const asoPend = f.pendencias.filter((p) => p.tipo.startsWith("ASO"));
               const exigidos = vinculo?.funcao.requisitosExame ?? [];
               if (asoPend.length === 0 && exigidos.length === 0) return <p className="px-4 py-3 text-sm text-muted-foreground italic">{vinculo ? "A função não exige exames complementares." : "Sem função — nada a cobrar."}</p>;
-              const feitos = f.sstAsos.flatMap((a) => a.exames.map((e) => ({ ...e, asoData: a.data })));
+              const feitos = f.sstExames;
               return (
                 <div>
                   {asoPend.length > 0 && (
@@ -309,8 +336,12 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
               );
             })()}
                   </Card>
-                  <Card icon={<Stethoscope className="w-4 h-4" />} titulo="ASOs lançados"
-                    acao={<Button size="sm" onClick={abrirAso} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Lançar ASO</Button>}>
+                  <Card icon={<Stethoscope className="w-4 h-4" />} titulo="ASOs e exames realizados"
+                    acao={<div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={abrirExame} className="gap-1.5"><Plus className="w-3.5 h-3.5" /> Exame</Button>
+                      <Button size="sm" onClick={abrirAso} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Lançar ASO</Button>
+                    </div>}>
+            <p className="px-4 pt-2 text-xs font-semibold text-muted-foreground">ASOs</p>
             {f.sstAsos.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum ASO registrado.</p> : (
               <ul className="divide-y divide-border/60 px-4">
                 {f.sstAsos.map((a) => {
@@ -335,6 +366,24 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                     </li>
                   );
                 })}
+              </ul>
+            )}
+            {/* Exames vivem sozinhos: podem vir com o ASO ou depois dele (o médico
+                deu apto e pediu exames novos). */}
+            <p className="px-4 pt-3 text-xs font-semibold text-muted-foreground border-t border-border/60 mt-1">Exames complementares</p>
+            {f.sstExames.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum exame registrado.</p> : (
+              <ul className="divide-y divide-border/60 px-4 pb-1">
+                {f.sstExames.map((e) => (
+                  <li key={e.id} className="py-1.5 text-sm flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground w-20 shrink-0">{fmtData(e.data)}</span>
+                    <span className="flex-1 min-w-0 text-foreground">{e.exameTipo.nome}
+                      {e.resultado && <span className="text-xs text-muted-foreground"> · {e.resultado}</span>}
+                      <span className="block text-[11px] text-muted-foreground">{e.aso ? `com o ASO ${(TIPO_ASO[e.aso.tipo] ?? e.aso.tipo).toLowerCase()} de ${fmtData(e.aso.data)}` : "avulso (sem ASO)"}{e.observacao ? ` · ${e.observacao}` : ""}</span>
+                    </span>
+                    <DocLink id={e.documentoId} label="laudo" />
+                    <button onClick={() => setExcluir({ tipo: "exame", id: e.id })} className="text-muted-foreground hover:text-danger shrink-0" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </li>
+                ))}
               </ul>
             )}
                   </Card>
@@ -436,6 +485,38 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
         </DialogContent>
       </Dialog>
 
+      {/* Dialog exame avulso */}
+      <Dialog open={dlgExame} onOpenChange={setDlgExame}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader><DialogTitle>Lançar exame</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Exames feitos fora do ASO — por exemplo, pedidos pelo médico depois de um ASO apto. Contam para a periodicidade exigida pela função.</p>
+            <div><Label>Exames realizados</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {exameTipos.filter((t) => t.ativo !== false).map((t) => (
+                  <label key={t.id} className={cn("inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-lg border cursor-pointer", eSel[t.id] ? "border-info bg-info/10 text-info" : "border-border text-foreground")}>
+                    <input type="checkbox" className="rounded" checked={!!eSel[t.id]} onChange={(ev) => setESel({ ...eSel, [t.id]: ev.target.checked })} />{t.nome}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Data do exame</Label><DatePicker value={eData} onChange={setEData} /></div>
+              <div><Label>Referente ao ASO (opcional)</Label>
+                <SelectMenu value={eAsoId} onChange={setEAsoId} options={[{ value: "", label: "— Sem ASO (avulso) —" }, ...(f?.sstAsos ?? []).map((a) => ({ value: a.id, label: `${TIPO_ASO[a.tipo] ?? a.tipo} · ${fmtData(a.data)}` }))]} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Resultado</Label><Input value={eResultado} onChange={(ev) => setEResultado(ev.target.value)} placeholder="Ex.: normal, alterado…" /></div>
+              <div><Label>Observação</Label><Input value={eObs} onChange={(ev) => setEObs(ev.target.value)} placeholder="Opcional" /></div>
+            </div>
+            <div><Label>Laudo (confidencial)</Label>{f && <UploadAnexo tipo="exame" titulo={`Exame — ${f.nome}`} colaboradorId={id} value={eDoc} onChange={setEDoc} />}</div>
+            {erro && <p className="text-sm text-danger">{erro}</p>}
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setDlgExame(false)}>Cancelar</Button><Button onClick={salvarExame} disabled={salvando}>{salvando ? "Salvando…" : "Lançar"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Popup da cautela */}
       <Dialog open={!!cautelaAberta} onOpenChange={(o) => !o && setCautelaAberta(null)}>
         <DialogContent className="sm:max-w-[820px] max-h-[92vh] overflow-y-auto">
@@ -447,7 +528,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <ConfirmDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)} title={excluir?.tipo === "entrega" ? "Excluir entrega de EPI?" : excluir?.tipo === "ficha" ? "Excluir cautela?" : "Excluir ASO?"} description={excluir?.tipo === "aso" ? "O registro vai para a lixeira." : excluir?.tipo === "ficha" ? "Todas as entregas da cautela são excluídas e as saídas de estoque estornadas. Vai para a lixeira." : "A saída de estoque (se houve) é estornada. O registro vai para a lixeira."} onConfirm={confirmarExclusao} loading={salvando} confirmLabel="Excluir" />
+      <ConfirmDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)} title={excluir?.tipo === "entrega" ? "Excluir entrega de EPI?" : excluir?.tipo === "ficha" ? "Excluir cautela?" : excluir?.tipo === "exame" ? "Excluir exame?" : "Excluir ASO?"} description={excluir?.tipo === "aso" ? "O registro vai para a lixeira. Os exames lançados com ele continuam registrados." : excluir?.tipo === "exame"  ? "O registro vai para a lixeira." : excluir?.tipo === "ficha" ? "Todas as entregas da cautela são excluídas e as saídas de estoque estornadas. Vai para a lixeira." : "A saída de estoque (se houve) é estornada. O registro vai para a lixeira."} onConfirm={confirmarExclusao} loading={salvando} confirmLabel="Excluir" />
     </div>
   );
 }

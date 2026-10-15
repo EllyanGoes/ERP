@@ -71,7 +71,7 @@ const MODELOS_ESCOPADOS = new Set<string>([
   // GED — docs/documentos-prd.md (DocumentoCategoria é compartilhada; filhos escopam via Documento)
   "Documento", "EmpresaDrive",
   // SST — docs/sst-prd.md (SstColaboradorFuncao/SstFuncaoEpi/SstFuncaoExame/SstAsoExame escopam via pai)
-  "SstFuncao", "SstMedico", "SstEpi", "SstEpiEntrega", "SstEpiFicha", "SstExameTipo", "SstAso", "SstObrigacao",
+  "SstFuncao", "SstMedico", "SstExame", "SstEpi", "SstEpiEntrega", "SstEpiFicha", "SstExameTipo", "SstAso", "SstObrigacao",
   "SstTreinamentoTipo", "SstTreinamento", "SstMaquina",
   "SstIncidente", "SstInspecao", "SstCipaMandato", "SstHorasMes", "SstConformidadeSnapshot",
   // Contratos — docs/contratos-prd.md (aditivos/eventos escopam via pai)

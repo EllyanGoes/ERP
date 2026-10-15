@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
       medico: med ? med.nome : b.medico?.trim() || null,
       crm: med ? (med.uf ? `${med.crm}/${med.uf}` : med.crm) : b.crm?.trim() || null,
       documentoId: b.documentoId || null,
-      exames: { create: exames.map((e) => ({ exameTipoId: e.exameTipoId, data: e.data ? new Date(e.data) : data, resultado: e.resultado?.trim() || null })) },
+      // Os exames feitos junto do ASO viram SstExame ligados a ele.
+      exames: { create: exames.map((e) => ({ empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID, colaboradorId: b.colaboradorId, exameTipoId: e.exameTipoId, data: e.data ? new Date(e.data) : data, resultado: e.resultado?.trim() || null, criadoPor: auth.session.nome })) },
     },
     include: INCLUDE,
   });

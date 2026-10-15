@@ -279,6 +279,7 @@ model Colaborador {
   sstEpiEntregas             SstEpiEntrega[]
   sstEpiFichas               SstEpiFicha[]
   sstAsos                    SstAso[]
+  sstExames                  SstExame[]
   sstTreinamentos            SstTreinamentoParticipante[]
   sstIncidentes              SstIncidente[]
   sstCipa                    SstCipaMembro[]
@@ -1606,6 +1607,7 @@ model Empresa {
   // SST (docs/sst-prd.md)
   sstFuncoes                    SstFuncao[]
   sstMedicos                    SstMedico[]
+  sstExames                     SstExame[]
   sstEpis                       SstEpi[]
   sstEpiEntregas                SstEpiEntrega[]
   sstEpiFichas                  SstEpiFicha[]
@@ -5221,6 +5223,7 @@ model SstExameTipo {
   empresa            Empresa          @relation(fields: [empresaId], references: [id])
   requisitos         SstFuncaoExame[]
   asoExames          SstAsoExame[]
+  exames             SstExame[]
 
   @@unique([empresaId, nome])
 }
@@ -5248,7 +5251,9 @@ model SstAso {
   empresa       Empresa         @relation(fields: [empresaId], references: [id])
   colaborador   Colaborador     @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
   medicoRef     SstMedico?      @relation(fields: [medicoId], references: [id])
-  exames        SstAsoExame[]
+  // Exames realizados para este ASO (o exame vive sozinho — ver SstExame).
+  exames        SstExame[]
+  examesLegado  SstAsoExame[]
 
   @@index([colaboradorId, validade])
 }
@@ -5272,6 +5277,33 @@ model SstMedico {
   @@unique([empresaId, crm])
 }
 
+// Exame complementar REALIZADO — independente do ASO: pode vir junto do ASO
+// (asoId) ou depois dele (o médico deu apto e pediu exames novos). É daqui que
+// o motor tira "último exame" e o vencimento por periodicidade.
+model SstExame {
+  id            String       @id @default(cuid())
+  empresaId     String
+  colaboradorId String
+  exameTipoId   String
+  data          DateTime
+  resultado     String?
+  observacao    String?
+  documentoId   String?
+  asoId         String?
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  empresa       Empresa      @relation(fields: [empresaId], references: [id])
+  colaborador   Colaborador  @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  exameTipo     SstExameTipo @relation(fields: [exameTipoId], references: [id])
+  aso           SstAso?      @relation(fields: [asoId], references: [id], onDelete: SetNull)
+
+  @@index([colaboradorId, exameTipoId, data])
+  @@index([asoId])
+}
+
+// LEGADO: exames gravados dentro do ASO até 15/10/2026 (copiados p/ SstExame).
 model SstAsoExame {
   asoId       String
   exameTipoId String
