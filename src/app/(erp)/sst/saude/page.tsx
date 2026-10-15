@@ -2,8 +2,9 @@
 
 // ASO e exames: agenda de vencimentos (quem precisa de exame nos próximos
 // dias) + tipos de exame complementar.
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
@@ -12,21 +13,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
-import { SeveridadeBadge, fmtData, type Pendencia, AcoesLinha } from "@/components/sst/comum";
+import { Loader2, Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
+import { SeveridadeBadge, SEVERIDADE, fmtData, type Pendencia, type Severidade, AcoesLinha } from "@/components/sst/comum";
 
 type Colab = { id: string; nome: string; ativo: boolean; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
 type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; _count: { requisitos: number; asoExames: number } };
+type Linha = Pendencia & { colaboradorNome: string; setor: string | null; funcao?: string };
 
 const TIPOS_SAUDE = ["ASO_INEXISTENTE", "ASO_VENCIDO", "ASO_VENCE_EM_BREVE", "ASO_INAPTO", "ASO_DEMISSIONAL_PENDENTE", "EXAME_PENDENTE"];
+const ORDEM_SEV: Severidade[] = ["CRITICA", "ALTA", "MEDIA", "BAIXA"];
+
+// Agrupamentos da agenda. A chave é o que junta as linhas; o rótulo abre o grupo.
+const AGRUPAMENTOS: Record<string, { label: string; chave: (l: Linha) => string; rotulo?: (chave: string, primeira: Linha) => string }> = {
+  colaborador: { label: "Colaborador", chave: (l) => l.colaboradorId ?? l.colaboradorNome, rotulo: (_, l) => l.colaboradorNome + (l.setor ? ` · ${l.setor}` : "") },
+  funcao: { label: "Função", chave: (l) => l.funcao ?? "Sem função" },
+  setor: { label: "Setor", chave: (l) => l.setor ?? "Sem setor" },
+  pendencia: { label: "Tipo de pendência", chave: (l) => l.titulo },
+  severidade: { label: "Severidade", chave: (l) => l.severidade, rotulo: (c) => SEVERIDADE[c as Severidade]?.label ?? c },
+  nenhum: { label: "Sem agrupamento", chave: () => "" },
+};
+
+const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export default function SstSaudePage() {
   useTabTitle("SST — ASO e exames");
   const [colabs, setColabs] = useState<Colab[]>([]);
   const [tipos, setTipos] = useState<ExameTipo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [janela, setJanela] = useState("60");
+  const [janela, setJanela] = usePersistedState("sst:saude:janela", "60");
+  const [busca, setBusca] = usePersistedState("sst:saude:busca", "");
+  const [agrupar, setAgrupar] = usePersistedState("sst:saude:agrupar", "colaborador");
   async function load() {
     setLoading(true);
     const [c, t] = await Promise.all([fetch("/api/sst/colaboradores").then((r) => r.json()), fetch("/api/sst/exames-tipos").then((r) => r.json())]);
@@ -34,11 +52,46 @@ export default function SstSaudePage() {
   }
   useEffect(() => { load(); }, []);
 
-  const agenda = useMemo(() => {
+  const agenda = useMemo<Linha[]>(() => {
     const lim = Date.now() + Number(janela) * 86_400_000;
-    return colabs.filter((c) => c.ativo).flatMap((c) => c.pendencias.filter((p) => TIPOS_SAUDE.includes(p.tipo)).filter((p) => !p.vence || new Date(p.vence).getTime() <= lim).map((p) => ({ ...p, colaboradorNome: c.nome, setor: c.setor, funcao: c.funcao?.nome })))
+    // Busca por termos em qualquer ordem ("audiometria carla" acha "Carla … Audiometria").
+    const termos = norm(busca).split(/\s+/).filter(Boolean);
+    return colabs.filter((c) => c.ativo).flatMap((c) => c.pendencias.filter((p) => TIPOS_SAUDE.includes(p.tipo)).filter((p) => !p.vence || new Date(p.vence).getTime() <= lim).map((p) => ({ ...p, colaboradorId: c.id, colaboradorNome: c.nome, setor: c.setor, funcao: c.funcao?.nome })))
+      .filter((l) => { const alvo = norm([l.colaboradorNome, l.setor ?? "", l.funcao ?? "", l.titulo, l.detalhe ?? ""].join(" ")); return termos.every((t) => alvo.includes(t)); })
       .sort((a, b) => (a.vence ? new Date(a.vence).getTime() : 0) - (b.vence ? new Date(b.vence).getTime() : 0));
-  }, [colabs, janela]);
+  }, [colabs, janela, busca]);
+
+  // Grupos na ordem em que aparecem (agenda já vem ordenada por vencimento),
+  // exceto severidade, que segue a ordem crítica → baixa.
+  const grupos = useMemo(() => {
+    const def = AGRUPAMENTOS[agrupar] ?? AGRUPAMENTOS.colaborador;
+    const mapa = new Map<string, { rotulo: string; linhas: Linha[] }>();
+    for (const l of agenda) {
+      const k = def.chave(l);
+      if (!mapa.has(k)) mapa.set(k, { rotulo: def.rotulo ? def.rotulo(k, l) : k, linhas: [] });
+      mapa.get(k)!.linhas.push(l);
+    }
+    const lista = Array.from(mapa.entries()).map(([chave, g]) => ({ chave, ...g }));
+    if (agrupar === "severidade") lista.sort((a, b) => ORDEM_SEV.indexOf(a.chave as Severidade) - ORDEM_SEV.indexOf(b.chave as Severidade));
+    else if (agrupar !== "nenhum") lista.sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+    return lista;
+  }, [agenda, agrupar]);
+  const semGrupo = agrupar === "nenhum";
+
+  // Exporta o que está na tela (mesmos filtros e agrupamento), uma linha por pendência.
+  function exportarXlsx() {
+    const def = AGRUPAMENTOS[agrupar] ?? AGRUPAMENTOS.colaborador;
+    const linhas = grupos.flatMap((g) => g.linhas.map((l) => ({
+      ...(semGrupo ? {} : { [def.label]: g.rotulo }),
+      Colaborador: l.colaboradorNome, Setor: l.setor ?? "", Função: l.funcao ?? "",
+      Pendência: l.titulo, Detalhe: l.detalhe ?? "", Severidade: SEVERIDADE[l.severidade].label,
+      Vence: l.vence ? fmtData(l.vence) : "", Situação: l.vence && new Date(l.vence).getTime() < Date.now() ? "Vencido" : "A vencer",
+    })));
+    const ws = XLSX.utils.json_to_sheet(linhas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "ASO e exames");
+    XLSX.writeFile(wb, `aso-exames-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
 
   // tipos de exame
   const [open, setOpen] = useState(false); const [editId, setEditId] = useState<string | null>(null);
@@ -61,22 +114,49 @@ export default function SstSaudePage() {
         action={<Button onClick={() => abrir()} variant="outline" className="gap-1.5"><Plus className="w-4 h-4" /> Tipo de exame</Button>} />
       <div className="px-8 pb-8 grid lg:grid-cols-3 gap-6">
         <section className="lg:col-span-2 bg-card rounded-xl border border-border">
-          <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-foreground">Agenda — quem precisa de ASO/exame</h2>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">próximos <SelectMenu value={janela} onChange={setJanela} className="w-28" options={[{ value: "30", label: "30 dias" }, { value: "60", label: "60 dias" }, { value: "90", label: "90 dias" }, { value: "3650", label: "todos" }]} /></div>
+          <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between gap-3">
+            <h2 className="font-semibold text-sm text-foreground shrink-0">Agenda — quem precisa de ASO/exame</h2>
+            <span className="text-xs text-muted-foreground">{agenda.length} pendência(s){!semGrupo && ` · ${grupos.length} ${agrupar === "colaborador" ? "colaborador(es)" : "grupo(s)"}`}</span>
           </div>
-          {loading ? <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : agenda.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground italic">Ninguém com ASO/exame pendente ou vencendo no período.</p> : (
+          <div className="px-4 py-2 border-b border-border/60 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar colaborador, setor, função ou exame…" className="pl-8 h-8 text-sm" />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">agrupar por <SelectMenu value={agrupar} onChange={setAgrupar} className="w-40" options={Object.entries(AGRUPAMENTOS).map(([value, a]) => ({ value, label: a.label }))} /></div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">próximos <SelectMenu value={janela} onChange={setJanela} className="w-28" options={[{ value: "30", label: "30 dias" }, { value: "60", label: "60 dias" }, { value: "90", label: "90 dias" }, { value: "3650", label: "todos" }]} /></div>
+            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={exportarXlsx} disabled={agenda.length === 0} title="Exportar a lista filtrada em Excel"><FileSpreadsheet className="w-4 h-4" /> Excel</Button>
+          </div>
+          {loading ? <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : agenda.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground italic">{busca ? "Nada encontrado para a busca no período." : "Ninguém com ASO/exame pendente ou vencendo no período."}</p> : (
             <table className="w-full text-sm">
-              <thead className="text-xs text-muted-foreground"><tr><th className="text-left px-4 py-1.5 font-semibold">Colaborador</th><th className="text-left px-3 py-1.5 font-semibold">Função</th><th className="text-left px-3 py-1.5 font-semibold">Pendência</th><th className="text-left px-3 py-1.5 font-semibold">Severidade</th><th className="text-left px-3 py-1.5 font-semibold">Vence</th></tr></thead>
+              <thead className="text-xs text-muted-foreground"><tr>
+                {(semGrupo || agrupar !== "colaborador") && <th className="text-left px-4 py-1.5 font-semibold">Colaborador</th>}
+                {agrupar !== "funcao" && <th className="text-left px-3 py-1.5 font-semibold">Função</th>}
+                <th className="text-left px-3 py-1.5 font-semibold">Pendência</th>
+                {agrupar !== "severidade" && <th className="text-left px-3 py-1.5 font-semibold">Severidade</th>}
+                <th className="text-left px-3 py-1.5 font-semibold">Vence</th>
+              </tr></thead>
               <tbody>
-                {agenda.map((p, i) => (
-                  <tr key={i} className="border-t border-border/60 hover:bg-muted/40">
-                    <td className="px-4 py-2"><Link href={p.link} className="text-foreground hover:text-info">{p.colaboradorNome}</Link><span className="text-xs text-muted-foreground"> {p.setor ? `· ${p.setor}` : ""}</span></td>
-                    <td className="px-3 py-2 text-muted-foreground">{p.funcao ?? "—"}</td>
-                    <td className="px-3 py-2 text-foreground">{p.titulo}{p.detalhe && <span className="text-xs text-muted-foreground"> — {p.detalhe}</span>}</td>
-                    <td className="px-3 py-2"><SeveridadeBadge s={p.severidade} /></td>
-                    <td className={cn("px-3 py-2 text-xs", p.vence && new Date(p.vence).getTime() < Date.now() ? "text-danger font-medium" : "text-muted-foreground")}>{p.vence ? fmtData(p.vence) : "—"}</td>
-                  </tr>
+                {grupos.map((g) => (
+                  <Fragment key={g.chave || "_"}>
+                    {!semGrupo && (
+                      <tr className="border-t border-border bg-muted/50">
+                        <td colSpan={5} className="px-4 py-1.5 text-xs font-semibold text-foreground">
+                          {agrupar === "colaborador" ? <Link href={g.linhas[0].link} className="hover:text-info">{g.rotulo}</Link> : agrupar === "severidade" ? <SeveridadeBadge s={g.chave as Severidade} /> : g.rotulo}
+                          <span className="ml-2 font-normal text-muted-foreground">{g.linhas.length}</span>
+                        </td>
+                      </tr>
+                    )}
+                    {g.linhas.map((p, i) => (
+                      <tr key={i} className="border-t border-border/60 hover:bg-muted/40">
+                        {(semGrupo || agrupar !== "colaborador") && <td className="px-4 py-2"><Link href={p.link} className="text-foreground hover:text-info">{p.colaboradorNome}</Link><span className="text-xs text-muted-foreground"> {p.setor ? `· ${p.setor}` : ""}</span></td>}
+                        {agrupar !== "funcao" && <td className={cn("px-3 py-2 text-muted-foreground", agrupar === "colaborador" && "pl-8")}>{p.funcao ?? "—"}</td>}
+                        <td className="px-3 py-2 text-foreground">{p.titulo}{p.detalhe && <span className="text-xs text-muted-foreground"> — {p.detalhe}</span>}</td>
+                        {agrupar !== "severidade" && <td className="px-3 py-2"><SeveridadeBadge s={p.severidade} /></td>}
+                        <td className={cn("px-3 py-2 text-xs", p.vence && new Date(p.vence).getTime() < Date.now() ? "text-danger font-medium" : "text-muted-foreground")}>{p.vence ? fmtData(p.vence) : "—"}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
