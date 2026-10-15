@@ -36,6 +36,19 @@ type Funcao = { id: string; nome: string; ativo: boolean };
 type Epi = { id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean };
 type ExameTipo = { id: string; nome: string };
 
+/** Cartão das faixas da ficha (exigência à esquerda, registro à direita). */
+function Card({ icon, titulo, acao, children }: { icon: React.ReactNode; titulo: string; acao?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="bg-card rounded-xl border border-border h-full min-w-0 flex flex-col">
+      <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between gap-2 rounded-t-xl">
+        <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2">{icon} {titulo}</h2>
+        {acao}
+      </div>
+      <div className="flex-1">{children}</div>
+    </section>
+  );
+}
+
 export default function FichaSstColaborador({ id, embutido = false }: { id: string; embutido?: boolean }) {
   const [f, setF] = useState<Ficha | null>(null);
   const [loading, setLoading] = useState(true);
@@ -156,15 +169,21 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             </div>
           </section>
 
-          <div className="grid xl:grid-cols-2 gap-6 items-start">
-            <div className="space-y-6 min-w-0">
-          {/* EPIs */}
-          <section className="bg-card rounded-xl border border-border">
-            <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-              <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2"><HardHat className="w-4 h-4" /> EPIs (NR-06)</h2>
-              <Button size="sm" onClick={() => abrirEntrega()} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Entrega</Button>
-            </div>
-            {f.episStatus.length > 0 && (
+          {/* Exigências da função à esquerda, o que foi entregue/registrado à direita —
+              em faixas pareadas (EPIs | entregas, exames | ASOs, treinamentos | turmas). */}
+          {(() => {
+            const nEntregas = f.sstEpiEntregas.length;
+            return (
+              <div className="space-y-6">
+                <div className="hidden xl:grid grid-cols-2 gap-6 -mb-3 px-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">O que a função exige</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Entregas e registros</p>
+                </div>
+
+                {/* EPIs */}
+                <div className="grid xl:grid-cols-2 gap-6 items-stretch">
+                  <Card icon={<HardHat className="w-4 h-4" />} titulo="EPIs exigidos (NR-06)">
+                    {f.episStatus.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">{vinculo ? "A função não exige EPI." : "Sem função — nada a cobrar."}</p> : (
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground"><tr><th className="text-left px-4 py-1.5 font-semibold">Exigido pela função</th><th className="text-left px-3 py-1.5 font-semibold">Situação</th><th className="text-left px-3 py-1.5 font-semibold">Última entrega</th><th className="text-left px-3 py-1.5 font-semibold">Troca prevista</th><th className="px-3 py-1.5"></th></tr></thead>
                 <tbody>
@@ -183,13 +202,11 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                   })}
                 </tbody>
               </table>
-            )}
-            <div className="border-t border-border/60">
-              <div className="px-4 py-2 flex items-center justify-between">
-                <p className="text-xs font-semibold text-muted-foreground">Histórico de entregas</p>
-                <span className="text-[11px] text-muted-foreground">{f.sstEpiEntregas.length} entrega(s)</span>
-              </div>
-              {f.sstEpiEntregas.length === 0 ? <p className="px-4 pb-3 text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (() => {
+                    )}
+                  </Card>
+                  <Card icon={<HardHat className="w-4 h-4" />} titulo={`Entregas de EPI${nEntregas ? ` · ${nEntregas}` : ""}`}
+                    acao={<Button size="sm" onClick={() => abrirEntrega()} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Entrega</Button>}>
+              {f.sstEpiEntregas.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (() => {
                 // Uma linha por cautela (ficha); entregas em lote/avulsas ficam uma por linha.
                 type Ent = Ficha["sstEpiEntregas"][number];
                 const grupos: { chave: string; data: string; ficha: Ent["ficha"]; itens: Ent[] }[] = [];
@@ -246,24 +263,20 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                   </table></div>
                 );
               })()}
-            </div>
-          </section>
-            </div>
-            <div className="space-y-6 min-w-0">
-          {/* ASOs */}
-          <section className="bg-card rounded-xl border border-border">
-            <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-              <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2"><Stethoscope className="w-4 h-4" /> ASO e exames (NR-07)</h2>
-              <Button size="sm" onClick={abrirAso} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Lançar ASO</Button>
-            </div>
-            {/* Situação do ASO + exames exigidos pela função (o que o motor cobra) */}
+
+                  </Card>
+                </div>
+
+                {/* Exames */}
+                <div className="grid xl:grid-cols-2 gap-6 items-stretch">
+                  <Card icon={<Stethoscope className="w-4 h-4" />} titulo="Exames exigidos (NR-07)">
             {(() => {
               const asoPend = f.pendencias.filter((p) => p.tipo.startsWith("ASO"));
               const exigidos = vinculo?.funcao.requisitosExame ?? [];
-              if (asoPend.length === 0 && exigidos.length === 0) return null;
+              if (asoPend.length === 0 && exigidos.length === 0) return <p className="px-4 py-3 text-sm text-muted-foreground italic">{vinculo ? "A função não exige exames complementares." : "Sem função — nada a cobrar."}</p>;
               const feitos = f.sstAsos.flatMap((a) => a.exames.map((e) => ({ ...e, asoData: a.data })));
               return (
-                <div className="border-b border-border/60">
+                <div>
                   {asoPend.length > 0 && (
                     <div className="px-4 py-2 flex flex-wrap gap-1.5">
                       {asoPend.map((p, i) => <span key={i} className={cn("text-xs px-2 py-0.5 rounded-full border", p.severidade === "CRITICA" ? "border-danger/30 text-danger bg-danger/5" : "border-warning/30 text-warning bg-warning/5")}>{p.titulo}{p.vence ? ` · ${fmtData(p.vence)}` : ""}</span>)}
@@ -295,7 +308,9 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 </div>
               );
             })()}
-            <p className="px-4 pt-2 text-xs font-semibold text-muted-foreground">ASOs lançados</p>
+                  </Card>
+                  <Card icon={<Stethoscope className="w-4 h-4" />} titulo="ASOs lançados"
+                    acao={<Button size="sm" onClick={abrirAso} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Lançar ASO</Button>}>
             {f.sstAsos.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum ASO registrado.</p> : (
               <ul className="divide-y divide-border/60 px-4">
                 {f.sstAsos.map((a) => {
@@ -322,23 +337,34 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 })}
               </ul>
             )}
-          </section>
-          {/* Treinamentos */}
-          <section className="bg-card rounded-xl border border-border">
-            <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-              <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2"><GraduationCap className="w-4 h-4" /> Treinamentos</h2>
-              <Link href="/sst/treinamentos" className="text-xs text-info hover:underline">nova turma</Link>
-            </div>
-            {vinculo && vinculo.funcao.requisitosTreinamento.length > 0 && (
-              <div className="px-4 py-2 flex flex-wrap gap-1.5 border-b border-border/60">
-                {vinculo.funcao.requisitosTreinamento.map((r) => {
-                  const parts = f.sstTreinamentos.filter((t) => t.aprovado && t.treinamento.tipoId === r.treinamentoTipo.id);
-                  const ult = parts[0];
-                  const vencido = ult?.validade ? new Date(ult.validade).getTime() < Date.now() : false;
-                  return <span key={r.treinamentoTipo.id} className={cn("text-xs px-2 py-0.5 rounded-full border", !ult ? "border-danger/30 text-danger bg-danger/5" : vencido ? "border-danger/30 text-danger" : "border-success/30 text-success bg-success/5")}>{r.treinamentoTipo.nome}: {!ult ? "faltando" : vencido ? "vencido" : "ok"}</span>;
-                })}
-              </div>
-            )}
+                  </Card>
+                </div>
+
+                {/* Treinamentos */}
+                <div className="grid xl:grid-cols-2 gap-6 items-stretch">
+                  <Card icon={<GraduationCap className="w-4 h-4" />} titulo="Treinamentos exigidos">
+                    {!vinculo || vinculo.funcao.requisitosTreinamento.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">{vinculo ? "A função não exige treinamento." : "Sem função — nada a cobrar."}</p> : (
+                      <table className="w-full text-sm">
+                        <thead className="text-xs text-muted-foreground"><tr><th className="text-left px-4 py-1.5 font-semibold">Treinamento</th><th className="text-left px-3 py-1.5 font-semibold">Situação</th><th className="text-left px-3 py-1.5 font-semibold">Último</th><th className="text-left px-3 py-1.5 font-semibold">Válido até</th></tr></thead>
+                        <tbody>
+                          {vinculo.funcao.requisitosTreinamento.map((r) => {
+                            const ult = f.sstTreinamentos.find((t) => t.aprovado && t.treinamento.tipoId === r.treinamentoTipo.id);
+                            const vencido = ult?.validade ? new Date(ult.validade).getTime() < Date.now() : false;
+                            return { r, ult, vencido, ordem: !ult ? 2 : vencido ? 1 : 0 };
+                          }).sort((a, b) => a.ordem - b.ordem).map(({ r, ult, vencido }) => (
+                            <tr key={r.treinamentoTipo.id} className="border-t border-border/60">
+                              <td className="px-4 py-1.5 text-foreground">{r.treinamentoTipo.nome}</td>
+                              <td className={cn("px-3 py-1.5 text-xs font-medium", !ult || vencido ? "text-danger" : "text-success")}>{!ult ? "faltando" : vencido ? "vencido" : "em dia"}</td>
+                              <td className="px-3 py-1.5 text-muted-foreground">{ult ? fmtData(ult.treinamento.data) : "—"}</td>
+                              <td className={cn("px-3 py-1.5", vencido ? "text-danger" : "text-muted-foreground")}>{ult ? (ult.validade ? fmtData(ult.validade) : "não vence") : "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </Card>
+                  <Card icon={<GraduationCap className="w-4 h-4" />} titulo="Treinamentos realizados"
+                    acao={<Link href="/sst/treinamentos" className="text-xs text-info hover:underline">nova turma</Link>}>
             {f.sstTreinamentos.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum treinamento registrado.</p> : (
               <ul className="divide-y divide-border/60 px-4">
                 {f.sstTreinamentos.map((t) => (
@@ -351,10 +377,11 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 ))}
               </ul>
             )}
-          </section>
-
-            </div>
-          </div>
+                  </Card>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
