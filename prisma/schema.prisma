@@ -5069,6 +5069,9 @@ model SstFuncao {
   id                    String                 @id @default(cuid())
   empresaId             String
   nome                  String
+  // GHE (grupo homogêneo de exposição do PGR/LTCAT), ex.: "GHE 13 Produção".
+  // O nome guarda "cargo — GHE" (composto pela API) p/ as telas que só leem nome.
+  ghe                   String?
   cbo                   String?
   grauRisco             Int?
   ativo                 Boolean                @default(true)
@@ -5083,6 +5086,7 @@ model SstFuncao {
   colaboradores         SstColaboradorFuncao[]
 
   @@unique([empresaId, nome])
+  @@index([empresaId, ghe])
 }
 
 model SstFuncaoEpi {

@@ -430,7 +430,8 @@ export default function ColaboradorDetailPage() {
         }
       />
 
-      <div className="px-8 pb-8 max-w-4xl space-y-5">
+      {/* SST usa a largura toda (exigências | registros lado a lado); demais abas seguem estreitas. */}
+      <div className={cn("px-8 pb-8 space-y-5", tab !== "sst" && "max-w-4xl")}>
         {/* Status badges */}
         {!editMode && (
           <div className="flex items-center gap-3">
