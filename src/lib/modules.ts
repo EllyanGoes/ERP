@@ -239,6 +239,7 @@ export const MODULOS: ModuloDef[] = [
       { key: "cipa",           label: "CIPA",                     acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "indicadores",    label: "Indicadores e eSocial",    acoes: ["ver", "inserir", "editar"] },
       { key: "configuracoes",  label: "Funções e requisitos",     acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "medicos",        label: "Médicos examinadores",     acoes: ["ver", "inserir", "editar", "excluir"] },
     ],
   },
   {

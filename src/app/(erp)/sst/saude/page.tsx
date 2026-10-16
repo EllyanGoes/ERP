@@ -15,9 +15,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Pencil, Trash2, Search, FileSpreadsheet, Power } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { fmtData, type Pendencia, AcoesLinha } from "@/components/sst/comum";
-import { MedicoDialog, useMedicos, crmCompleto, type Medico } from "@/components/sst/MedicoSelect";
 
 type Colab = { id: string; nome: string; ativo: boolean; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
 type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; _count: { requisitos: number; exames: number } };
@@ -104,15 +103,6 @@ export default function SstSaudePage() {
     if (!res.ok) { setErro(j.error || "Erro"); return; }
     setOpen(false); load();
   }
-  // médicos examinadores
-  const { medicos, recarregar: recarregarMedicos } = useMedicos(true);
-  const [dlgMedico, setDlgMedico] = useState<{ medico: Medico | null } | null>(null);
-  async function alternarMedico(m: Medico) {
-    if (m.ativo && (m._count?.asos ?? 0) === 0) await fetch(`/api/sst/medicos/${m.id}`, { method: "DELETE" });
-    else await fetch(`/api/sst/medicos/${m.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: !m.ativo }) });
-    recarregarMedicos();
-  }
-
   const [del, setDel] = useState<ExameTipo | null>(null);
   async function excluir() { if (!del) return; setSaving(true); const res = await fetch(`/api/sst/exames-tipos/${del.id}`, { method: "DELETE" }); const j = await res.json().catch(() => ({})); setSaving(false); if (!res.ok) alert(j.error || "Erro"); setDel(null); load(); }
 
@@ -121,7 +111,7 @@ export default function SstSaudePage() {
       <PageHeader title="ASO e exames" subtitle="Saúde ocupacional (NR-07) — agenda de vencimentos e tipos de exame" breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "ASO e exames" }]}
         action={<Button onClick={() => abrir()} variant="outline" className="gap-1.5"><Plus className="w-4 h-4" /> Tipo de exame</Button>} />
       <div className="px-8 pb-8 grid lg:grid-cols-3 gap-6 items-start">
-        <section className="lg:col-span-2 lg:row-span-2 bg-card rounded-xl border border-border">
+        <section className="lg:col-span-2 bg-card rounded-xl border border-border">
           <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between gap-3">
             <h2 className="font-semibold text-sm text-foreground shrink-0">Agenda — quem precisa de ASO/exame</h2>
             <span className="text-xs text-muted-foreground">{agenda.length} pendência(s){!semGrupo && ` · ${grupos.length} ${agrupar === "colaborador" ? "colaborador(es)" : "grupo(s)"}`}</span>
@@ -182,25 +172,6 @@ export default function SstSaudePage() {
           </ul>
           <p className="px-4 py-2 text-[11px] text-muted-foreground border-t border-border/60">A periodicidade por função é definida em Configurações → Funções.</p>
         </section>
-        <section className="bg-card rounded-xl border border-border lg:col-start-3">
-          <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-foreground">Médicos examinadores</h2>
-            <button onClick={() => setDlgMedico({ medico: null })} className="text-xs text-info hover:underline inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Novo</button>
-          </div>
-          <ul className="divide-y divide-border/60">
-            {medicos.map((m) => (
-              <li key={m.id} className={cn("px-4 py-2 flex items-center gap-2 text-sm", !m.ativo && "opacity-50")}>
-                <span className="flex-1 min-w-0"><span className="text-foreground">{m.nome}</span><span className="block text-xs text-muted-foreground">CRM {crmCompleto(m)}{m.especialidade ? ` · ${m.especialidade}` : ""}</span></span>
-                <span className="text-xs text-muted-foreground tabular-nums" title="ASOs lançados">{m._count?.asos ?? 0}</span>
-                <AcoesLinha acoes={[
-                  { label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => setDlgMedico({ medico: m }) },
-                  { label: m.ativo ? ((m._count?.asos ?? 0) === 0 ? "Excluir" : "Inativar") : "Reativar", icon: m.ativo && (m._count?.asos ?? 0) === 0 ? <Trash2 className="w-4 h-4 mr-2" /> : <Power className="w-4 h-4 mr-2" />, onClick: () => alternarMedico(m), danger: m.ativo, separadorAntes: true },
-                ]} />
-              </li>
-            ))}
-            {medicos.length === 0 && <li className="px-4 py-4 text-sm text-muted-foreground italic">Nenhum médico. Cadastre aqui ou direto no “Lançar ASO”.</li>}
-          </ul>
-        </section>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -214,7 +185,6 @@ export default function SstSaudePage() {
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={salvar} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <MedicoDialog open={!!dlgMedico} onOpenChange={(o) => { if (!o) setDlgMedico(null); }} medico={dlgMedico?.medico ?? null} onSaved={() => recarregarMedicos()} />
       <ConfirmDialog open={!!del} onOpenChange={(o) => !o && setDel(null)} title="Excluir tipo de exame?" description={del?.nome ?? ""} onConfirm={excluir} loading={saving} confirmLabel="Excluir" />
     </div>
   );

@@ -436,6 +436,7 @@ const mainModules: Module[] = [
         kind: "Configurações",
         items: [
           { href: "/sst/configuracoes", label: "Funções e requisitos", icon: Settings2 },
+          { href: "/sst/medicos", label: "Médicos examinadores", icon: Stethoscope },
         ],
       },
     ],
