@@ -68,7 +68,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   useEffect(() => {
     fetch("/api/sst/funcoes").then((r) => r.json()).then((j) => setFuncoes(j.data ?? []));
     fetch("/api/sst/epis").then((r) => r.json()).then((j) => setEpis(j.data ?? []));
-    fetch("/api/sst/exames-tipos").then((r) => r.json()).then((j) => setExameTipos(j.data ?? []));
+    fetch("/api/sst/exames-tipos").then((r) => r.json()).then((j) => setExameTipos((j.data ?? []).filter((t: { clinico?: boolean }) => !t.clinico)));
   }, []);
 
   // ── Função ──

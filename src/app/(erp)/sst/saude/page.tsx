@@ -19,7 +19,7 @@ import { Loader2, Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-r
 import { fmtData, type Pendencia, AcoesLinha } from "@/components/sst/comum";
 
 type Colab = { id: string; nome: string; ativo: boolean; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
-type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; _count: { requisitos: number; exames: number } };
+type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; preco: string | null; clinico: boolean; _count: { requisitos: number; exames: number } };
 type Linha = Pendencia & { colaboradorNome: string; setor: string | null; funcao?: string };
 
 const TIPOS_SAUDE = ["ASO_INEXISTENTE", "ASO_VENCIDO", "ASO_VENCE_EM_BREVE", "ASO_INAPTO", "ASO_DEMISSIONAL_PENDENTE", "ASO_RETORNO_PENDENTE", "EXAME_PENDENTE"];
@@ -93,12 +93,12 @@ export default function SstSaudePage() {
 
   // tipos de exame
   const [open, setOpen] = useState(false); const [editId, setEditId] = useState<string | null>(null);
-  const [nome, setNome] = useState(""); const [per, setPer] = useState(""); const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
-  function abrir(t?: ExameTipo) { setEditId(t?.id ?? null); setNome(t?.nome ?? ""); setPer(t?.periodicidadeMeses ? String(t.periodicidadeMeses) : ""); setErro(""); setOpen(true); }
+  const [nome, setNome] = useState(""); const [per, setPer] = useState(""); const [preco, setPreco] = useState(""); const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
+  function abrir(t?: ExameTipo) { setEditId(t?.id ?? null); setNome(t?.nome ?? ""); setPer(t?.periodicidadeMeses ? String(t.periodicidadeMeses) : ""); setPreco(t?.preco ? String(Number(t.preco)).replace(".", ",") : ""); setErro(""); setOpen(true); }
   async function salvar() {
     if (!nome.trim()) { setErro("Informe o nome."); return; }
     setSaving(true); setErro("");
-    const res = await fetch(editId ? `/api/sst/exames-tipos/${editId}` : "/api/sst/exames-tipos", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, periodicidadeMeses: per || null }) });
+    const res = await fetch(editId ? `/api/sst/exames-tipos/${editId}` : "/api/sst/exames-tipos", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, periodicidadeMeses: per || null, preco: preco || null }) });
     const j = await res.json().catch(() => ({})); setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
     setOpen(false); load();
@@ -159,12 +159,13 @@ export default function SstSaudePage() {
           )}
         </section>
         <section className="bg-card rounded-xl border border-border">
-          <div className="px-4 py-3 border-b border-border bg-muted"><h2 className="font-semibold text-sm text-foreground">Tipos de exame complementar</h2></div>
+          <div className="px-4 py-3 border-b border-border bg-muted"><h2 className="font-semibold text-sm text-foreground">Tipos de exame e preços</h2></div>
           <ul className="divide-y divide-border/60">
             {tipos.map((t) => (
               <li key={t.id} className={cn("px-4 py-2 flex items-center gap-2 text-sm", !t.ativo && "opacity-50")}>
                 <span className="flex-1 text-foreground">{t.nome}</span>
-                <span className="text-xs text-muted-foreground">{t.periodicidadeMeses ? `${t.periodicidadeMeses} m` : ""}</span>
+                <span className="text-xs text-muted-foreground">{t.clinico ? "consulta do ASO" : t.periodicidadeMeses ? `${t.periodicidadeMeses} m` : ""}</span>
+                <span className="text-xs tabular-nums text-foreground w-20 text-right">{t.preco ? Number(t.preco).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : <span className="text-muted-foreground/60">sem preço</span>}</span>
                 <AcoesLinha acoes={[{ label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => abrir(t) }, { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDel(t), danger: true, separadorAntes: true }]} />
               </li>
             ))}
@@ -179,7 +180,10 @@ export default function SstSaudePage() {
           <DialogHeader><DialogTitle>{editId ? "Editar tipo de exame" : "Novo tipo de exame"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Audiometria" /></div>
-            <div><Label>Periodicidade padrão (meses)</Label><Input type="number" min={1} value={per} onChange={(e) => setPer(e.target.value)} placeholder="12" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Periodicidade padrão (meses)</Label><Input type="number" min={1} value={per} onChange={(e) => setPer(e.target.value)} placeholder="12" /></div>
+              <div><Label>Preço (R$)</Label><Input inputMode="decimal" value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="0,00" /></div>
+            </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={salvar} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button></DialogFooter>

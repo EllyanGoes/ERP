@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const nome = String(b.nome ?? "").trim();
   if (!nome) return NextResponse.json({ error: "Informe o nome do exame." }, { status: 400 });
   try {
-    const t = await prisma.sstExameTipo.create({ data: { empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID, nome, periodicidadeMeses: b.periodicidadeMeses ? Number(b.periodicidadeMeses) : null } });
+    const t = await prisma.sstExameTipo.create({ data: { empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID, nome, periodicidadeMeses: b.periodicidadeMeses ? Number(b.periodicidadeMeses) : null, preco: b.preco != null && b.preco !== "" ? Number(String(b.preco).replace(",", ".")) : null } });
     return NextResponse.json({ data: t }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Já existe um exame com esse nome." }, { status: 400 });

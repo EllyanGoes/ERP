@@ -22,7 +22,7 @@ type TreinTipo = { id: string; nome: string; norma: string | null; ativo: boolea
 type Funcao = { id: string; nome: string; ghe: string | null; cbo: string | null; grauRisco: number | null; ativo: boolean; requisitosTreinamento: { treinamentoTipoId: string; treinamentoTipo: { id: string; nome: string } }[]; requisitosEpi: { epiId: string; obrigatorio: boolean; quantidade: number; epi: { id: string; nome: string; ca: string | null } }[]; requisitosExame: { exameTipoId: string; periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; _count: { colaboradores: number }; colaboradores: { colaborador: { id: string; nome: string; ativo: boolean } }[] };
 type ColabOpt = { id: string; nome: string; ativo: boolean; funcao: { id: string; nome: string } | null };
 type Epi = { id: string; nome: string; ca: string | null; ativo: boolean };
-type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean };
+type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; preco: string | null; clinico: boolean };
 
 /** Coluna do cadastro de função: título + contagem, lista com rolagem e o "adicionar" fixo embaixo. */
 function Coluna({ titulo, n, rodape, children }: { titulo: string; n: number; rodape: React.ReactNode; children: React.ReactNode }) {
@@ -113,6 +113,12 @@ export default function SstConfigPage() {
       (!fTreino || f.requisitosTreinamento.some((r) => r.treinamentoTipoId === fTreino)),
     ).sort((x, y) => (x.ghe ?? "~").localeCompare(y.ghe ?? "~", "pt-BR", { numeric: true }) || x.nome.localeCompare(y.nome));
   }, [funcoes, busca, fEpi, fExame, fTreino, fAtivo, fGhe]);
+  // Custo estimado de um ASO completo da função: consulta clínica + exames exigidos.
+  const custoAso = (f: Funcao) => {
+    const preco = (id: string) => Number(tipos.find((t) => t.id === id)?.preco ?? 0);
+    const clinico = Number(tipos.find((t) => t.clinico)?.preco ?? 0);
+    return clinico + f.requisitosExame.reduce((s, r) => s + preco(r.exameTipoId), 0);
+  };
   const [del, setDel] = useState<Funcao | null>(null);
   async function excluir() { if (!del) return; setSaving(true); const res = await fetch(`/api/sst/funcoes/${del.id}`, { method: "DELETE" }); const j = await res.json().catch(() => ({})); setSaving(false); if (!res.ok) alert(j.error || "Erro"); setDel(null); load(); }
   async function alternarAtivo(f: Funcao) { await fetch(`/api/sst/funcoes/${f.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: !f.ativo }) }); load(); }
@@ -156,7 +162,8 @@ export default function SstConfigPage() {
                         <p className="text-xs text-muted-foreground">{gheF && <button onClick={() => setFGhe(gheF)} className="hover:text-info hover:underline" title="Filtrar por este GHE">{gheF}</button>}{f.cbo && <span> · CBO {f.cbo}</span>}{f.grauRisco && <span> · risco {f.grauRisco}</span>}{!f.ativo && <span className="text-danger"> · inativa</span>}</p>
                       </td>
                       <td className="px-3 py-2">{f.requisitosEpi.length === 0 ? <span className="text-xs text-muted-foreground italic">nenhum</span> : <div className="flex flex-wrap gap-1">{f.requisitosEpi.map((r) => <span key={r.epiId} className={cn("text-[11px] px-1.5 py-0.5 rounded-full border", r.obrigatorio ? "border-info/30 bg-info/5 text-info" : "border-border text-muted-foreground")}>{r.quantidade > 1 ? `${r.quantidade}× ` : ""}{r.epi.nome}{!r.obrigatorio && " (opc.)"}</span>)}</div>}</td>
-                      <td className="px-3 py-2">{f.requisitosExame.length === 0 ? <span className="text-xs text-muted-foreground italic">só ASO clínico (12m)</span> : <div className="flex flex-wrap gap-1">{f.requisitosExame.map((r) => <span key={r.exameTipoId} className="text-[11px] px-1.5 py-0.5 rounded-full border border-border text-foreground">{r.exameTipo.nome} · {r.periodicidadeMeses}m</span>)}</div>}</td>
+                      <td className="px-3 py-2">{f.requisitosExame.length === 0 ? <span className="text-xs text-muted-foreground italic">só ASO clínico (12m)</span> : <div className="flex flex-wrap gap-1">{f.requisitosExame.map((r) => <span key={r.exameTipoId} className="text-[11px] px-1.5 py-0.5 rounded-full border border-border text-foreground">{r.exameTipo.nome} · {r.periodicidadeMeses}m</span>)}</div>}
+                        {custoAso(f) > 0 && <p className="text-[11px] text-muted-foreground mt-1" title="Consulta do ASO + exames exigidos, pela tabela de preços (ASO e exames)">≈ {custoAso(f).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por ASO completo</p>}</td>
                       <td className="px-3 py-2">{f.requisitosTreinamento.length === 0 ? <span className="text-xs text-muted-foreground italic">nenhum</span> : <div className="flex flex-wrap gap-1">{f.requisitosTreinamento.map((r) => <span key={r.treinamentoTipoId} className="text-[11px] px-1.5 py-0.5 rounded-full border border-border text-foreground">{r.treinamentoTipo.nome.replace(/^(NR-\d+)\s.*$/, "$1")}</span>)}</div>}</td>
                       <td className="px-3 py-2 text-right tabular-nums"><Link href={`/sst/colaboradores?funcao=${f.id}`} className={cn("font-medium hover:underline", f._count.colaboradores > 0 ? "text-foreground" : "text-muted-foreground")}>{f._count.colaboradores}</Link></td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -218,7 +225,7 @@ export default function SstConfigPage() {
               </Coluna>
               <Coluna titulo="Exames e periodicidade" n={rExames.length}
                 rodape={<><div className="flex gap-2">
-                  <SelectMenu value={addExame} onChange={setAddExame} placeholder="Adicionar exame…" className="flex-1 min-w-0" options={tipos.filter((t) => t.ativo && !rExames.some((r) => r.exameTipoId === t.id)).map((t) => ({ value: t.id, label: t.nome }))} />
+                  <SelectMenu value={addExame} onChange={setAddExame} placeholder="Adicionar exame…" className="flex-1 min-w-0" options={tipos.filter((t) => t.ativo && !t.clinico && !rExames.some((r) => r.exameTipoId === t.id)).map((t) => ({ value: t.id, label: t.nome }))} />
                   <Button size="sm" variant="outline" disabled={!addExame} onClick={() => { const t = tipos.find((x) => x.id === addExame); setRExames([...rExames, { exameTipoId: addExame, periodicidadeMeses: t?.periodicidadeMeses ?? 12 }]); setAddExame(""); }}><Plus className="w-4 h-4" /></Button>
                 </div><p className="text-[11px] text-muted-foreground mt-1">A menor periodicidade vira a validade padrão do ASO periódico.</p></>}>
                 {rExames.length === 0 && <p className="text-xs text-muted-foreground italic">Só ASO clínico (12 meses).</p>}

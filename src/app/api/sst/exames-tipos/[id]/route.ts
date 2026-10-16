@@ -11,6 +11,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (b.nome !== undefined) { const n = String(b.nome).trim(); if (!n) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 }); data.nome = n; }
   if (b.periodicidadeMeses !== undefined) data.periodicidadeMeses = b.periodicidadeMeses ? Number(b.periodicidadeMeses) : null;
   if (b.ativo !== undefined) data.ativo = !!b.ativo;
+  if (b.preco !== undefined) data.preco = b.preco != null && b.preco !== "" ? Number(String(b.preco).replace(",", ".")) : null;
   const t = await prisma.sstExameTipo.update({ where: { id: params.id }, data });
   return NextResponse.json({ data: t });
 }

@@ -5266,6 +5266,10 @@ model SstExameTipo {
   nome               String
   periodicidadeMeses Int?
   ativo              Boolean          @default(true)
+  // Preço de referência (tabela da clínica) — custo estimado por colaborador/função.
+  preco              Decimal?         @db.Decimal(12, 2)
+  // Consulta clínica do ASO: guarda o preço do ASO, não é exame complementar.
+  clinico            Boolean          @default(false)
   empresa            Empresa          @relation(fields: [empresaId], references: [id])
   requisitos         SstFuncaoExame[]
   asoExames          SstAsoExame[]
