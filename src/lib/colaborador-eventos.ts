@@ -21,6 +21,7 @@ export const TIPOS_EVENTO: Record<TipoEventoColaborador, { label: string; period
 export const MOTIVOS_EVENTO: Partial<Record<TipoEventoColaborador, Record<string, string>>> = {
   AFASTAMENTO: {
     INSS_DOENCA: "Benefício INSS — doença (auxílio por incapacidade)",
+    APOSENTADORIA_INVALIDEZ: "Aposentadoria por incapacidade permanente (benefício vitalício)",
     ACIDENTE_TRABALHO: "Acidente de trabalho (B91)",
     MATERNIDADE: "Licença-maternidade",
     PATERNIDADE: "Licença-paternidade",
