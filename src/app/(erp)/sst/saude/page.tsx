@@ -23,7 +23,7 @@ type Colab = { id: string; nome: string; ativo: boolean; setor: string | null; f
 type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; _count: { requisitos: number; exames: number } };
 type Linha = Pendencia & { colaboradorNome: string; setor: string | null; funcao?: string };
 
-const TIPOS_SAUDE = ["ASO_INEXISTENTE", "ASO_VENCIDO", "ASO_VENCE_EM_BREVE", "ASO_INAPTO", "ASO_DEMISSIONAL_PENDENTE", "EXAME_PENDENTE"];
+const TIPOS_SAUDE = ["ASO_INEXISTENTE", "ASO_VENCIDO", "ASO_VENCE_EM_BREVE", "ASO_INAPTO", "ASO_DEMISSIONAL_PENDENTE", "ASO_RETORNO_PENDENTE", "EXAME_PENDENTE"];
 
 // Agrupamentos da agenda. A chave é o que junta as linhas; o rótulo abre o grupo.
 const AGRUPAMENTOS: Record<string, { label: string; chave: (l: Linha) => string; rotulo?: (chave: string, primeira: Linha) => string }> = {

@@ -9,12 +9,12 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { Loader2, Search } from "lucide-react";
-import { Semaforo, fmtData, type Pendencia } from "@/components/sst/comum";
+import { Semaforo, SeloAfastado, fmtData, type Pendencia } from "@/components/sst/comum";
 
 type Linha = {
   id: string; nome: string; ativo: boolean; setor: string | null;
   funcao: { id: string; nome: string; desde: string } | null;
-  semaforo: "OK" | "ATENCAO" | "CRITICO"; pendencias: Pendencia[]; nEpi: number; nAso: number; nTreino: number;
+  semaforo: "OK" | "ATENCAO" | "CRITICO"; afastamento: { desde: string; ate: string | null; motivo: string | null } | null; pendencias: Pendencia[]; nEpi: number; nAso: number; nTreino: number;
 };
 
 export default function SstColaboradoresPage() {
@@ -37,7 +37,7 @@ export default function SstColaboradoresPage() {
   const visiveis = useMemo(() => linhas
     .filter((l) => !somenteAtivos || l.ativo)
     .filter((l) => !busca || l.nome.toLowerCase().includes(busca.toLowerCase()) || (l.setor ?? "").toLowerCase().includes(busca.toLowerCase()))
-    .filter((l) => !filtro || (filtro === "SEM_FUNCAO" ? !l.funcao : l.semaforo === filtro))
+    .filter((l) => !filtro || (filtro === "SEM_FUNCAO" ? !l.funcao : filtro === "AFASTADO" ? !!l.afastamento : l.semaforo === filtro && !l.afastamento))
     .filter((l) => !funcaoId || l.funcao?.id === funcaoId)
     .sort((a, b) => ({ CRITICO: 0, ATENCAO: 1, OK: 2 }[a.semaforo] - { CRITICO: 0, ATENCAO: 1, OK: 2 }[b.semaforo]) || a.nome.localeCompare(b.nome)),
   [linhas, busca, filtro, somenteAtivos, funcaoId]);
@@ -52,7 +52,7 @@ export default function SstColaboradoresPage() {
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome ou setor..." className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-64" />
           </div>
           <SelectMenu value={filtro} onChange={setFiltro} className="w-44" options={[
-            { value: "", label: "Todos" }, { value: "CRITICO", label: "Com pendência" }, { value: "ATENCAO", label: "Com atenção" }, { value: "OK", label: "Regulares" }, { value: "SEM_FUNCAO", label: "Sem função SST" },
+            { value: "", label: "Todos" }, { value: "CRITICO", label: "Com pendência" }, { value: "ATENCAO", label: "Com atenção" }, { value: "OK", label: "Regulares" }, { value: "SEM_FUNCAO", label: "Sem função SST" }, { value: "AFASTADO", label: "Afastados" },
           ]} />
           <label className="inline-flex items-center gap-2 text-sm text-muted-foreground"><input type="checkbox" className="rounded" checked={somenteAtivos} onChange={(e) => setSomenteAtivos(e.target.checked)} /> só ativos</label>
           {funcaoId && <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border border-info/30 bg-info/5 text-info">função: {linhas.find((l) => l.funcao?.id === funcaoId)?.funcao?.nome ?? "…"}<button onClick={() => router.replace("/sst/colaboradores")} className="hover:text-foreground" title="Remover filtro">×</button></span>}
@@ -78,7 +78,7 @@ export default function SstColaboradoresPage() {
                     <td className={cn("px-4 py-2 text-foreground", !l.ativo && "text-muted-foreground line-through")}>{l.nome}</td>
                     <td className="px-3 py-2 text-muted-foreground">{l.setor ?? "—"}</td>
                     <td className="px-3 py-2">{l.funcao ? <>{l.funcao.nome} <span className="text-xs text-muted-foreground">desde {fmtData(l.funcao.desde)}</span></> : <span className="text-muted-foreground/60">—</span>}</td>
-                    <td className="px-3 py-2"><Semaforo s={l.semaforo} /></td>
+                    <td className="px-3 py-2">{l.afastamento ? <SeloAfastado a={l.afastamento} /> : <Semaforo s={l.semaforo} />}</td>
                     <td className={cn("px-3 py-2 text-right tabular-nums", l.nEpi > 0 ? "text-danger font-medium" : "text-muted-foreground")}>{l.nEpi}</td>
                     <td className={cn("px-3 py-2 text-right tabular-nums", l.nAso > 0 ? "text-danger font-medium" : "text-muted-foreground")}>{l.nAso}</td>
                     <td className={cn("px-3 py-2 text-right tabular-nums", l.nTreino > 0 ? "text-danger font-medium" : "text-muted-foreground")}>{l.nTreino}</td>

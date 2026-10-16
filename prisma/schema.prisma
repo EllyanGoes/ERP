@@ -280,6 +280,7 @@ model Colaborador {
   sstEpiFichas               SstEpiFicha[]
   sstAsos                    SstAso[]
   sstExames                  SstExame[]
+  eventos                    ColaboradorEvento[]
   sstTreinamentos            SstTreinamentoParticipante[]
   sstIncidentes              SstIncidente[]
   sstCipa                    SstCipaMembro[]
@@ -337,6 +338,47 @@ enum ClassificacaoCusto {
 enum TipoColaborador {
   FUNCIONARIO
   PRESTADOR
+}
+
+enum TipoEventoColaborador {
+  ADMISSAO
+  DEMISSAO
+  AFASTAMENTO
+  FERIAS
+  MUDANCA_CARGO
+  MUDANCA_SETOR
+  ADVERTENCIA
+  SUSPENSAO
+  OUTRO
+}
+
+// Histórico funcional do colaborador (admissão, demissão, afastamentos, férias,
+// mudanças, advertências). Períodos (afastamento/férias/suspensão) usam data →
+// dataFim; dataFim vazia = em aberto. DEMISSAO/ADMISSAO sincronizam as datas do
+// cadastro; AFASTAMENTO aberto suspende as cobranças do SST e, no retorno de
+// afastamento >= 30 dias, o SST cobra ASO de retorno ao trabalho (NR-07).
+// Mudança de FUNÇÃO SST não entra aqui: vem de SstColaboradorFuncao.
+model ColaboradorEvento {
+  id            String                @id @default(cuid())
+  colaboradorId String
+  tipo          TipoEventoColaborador
+  data          DateTime
+  dataFim       DateTime?
+  // Subtipo conforme o evento: motivo do afastamento (INSS_DOENCA, ACIDENTE_TRABALHO,
+  // MATERNIDADE, LICENCA…) ou tipo de desligamento (SEM_JUSTA_CAUSA, PEDIDO…).
+  motivo        String?
+  // Detalhes livres por tipo (ex.: aviso prévio da demissão, de/para na mudança).
+  detalhes      Json?
+  observacao    String?
+  documentoId   String?
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  colaborador   Colaborador           @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@index([colaboradorId, data])
+  @@index([tipo, dataFim])
 }
 
 enum StatusFolha {

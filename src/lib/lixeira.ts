@@ -19,7 +19,9 @@ export type TipoLixeira =
   // SST: entrega de EPI / ASO (docs/sst-prd.md)
   | "SST_REGISTRO"
   // Contratos (docs/contratos-prd.md)
-  | "CONTRATO";
+  | "CONTRATO"
+  // Histórico funcional do colaborador
+  | "EVENTO_COLABORADOR";
 
 type Db = Pick<Prisma.TransactionClient, "lixeira">;
 

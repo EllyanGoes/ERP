@@ -6,6 +6,7 @@ import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import DocumentosDaEntidade from "@/components/documentos/DocumentosDaEntidade";
 import FichaSstColaborador from "@/components/sst/FichaSstColaborador";
+import HistoricoFuncional from "@/components/colaboradores/HistoricoFuncional";
 import { useSession } from "@/lib/session-context";
 import { Button } from "@/components/ui/button";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -116,7 +117,7 @@ export default function ColaboradorDetailPage() {
   const [error,   setError]           = useState("");
 
   // Abas (mesmo padrão do cadastro de produtos)
-  const [tab, setTab] = useState<"pessoais" | "funcionais" | "escala" | "diarias" | "aprovacoes" | "observacoes" | "documentos" | "sst">("pessoais");
+  const [tab, setTab] = useState<"pessoais" | "funcionais" | "historico" | "escala" | "diarias" | "aprovacoes" | "observacoes" | "documentos" | "sst">("pessoais");
   const { canAccess } = useSession();
 
   // Escala de trabalho (vigências: a partir de <data>, segue <horário>)
@@ -379,6 +380,7 @@ export default function ColaboradorDetailPage() {
   const TABS = [
     { key: "pessoais",    label: "Dados Pessoais" },
     { key: "funcionais",  label: "Dados Funcionais" },
+    { key: "historico",   label: "Histórico funcional" },
     { key: "escala",      label: `Escala de Trabalho (${escalas.length})` },
     { key: "diarias",     label: `Diárias (${diarias.length})` },
     { key: "aprovacoes",  label: `Aprovações (${colaborador.etapasAprovacao?.length ?? 0})` },
@@ -431,7 +433,7 @@ export default function ColaboradorDetailPage() {
       />
 
       {/* SST usa a largura toda (exigências | registros lado a lado); demais abas seguem estreitas. */}
-      <div className={cn("px-8 pb-8 space-y-5", tab !== "sst" && "max-w-4xl")}>
+      <div className={cn("px-8 pb-8 space-y-5", tab !== "sst" && tab !== "historico" && "max-w-4xl")}>
         {/* Status badges */}
         {!editMode && (
           <div className="flex items-center gap-3">
@@ -892,6 +894,7 @@ export default function ColaboradorDetailPage() {
           <DocumentosDaEntidade tipo="colaborador" id={colaborador.id} />
         )}
 
+        {tab === "historico" && <HistoricoFuncional colaboradorId={colaborador.id} nome={colaborador.nome} onMudou={load} />}
         {tab === "sst" && <FichaSstColaborador id={colaborador.id} embutido />}
 
         {tab === "observacoes" && (

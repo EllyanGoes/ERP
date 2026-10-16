@@ -9,7 +9,7 @@ export type SeveridadeSst = "CRITICA" | "ALTA" | "MEDIA" | "BAIXA";
 export type TipoPendenciaSst =
   | "SEM_FUNCAO"
   | "EPI_NAO_ENTREGUE" | "EPI_VENCIDO" | "EPI_VENCE_EM_BREVE" | "EPI_CA_VENCIDO" | "FICHA_EPI_SEM_ASSINATURA"
-  | "ASO_INEXISTENTE" | "ASO_VENCIDO" | "ASO_VENCE_EM_BREVE" | "ASO_INAPTO" | "ASO_DEMISSIONAL_PENDENTE"
+  | "ASO_INEXISTENTE" | "ASO_VENCIDO" | "ASO_VENCE_EM_BREVE" | "ASO_INAPTO" | "ASO_DEMISSIONAL_PENDENTE" | "ASO_RETORNO_PENDENTE"
   | "EXAME_PENDENTE"
   | "TREINAMENTO_FALTANDO" | "TREINAMENTO_VENCIDO" | "TREINAMENTO_VENCE_EM_BREVE"
   | "MAQUINA_NAO_AVALIADA" | "MAQUINA_NAO_CONFORME" | "MAQUINA_INTERDITADA"
@@ -64,6 +64,8 @@ export type ColaboradorSst = {
   sstAsos: { id: string; tipo: string; data: Date; validade: Date | null; resultado: string; exames: { exameTipoId: string; data: Date }[] }[];
   /** Exames realizados — com ou sem ASO (fonte do "último exame"). */
   sstExames: { exameTipoId: string; data: Date }[];
+  /** Afastamentos do histórico funcional (benefício INSS, licenças…). */
+  eventos: { tipo: string; data: Date; dataFim: Date | null; motivo: string | null }[];
 };
 
 export const COLABORADOR_SST_SELECT = {
@@ -90,6 +92,7 @@ export const COLABORADOR_SST_SELECT = {
   sstEpiFichas: { where: { documentoId: null }, select: { id: true, numero: true, data: true } },
   sstAsos: { orderBy: { data: "desc" as const }, select: { id: true, tipo: true, data: true, validade: true, resultado: true, exames: { select: { exameTipoId: true, data: true } } } },
   sstExames: { orderBy: { data: "desc" as const }, select: { exameTipoId: true, data: true } },
+  eventos: { where: { tipo: "AFASTAMENTO" as const }, orderBy: { data: "desc" as const }, select: { tipo: true, data: true, dataFim: true, motivo: true } },
 } as const;
 
 /** EPI vigente do colaborador: última ENTREGA/TROCA sem DEVOLUCAO posterior. */
@@ -116,6 +119,11 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
   const base = { colaboradorId: c.id, colaboradorNome: c.nome, link };
   const demitido = !c.ativo || (c.dataDemissao && c.dataDemissao.getTime() <= hoje.getTime());
 
+  // Afastado (benefício INSS, licença…): nada a cobrar enquanto o afastamento
+  // estiver aberto — volta a valer no retorno.
+  const afastado = c.eventos?.find((e) => e.data.getTime() <= hoje.getTime() && (!e.dataFim || e.dataFim.getTime() > hoje.getTime()));
+  if (afastado && !demitido) return out;
+
   // Demitido: só cobra o ASO demissional.
   if (demitido) {
     const temDemissional = c.sstAsos.some((a) => a.tipo === "DEMISSIONAL");
@@ -123,6 +131,17 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
       out.push({ ...base, tipo: "ASO_DEMISSIONAL_PENDENTE", severidade: "ALTA", titulo: "ASO demissional não registrado" });
     }
     return out;
+  }
+
+  // Retorno de afastamento >= 30 dias: NR-07 exige ASO de retorno ao trabalho
+  // (no 1º dia de volta) — cobra enquanto não houver ASO RETORNO desde o início do afastamento.
+  const ultAfast = c.eventos?.find((e) => e.dataFim && e.dataFim.getTime() <= hoje.getTime());
+  if (ultAfast && ultAfast.dataFim) {
+    const dias = Math.round((ultAfast.dataFim.getTime() - ultAfast.data.getTime()) / 86_400_000);
+    const temRetorno = c.sstAsos.some((a) => a.tipo === "RETORNO" && a.data.getTime() >= ultAfast.data.getTime());
+    if (dias >= 30 && !temRetorno) {
+      out.push({ ...base, tipo: "ASO_RETORNO_PENDENTE", severidade: "ALTA", titulo: "ASO de retorno ao trabalho pendente", detalhe: `Afastado ${dias} dias, retorno em ${ultAfast.dataFim.toLocaleDateString("pt-BR", { timeZone: "UTC" })}`, vence: ultAfast.dataFim });
+    }
   }
 
   const vinculo = c.sstFuncoes[0];
@@ -258,6 +277,12 @@ export async function pendenciasProcessos(empresaId: string, nColaboradores: num
 }
 
 /** Semáforo resumido para listas. */
+/** Afastamento em aberto hoje (p/ exibir "Afastado" no lugar do semáforo). */
+export function afastamentoAtual(c: Pick<ColaboradorSst, "eventos">, hoje = new Date()) {
+  const a = c.eventos?.find((e) => e.data.getTime() <= hoje.getTime() && (!e.dataFim || e.dataFim.getTime() > hoje.getTime()));
+  return a ? { desde: a.data, ate: a.dataFim, motivo: a.motivo } : null;
+}
+
 export function semaforo(pend: PendenciaSst[]): "OK" | "ATENCAO" | "CRITICO" {
   if (pend.some((p) => p.severidade === "CRITICA" || p.severidade === "ALTA")) return "CRITICO";
   if (pend.length > 0) return "ATENCAO";
@@ -315,7 +340,7 @@ export async function conformidadeEmpresa(empresaId: string, hoje = new Date()) 
   const colabs = await colaboradoresDaEmpresa(empresaId);
   const porColaborador = colabs.map((c) => {
     const pend = pendenciasColaborador(c as unknown as ColaboradorSst, hoje);
-    return { id: c.id, nome: c.nome, ativo: c.ativo, setor: c.setor?.nome ?? null, funcao: c.sstFuncoes[0]?.funcao.nome ?? null, pendencias: pend, semaforo: semaforo(pend) };
+    return { id: c.id, nome: c.nome, ativo: c.ativo, setor: c.setor?.nome ?? null, funcao: c.sstFuncoes[0]?.funcao.nome ?? null, pendencias: pend, semaforo: semaforo(pend), afastamento: afastamentoAtual(c as unknown as ColaboradorSst, hoje) };
   });
   const { pendencias: pendObrig, obrigacoes } = await pendenciasObrigacoes(empresaId, hoje);
   const { pendencias: pendMaq, totais: maquinas } = await pendenciasMaquinas(empresaId);

@@ -17,13 +17,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText } from "lucide-react";
-import { Semaforo, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
+import { Semaforo, SeloAfastado, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 import CautelaEpi from "@/components/sst/CautelaEpi";
 import MedicoSelect, { crmCompleto } from "@/components/sst/MedicoSelect";
 
 type Ficha = {
   id: string; nome: string; ativo: boolean; cargo: string | null; matricula: string | null; dataAdmissao: string | null; dataDemissao: string | null;
+  afastamento: { desde: string; ate: string | null; motivo: string | null } | null;
   setor: { nome: string } | null;
   sstFuncoes: { id: string; inicio: string; fim: string | null; funcao: { id: string; nome: string; requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[] } }[];
   sstTreinamentos: { validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; treinamento: { id: string; tipoId: string; data: string; instrutor: string | null; cargaHoraria: number | null; tipo: { nome: string; norma: string | null } } }[];
@@ -164,13 +165,13 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   return (
     <div>
       {embutido ? (
-        <div className="flex items-center justify-end gap-2 mb-4"><Semaforo s={semaforo} /><Link href={`/sst/colaboradores/${f.id}`} className="text-xs text-info hover:underline">abrir no módulo SST</Link><Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5"><Printer className="w-3.5 h-3.5" /> Ficha</Button></div>
+        <div className="flex items-center justify-end gap-2 mb-4">{f.afastamento ? <SeloAfastado a={f.afastamento} /> : <Semaforo s={semaforo} />}<Link href={`/sst/colaboradores/${f.id}`} className="text-xs text-info hover:underline">abrir no módulo SST</Link><Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5"><Printer className="w-3.5 h-3.5" /> Ficha</Button></div>
       ) : (
       <PageHeader
         title={f.nome}
         subtitle={[f.cargo, f.setor?.nome, f.matricula ? `matrícula ${f.matricula}` : null, f.dataAdmissao ? `admitido em ${fmtData(f.dataAdmissao)}` : null].filter(Boolean).join(" · ")}
         breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "Colaboradores", href: "/sst/colaboradores" }, { label: f.nome }]}
-        action={<div className="flex items-center gap-2"><Semaforo s={semaforo} /><Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5"><Printer className="w-3.5 h-3.5" /> Ficha</Button></div>}
+        action={<div className="flex items-center gap-2">{f.afastamento ? <SeloAfastado a={f.afastamento} /> : <Semaforo s={semaforo} />}<Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5"><Printer className="w-3.5 h-3.5" /> Ficha</Button></div>}
       />
       )}
       <div className={cn(!embutido && "px-8 pb-8")}>

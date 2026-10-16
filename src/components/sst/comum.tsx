@@ -32,6 +32,16 @@ export function SeveridadeBadge({ s }: { s: Severidade }) {
   return <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border", d.cls)}><span className={cn("w-1.5 h-1.5 rounded-full", d.dot)} />{d.label}</span>;
 }
 
+/** Selo de afastamento (benefício INSS, licença…) — substitui o semáforo: nada é cobrado. */
+export const MOTIVO_AFASTAMENTO: Record<string, string> = { INSS_DOENCA: "benefício INSS", ACIDENTE_TRABALHO: "acidente de trabalho", MATERNIDADE: "licença-maternidade", PATERNIDADE: "licença-paternidade", ATESTADO: "atestado", LICENCA: "licença", OUTRO: "afastado" };
+export function SeloAfastado({ a }: { a: { desde: string | Date; ate?: string | Date | null; motivo?: string | null } }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground" title={`Afastado desde ${fmtData(a.desde)}${a.ate ? ` até ${fmtData(a.ate)}` : ""} — cobranças de SST suspensas`}>
+      Afastado{a.motivo ? ` · ${MOTIVO_AFASTAMENTO[a.motivo] ?? a.motivo}` : ""}
+    </span>
+  );
+}
+
 export function Semaforo({ s, label = true }: { s: "OK" | "ATENCAO" | "CRITICO"; label?: boolean }) {
   const m = {
     OK: { cls: "bg-success/15 text-success", dot: "bg-success", t: "Regular" },

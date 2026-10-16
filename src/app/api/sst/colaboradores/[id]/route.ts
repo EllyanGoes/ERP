@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { COLABORADOR_SST_SELECT, pendenciasColaborador, epiVigente, type ColaboradorSst } from "@/lib/sst";
+import { COLABORADOR_SST_SELECT, afastamentoAtual, pendenciasColaborador, epiVigente, type ColaboradorSst } from "@/lib/sst";
 
 // GET /api/sst/colaboradores/[id] — ficha SST completa.
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -29,5 +29,5 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     const v = epiVigente(comoSst.sstEpiEntregas, r.epi.id);
     return { epi: r.epi, obrigatorio: r.obrigatorio, quantidade: r.quantidade, entregaVigente: v };
   }) : [];
-  return NextResponse.json({ data: { ...c, pendencias, episStatus } });
+  return NextResponse.json({ data: { ...c, pendencias, episStatus, afastamento: afastamentoAtual(comoSst) } });
 }

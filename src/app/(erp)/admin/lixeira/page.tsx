@@ -49,6 +49,7 @@ const TIPO_LABEL: Record<string, string> = {
   DOCUMENTO: "Documento (GED)",
   SST_REGISTRO: "SST (entrega de EPI / ASO)",
   CONTRATO: "Contrato",
+  EVENTO_COLABORADOR: "Evento do colaborador",
 };
 
 const TIPOS = Object.keys(TIPO_LABEL);
