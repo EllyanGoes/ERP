@@ -34,6 +34,12 @@ export function SeveridadeBadge({ s }: { s: Severidade }) {
 
 /** Selo de afastamento (benefício INSS, licença…) — substitui o semáforo: nada é cobrado. */
 export const MOTIVO_AFASTAMENTO: Record<string, string> = { INSS_DOENCA: "benefício INSS", APOSENTADORIA_INVALIDEZ: "aposentadoria por incapacidade", ACIDENTE_TRABALHO: "acidente de trabalho", MATERNIDADE: "licença-maternidade", PATERNIDADE: "licença-paternidade", ATESTADO: "atestado", LICENCA: "licença", OUTRO: "afastado" };
+/** Entra nos processos do SST (cobranças, entregas, turmas, CIPA): ativo e não
+ *  afastado (benefício INSS, licença…). Afastado continua no cadastro, com selo. */
+export function participaSst(c: { ativo: boolean; afastamento?: unknown | null }) {
+  return c.ativo && !c.afastamento;
+}
+
 export function SeloAfastado({ a }: { a: { desde: string | Date; ate?: string | Date | null; motivo?: string | null } }) {
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border border-border bg-muted text-muted-foreground" title={`Afastado desde ${fmtData(a.desde)}${a.ate ? ` até ${fmtData(a.ate)}` : ""} — cobranças de SST suspensas`}>

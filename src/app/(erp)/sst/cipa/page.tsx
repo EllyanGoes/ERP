@@ -14,12 +14,12 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Trash2, Users2, X } from "lucide-react";
-import { UploadAnexo, DocLink, fmtData, hojeISO } from "@/components/sst/comum";
+import { UploadAnexo, DocLink, fmtData, hojeISO, participaSst } from "@/components/sst/comum";
 
 type Membro = { colaboradorId: string; papel: string; representa: string; colaborador: { id: string; nome: string } };
 type Reuniao = { id: string; data: string; pauta: string | null; ataDocumentoId: string | null };
 type Mandato = { id: string; inicio: string; fim: string; ataEleicaoDocumentoId: string | null; observacoes: string | null; membros: Membro[]; reunioes: Reuniao[] };
-type Colab = { id: string; nome: string; ativo: boolean };
+type Colab = { id: string; nome: string; ativo: boolean; afastamento?: unknown | null };
 const PAPEIS = ["PRESIDENTE", "VICE", "SECRETARIO", "TITULAR", "SUPLENTE"];
 const PAPEL_LABEL: Record<string, string> = { PRESIDENTE: "Presidente", VICE: "Vice-presidente", SECRETARIO: "Secretário(a)", TITULAR: "Titular", SUPLENTE: "Suplente" };
 
@@ -115,7 +115,7 @@ export default function SstCipaPage() {
                     <button onClick={() => setMembros(membros.filter((_, j) => j !== idx))} className="text-muted-foreground hover:text-danger"><X className="w-4 h-4" /></button>
                   </div>
                 ))}
-                <div className="flex gap-2"><SelectMenu value={addColab} onChange={setAddColab} placeholder="Adicionar membro…" className="flex-1" options={colabs.filter((c) => c.ativo && !membros.some((x) => x.colaboradorId === c.id)).map((c) => ({ value: c.id, label: c.nome }))} /><Button size="sm" variant="outline" disabled={!addColab} onClick={() => { setMembros([...membros, { colaboradorId: addColab, papel: "TITULAR", representa: "EMPREGADOS" }]); setAddColab(""); }}><Plus className="w-4 h-4" /></Button></div>
+                <div className="flex gap-2"><SelectMenu value={addColab} onChange={setAddColab} placeholder="Adicionar membro…" className="flex-1" options={colabs.filter((c) => participaSst(c) && !membros.some((x) => x.colaboradorId === c.id)).map((c) => ({ value: c.id, label: c.nome }))} /><Button size="sm" variant="outline" disabled={!addColab} onClick={() => { setMembros([...membros, { colaboradorId: addColab, papel: "TITULAR", representa: "EMPREGADOS" }]); setAddColab(""); }}><Plus className="w-4 h-4" /></Button></div>
               </div>
             </div>
             <div><Label>Observações</Label><Input value={f.observacoes} onChange={(e) => setF({ ...f, observacoes: e.target.value })} /></div>

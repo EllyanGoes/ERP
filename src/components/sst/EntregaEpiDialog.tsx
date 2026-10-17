@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Printer, User, Users } from "lucide-react";
-import { fmtData, hojeISO, UploadAnexo, TIPO_ENTREGA, type Lookups } from "@/components/sst/comum";
+import { fmtData, hojeISO, UploadAnexo, TIPO_ENTREGA, participaSst, type Lookups } from "@/components/sst/comum";
 
 export type EpiOpt = {
   id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean;
@@ -31,7 +31,7 @@ const opcoesTamanho = (e: EpiOpt) => grade(e).map((i) => ({
   value: i.tamanho!, label: i.tamanho!,
   render: () => <span>{i.tamanho}{i.saldo !== undefined && <span className={cn("ml-1.5 text-xs", i.saldo <= 0 ? "text-danger" : "text-muted-foreground")}>{i.saldo.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} em estoque</span>}</span>,
 }));
-export type ColabOpt = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null };
+export type ColabOpt = { id: string; nome: string; ativo: boolean; afastamento?: unknown | null; funcao: { nome: string } | null };
 type FichaCriada = { id: string; numero: number; colaborador: { id: string; nome: string }; itens: { id: string }[] };
 
 type Linha = { sel: boolean; qtd: string; tipo: string; motivo: string; local: string; tamanho: string };
@@ -215,7 +215,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                 <div className="grid grid-cols-[1fr_170px] gap-3">
                   <div><Label>Colaborador</Label>
                     {colaboradorFixo ? <Input value={colaboradorFixo.nome} disabled /> :
-                      <ComboboxWithCreate value={colabId} onChange={setColabId} allowNone={false} placeholder="Buscar colaborador…" menuMinWidth={360} options={colabs.filter((c) => c.ativo).map((c) => ({ value: c.id, label: c.nome, code: c.funcao?.nome ?? undefined }))} />}
+                      <ComboboxWithCreate value={colabId} onChange={setColabId} allowNone={false} placeholder="Buscar colaborador…" menuMinWidth={360} options={colabs.filter(participaSst).map((c) => ({ value: c.id, label: c.nome, code: c.funcao?.nome ?? undefined }))} />}
                   </div>
                   <div><Label>Data da entrega</Label><DatePicker value={data} onChange={setData} /></div>
                 </div>
@@ -293,13 +293,13 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                 <div>
                   <div className="flex items-center justify-between mb-1"><Label>Colaboradores ({Object.values(lSel).filter(Boolean).length} selecionados)</Label>
                     <div className="flex items-center gap-2">
-                      <button type="button" className="text-xs text-info hover:underline" onClick={() => setLSel(Object.fromEntries(colabs.filter((c) => c.ativo).map((c) => [c.id, true])))}>todos</button>
+                      <button type="button" className="text-xs text-info hover:underline" onClick={() => setLSel(Object.fromEntries(colabs.filter(participaSst).map((c) => [c.id, true])))}>todos</button>
                       <button type="button" className="text-xs text-muted-foreground hover:underline" onClick={() => setLSel({})}>nenhum</button>
                       {loteComTamanho && epiLote && <SelectMenu value="" onChange={(v) => setLTam(Object.fromEntries(Object.entries(lSel).filter(([, x]) => x).map(([k]) => [k, v])))} placeholder="tamanho p/ todos" triggerClassName="h-7 text-xs w-[140px]" options={opcoesTamanho(epiLote)} />}
                       <input value={lBusca} onChange={(e) => setLBusca(e.target.value)} placeholder="filtrar…" className="text-xs border border-border rounded px-2 py-1 bg-card" />
                     </div></div>
                   <div className="max-h-72 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
-                    {colabs.filter((c) => c.ativo && (!lBusca || c.nome.toLowerCase().includes(lBusca.toLowerCase()))).map((c) => {
+                    {colabs.filter((c) => participaSst(c) && (!lBusca || c.nome.toLowerCase().includes(lBusca.toLowerCase()))).map((c) => {
                       const p = lPrecisa.find((x) => x.colaboradorId === c.id);
                       return (
                         <label key={c.id} className={cn("flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/40", p && "bg-warning/5")}>

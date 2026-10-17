@@ -16,11 +16,11 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2, GraduationCap } from "lucide-react";
 import InstrutorSelect from "@/components/sst/InstrutorSelect";
-import { SeveridadeBadge, UploadAnexo, DocLink, fmtData, hojeISO, type Pendencia, AcoesLinha } from "@/components/sst/comum";
+import { SeveridadeBadge, UploadAnexo, DocLink, fmtData, hojeISO, type Pendencia, AcoesLinha, participaSst } from "@/components/sst/comum";
 
 type Tipo = { id: string; nome: string; norma: string | null; cargaHoraria: number | null; validadeMeses: number | null; ativo: boolean; _count: { requisitos: number; turmas: number } };
 type Turma = { id: string; data: string; instrutorId: string | null; instrutor: string | null; entidade: string | null; cargaHoraria: number | null; listaPresencaDocumentoId: string | null; tipo: { id: string; nome: string; norma: string | null; validadeMeses: number | null }; participantes: { colaboradorId: string; validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; colaborador: { id: string; nome: string } }[] };
-type Colab = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null; pendencias: Pendencia[] };
+type Colab = { id: string; nome: string; ativo: boolean; afastamento?: unknown | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
 const TIPOS_TREIN = ["TREINAMENTO_FALTANDO", "TREINAMENTO_VENCIDO", "TREINAMENTO_VENCE_EM_BREVE"];
 
 export default function SstTreinamentosPage() {
@@ -36,7 +36,7 @@ export default function SstTreinamentosPage() {
     setTipos(t.data ?? []); setTurmas(u.data ?? []); setColabs(c.data ?? []); setLoading(false);
   }
   useEffect(() => { load(); }, []);
-  const pendencias = useMemo(() => colabs.filter((c) => c.ativo).flatMap((c) => c.pendencias.filter((p) => TIPOS_TREIN.includes(p.tipo)).map((p) => ({ ...p, colaboradorNome: c.nome, funcao: c.funcao?.nome }))), [colabs]);
+  const pendencias = useMemo(() => colabs.filter(participaSst).flatMap((c) => c.pendencias.filter((p) => TIPOS_TREIN.includes(p.tipo)).map((p) => ({ ...p, colaboradorNome: c.nome, funcao: c.funcao?.nome }))), [colabs]);
 
   // tipo
   const [dlgTipo, setDlgTipo] = useState(false); const [editId, setEditId] = useState<string | null>(null);
@@ -182,7 +182,7 @@ export default function SstTreinamentosPage() {
               <div><Label>Data</Label><DatePicker value={uData} onChange={setUData} /></div>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div><Label>Instrutor</Label><InstrutorSelect value={uInstrutorId} colaboradores={colabs.filter((c) => c.ativo)}
+              <div><Label>Instrutor</Label><InstrutorSelect value={uInstrutorId} colaboradores={colabs.filter(participaSst)}
                 onChange={(i) => { setUInstrutorId(i?.id ?? ""); setUInstrutor(i?.nome ?? ""); setUEntidade(i?.entidade ?? ""); }} /></div>
               <div><Label>Entidade</Label><Input value={uEntidade} onChange={(e) => setUEntidade(e.target.value)} placeholder="preenchida pelo instrutor" autoComplete="off" /></div>
               <div><Label>Carga (h)</Label><Input type="number" autoComplete="off" value={uCarga} onChange={(e) => setUCarga(e.target.value)} placeholder={tipoSel?.cargaHoraria ? String(tipoSel.cargaHoraria) : ""} /></div>
@@ -190,7 +190,7 @@ export default function SstTreinamentosPage() {
             <div>
               <div className="flex items-center justify-between mb-1"><Label>Participantes ({Object.values(uSel).filter(Boolean).length})</Label><input value={uBusca} onChange={(e) => setUBusca(e.target.value)} placeholder="filtrar…" className="text-xs border border-border rounded px-2 py-1 bg-card" /></div>
               <div className="max-h-80 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
-                {colabs.filter((c) => c.ativo && (!uBusca || c.nome.toLowerCase().includes(uBusca.toLowerCase()))).map((c) => (
+                {colabs.filter((c) => participaSst(c) && (!uBusca || c.nome.toLowerCase().includes(uBusca.toLowerCase()))).map((c) => (
                   <label key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-muted/40">
                     <input type="checkbox" className="rounded" checked={!!uSel[c.id]} onChange={(e) => setUSel({ ...uSel, [c.id]: e.target.checked })} />
                     <span className="flex-1 text-foreground">{c.nome}</span><span className="text-xs text-muted-foreground">{c.funcao?.nome ?? "sem função"}</span>

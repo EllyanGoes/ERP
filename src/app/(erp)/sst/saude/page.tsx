@@ -16,9 +16,9 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
-import { fmtData, type Pendencia, AcoesLinha } from "@/components/sst/comum";
+import { fmtData, type Pendencia, AcoesLinha, participaSst } from "@/components/sst/comum";
 
-type Colab = { id: string; nome: string; ativo: boolean; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
+type Colab = { id: string; nome: string; ativo: boolean; afastamento?: unknown | null; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
 type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; preco: string | null; clinico: boolean; _count: { requisitos: number; exames: number } };
 type Linha = Pendencia & { colaboradorNome: string; setor: string | null; funcao?: string };
 
@@ -56,7 +56,7 @@ export default function SstSaudePage() {
     const lim = Date.now() + Number(janela) * 86_400_000;
     // Busca por termos em qualquer ordem ("audiometria carla" acha "Carla … Audiometria").
     const termos = norm(busca).split(/\s+/).filter(Boolean);
-    return colabs.filter((c) => c.ativo).flatMap((c) => c.pendencias.filter((p) => TIPOS_SAUDE.includes(p.tipo)).filter((p) => !p.vence || new Date(p.vence).getTime() <= lim).map((p) => ({ ...p, colaboradorId: c.id, colaboradorNome: c.nome, setor: c.setor, funcao: c.funcao?.nome })))
+    return colabs.filter(participaSst).flatMap((c) => c.pendencias.filter((p) => TIPOS_SAUDE.includes(p.tipo)).filter((p) => !p.vence || new Date(p.vence).getTime() <= lim).map((p) => ({ ...p, colaboradorId: c.id, colaboradorNome: c.nome, setor: c.setor, funcao: c.funcao?.nome })))
       .filter((l) => { const alvo = norm([l.colaboradorNome, l.setor ?? "", l.funcao ?? "", l.titulo, l.detalhe ?? ""].join(" ")); return termos.every((t) => alvo.includes(t)); })
       .sort((a, b) => (a.vence ? new Date(a.vence).getTime() : 0) - (b.vence ? new Date(b.vence).getTime() : 0));
   }, [colabs, janela, busca]);
