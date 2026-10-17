@@ -1778,6 +1778,7 @@ model Empresa {
   lancamentosMetrica            LancamentoManualMetrica[]
   empresaDrive                  EmpresaDrive?
   contratos                     Contrato[]
+  sstInstrutores                SstInstrutor[]
 }
 
 model EnderecoEstoque {
@@ -5448,11 +5449,33 @@ model SstFuncaoTreinamento {
 }
 
 // Turma: um evento de treinamento com N participantes.
+// Instrutor de treinamento: externo (nome + entidade/empresa + registro) ou um
+// colaborador interno (colaboradorId; entidade = a própria empresa).
+model SstInstrutor {
+  id            String           @id @default(cuid())
+  empresaId     String
+  nome          String
+  entidade      String?
+  registro      String?
+  colaboradorId String?
+  ativo         Boolean          @default(true)
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  empresa       Empresa          @relation(fields: [empresaId], references: [id])
+  turmas        SstTreinamento[]
+
+  @@index([empresaId, nome])
+}
+
 model SstTreinamento {
   id                       String                       @id @default(cuid())
   empresaId                String
   tipoId                   String
   data                     DateTime
+  // Cadastro do instrutor (nome/entidade abaixo ficam como retrato da turma).
+  instrutorId              String?
   instrutor                String?
   entidade                 String?
   cargaHoraria             Int?
@@ -5464,6 +5487,7 @@ model SstTreinamento {
   updatedAt                DateTime                     @updatedAt
   empresa                  Empresa                      @relation(fields: [empresaId], references: [id])
   tipo                     SstTreinamentoTipo           @relation(fields: [tipoId], references: [id])
+  instrutorCadastro        SstInstrutor?                @relation(fields: [instrutorId], references: [id], onDelete: SetNull)
   participantes            SstTreinamentoParticipante[]
 
   @@index([empresaId, data])

@@ -15,10 +15,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2, GraduationCap } from "lucide-react";
+import InstrutorSelect from "@/components/sst/InstrutorSelect";
 import { SeveridadeBadge, UploadAnexo, DocLink, fmtData, hojeISO, type Pendencia, AcoesLinha } from "@/components/sst/comum";
 
 type Tipo = { id: string; nome: string; norma: string | null; cargaHoraria: number | null; validadeMeses: number | null; ativo: boolean; _count: { requisitos: number; turmas: number } };
-type Turma = { id: string; data: string; instrutor: string | null; entidade: string | null; cargaHoraria: number | null; listaPresencaDocumentoId: string | null; tipo: { id: string; nome: string; norma: string | null; validadeMeses: number | null }; participantes: { colaboradorId: string; validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; colaborador: { id: string; nome: string } }[] };
+type Turma = { id: string; data: string; instrutorId: string | null; instrutor: string | null; entidade: string | null; cargaHoraria: number | null; listaPresencaDocumentoId: string | null; tipo: { id: string; nome: string; norma: string | null; validadeMeses: number | null }; participantes: { colaboradorId: string; validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; colaborador: { id: string; nome: string } }[] };
 type Colab = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null; pendencias: Pendencia[] };
 const TIPOS_TREIN = ["TREINAMENTO_FALTANDO", "TREINAMENTO_VENCIDO", "TREINAMENTO_VENCE_EM_BREVE"];
 
@@ -55,16 +56,25 @@ export default function SstTreinamentosPage() {
 
   // turma
   const [dlgTurma, setDlgTurma] = useState(false);
+  const [uEditId, setUEditId] = useState<string | null>(null); const [uInstrutorId, setUInstrutorId] = useState("");
   const [uTipo, setUTipo] = useState(""); const [uData, setUData] = useState(hojeISO()); const [uInstrutor, setUInstrutor] = useState(""); const [uEntidade, setUEntidade] = useState(""); const [uCarga, setUCarga] = useState(""); const [uLista, setULista] = useState<string | null>(null); const [uSel, setUSel] = useState<Record<string, boolean>>({}); const [uBusca, setUBusca] = useState("");
-  function abrirTurma(tipoId = "") { setUTipo(tipoId); setUData(hojeISO()); setUInstrutor(""); setUEntidade(""); setUCarga(""); setULista(null); setUSel({}); setUBusca(""); setErro(""); setDlgTurma(true); }
+  function abrirTurma(tipoId = "") { setUEditId(null); setUInstrutorId(""); setUTipo(tipoId); setUData(hojeISO()); setUInstrutor(""); setUEntidade(""); setUCarga(""); setULista(null); setUSel({}); setUBusca(""); setErro(""); setDlgTurma(true); }
+  function editarTurma(u: Turma) {
+    setUEditId(u.id); setUTipo(u.tipo.id); setUData(u.data.slice(0, 10)); setUInstrutorId(u.instrutorId ?? ""); setUInstrutor(u.instrutor ?? ""); setUEntidade(u.entidade ?? "");
+    setUCarga(u.cargaHoraria ? String(u.cargaHoraria) : ""); setULista(u.listaPresencaDocumentoId); setUBusca(""); setErro("");
+    setUSel(Object.fromEntries(u.participantes.map((p) => [p.colaboradorId, true]))); setDlgTurma(true);
+  }
   const tipoSel = tipos.find((t) => t.id === uTipo);
   // pré-seleciona quem tem pendência desse tipo
-  useEffect(() => { if (!dlgTurma || !uTipo) return; const ids = pendencias.filter((p) => p.referenciaId === uTipo).map((p) => p.colaboradorId!); setUSel(Object.fromEntries(ids.map((i) => [i, true]))); }, [uTipo, dlgTurma]); // eslint-disable-line
+  useEffect(() => { if (!dlgTurma || !uTipo || uEditId) return; const ids = pendencias.filter((p) => p.referenciaId === uTipo).map((p) => p.colaboradorId!); setUSel(Object.fromEntries(ids.map((i) => [i, true]))); }, [uTipo, dlgTurma]); // eslint-disable-line
   async function salvarTurma() {
     const ids = Object.entries(uSel).filter(([, v]) => v).map(([k]) => k);
     if (!uTipo || ids.length === 0) { setErro("Escolha o tipo e ao menos um participante."); return; }
     setSaving(true); setErro("");
-    const res = await fetch("/api/sst/treinamentos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipoId: uTipo, data: uData, instrutor: uInstrutor || null, entidade: uEntidade || null, cargaHoraria: uCarga || null, listaPresencaDocumentoId: uLista, participantes: ids.map((colaboradorId) => ({ colaboradorId })) }) });
+    const base = { tipoId: uTipo, data: uData, instrutorId: uInstrutorId || null, instrutor: uInstrutor || null, entidade: uEntidade || null, cargaHoraria: uCarga || null, listaPresencaDocumentoId: uLista };
+    const res = uEditId
+      ? await fetch(`/api/sst/treinamentos?id=${uEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...base, participantes: ids }) })
+      : await fetch("/api/sst/treinamentos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...base, participantes: ids.map((colaboradorId) => ({ colaboradorId })) }) });
     const j = await res.json().catch(() => ({})); setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
     setDlgTurma(false); load();
@@ -83,28 +93,31 @@ export default function SstTreinamentosPage() {
           ))}
         </div>
         {loading ? <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : aba === "turmas" ? (
-          <div className="space-y-3">
-            {turmas.length === 0 && <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma turma registrada.</p>}
-            {turmas.map((u) => (
-              <div key={u.id} className="bg-card rounded-xl border border-border p-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground">{fmtData(u.data)}</span>
-                  <h3 className="font-semibold text-sm text-foreground">{u.tipo.nome}</h3>
-                  {u.tipo.norma && <span className="text-xs px-1.5 rounded bg-muted text-muted-foreground">{u.tipo.norma}</span>}
-                  {u.cargaHoraria && <span className="text-xs text-muted-foreground">{u.cargaHoraria}h</span>}
-                  {u.instrutor && <span className="text-xs text-muted-foreground">· {u.instrutor}{u.entidade ? ` (${u.entidade})` : ""}</span>}
-                  <span className="ml-auto"><DocLink id={u.listaPresencaDocumentoId} label="lista de presença" /></span>
-                  <button onClick={() => setDelTurma(u)} className="text-muted-foreground hover:text-danger"><Trash2 className="w-3.5 h-3.5" /></button>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {u.participantes.map((p) => (
-                    <Link key={p.colaboradorId} href={`/sst/colaboradores/${p.colaboradorId}`} className={cn("text-xs px-2 py-0.5 rounded-full border", p.aprovado ? "border-border text-foreground hover:bg-muted" : "border-danger/30 text-danger")}>
-                      {p.colaborador.nome}{p.validade ? <span className="text-muted-foreground"> · até {fmtData(p.validade)}</span> : null}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
+            {turmas.length === 0 ? <p className="px-4 py-8 text-sm text-muted-foreground text-center">Nenhuma turma registrada.</p> : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted text-xs text-muted-foreground"><tr>
+                  <th className="text-left px-4 py-2 font-semibold">Data</th><th className="text-left px-3 py-2 font-semibold">Treinamento</th><th className="text-left px-3 py-2 font-semibold">Norma</th>
+                  <th className="text-right px-3 py-2 font-semibold">Carga</th><th className="text-left px-3 py-2 font-semibold">Instrutor</th><th className="text-right px-3 py-2 font-semibold">Participantes</th>
+                  <th className="text-left px-3 py-2 font-semibold">Lista de presença</th><th className="px-3 py-2"></th>
+                </tr></thead>
+                <tbody>{turmas.map((u) => (
+                  <tr key={u.id} className="border-t border-border/60">
+                    <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">{fmtData(u.data)}</td>
+                    <td className="px-3 py-2 text-foreground font-medium">{u.tipo.nome}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{u.tipo.norma ?? "—"}</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground tabular-nums">{u.cargaHoraria ? `${u.cargaHoraria}h` : "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{u.instrutor ? <>{u.instrutor}{u.entidade && <span className="block text-[11px]">{u.entidade}</span>}</> : "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium" title={u.participantes.map((p) => p.colaborador.nome).join("\n")}>{u.participantes.length}</td>
+                    <td className="px-3 py-2"><DocLink id={u.listaPresencaDocumentoId} label="lista" /></td>
+                    <td className="px-3 py-2 text-right"><AcoesLinha acoes={[
+                      { label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => editarTurma(u) },
+                      { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDelTurma(u), danger: true, separadorAntes: true },
+                    ]} /></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
           </div>
         ) : aba === "pendencias" ? (
           <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -162,16 +175,17 @@ export default function SstTreinamentosPage() {
 
       <Dialog open={dlgTurma} onOpenChange={setDlgTurma}>
         <DialogContent className="sm:max-w-3xl">
-          <DialogHeader><DialogTitle>Nova turma</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{uEditId ? "Editar turma" : "Nova turma"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2"><Label>Treinamento</Label><SelectMenu value={uTipo} onChange={setUTipo} placeholder="Selecionar…" options={tipos.filter((t) => t.ativo).map((t) => ({ value: t.id, label: t.norma ? `${t.nome} (${t.norma})` : t.nome }))} /></div>
               <div><Label>Data</Label><DatePicker value={uData} onChange={setUData} /></div>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div><Label>Instrutor</Label><Input value={uInstrutor} onChange={(e) => setUInstrutor(e.target.value)} /></div>
-              <div><Label>Entidade</Label><Input value={uEntidade} onChange={(e) => setUEntidade(e.target.value)} /></div>
-              <div><Label>Carga (h)</Label><Input type="number" value={uCarga} onChange={(e) => setUCarga(e.target.value)} placeholder={tipoSel?.cargaHoraria ? String(tipoSel.cargaHoraria) : ""} /></div>
+              <div><Label>Instrutor</Label><InstrutorSelect value={uInstrutorId} colaboradores={colabs.filter((c) => c.ativo)}
+                onChange={(i) => { setUInstrutorId(i?.id ?? ""); setUInstrutor(i?.nome ?? ""); setUEntidade(i?.entidade ?? ""); }} /></div>
+              <div><Label>Entidade</Label><Input value={uEntidade} onChange={(e) => setUEntidade(e.target.value)} placeholder="preenchida pelo instrutor" autoComplete="off" /></div>
+              <div><Label>Carga (h)</Label><Input type="number" autoComplete="off" value={uCarga} onChange={(e) => setUCarga(e.target.value)} placeholder={tipoSel?.cargaHoraria ? String(tipoSel.cargaHoraria) : ""} /></div>
             </div>
             <div>
               <div className="flex items-center justify-between mb-1"><Label>Participantes ({Object.values(uSel).filter(Boolean).length})</Label><input value={uBusca} onChange={(e) => setUBusca(e.target.value)} placeholder="filtrar…" className="text-xs border border-border rounded px-2 py-1 bg-card" /></div>
@@ -188,7 +202,7 @@ export default function SstTreinamentosPage() {
             <div><Label>Lista de presença / certificados</Label><UploadAnexo tipo="outro" titulo={`Lista de presença — ${tipoSel?.nome ?? "treinamento"} — ${uData}`} value={uLista} onChange={setULista} /></div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setDlgTurma(false)}>Cancelar</Button><Button onClick={salvarTurma} disabled={saving}>{saving ? "Salvando…" : "Registrar turma"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setDlgTurma(false)}>Cancelar</Button><Button onClick={salvarTurma} disabled={saving}>{saving ? "Salvando…" : uEditId ? "Salvar" : "Registrar turma"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
       <ConfirmDialog open={!!delTipo} onOpenChange={(o) => !o && setDelTipo(null)} title="Excluir tipo?" description={delTipo?.nome ?? ""} onConfirm={excluirTipo} loading={saving} confirmLabel="Excluir" />
