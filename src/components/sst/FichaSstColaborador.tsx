@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText } from "lucide-react";
+import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText, Pencil } from "lucide-react";
 import { Semaforo, SeloAfastado, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 import CautelaEpi from "@/components/sst/CautelaEpi";
@@ -30,7 +30,7 @@ type Ficha = {
   sstTreinamentos: { validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; treinamento: { id: string; tipoId: string; data: string; instrutor: string | null; cargaHoraria: number | null; tipo: { nome: string; norma: string | null } } }[];
   sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null } | null }[];
   sstExames: { id: string; exameTipoId: string; data: string; resultado: string | null; observacao: string | null; documentoId: string | null; asoId: string | null; exameTipo: { nome: string }; aso: { tipo: string; data: string } | null }[];
-  sstAsos: { id: string; tipo: string; data: string; validade: string | null; resultado: string; restricoes: string | null; medico: string | null; crm: string | null; documentoId: string | null; exames: { exameTipoId: string; data: string; resultado: string | null; exameTipo: { nome: string } }[] }[];
+  sstAsos: { id: string; tipo: string; data: string; validade: string | null; resultado: string; restricoes: string | null; medico: string | null; crm: string | null; medicoId: string | null; documentoId: string | null; exames: { exameTipoId: string; data: string; resultado: string | null; exameTipo: { nome: string } }[] }[];
   pendencias: Pendencia[];
   episStatus: { epi: { id: string; nome: string; vidaUtilDias: number | null; ca: string | null }; obrigatorio: boolean; quantidade: number; entregaVigente: { data: string; vencimentoUso: string | null } | null }[];
 };
@@ -111,15 +111,32 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   const [aMedicoId, setAMedicoId] = useState("");
   const [aDoc, setADoc] = useState<string | null>(null);
   const [aExames, setAExames] = useState<Record<string, boolean>>({});
+  const [aEditId, setAEditId] = useState<string | null>(null);
+  const [eEditId, setEEditId] = useState<string | null>(null);
   function abrirAso() {
+    setAEditId(null);
     setATipo("PERIODICO"); setAData(hojeISO()); setAValidade(""); setAResultado("APTO"); setARestricoes(""); setAMedico(""); setACrm(""); setAMedicoId(""); setADoc(null); setErro("");
     // pré-marca os exames exigidos pela função
     const exigidos = f?.sstFuncoes.find((v) => !v.fim)?.funcao.requisitosExame.map((r) => r.exameTipo.id) ?? [];
     setAExames(Object.fromEntries(exigidos.map((e) => [e, true])));
     setDlgAso(true);
   }
+  /** Edita um ASO lançado (mesmo diálogo; exames marcados = exames ligados a ele). */
+  function editarAso(a: Ficha["sstAsos"][number]) {
+    setAEditId(a.id); setATipo(a.tipo); setAData(a.data.slice(0, 10)); setAValidade(a.validade ? a.validade.slice(0, 10) : ""); setAResultado(a.resultado);
+    setARestricoes(a.restricoes ?? ""); setAMedico(a.medico ?? ""); setACrm(a.crm ?? ""); setAMedicoId(a.medicoId ?? ""); setADoc(a.documentoId); setErro("");
+    setAExames(Object.fromEntries(a.exames.map((e) => [e.exameTipoId, true])));
+    setDlgAso(true);
+  }
   async function salvarAso() {
     setSalvando(true); setErro("");
+    if (aEditId) {
+      const res = await fetch(`/api/sst/asos/${aEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo: aTipo, data: aData, validade: aValidade || null, resultado: aResultado, restricoes: aRestricoes || null, medicoId: aMedicoId || null, medico: aMedico || null, crm: aCrm || null, documentoId: aDoc, exames: Object.entries(aExames).filter(([, v]) => v).map(([k]) => k) }) });
+      const j = await res.json().catch(() => ({}));
+      setSalvando(false);
+      if (!res.ok) { setErro(j.error || "Erro"); return; }
+      setDlgAso(false); load(); return;
+    }
     const exames = Object.entries(aExames).filter(([, v]) => v).map(([exameTipoId]) => ({ exameTipoId, data: aData }));
     const res = await fetch("/api/sst/asos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorId: id, tipo: aTipo, data: aData, validade: aValidade || null, resultado: aResultado, restricoes: aRestricoes || null, medicoId: aMedicoId || null, medico: aMedico || null, crm: aCrm || null, documentoId: aDoc, exames }) });
     const j = await res.json().catch(() => ({}));
@@ -128,6 +145,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
     setDlgAso(false); load();
   }
   function abrirExame() {
+    setEEditId(null);
     setEData(hojeISO()); setEResultado(""); setEObs(""); setEDoc(null); setErro("");
     // Pré-marca os exames exigidos que estão pendentes (nunca feitos ou vencidos).
     const pend = f?.pendencias.filter((p) => p.tipo === "EXAME_PENDENTE" && p.referenciaId).map((p) => p.referenciaId!) ?? [];
@@ -135,7 +153,20 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
     setEAsoId(f?.sstAsos[0]?.id ?? "");
     setDlgExame(true);
   }
+  function editarExame(e: Ficha["sstExames"][number]) {
+    setEEditId(e.id); setEData(e.data.slice(0, 10)); setEResultado(e.resultado ?? ""); setEObs(e.observacao ?? ""); setEDoc(e.documentoId); setEAsoId(e.asoId ?? ""); setErro("");
+    setESel({ [e.exameTipoId]: true });
+    setDlgExame(true);
+  }
   async function salvarExame() {
+    if (eEditId) {
+      setSalvando(true); setErro("");
+      const res = await fetch(`/api/sst/exames/${eEditId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: eData, resultado: eResultado, observacao: eObs, documentoId: eDoc, asoId: eAsoId || null }) });
+      const j = await res.json().catch(() => ({}));
+      setSalvando(false);
+      if (!res.ok) { setErro(j.error || "Erro"); return; }
+      setDlgExame(false); load(); return;
+    }
     const exames = Object.entries(eSel).filter(([, v]) => v).map(([exameTipoId]) => ({ exameTipoId, resultado: eResultado || null }));
     if (exames.length === 0) { setErro("Selecione ao menos um exame."); return; }
     setSalvando(true); setErro("");
@@ -355,7 +386,10 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                         <span className={cn("text-[11px] px-1.5 py-0.5 rounded", RESULTADO_ASO[a.resultado]?.cls)}>{RESULTADO_ASO[a.resultado]?.label ?? a.resultado}</span>
                         <span className={cn("text-xs ml-auto", vencido ? "text-danger font-medium" : "text-muted-foreground")}>{a.validade ? `válido até ${fmtData(a.validade)}` : ""}</span>
                         <DocLink id={a.documentoId} label="ASO" />
-                        <button onClick={() => setExcluir({ tipo: "aso", id: a.id })} className="text-muted-foreground hover:text-danger" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <AcoesLinha acoes={[
+                          { label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => editarAso(a) },
+                          { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "aso", id: a.id }), danger: true, separadorAntes: true },
+                        ]} />
                       </div>
                       {(a.medico || a.exames.length > 0 || a.restricoes) && (
                         <p className="text-xs text-muted-foreground mt-0.5 pl-[92px]">
@@ -382,7 +416,10 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                       <span className="block text-[11px] text-muted-foreground">{e.aso ? `com o ASO ${(TIPO_ASO[e.aso.tipo] ?? e.aso.tipo).toLowerCase()} de ${fmtData(e.aso.data)}` : "avulso (sem ASO)"}{e.observacao ? ` · ${e.observacao}` : ""}</span>
                     </span>
                     <DocLink id={e.documentoId} label="laudo" />
-                    <button onClick={() => setExcluir({ tipo: "exame", id: e.id })} className="text-muted-foreground hover:text-danger shrink-0" title="Excluir"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <AcoesLinha acoes={[
+                      { label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => editarExame(e) },
+                      { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "exame", id: e.id }), danger: true, separadorAntes: true },
+                    ]} />
                   </li>
                 ))}
               </ul>
@@ -455,7 +492,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
       {/* Dialog ASO */}
       <Dialog open={dlgAso} onOpenChange={setDlgAso}>
         <DialogContent className="sm:max-w-3xl">
-          <DialogHeader><DialogTitle>Lançar ASO</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{aEditId ? "Editar ASO" : "Lançar ASO"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
               <div><Label>Tipo</Label><SelectMenu value={aTipo} onChange={setATipo} options={Object.entries(TIPO_ASO).map(([value, label]) => ({ value, label }))} /></div>
@@ -482,15 +519,18 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             <div><Label>ASO digitalizado (confidencial)</Label><UploadAnexo tipo="aso" titulo={`ASO ${TIPO_ASO[aTipo]} — ${f.nome}`} colaboradorId={id} validade={aValidade || null} value={aDoc} onChange={setADoc} /></div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setDlgAso(false)}>Cancelar</Button><Button onClick={salvarAso} disabled={salvando}>{salvando ? "Salvando…" : "Lançar"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setDlgAso(false)}>Cancelar</Button><Button onClick={salvarAso} disabled={salvando}>{salvando ? "Salvando…" : aEditId ? "Salvar" : "Lançar"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Dialog exame avulso */}
       <Dialog open={dlgExame} onOpenChange={setDlgExame}>
         <DialogContent className="sm:max-w-2xl">
-          <DialogHeader><DialogTitle>Lançar exame</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{eEditId ? "Editar exame" : "Lançar exame"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            {eEditId ? (
+              <div><Label>Exame</Label><p className="text-sm font-medium text-foreground mt-1">{exameTipos.find((t) => eSel[t.id])?.nome ?? f?.sstExames.find((x) => x.id === eEditId)?.exameTipo.nome}</p></div>
+            ) : <>
             <p className="text-xs text-muted-foreground">Exames feitos fora do ASO — por exemplo, pedidos pelo médico depois de um ASO apto. Contam para a periodicidade exigida pela função.</p>
             <div><Label>Exames realizados</Label>
               <div className="flex flex-wrap gap-2 mt-1">
@@ -501,6 +541,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 ))}
               </div>
             </div>
+            </>}
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Data do exame</Label><DatePicker value={eData} onChange={setEData} /></div>
               <div><Label>Referente ao ASO (opcional)</Label>
@@ -514,7 +555,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             <div><Label>Laudo (confidencial)</Label>{f && <UploadAnexo tipo="exame" titulo={`Exame — ${f.nome}`} colaboradorId={id} value={eDoc} onChange={setEDoc} />}</div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setDlgExame(false)}>Cancelar</Button><Button onClick={salvarExame} disabled={salvando}>{salvando ? "Salvando…" : "Lançar"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setDlgExame(false)}>Cancelar</Button><Button onClick={salvarExame} disabled={salvando}>{salvando ? "Salvando…" : eEditId ? "Salvar" : "Lançar"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

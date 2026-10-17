@@ -17,7 +17,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       sstEpiEntregas: { orderBy: { data: "desc" }, select: { id: true, epiId: true, tipo: true, data: true, vencimentoUso: true, quantidade: true, tamanho: true, motivo: true, documentoId: true, movimentacaoEstoqueId: true, epi: { select: { nome: true, ca: true } }, ficha: { select: { id: true, numero: true, documentoId: true } } } },
       sstTreinamentos: { select: { validade: true, aprovado: true, certificadoDocumentoId: true, treinamento: { select: { id: true, tipoId: true, data: true, instrutor: true, cargaHoraria: true, tipo: { select: { nome: true, norma: true } } } } }, orderBy: { treinamento: { data: "desc" } } },
       sstExames: { orderBy: { data: "desc" }, select: { id: true, exameTipoId: true, data: true, resultado: true, observacao: true, documentoId: true, asoId: true, exameTipo: { select: { nome: true } }, aso: { select: { tipo: true, data: true } } } },
-      sstAsos: { orderBy: { data: "desc" }, select: { id: true, tipo: true, data: true, validade: true, resultado: true, restricoes: true, medico: true, crm: true, documentoId: true, exames: { select: { exameTipoId: true, data: true, resultado: true, exameTipo: { select: { nome: true } } } } } },
+      sstAsos: { orderBy: { data: "desc" }, select: { id: true, tipo: true, data: true, validade: true, resultado: true, restricoes: true, medico: true, crm: true, medicoId: true, documentoId: true, exames: { select: { exameTipoId: true, data: true, resultado: true, exameTipo: { select: { nome: true } } } } } },
     },
   });
   if (!c) return NextResponse.json({ error: "Colaborador não encontrado" }, { status: 404 });
