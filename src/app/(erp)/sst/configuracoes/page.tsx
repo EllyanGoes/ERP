@@ -62,19 +62,33 @@ export default function SstConfigPage() {
   const [addEpi, setAddEpi] = useState(""); const [addExame, setAddExame] = useState("");
   const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
   const [copiarDe, setCopiarDe] = useState("");
-  /** Copia EPIs/exames/treinamentos/grau de risco de outra função p/ o formulário. */
-  function copiarRequisitos(id: string) {
+  const [copiarModo, setCopiarModo] = useState<"somar" | "substituir">("somar");
+  /** Copia EPIs/exames/treinamentos de outra função p/ o formulário. "substituir" troca
+   *  tudo (e o grau de risco); "somar" só acrescenta o que falta — no exame repetido
+   *  fica a menor periodicidade. */
+  function copiarRequisitos(id: string, modo: "somar" | "substituir" = "substituir") {
     setCopiarDe(id);
     const f = funcoes.find((x) => x.id === id); if (!f) return;
-    setGrau(f.grauRisco ? String(f.grauRisco) : "");
-    setREpis(f.requisitosEpi.map((r) => ({ epiId: r.epiId, obrigatorio: r.obrigatorio, quantidade: r.quantidade })));
-    setRExames(f.requisitosExame.map((r) => ({ exameTipoId: r.exameTipoId, periodicidadeMeses: r.periodicidadeMeses })));
-    setRTreinos(f.requisitosTreinamento.map((r) => r.treinamentoTipoId));
+    const epis = f.requisitosEpi.map((r) => ({ epiId: r.epiId, obrigatorio: r.obrigatorio, quantidade: r.quantidade }));
+    const exames = f.requisitosExame.map((r) => ({ exameTipoId: r.exameTipoId, periodicidadeMeses: r.periodicidadeMeses }));
+    const treinos = f.requisitosTreinamento.map((r) => r.treinamentoTipoId);
+    if (modo === "substituir") {
+      setGrau(f.grauRisco ? String(f.grauRisco) : "");
+      setREpis(epis); setRExames(exames); setRTreinos(treinos);
+      return;
+    }
+    if (!grau && f.grauRisco) setGrau(String(f.grauRisco));
+    setREpis((atual) => [...atual, ...epis.filter((e) => !atual.some((a) => a.epiId === e.epiId))]);
+    setRExames((atual) => [
+      ...atual.map((a) => { const o = exames.find((e) => e.exameTipoId === a.exameTipoId); return o ? { ...a, periodicidadeMeses: Math.min(a.periodicidadeMeses, o.periodicidadeMeses) } : a; }),
+      ...exames.filter((e) => !atual.some((a) => a.exameTipoId === e.exameTipoId)),
+    ]);
+    setRTreinos((atual) => [...atual, ...treinos.filter((t) => !atual.includes(t))]);
   }
   /** Nova função a partir de outra (nome "Cópia de …", mesmos requisitos). */
   function duplicar(f: Funcao) { abrir(); copiarRequisitos(f.id); setNome(`${cargoDe(f.nome)} (cópia)`); setGhe(f.ghe ?? ""); setCbo(f.cbo ?? ""); }
   function abrir(f?: Funcao) {
-    setCopiarDe("");
+    setCopiarDe(""); setCopiarModo("somar");
     setEditId(f?.id ?? null); setNome(f ? cargoDe(f.nome) : ""); setGhe(f?.ghe ?? ""); setGheNovo(false); setAplicarNoGhe(false); setCbo(f?.cbo ?? ""); setGrau(f?.grauRisco ? String(f.grauRisco) : "");
     setREpis(f?.requisitosEpi.map((r) => ({ epiId: r.epiId, obrigatorio: r.obrigatorio, quantidade: r.quantidade })) ?? []);
     setRExames(f?.requisitosExame.map((r) => ({ exameTipoId: r.exameTipoId, periodicidadeMeses: r.periodicidadeMeses })) ?? []);
@@ -188,11 +202,22 @@ export default function SstConfigPage() {
         <DialogContent className="sm:max-w-[min(96vw,1400px)] max-h-[94vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editId ? "Editar função" : "Nova função SST"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            {!editId && funcoes.length > 0 && (
-              <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 flex items-center gap-3">
+            {funcoes.some((x) => x.id !== editId) && (
+              <div className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 flex flex-wrap items-center gap-3">
                 <Copy className="w-4 h-4 text-muted-foreground shrink-0" />
-                <div className="flex-1"><Label className="text-xs">Copiar requisitos de outra função</Label><p className="text-[11px] text-muted-foreground">Traz EPIs, exames, treinamentos e grau de risco — depois é só ajustar.</p></div>
-                <SelectMenu value={copiarDe} onChange={copiarRequisitos} className="w-72" placeholder="Escolher função…" options={[...funcoes].sort((x, y) => x.nome.localeCompare(y.nome)).map((x) => ({ value: x.id, label: x.nome }))} />
+                <div className="flex-1 min-w-[16rem]"><Label className="text-xs">Puxar requisitos de outra função</Label>
+                  <p className="text-[11px] text-muted-foreground">{editId
+                    ? (copiarModo === "somar" ? "Acrescenta os EPIs, exames e treinamentos que faltam — os atuais continuam." : "Troca os EPIs, exames, treinamentos e grau de risco pelos da função escolhida.")
+                    : "Traz EPIs, exames, treinamentos e grau de risco — depois é só ajustar."} Só vale ao salvar.</p></div>
+                {editId && (
+                  <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
+                    {(["somar", "substituir"] as const).map((m) => (
+                      <button key={m} type="button" onClick={() => setCopiarModo(m)} className={cn("px-2.5 py-1.5", copiarModo === m ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted")}>{m === "somar" ? "Somar aos atuais" : "Substituir"}</button>
+                    ))}
+                  </div>
+                )}
+                <SelectMenu value={copiarDe} onChange={(id) => copiarRequisitos(id, editId ? copiarModo : "substituir")} className="w-72" placeholder="Escolher função…"
+                  options={funcoes.filter((x) => x.id !== editId).sort((x, y) => x.nome.localeCompare(y.nome)).map((x) => ({ value: x.id, label: x.nome }))} />
               </div>
             )}
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
