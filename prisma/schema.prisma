@@ -75,6 +75,30 @@ model AprovacaoSC {
   @@index([pedidoCompraId])
 }
 
+// Pedido de exclusão que depende de aprovação (hoje: colaborador — a exclusão
+// apaga em cascata ASOs, EPIs, histórico…). Aprovador = 1ª etapa do fluxo
+// EXCLUSAO_COLABORADOR. Ao aprovar, `snapshot` guarda o registro e os
+// dependentes apagados, p/ dar pra reconstruir se foi engano.
+model SolicitacaoExclusao {
+  id                String          @id @default(cuid())
+  entidade          String // COLABORADOR
+  registroId        String
+  descricao         String
+  motivo            String?
+  status            StatusAprovacao @default(PENDENTE)
+  solicitadoPor     String?
+  solicitadoPorNome String?
+  aprovadorId       String
+  observacao        String?
+  respondidoEm      DateTime?
+  snapshot          Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([aprovadorId, status])
+  @@index([entidade, registroId])
+}
+
 // Notificação in-app por usuário (toast estilo macOS + sino). Criada por eventos
 // como aprovação de cotação (solicitada/aprovada/reprovada).
 model Notificacao {
@@ -3443,6 +3467,7 @@ enum ProcessoAprovacao {
   CONTRATO
   DESPESA
   GERAL
+  EXCLUSAO_COLABORADOR
 }
 
 enum StatusAprovacao {

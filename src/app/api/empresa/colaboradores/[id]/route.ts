@@ -2,7 +2,9 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { aprovadorExclusaoColaborador, executarExclusaoColaborador, avisarAprovadorExclusao, ENTIDADE_COLABORADOR } from "@/lib/exclusao-colaborador";
 import { sincronizarContasColaborador } from "@/lib/conta-contabil";
 
 const include = {
@@ -75,36 +77,45 @@ export async function PATCH(
   }
 }
 
+// Exclusão sob aprovação (ver lib/exclusao-colaborador): o aprovador exclui
+// direto (fica registrada como aprovada, com snapshot); os demais só solicitam.
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const auth = await requireModulo("empresa");
   if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   try {
-    // Check for pending approvals
-    const pendingCount = await prisma.aprovacaoSC.count({
-      where: {
-        aprovadorId: params.id,
-        status: "PENDENTE",
-      },
-    });
+    const body = await req.json().catch(() => ({}));
+    const motivo = typeof body?.motivo === "string" && body.motivo.trim() ? body.motivo.trim() : null;
+    const colab = await prismaSemEscopo.colaborador.findUnique({ where: { id: params.id }, select: { id: true, nome: true } });
+    if (!colab) return NextResponse.json({ error: "Colaborador não encontrado" }, { status: 404 });
 
-    if (pendingCount > 0) {
-      return NextResponse.json(
-        { error: `Colaborador possui ${pendingCount} aprovação(ões) pendente(s)` },
-        { status: 409 }
-      );
+    const aprovadorId = await aprovadorExclusaoColaborador();
+    if (!aprovadorId) return NextResponse.json({ error: "Nenhum aprovador de exclusão configurado (Configurações → Aprovações)." }, { status: 409 });
+
+    if (aprovadorId === session.sub) {
+      const r = await executarExclusaoColaborador(params.id);
+      if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+      await prismaSemEscopo.solicitacaoExclusao.create({ data: {
+        entidade: ENTIDADE_COLABORADOR, registroId: params.id, descricao: colab.nome, motivo, status: "APROVADO",
+        solicitadoPor: session.sub, solicitadoPorNome: session.nome, aprovadorId, respondidoEm: new Date(),
+        observacao: "Excluído diretamente pelo aprovador", snapshot: r.snapshot as Prisma.InputJsonValue,
+      } });
+      return NextResponse.json({ ok: true });
     }
 
-    await prisma.colaborador.delete({ where: { id: params.id } });
-    return NextResponse.json({ ok: true });
+    const jaPendente = await prismaSemEscopo.solicitacaoExclusao.findFirst({ where: { entidade: ENTIDADE_COLABORADOR, registroId: params.id, status: "PENDENTE" }, select: { id: true } });
+    if (jaPendente) return NextResponse.json({ pendente: true, jaSolicitada: true }, { status: 202 });
+    await prismaSemEscopo.solicitacaoExclusao.create({ data: {
+      entidade: ENTIDADE_COLABORADOR, registroId: params.id, descricao: colab.nome, motivo,
+      solicitadoPor: session.sub, solicitadoPorNome: session.nome, aprovadorId,
+    } });
+    await avisarAprovadorExclusao(aprovadorId, colab.nome, session.nome, motivo);
+    return NextResponse.json({ pendente: true }, { status: 202 });
   } catch (err: unknown) {
-    const e = err as { code?: string };
-    if (e?.code === "P2025") {
-      return NextResponse.json({ error: "Colaborador não encontrado" }, { status: 404 });
-    }
     console.error("[DELETE /api/empresa/colaboradores/[id]]", err);
     return NextResponse.json({ error: "Erro ao excluir colaborador" }, { status: 500 });
   }

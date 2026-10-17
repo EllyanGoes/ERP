@@ -888,11 +888,13 @@ export default function Sidebar() {
 
   const fetchPending = useCallback(async () => {
     try {
-      const res = await fetch("/api/aprovacoes?status=PENDENTE&limit=1");
-      if (res.ok) {
-        const d = await res.json();
-        setPendingAprov(d.pendingCount ?? 0);
-      }
+      const [res, exc] = await Promise.all([
+        fetch("/api/aprovacoes?status=PENDENTE&limit=1"),
+        fetch("/api/aprovacoes/exclusoes?status=PENDENTE"),
+      ]);
+      const n1 = res.ok ? ((await res.json()).pendingCount ?? 0) : 0;
+      const n2 = exc.ok ? ((await exc.json()).pendingCount ?? 0) : 0;
+      setPendingAprov(n1 + n2);
     } catch { /* ignore */ }
   }, []);
 

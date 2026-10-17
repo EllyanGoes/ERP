@@ -179,6 +179,8 @@ export default function ColaboradorDetailPage() {
 
   // Delete
   const [showDelete,    setShowDelete]    = useState(false);
+  const [deleteMotivo,  setDeleteMotivo]  = useState("");
+  const [deleteAviso,   setDeleteAviso]   = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError,   setDeleteError]   = useState("");
 
@@ -353,12 +355,14 @@ export default function ColaboradorDetailPage() {
   async function confirmDelete() {
     setDeleteLoading(true); setDeleteError("");
     try {
-      const res = await fetch(`/api/empresa/colaboradores/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/empresa/colaboradores/${id}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ motivo: deleteMotivo }) });
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const json = await res.json();
         setDeleteError(json.error || "Não foi possível excluir");
         return;
       }
+      // 202 = virou solicitação p/ o aprovador; o cadastro continua até a decisão.
+      if (json.pendente) { setDeleteAviso(json.jaSolicitada ? "Já existe uma solicitação de exclusão aguardando aprovação." : "Solicitação de exclusão enviada para aprovação."); return; }
       router.push("/empresa/colaboradores");
     } catch {
       setDeleteError("Erro de conexão");
@@ -987,7 +991,7 @@ export default function ColaboradorDetailPage() {
       {/* Delete modal */}
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <EscClose onClose={() => { if (!deleteLoading) setShowDelete(false); }} />
+          <EscClose onClose={() => { if (!deleteLoading) { setShowDelete(false); setDeleteAviso(""); setDeleteMotivo(""); } }} />
           <div className="bg-card rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-danger/15 flex items-center justify-center shrink-0">
@@ -998,23 +1002,31 @@ export default function ColaboradorDetailPage() {
                 <p className="text-sm text-muted-foreground mt-0.5">{colaborador.nome}</p>
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>
+            {deleteAviso ? (
+              <p className="text-sm text-info bg-info/10 border border-info/30 rounded-lg px-3 py-2 mb-4">{deleteAviso}</p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground mb-3">A exclusão apaga também ASOs, exames, EPIs, função SST e histórico funcional, e passa por aprovação. Se o colaborador saiu da empresa, prefira registrar a demissão no histórico funcional.</p>
+                <textarea value={deleteMotivo} onChange={(e) => setDeleteMotivo(e.target.value)} placeholder="Motivo da exclusão (ex.: cadastro duplicado)" rows={2}
+                  className="w-full text-sm rounded-lg border border-border bg-background px-3 py-2 mb-4 focus:outline-none focus:ring-1 focus:ring-primary" />
+              </>
+            )}
             {deleteError && (
               <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 mb-4">
                 {deleteError}
               </p>
             )}
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" size="sm" onClick={() => setShowDelete(false)} disabled={deleteLoading}>
-                Cancelar
+              <Button variant="outline" size="sm" onClick={() => { setShowDelete(false); setDeleteAviso(""); setDeleteMotivo(""); }} disabled={deleteLoading}>
+                {deleteAviso ? "Fechar" : "Cancelar"}
               </Button>
-              <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={deleteLoading}>
+              {!deleteAviso && <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={deleteLoading}>
                 {deleteLoading ? (
                   <><Loader2 className="w-4 h-4 animate-spin mr-1" />Excluindo...</>
                 ) : (
                   <><Trash2 className="w-4 h-4 mr-1" />Excluir</>
                 )}
-              </Button>
+              </Button>}
             </div>
           </div>
         </div>

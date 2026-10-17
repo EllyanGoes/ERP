@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import ExclusoesPendentes from "@/components/aprovacoes/ExclusoesPendentes";
 import type { ColumnDef } from "@tanstack/react-table";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -836,7 +837,7 @@ export default function AprovacoesPage() {
     <div className={cn("px-8 py-8 pb-32", view === "tabela" ? "max-w-none" : "max-w-3xl")}>
       <PageHeader
         title="Aprovações"
-        subtitle="Solicitações de compra aguardando sua decisão"
+        subtitle="Solicitações de compra e exclusões de colaborador aguardando sua decisão"
         actions={
           <Button variant="outline" size="sm" onClick={() => load(tab)} disabled={loading} className="gap-1.5">
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
@@ -844,6 +845,8 @@ export default function AprovacoesPage() {
           </Button>
         }
       />
+
+      <ExclusoesPendentes />
 
       {/* Tabs + toggle Cards ⇄ Tabela */}
       <div className="flex items-center gap-3 mb-5">

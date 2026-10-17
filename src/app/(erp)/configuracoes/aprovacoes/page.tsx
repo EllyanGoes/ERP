@@ -64,6 +64,7 @@ const PROCESSO_LABELS: Record<string, string> = {
   CONTRATO:            "Contrato",
   DESPESA:             "Despesa",
   GERAL:               "Geral",
+  EXCLUSAO_COLABORADOR: "Exclusão de colaborador",
 };
 
 type EtapaRow = {
@@ -399,6 +400,7 @@ export default function AprovacoesPage() {
                   <option value="CONTRATO">Contrato</option>
                   <option value="DESPESA">Despesa</option>
                   <option value="GERAL">Geral</option>
+                  <option value="EXCLUSAO_COLABORADOR">Exclusão de colaborador</option>
                 </select>
               </div>
 
