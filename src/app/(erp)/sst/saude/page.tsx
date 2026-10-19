@@ -4,7 +4,6 @@
 // dias) + tipos de exame complementar.
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import * as XLSX from "xlsx";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
@@ -17,8 +16,9 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { fmtData, type Pendencia, AcoesLinha, participaSst } from "@/components/sst/comum";
+import { exportarPlanilhaExames, type ColabPlanilha } from "@/components/sst/planilhaExames";
 
-type Colab = { id: string; nome: string; ativo: boolean; afastamento?: unknown | null; setor: string | null; funcao: { nome: string } | null; pendencias: Pendencia[] };
+type Colab = ColabPlanilha & { ativo: boolean; afastamento?: unknown | null; pendencias: Pendencia[] };
 type ExameTipo = { id: string; nome: string; periodicidadeMeses: number | null; ativo: boolean; preco: string | null; clinico: boolean; _count: { requisitos: number; exames: number } };
 type Linha = Pendencia & { colaboradorNome: string; setor: string | null; funcao?: string };
 
@@ -76,19 +76,19 @@ export default function SstSaudePage() {
   }, [agenda, agrupar]);
   const semGrupo = agrupar === "nenhum";
 
-  // Exporta o que está na tela (mesmos filtros e agrupamento), uma linha por pendência.
-  function exportarXlsx() {
-    const def = AGRUPAMENTOS[agrupar] ?? AGRUPAMENTOS.colaborador;
-    const linhas = grupos.flatMap((g) => g.linhas.map((l) => ({
-      ...(semGrupo ? {} : { [def.label]: g.rotulo }),
-      Colaborador: l.colaboradorNome, Setor: l.setor ?? "", Função: l.funcao ?? "",
-      Pendência: l.titulo, Detalhe: l.detalhe ?? "",
-      Vence: l.vence ? fmtData(l.vence) : "", Situação: l.vence && new Date(l.vence).getTime() < Date.now() ? "Vencido" : "A vencer",
-    })));
-    const ws = XLSX.utils.json_to_sheet(linhas);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "ASO e exames");
-    XLSX.writeFile(wb, `aso-exames-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  // Planilha "Exames a realizar": ASO + exames exigidos + feitos sem exigência
+  // (uma aba por colaborador × exame) e custo previsto por função. Respeita a
+  // busca da tela; a janela define o que conta como "vence em breve".
+  const [exportando, setExportando] = useState(false);
+  async function exportarXlsx() {
+    const termos = norm(busca).split(/\s+/).filter(Boolean);
+    const nomes = new Map(tipos.map((t) => [t.id, t.nome]));
+    const alvo = colabs.filter(participaSst).filter((c) => {
+      const texto = norm([c.nome, c.setor ?? "", c.funcao?.nome ?? "", ...c.exigidos.map((r) => r.nome), ...c.exames.map((e) => nomes.get(e.exameTipoId) ?? "")].join(" "));
+      return termos.every((t) => texto.includes(t));
+    });
+    setExportando(true);
+    try { await exportarPlanilhaExames(alvo, tipos, Number(janela)); } finally { setExportando(false); }
   }
 
   // tipos de exame
@@ -123,7 +123,7 @@ export default function SstSaudePage() {
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">agrupar por <SelectMenu value={agrupar} onChange={setAgrupar} className="w-40" options={Object.entries(AGRUPAMENTOS).map(([value, a]) => ({ value, label: a.label }))} /></div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">próximos <SelectMenu value={janela} onChange={setJanela} className="w-28" options={[{ value: "30", label: "30 dias" }, { value: "60", label: "60 dias" }, { value: "90", label: "90 dias" }, { value: "3650", label: "todos" }]} /></div>
-            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={exportarXlsx} disabled={agenda.length === 0} title="Exportar a lista filtrada em Excel"><FileSpreadsheet className="w-4 h-4" /> Excel</Button>
+            <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={exportarXlsx} disabled={loading || exportando} title="Exames a realizar (ASO, exigidos e feitos) e custo por função, em Excel">{exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />} Excel</Button>
           </div>
           {loading ? <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : agenda.length === 0 ? <p className="px-4 py-6 text-sm text-muted-foreground italic">{busca ? "Nada encontrado para a busca no período." : "Ninguém com ASO/exame pendente ou vencendo no período."}</p> : (
             <table className="w-full text-sm">
