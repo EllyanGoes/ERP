@@ -54,7 +54,11 @@ type DetalheColab = {
   id: string; nome: string; cpf: string | null; rg: string | null; matricula: string | null; cargo: string | null;
   dataAdmissao: string | null; setor: { id: string; nome: string } | null; sstFuncoes: unknown[];
   episStatus: { epi: { id: string }; obrigatorio: boolean; quantidade: number; entregaVigente: { data: string; vencimentoUso: string | null } | null }[];
-  sstEpiEntregas: { epiId: string; tipo: string; data: string; vencimentoUso: string | null; tamanho?: string | null }[];
+  sstEpiEntregas: {
+    id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; tamanho?: string | null;
+    quantidade: number; motivo: string | null; epi: { nome: string; ca: string | null };
+    ficha: { id: string; numero: number; documentoId: string | null } | null;
+  }[];
 };
 
 export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk, colaboradorFixo, epiInicialId, onSaved }: {
@@ -80,6 +84,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
   const [ficha, setFicha] = useState<FichaCriada | null>(null);
   const [docAssinado, setDocAssinado] = useState<string | null>(null);
   const [cautela, setCautela] = useState<string | null>(null);
+  const [aba, setAba] = useState<"selecao" | "historico">("selecao");
   // Cadastro do colaborador (o que a cautela imprime) — recarregado sozinho
   // depois de completar, sem refazer as linhas de EPI já marcadas.
   const [cadastro, setCadastro] = useState<ColabCadastro | null>(null);
@@ -93,7 +98,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
 
   useEffect(() => {
     if (!open) return;
-    setErro(""); setFicha(null); setDocAssinado(null); setObs(""); setData(hojeISO());
+    setErro(""); setFicha(null); setDocAssinado(null); setObs(""); setData(hojeISO()); setAba("selecao");
     setColabId(colaboradorFixo?.id ?? ""); setDetalhe(null); setLinhas({});
     setLEpiId(""); setLSel({}); setLMotivo(""); setLPrecisa([]); setLTam({});
     if (colaboradorFixo) setModo("colaborador");
@@ -248,7 +253,11 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                   <div className="space-y-3">
                     <div><Label>Colaborador</Label>
                       {colaboradorFixo ? <Input value={colaboradorFixo.nome} disabled /> :
-                        <ComboboxWithCreate value={colabId} onChange={setColabId} allowNone={false} placeholder="Buscar colaborador…" menuMinWidth={360} options={colabs.filter(participaSst).map((c) => ({ value: c.id, label: c.nome, code: c.funcao?.nome ?? undefined }))} />}
+                        <ComboboxWithCreate value={colabId} onChange={setColabId} allowNone={false} placeholder="Buscar colaborador…" menuMinWidth={520} options={colabs.filter(participaSst).map((c) => ({
+                          value: c.id, label: `${c.nome} ${c.funcao?.nome ?? ""}`,
+                          // Nome primeiro (não pode ser cortado); a função vem depois, menor.
+                          render: () => <span className="block truncate" title={c.funcao?.nome ? `${c.nome} — ${c.funcao.nome}` : c.nome}><span className="font-medium text-foreground">{c.nome}</span>{c.funcao?.nome && <span className="text-xs text-muted-foreground"> · {c.funcao.nome}</span>}</span>,
+                        }))} />}
                     </div>
                     <div><Label>Data da entrega</Label><DatePicker value={data} onChange={setData} /></div>
                     {episAtivos.some(temEstoque) && (
@@ -264,11 +273,16 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
 
                   {/* Direita: seleção dos EPIs */}
                   <div className="rounded-lg border border-border min-w-0 flex flex-col">
-                    <div className="px-3 py-2 bg-muted rounded-t-lg text-xs text-muted-foreground">
-                      <b className="text-foreground">{selecionadas.length}</b> EPI(s) selecionado(s) · os exigidos pela função aparecem primeiro
+                    <div className="flex items-center gap-1 px-2 pt-1.5 bg-muted rounded-t-lg border-b border-border text-xs">
+                      {([["selecao", `Selecionar EPIs (${selecionadas.length})`], ["historico", `Histórico de entregas${detalhe ? ` (${detalhe.sstEpiEntregas.length})` : ""}`]] as const).map(([k, rot]) => (
+                        <button key={k} type="button" onClick={() => setAba(k)} className={cn("px-3 py-1.5 -mb-px rounded-t-md border border-transparent", aba === k ? "bg-card border-border border-b-card text-foreground font-medium" : "text-muted-foreground hover:text-foreground")}>{rot}</button>
+                      ))}
+                      {aba === "selecao" && colabId && <span className="ml-auto pr-1 text-muted-foreground">os exigidos pela função aparecem primeiro</span>}
                     </div>
                     {!colabId ? (
                       <p className="px-3 py-10 text-sm text-muted-foreground text-center">Escolha o colaborador para ver os EPIs.</p>
+                    ) : aba === "historico" ? (
+                      <HistoricoEntregas entregas={detalhe?.sstEpiEntregas ?? null} onCautela={setCautela} />
                     ) : (
                     <div className="max-h-[60vh] overflow-y-auto divide-y divide-border/60">
                       {episOrdenados.map((e) => {
@@ -302,7 +316,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                               {l.sel && (
                                 <>
                                   <SelectMenu value={l.tipo} onChange={(v) => setLinha(e.id, { tipo: v })} triggerClassName="h-8 w-[110px] text-xs" options={Object.entries(TIPO_ENTREGA).map(([value, label]) => ({ value, label }))} />
-                                  {grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[84px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}
+                                  {grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[104px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}
                                   <Input type="number" min={1} value={l.qtd} onChange={(ev) => setLinha(e.id, { qtd: ev.target.value })} className="h-8 w-14 text-xs text-center" title="Quantidade" />
                                   {temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[130px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}
                                 </>
@@ -370,5 +384,63 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
       </DialogContent>
       <CautelaEpiDialog fichaId={cautela} onClose={() => setCautela(null)} />
     </Dialog>
+  );
+}
+
+/** Aba "Histórico de entregas": tudo que o colaborador já recebeu/devolveu, mais recente primeiro. */
+function HistoricoEntregas({ entregas, onCautela }: { entregas: DetalheColab["sstEpiEntregas"] | null; onCautela: (fichaId: string) => void }) {
+  if (!entregas) return <p className="px-3 py-10 text-sm text-muted-foreground text-center">Carregando…</p>;
+  if (entregas.length === 0) return <p className="px-3 py-10 text-sm text-muted-foreground text-center">Nenhuma entrega registrada para este colaborador.</p>;
+  // Vigente = última movimentação de cada EPI, se não foi devolução.
+  const ultimaPorEpi = new Map<string, string>();
+  for (const x of [...entregas].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())) if (!ultimaPorEpi.has(x.epiId)) ultimaPorEpi.set(x.epiId, x.id);
+  const agora = Date.now();
+  return (
+    <div className="max-h-[60vh] overflow-auto">
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-card text-muted-foreground border-b border-border">
+          <tr>
+            <th className="text-left font-medium px-3 py-2">Data</th>
+            <th className="text-left font-medium px-2 py-2">EPI</th>
+            <th className="text-left font-medium px-2 py-2">Tipo</th>
+            <th className="text-left font-medium px-2 py-2">Tam.</th>
+            <th className="text-right font-medium px-2 py-2">Qtd</th>
+            <th className="text-left font-medium px-2 py-2">Em uso até</th>
+            <th className="text-left font-medium px-2 py-2">Ficha</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/60">
+          {entregas.map((x) => {
+            const vigente = ultimaPorEpi.get(x.epiId) === x.id && x.tipo !== "DEVOLUCAO";
+            const vencido = vigente && x.vencimentoUso ? new Date(x.vencimentoUso).getTime() < agora : false;
+            return (
+              <tr key={x.id} className="align-top hover:bg-muted/40">
+                <td className="px-3 py-1.5 whitespace-nowrap tabular-nums">{fmtData(x.data)}</td>
+                <td className="px-2 py-1.5">
+                  <span className="text-foreground">{x.epi.nome}</span>{x.epi.ca && <span className="text-muted-foreground"> · CA {x.epi.ca}</span>}
+                  {x.motivo && <span className="block text-[11px] text-muted-foreground">{x.motivo}</span>}
+                </td>
+                <td className="px-2 py-1.5 whitespace-nowrap">{TIPO_ENTREGA[x.tipo as keyof typeof TIPO_ENTREGA] ?? x.tipo}</td>
+                <td className="px-2 py-1.5">{x.tamanho || "—"}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums">{x.quantidade}</td>
+                <td className="px-2 py-1.5 whitespace-nowrap">
+                  {x.tipo === "DEVOLUCAO" ? <span className="text-muted-foreground">—</span>
+                    : !x.vencimentoUso ? <span className="text-muted-foreground">sem prazo</span>
+                    : <span className={cn(vigente ? (vencido ? "text-danger font-medium" : "text-success") : "text-muted-foreground")}>{fmtData(x.vencimentoUso)}{vigente && (vencido ? " · vencido" : " · em uso")}</span>}
+                </td>
+                <td className="px-2 py-1.5 whitespace-nowrap">
+                  {x.ficha ? (
+                    <button type="button" onClick={() => onCautela(x.ficha!.id)} className="inline-flex items-center gap-1 text-info hover:underline" title={x.ficha.documentoId ? "Termo assinado anexado" : "Termo sem assinatura anexada"}>
+                      <Printer className="w-3 h-3" /> nº {String(x.ficha.numero).padStart(4, "0")}
+                      {!x.ficha.documentoId && <span className="text-warning">· pendente</span>}
+                    </button>
+                  ) : <span className="text-muted-foreground">lote</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

@@ -22,7 +22,7 @@ export function AvisoCadastroIncompleto({ faltando, onCompletar, bloqueia }: { f
   if (faltando.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-      <span className="flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 shrink-0" /> Cadastro incompleto — falta: <b>{faltando.join(", ")}</b>{bloqueia && <span className="text-xs">· {bloqueia}</span>}</span>
+      <span className="flex items-start gap-1.5"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /><span>Cadastro incompleto — falta: <b>{faltando.join(", ")}</b>{bloqueia && <span className="text-xs"> · {bloqueia}</span>}</span></span>
       <button type="button" onClick={onCompletar} className="rounded border border-amber-400 bg-white px-2.5 py-0.5 text-xs font-medium hover:bg-amber-100">Completar cadastro</button>
     </div>
   );
