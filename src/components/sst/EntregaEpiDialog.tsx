@@ -19,7 +19,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CheckCircle2, Printer, User, Users } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, ExternalLink, Printer, User, Users } from "lucide-react";
+import Link from "next/link";
+import { PROCEDIMENTO_EPI_RETROATIVO } from "@/lib/documentacao/procedimentos-sst";
 import { fmtData, hojeISO, UploadAnexo, TIPO_ENTREGA, participaSst, type Lookups } from "@/components/sst/comum";
 import CadastroComplementarDialog, { AvisoCadastroIncompleto, type ColabCadastro } from "@/components/sst/CadastroComplementarDialog";
 import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
@@ -86,6 +88,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
   const [docAssinado, setDocAssinado] = useState<string | null>(null);
   const [cautela, setCautela] = useState<string | null>(null);
   const [aba, setAba] = useState<"selecao" | "historico">("selecao");
+  const [procAberto, setProcAberto] = useState(false);
   // Cadastro do colaborador (o que a cautela imprime) — recarregado sozinho
   // depois de completar, sem refazer as linhas de EPI já marcadas.
   const [cadastro, setCadastro] = useState<ColabCadastro | null>(null);
@@ -240,12 +243,17 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
           </div>
         ) : (
           <div className="space-y-4">
+            <div className="flex items-center gap-3">
             {!colaboradorFixo && (
               <div className="inline-flex rounded-lg border border-border p-0.5 bg-muted/40 text-sm">
                 <button type="button" onClick={() => { setModo("colaborador"); setErro(""); }} className={cn("px-3 py-1.5 rounded-md inline-flex items-center gap-1.5", modo === "colaborador" ? "bg-card shadow-sm text-foreground font-medium" : "text-muted-foreground")}><User className="w-4 h-4" /> Para um colaborador</button>
                 <button type="button" onClick={() => { setModo("lote"); setErro(""); }} className={cn("px-3 py-1.5 rounded-md inline-flex items-center gap-1.5", modo === "lote" ? "bg-card shadow-sm text-foreground font-medium" : "text-muted-foreground")}><Users className="w-4 h-4" /> Em lote (um EPI, vários)</button>
               </div>
             )}
+              <button type="button" onClick={() => setProcAberto(true)} className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted" title="Como registrar um EPI que o colaborador já recebeu">
+                <BookOpen className="w-4 h-4" /> Procedimento: EPI já entregue
+              </button>
+            </div>
 
             {modo === "colaborador" ? (
               <>
@@ -393,6 +401,23 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
         )}
       </DialogContent>
       <CautelaEpiDialog fichaId={cautela} onClose={() => setCautela(null)} />
+      <Dialog open={procAberto} onOpenChange={setProcAberto}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><BookOpen className="w-5 h-5" /> Registrar EPI que o colaborador já recebeu</DialogTitle></DialogHeader>
+          <ol className="space-y-3">
+            {PROCEDIMENTO_EPI_RETROATIVO.map((p, i) => (
+              <li key={p.titulo} className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-info/10 text-xs font-semibold text-info">{i + 1}</span>
+                <div className="text-sm"><p className="font-medium text-foreground">{p.titulo}</p><p className="text-muted-foreground leading-snug">{p.texto}</p></div>
+              </li>
+            ))}
+          </ol>
+          <DialogFooter className="items-center">
+            <Link href="/documentacao?modulo=sst" target="_blank" className="mr-auto inline-flex items-center gap-1 text-xs text-info hover:underline"><ExternalLink className="w-3.5 h-3.5" /> Ver na Documentação (fluxo completo)</Link>
+            <Button onClick={() => setProcAberto(false)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

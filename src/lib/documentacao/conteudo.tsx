@@ -4,7 +4,8 @@
 // implementados (venda balcão/agendada, venda à ordem, cotação→aprovação CT→PC,
 // requisição de materiais, recebimento/baixa financeira).
 import type { LucideIcon } from "lucide-react";
-import { Network, ShoppingCart, Boxes, ClipboardList, Wallet, Factory, Wrench, Calculator, ArrowLeftRight } from "lucide-react";
+import { Network, ShoppingCart, Boxes, ClipboardList, Wallet, Factory, Wrench, Calculator, ArrowLeftRight, ShieldCheck } from "lucide-react";
+import { PROCEDIMENTO_EPI_RETROATIVO } from "@/lib/documentacao/procedimentos-sst";
 import type { BpmnGrafo } from "@/components/documentacao/ProcessoDiagram";
 
 export type Tela = { label: string; href: string; descricao: string };
@@ -431,6 +432,45 @@ const cpvAbsorvidoEfetivoFluxo: BpmnGrafo = {
   ],
 };
 
+// ── SST: entrega de EPI e registro retroativo ────────────────────────────────
+const epiEntregaFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "i",  tipo: "inicio", x: 0,    y: 40,  label: "Entregar EPI" },
+    { id: "c",  tipo: "tarefa", x: 110,  y: 24,  label: "Escolher colaborador", sub: "exigidos pela função 1º", cor: "azul" },
+    { id: "g1", tipo: "gateway",x: 330,  y: 28,  label: "Cadastro completo?" },
+    { id: "cc", tipo: "tarefa", x: 460,  y: -60, label: "Completar cadastro", sub: "CPF, RG, matrícula…", cor: "ambar" },
+    { id: "s",  tipo: "tarefa", x: 460,  y: 96,  label: "Marcar EPIs", sub: "tamanho, qtd, local", cor: "azul" },
+    { id: "r",  tipo: "tarefa", x: 690,  y: 96,  label: "Registrar ficha", sub: "baixa estoque (opcional)", cor: "verde" },
+    { id: "t",  tipo: "tarefa", x: 910,  y: 96,  label: "Imprimir termo", sub: "assinatura do colaborador", cor: "cinza" },
+    { id: "a",  tipo: "tarefa", x: 1130, y: 96,  label: "Anexar assinado", sub: "GED", cor: "cinza" },
+    { id: "f",  tipo: "fim",    x: 1350, y: 112, label: "Ficha arquivada" },
+  ],
+  edges: [
+    { from: "i", to: "c" }, { from: "c", to: "g1" },
+    { from: "g1", to: "cc", label: "Não" }, { from: "cc", to: "s" }, { from: "g1", to: "s", label: "Sim" },
+    { from: "s", to: "r" }, { from: "r", to: "t" }, { from: "t", to: "a" }, { from: "a", to: "f" },
+  ],
+};
+
+const epiRetroativoFluxo: BpmnGrafo = {
+  nodes: [
+    { id: "i",  tipo: "inicio", x: 0,    y: 40,  label: "EPI já entregue" },
+    { id: "h",  tipo: "tarefa", x: 110,  y: 24,  label: "Conferir histórico", sub: "não lançar em dobro", cor: "azul" },
+    { id: "d",  tipo: "tarefa", x: 320,  y: 24,  label: "Data real da entrega", sub: "vida útil conta dela", cor: "azul" },
+    { id: "g",  tipo: "gateway",x: 540,  y: 28,  label: "Saída já lançada?" },
+    { id: "nb", tipo: "tarefa", x: 680,  y: -60, label: "Não baixar", sub: "evita baixa dupla", cor: "ambar" },
+    { id: "lb", tipo: "tarefa", x: 680,  y: 110, label: "Baixar do local", sub: "peça ainda no saldo", cor: "ambar" },
+    { id: "r",  tipo: "tarefa", x: 900,  y: 24,  label: "Registrar + termo", sub: "motivo: registro retroativo", cor: "verde" },
+    { id: "a",  tipo: "tarefa", x: 1120, y: 24,  label: "Anexar assinado", cor: "cinza" },
+    { id: "f",  tipo: "fim",    x: 1330, y: 40,  label: "Regularizado" },
+  ],
+  edges: [
+    { from: "i", to: "h" }, { from: "h", to: "d" }, { from: "d", to: "g" },
+    { from: "g", to: "nb", label: "Sim / nunca entrou" }, { from: "g", to: "lb", label: "Não" },
+    { from: "nb", to: "r" }, { from: "lb", to: "r" }, { from: "r", to: "a" }, { from: "a", to: "f" },
+  ],
+};
+
 export const MODULOS: ModuloDoc[] = [
   {
     id: "visao-geral", label: "Visão geral", icon: Network,
@@ -743,6 +783,27 @@ export const MODULOS: ModuloDoc[] = [
           "CPV efetivo: visão de VENDA (sai do estoque como custo na DRE), conta 3.2.2.0001.",
           "A quebra do CPV por componente (material/MOD/CIF) é estimada pela composição do custo; o total é o real do razão.",
         ],
+      },
+    ],
+  },
+  {
+    id: "sst", label: "SST — EPIs", icon: ShieldCheck,
+    resumo: "Entrega de EPI por ficha: cada entrega para um colaborador gera um termo (cautela) para assinatura, que é anexado e arquivado no GED. A vida útil de cada EPI conta da data da entrega; trocar antes do prazo exige motivo. O cadastro do colaborador precisa estar completo (CPF, RG, matrícula, admissão, setor, cargo) para registrar e imprimir.",
+    telas: [
+      { label: "EPIs e entregas", href: "/sst/epis", descricao: "Cadastro de EPIs, nova entrega (por colaborador ou em lote) e fichas." },
+      { label: "Colaboradores", href: "/sst/colaboradores", descricao: "Ficha SST de cada colaborador: EPIs em uso, histórico e cautelas." },
+    ],
+    processos: [
+      {
+        titulo: "1. Entrega de EPI (ficha + termo)",
+        texto: "Escolha o colaborador — os EPIs exigidos pela função aparecem marcados primeiro. Com o cadastro completo, registre a ficha (com ou sem baixa no estoque), imprima o termo, colha a assinatura e anexe o escaneado.",
+        grafo: epiEntregaFluxo,
+      },
+      {
+        titulo: "2. Registro retroativo (EPI já entregue antes)",
+        texto: "Quando o colaborador já recebeu o EPI e a entrega ainda não está no sistema, registre com a DATA REAL e cuide para não baixar o estoque duas vezes.",
+        grafo: epiRetroativoFluxo,
+        detalhes: PROCEDIMENTO_EPI_RETROATIVO.map((p, i) => `${i + 1}. ${p.titulo}: ${p.texto}`),
       },
     ],
   },

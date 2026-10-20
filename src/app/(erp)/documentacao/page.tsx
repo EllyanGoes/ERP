@@ -4,13 +4,16 @@
 // Acessível pelo painel de Ajuda (tecla "?") → card "Documentação".
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowRight, Info } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import ProcessoDiagram from "@/components/documentacao/ProcessoDiagram";
 import { MODULOS } from "@/lib/documentacao/conteudo";
 
 export default function DocumentacaoPage() {
-  const [ativoId, setAtivoId] = useState(MODULOS[0].id);
+  // ?modulo=sst abre direto no módulo (links "Procedimento" das telas).
+  const inicial = useSearchParams().get("modulo");
+  const [ativoId, setAtivoId] = useState(MODULOS.some((m) => m.id === inicial) ? inicial! : MODULOS[0].id);
   const ativo = MODULOS.find((m) => m.id === ativoId) ?? MODULOS[0];
 
   return (
