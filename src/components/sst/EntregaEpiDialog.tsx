@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import SelectMenu from "@/components/shared/SelectMenu";
 import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import InfoHint from "@/components/shared/InfoHint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -259,9 +260,13 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                           render: () => <span className="block truncate" title={c.funcao?.nome ? `${c.nome} — ${c.funcao.nome}` : c.nome}><span className="font-medium text-foreground">{c.nome}</span>{c.funcao?.nome && <span className="text-xs text-muted-foreground"> · {c.funcao.nome}</span>}</span>,
                         }))} />}
                     </div>
-                    <div><Label>Data da entrega</Label><DatePicker value={data} onChange={setData} /></div>
+                    <div><Label className="inline-flex items-center gap-1">Data da entrega
+                      <InfoHint side="right"><b>EPI já entregue antes (registro retroativo):</b> informe aqui a data em que o colaborador realmente recebeu. A vida útil e o vencimento contam a partir dela, e o termo sai com essa data — imprima, colha a assinatura e anexe. Se entregou em dias diferentes, registre uma entrega para cada data.</InfoHint>
+                    </Label><DatePicker value={data} onChange={setData} /></div>
                     {episAtivos.some(temEstoque) && (
-                      <div><Label>Baixar do estoque</Label>
+                      <div><Label className="inline-flex items-center gap-1">Baixar do estoque
+                        <InfoHint side="right"><b>Registro retroativo:</b> se a saída desse EPI já foi lançada no estoque (requisição ou ajuste) ou se ele nunca entrou no sistema, escolha <b>Não baixar</b> — senão o saldo é descontado duas vezes. Só escolha um local se a peça ainda consta no saldo.</InfoHint>
+                      </Label>
                         <SelectMenu value={localPadrao} onChange={setLocalPadrao} options={[{ value: "", label: "— Não baixar —" }, ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} />
                         <p className="text-[11px] text-muted-foreground mt-1">Local padrão; cada EPI pode baixar de outro local na lista.</p>
                       </div>
@@ -277,7 +282,8 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                       {([["selecao", `Selecionar EPIs (${selecionadas.length})`], ["historico", `Histórico de entregas${detalhe ? ` (${detalhe.sstEpiEntregas.length})` : ""}`]] as const).map(([k, rot]) => (
                         <button key={k} type="button" onClick={() => setAba(k)} className={cn("px-3 py-1.5 -mb-px rounded-t-md border border-transparent", aba === k ? "bg-card border-border border-b-card text-foreground font-medium" : "text-muted-foreground hover:text-foreground")}>{rot}</button>
                       ))}
-                      {aba === "selecao" && colabId && <span className="ml-auto pr-1 text-muted-foreground">os exigidos pela função aparecem primeiro</span>}
+                      {aba === "selecao" && colabId && <span className="ml-auto pr-1 text-muted-foreground inline-flex items-center gap-1">os exigidos pela função aparecem primeiro
+                        <InfoHint side="left">Em <b>registro retroativo</b>, marque só o que de fato foi entregue naquela data. Se o EPI aparece como “em uso” e você registra uma data anterior ao fim da vida útil, o sistema pede o motivo — use, por ex., “registro retroativo”. Confira na aba <b>Histórico de entregas</b> para não lançar em dobro.</InfoHint></span>}
                     </div>
                     {/* Altura fixa: trocar de aba/colaborador não redimensiona o popup. */}
                     <div className="h-[58vh] overflow-y-auto">
