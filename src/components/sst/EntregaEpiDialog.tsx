@@ -213,7 +213,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("max-h-[92vh] overflow-y-auto", !ficha && modo === "colaborador" ? "sm:max-w-6xl" : "sm:max-w-4xl")}>
+      <DialogContent className={cn("max-h-[92vh] overflow-y-auto", ficha ? "sm:max-w-4xl" : "sm:max-w-6xl")}>
         <DialogHeader><DialogTitle>{ficha ? `Ficha de EPI nº ${String(ficha.numero).padStart(4, "0")}` : "Nova entrega de EPI"}</DialogTitle></DialogHeader>
 
         {ficha ? (
@@ -279,12 +279,14 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                       ))}
                       {aba === "selecao" && colabId && <span className="ml-auto pr-1 text-muted-foreground">os exigidos pela função aparecem primeiro</span>}
                     </div>
+                    {/* Altura fixa: trocar de aba/colaborador não redimensiona o popup. */}
+                    <div className="h-[58vh] overflow-y-auto">
                     {!colabId ? (
                       <p className="px-3 py-10 text-sm text-muted-foreground text-center">Escolha o colaborador para ver os EPIs.</p>
                     ) : aba === "historico" ? (
                       <HistoricoEntregas entregas={detalhe?.sstEpiEntregas ?? null} onCautela={setCautela} />
                     ) : (
-                    <div className="max-h-[60vh] overflow-y-auto divide-y divide-border/60">
+                    <div className="divide-y divide-border/60">
                       {episOrdenados.map((e) => {
                         const l = linhas[e.id]; if (!l) return null;
                         const req = detalhe?.episStatus.find((s) => s.epi.id === e.id);
@@ -335,6 +337,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                       {episAtivos.length === 0 && <p className="px-3 py-6 text-sm text-muted-foreground text-center">Nenhum EPI ativo cadastrado.</p>}
                     </div>
                     )}
+                    </div>
                   </div>
                 </div>
                 {erro && <p className="text-sm text-danger">{erro}</p>}
@@ -396,7 +399,7 @@ function HistoricoEntregas({ entregas, onCautela }: { entregas: DetalheColab["ss
   for (const x of [...entregas].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())) if (!ultimaPorEpi.has(x.epiId)) ultimaPorEpi.set(x.epiId, x.id);
   const agora = Date.now();
   return (
-    <div className="max-h-[60vh] overflow-auto">
+    <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-card text-muted-foreground border-b border-border">
           <tr>
