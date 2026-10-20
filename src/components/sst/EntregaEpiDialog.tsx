@@ -399,7 +399,7 @@ function HistoricoEntregas({ entregas, onCautela }: { entregas: DetalheColab["ss
   for (const x of [...entregas].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())) if (!ultimaPorEpi.has(x.epiId)) ultimaPorEpi.set(x.epiId, x.id);
   const agora = Date.now();
   return (
-    <div className="overflow-x-auto">
+    <div>
       <table className="w-full text-xs">
         <thead className="sticky top-0 bg-card text-muted-foreground border-b border-border">
           <tr>
