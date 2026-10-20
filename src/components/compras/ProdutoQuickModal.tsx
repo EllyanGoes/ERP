@@ -4,15 +4,14 @@
 // para /suprimentos/produtos/novo e destruía as linhas já digitadas — foi assim
 // que a SC-0430 perdeu itens e nasceram produtos duplicados em sequência.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PackagePlus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import SelectMenu from "@/components/shared/SelectMenu";
 import EscClose from "@/components/shared/EscClose";
-
-type Unidade = { id: string; sigla: string; nome: string };
+import CamposObrigatoriosProduto, { AvisoProdutoDuplicado, useOpcoesProduto, type CamposProduto } from "@/components/shared/CamposObrigatoriosProduto";
+import { camposFaltandoProduto, type ProdutoDuplicado } from "@/lib/produto-cadastro";
 
 export type ProdutoCriado = {
   id: string;
@@ -31,31 +30,28 @@ export default function ProdutoQuickModal({
   onClose: () => void;
 }) {
   const [descricao, setDescricao] = useState(initialValue);
-  const [unidades,  setUnidades]  = useState<Unidade[]>([]);
-  const [unidadeId, setUnidadeId] = useState("");
+  const [campos,    setCampos]    = useState<CamposProduto>({ unidadeId: "", tipoProdutoId: "", categoriaEstoque: "ALMOXARIFADO" });
+  const { unidades } = useOpcoesProduto();
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState("");
-
-  useEffect(() => {
-    fetch("/api/suprimentos/unidades").then((r) => r.json()).then((j) => {
-      const list: Unidade[] = Array.isArray(j) ? j : j.data ?? [];
-      setUnidades(list);
-      setUnidadeId((atual) => atual || (list.find((u) => u.sigla === "UN")?.id ?? list[0]?.id ?? ""));
-    });
-  }, []);
+  const [duplicado, setDuplicado] = useState<ProdutoDuplicado | null>(null);
 
   async function handleSave() {
+    if (saving) return;
     if (!descricao.trim()) { setError("Descrição é obrigatória"); return; }
-    setSaving(true); setError("");
+    const faltando = camposFaltandoProduto(campos);
+    if (faltando.length) { setError(`Preencha: ${faltando.join(", ")}`); return; }
+    setSaving(true); setError(""); setDuplicado(null);
     try {
       const res = await fetch("/api/suprimentos/produtos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ descricao: descricao.trim(), unidadeId: unidadeId || null, precoVenda: 0 }),
+        body: JSON.stringify({ descricao: descricao.trim(), ...campos, precoVenda: 0 }),
       });
       const json = await res.json();
+      if (res.status === 409 && json.duplicado) { setDuplicado(json.duplicado); setSaving(false); return; }
       if (!res.ok) { setError(json.error || "Erro ao criar produto"); setSaving(false); return; }
-      const sigla = unidades.find((u) => u.id === unidadeId)?.sigla;
+      const sigla = unidades.find((u) => u.id === campos.unidadeId)?.sigla;
       onCreated({
         id: json.data.id,
         codigo: json.data.codigo,
@@ -105,18 +101,12 @@ export default function ProdutoQuickModal({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Unidade</Label>
-            <SelectMenu
-              value={unidadeId}
-              options={unidades.map((u) => ({ value: u.id, label: `${u.sigla} — ${u.nome}` }))}
-              onChange={setUnidadeId}
-              placeholder="Selecionar unidade…"
-            />
-          </div>
+          {duplicado && <AvisoProdutoDuplicado duplicado={duplicado} onUsar={() => onCreated(duplicado)} />}
+
+          <CamposObrigatoriosProduto value={campos} onChange={setCampos} />
 
           <p className="text-[11px] text-muted-foreground">
-            O código é gerado automaticamente. Demais dados podem ser completados depois no cadastro do produto.
+            O código é gerado automaticamente. Os demais dados podem ser completados depois no cadastro do produto.
           </p>
         </div>
 

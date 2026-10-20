@@ -30,6 +30,8 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import type { CategoriaEstoque } from "@prisma/client";
 import { rotuloCategoria } from "@/lib/categoria-estoque-ui";
+import { TipoProdutoCombobox, useOpcoesProduto, asterisco } from "@/components/shared/CamposObrigatoriosProduto";
+import { camposFaltandoProduto, type CadastroProduto } from "@/lib/produto-cadastro";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Movimentacao = {
@@ -201,6 +203,7 @@ export default function ProdutoDetailPage() {
 
   // Lookup lists for edit dropdowns
   const [unidades, setUnidades]     = useState<UnidadeOpt[]>([]);
+  const { tipos: tiposProduto } = useOpcoesProduto();
 
   // Fornecedor add
   const [fornList, setFornList] = useState<Fornecedor[]>([]);
@@ -581,6 +584,9 @@ export default function ProdutoDetailPage() {
   }, []);
 
   async function saveEdit() {
+    if (saving) return;
+    const faltando = camposFaltandoProduto(form as CadastroProduto);
+    if (faltando.length && form.ativo !== false) { setError(`Preencha: ${faltando.join(", ")}`); return; }
     setSaving(true); setError("");
     try {
       const res = await fetch(`/api/suprimentos/produtos/${id}`, {
@@ -1148,11 +1154,11 @@ export default function ProdutoDetailPage() {
                         <span className="ml-auto text-[10px] font-semibold text-blue-500 bg-info/10 px-1.5 py-0.5 rounded">auto</span>
                       </div>
                     </Field>
-                    <Field label="Categoria">
+                    <Field label={<>Categoria {form.tipo !== "SERVICO" && asterisco}</>}>
                       <CategoriaEstoqueSelect
                         value={(form.categoriaEstoque as string) || ""}
                         onChange={(v) => setForm((p) => ({ ...p, categoriaEstoque: v || null }))}
-                        allowNone
+                        allowNone={form.tipo === "SERVICO"}
                       />
                       <p className="text-[11px] text-muted-foreground mt-1">Natureza do produto — define em quais locais de estoque ele pode entrar.</p>
                     </Field>
@@ -1189,12 +1195,15 @@ export default function ProdutoDetailPage() {
                     <Field label="Descrição" colSpan>
                       <Input value={(form.descricao as string) ?? ""} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} />
                     </Field>
-                    <Field label="Unidade Principal">
+                    <Field label={<>Tipo de Produto {asterisco}</>}>
+                      <TipoProdutoCombobox tipos={tiposProduto} value={(form.tipoProdutoId as string) || ""} onChange={(v) => setForm((p) => ({ ...p, tipoProdutoId: v || null }))} />
+                    </Field>
+                    <Field label={<>Unidade Principal {asterisco}</>}>
                       <ComboboxWithCreate
                         options={unidades.map((u) => ({ value: u.id, label: `${u.sigla} — ${u.nome}` }))}
                         value={(form.unidadeId as string) || ""}
                         onChange={(v) => setForm((p) => ({ ...p, unidadeId: v || null }))}
-                        noneLabel="Padrão (UN)"
+                        allowNone={false}
                         placeholder="Selecionar unidade..."
                         createHref="/suprimentos/unidades"
                         createParam="nome"
@@ -1295,6 +1304,7 @@ export default function ProdutoDetailPage() {
                   <>
                     <Info label="Código" value={item.codigo} mono />
                     <Info label="Categoria" value={item.categoriaEstoque ? rotuloCategoria(item.categoriaEstoque) : undefined} />
+                    <Info label="Tipo de Produto" value={item.tipoProduto?.nome} />
                     <Info label="Descrição" value={item.descricao} colSpan />
 
                     {/* Unidade de Estoque — campo rico com referência às conversões */}
@@ -3893,7 +3903,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Field({ label, children, colSpan, addHref, addLabel }: {
-  label: string; children: React.ReactNode; colSpan?: boolean;
+  label: React.ReactNode; children: React.ReactNode; colSpan?: boolean;
   addHref?: string; addLabel?: string;
 }) {
   return (

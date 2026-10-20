@@ -265,7 +265,7 @@ export default function ComboboxWithCreate({
             bottom:   dropdownPos.bottom,
             left:     dropdownPos.left,
             width:    dropdownPos.width,
-            zIndex:   9999,
+            zIndex:   10100, // acima dos modais de criação rápida (z 10000–10050)
           }}
           className="bg-card rounded-xl border border-border shadow-lg overflow-hidden flex flex-col"
         >

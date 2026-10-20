@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { itemSchema } from "@/lib/validations/item";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const item = await prisma.item.findUnique({
@@ -16,36 +15,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   return NextResponse.json({ data: item });
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireModulo("empresa");
-  if (!auth.ok) return auth.response;
-
-  const body = await req.json();
-  const parsed = itemSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const { quantidadeMin, quantidadeMax, localizacao, ...itemData } = parsed.data;
-
-  const item = await prisma.$transaction(async (tx) => {
-    const updated = await tx.item.update({ where: { id: params.id }, data: itemData });
-    // Update first stock record (no specific location) or create one
-    const existing = await tx.estoqueItem.findFirst({ where: { itemId: params.id, localEstoqueId: null, clienteDonoId: null } });
-    if (existing) {
-      await tx.estoqueItem.update({
-        where: { id: existing.id },
-        data: { quantidadeMin: quantidadeMin ?? 0, quantidadeMax: quantidadeMax ?? null, localizacao: localizacao ?? null },
-      });
-    } else {
-      await tx.estoqueItem.create({
-        data: { itemId: params.id, quantidadeAtual: 0, quantidadeMin: quantidadeMin ?? 0, quantidadeMax: quantidadeMax ?? null, localizacao: localizacao ?? null, clienteDonoId: null },
-      });
-    }
-    return updated;
-  });
-
-  return NextResponse.json({ data: item });
+// Edição legada desativada: o cadastro é editado em /api/suprimentos/produtos/[id].
+export async function PUT() {
+  return NextResponse.json({ error: "Edite o produto em Suprimentos › Produtos." }, { status: 410 });
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {

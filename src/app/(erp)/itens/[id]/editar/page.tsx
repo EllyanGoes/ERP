@@ -1,26 +1,6 @@
-import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
-import PageHeader from "@/components/shared/PageHeader";
-import ItemForm from "@/components/itens/ItemForm";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function EditarItemPage({ params }: { params: { id: string } }) {
-  const item = await prisma.item.findUnique({
-    where: { id: params.id },
-    include: { estoqueItems: { include: { localEstoque: true } } },
-  });
-  if (!item) notFound();
-
-  return (
-    <div>
-      <PageHeader
-        title="Editar Item"
-        breadcrumbs={[{ label: "Itens", href: "/itens" }, { label: item.codigo }]}
-      />
-      <div className="px-8 pb-8 max-w-3xl">
-        <ItemForm item={item} />
-      </div>
-    </div>
-  );
+// Edição legada de itens — vai para o cadastro de Produtos (regras obrigatórias e trava de duplicado).
+export default function EditarItemPage({ params }: { params: { id: string } }) {
+  redirect(`/suprimentos/produtos/${params.id}`);
 }

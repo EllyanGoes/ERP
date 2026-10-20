@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { TipoProdutoQuickCreate, UnidadeQuickCreate } from "@/components/shared/QuickCreateDialogs";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
+import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
+import { AvisoProdutoDuplicado } from "@/components/shared/CamposObrigatoriosProduto";
+import type { ProdutoDuplicado } from "@/lib/produto-cadastro";
 import { ShoppingBag } from "lucide-react";
 
 type TipoProduto = { id: string; nome: string };
@@ -21,6 +24,7 @@ type FormData = {
   tipo: "PRODUTO" | "MATERIA_PRIMA" | "SERVICO";
   tipoProdutoId: string;
   unidadeId: string;
+  categoriaEstoque: string;
   ncm: string;
   precoVenda: string;
   estoqueMin: string;
@@ -33,6 +37,7 @@ const INITIAL: FormData = {
   tipo: "PRODUTO",
   tipoProdutoId: "",
   unidadeId: "",
+  categoriaEstoque: "",
   ncm: "",
   precoVenda: "",
   estoqueMin: "",
@@ -50,6 +55,7 @@ export default function NovoProdutoVendaPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [duplicado, setDuplicado] = useState<ProdutoDuplicado | null>(null);
 
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "produto para venda",
@@ -65,7 +71,10 @@ export default function NovoProdutoVendaPage() {
       fetch("/api/suprimentos/unidades").then((r) => r.json()),
     ]).then(([tp, un]) => {
       setTiposProduto(Array.isArray(tp) ? tp : tp.data ?? []);
-      setUnidades(Array.isArray(un) ? un : un.data ?? []);
+      const lista: Unidade[] = Array.isArray(un) ? un : un.data ?? [];
+      setUnidades(lista);
+      const padrao = lista.find((u) => u.sigla === "UN");
+      if (padrao) setForm((p) => (p.unidadeId ? p : { ...p, unidadeId: padrao.id }));
     });
   }, []);
 
@@ -78,15 +87,18 @@ export default function NovoProdutoVendaPage() {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     if (!form.descricao.trim()) newErrors.descricao = "Descrição é obrigatória";
     if (!form.tipoProdutoId) newErrors.tipoProdutoId = "Tipo de Produto é obrigatório";
+    if (!form.unidadeId) newErrors.unidadeId = "Unidade é obrigatória";
+    if (form.tipo !== "SERVICO" && !form.categoriaEstoque) newErrors.categoriaEstoque = "Categoria é obrigatória";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
+    if (saving || !validate()) return;
     setSaving(true);
     setServerError("");
+    setDuplicado(null);
     try {
       const payload: Record<string, unknown> = {
         descricao: form.descricao.trim(),
@@ -99,6 +111,7 @@ export default function NovoProdutoVendaPage() {
       };
       if (form.tipoProdutoId) payload.tipoProdutoId = form.tipoProdutoId;
       if (form.unidadeId)    payload.unidadeId    = form.unidadeId;
+      if (form.categoriaEstoque) payload.categoriaEstoque = form.categoriaEstoque;
 
       const res = await fetch("/api/suprimentos/produtos", {
         method: "POST",
@@ -106,6 +119,7 @@ export default function NovoProdutoVendaPage() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
+      if (res.status === 409 && json.duplicado) { setDuplicado(json.duplicado); return; }
       if (!res.ok) {
         setServerError(json.error || "Erro ao salvar produto");
         return;
@@ -134,6 +148,7 @@ export default function NovoProdutoVendaPage() {
             {serverError}
           </div>
         )}
+        {duplicado && <AvisoProdutoDuplicado duplicado={duplicado} />}
 
         {/* Identificação */}
         <Card>
@@ -193,19 +208,29 @@ export default function NovoProdutoVendaPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Unidade de Medida</Label>
+              <Label>Unidade de Medida <span className="text-red-500">*</span></Label>
               <ComboboxWithCreate
                 options={unidades.map((u) => ({ value: u.id, label: `${u.sigla} — ${u.nome}` }))}
                 value={form.unidadeId}
                 onChange={(v) => set("unidadeId", v)}
-                noneLabel="Padrão (UN)"
+                allowNone={false}
+                triggerClassName={errors.unidadeId ? "border-red-300 focus:ring-red-400" : undefined}
                 placeholder="Selecionar unidade..."
                 createHref="/suprimentos/unidades"
                 createParam="nome"
                 createLabel="unidade de medida"
                 renderCreateModal={(args) => <UnidadeQuickCreate {...args} />}
               />
+              {errors.unidadeId && <p className="text-red-500 text-xs">{errors.unidadeId}</p>}
             </div>
+
+            {form.tipo !== "SERVICO" && (
+              <div className="space-y-1.5">
+                <Label>Categoria de estoque <span className="text-red-500">*</span></Label>
+                <CategoriaEstoqueSelect value={form.categoriaEstoque} onChange={(v) => set("categoriaEstoque", v)} triggerClassName={errors.categoriaEstoque ? "border-red-300" : undefined} />
+                {errors.categoriaEstoque && <p className="text-red-500 text-xs">{errors.categoriaEstoque}</p>}
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>NCM</Label>

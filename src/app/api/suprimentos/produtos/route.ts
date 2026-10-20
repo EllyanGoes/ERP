@@ -5,6 +5,7 @@ import { prisma, prismaSemEscopo, empresasDoEscopo } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
+import { buscarProdutoDuplicado, camposFaltandoProduto, DuplicadoError, respostaDuplicado, travarDescricaoProduto } from "@/lib/produto-cadastro";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -77,6 +78,12 @@ export async function POST(req: NextRequest) {
     if (!body.descricao?.trim()) {
       return NextResponse.json({ error: "Descrição é obrigatória" }, { status: 400 });
     }
+    const faltando = camposFaltandoProduto({ ...body, tipo: body.tipo ?? "PRODUTO" });
+    if (faltando.length > 0) {
+      return NextResponse.json({ error: `Preencha: ${faltando.join(", ")}`, faltando }, { status: 400 });
+    }
+    const duplicado = await buscarProdutoDuplicado(prismaSemEscopo, body.descricao);
+    if (duplicado) return NextResponse.json(respostaDuplicado(duplicado), { status: 409 });
 
     // ── Auto-generate sequential product code: PROD-0001, PROD-0002 … ─────────
     // O produto é cadastro COMPARTILHADO (codigo único global), então a
@@ -96,6 +103,10 @@ export async function POST(req: NextRequest) {
     }
 
     const item = await prisma.$transaction(async (tx) => {
+      // Dois envios simultâneos da mesma descrição: o segundo espera e cai no 409.
+      await travarDescricaoProduto(tx, body.descricao);
+      const dupNoTx = await buscarProdutoDuplicado(tx, body.descricao);
+      if (dupNoTx) throw new DuplicadoError(dupNoTx);
       const newItem = await tx.item.create({
         data: {
           codigo,
@@ -134,6 +145,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ data: item }, { status: 201 });
   } catch (err: unknown) {
+    if (err instanceof DuplicadoError) return NextResponse.json(respostaDuplicado(err.duplicado), { status: 409 });
     const msg = err instanceof Error ? err.message : "Erro interno ao criar produto";
     console.error("[POST /api/suprimentos/produtos]", err);
     return NextResponse.json({ error: msg }, { status: 500 });

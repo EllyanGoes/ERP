@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, empresasDoEscopo } from "@/lib/prisma";
+import { buscarProdutoDuplicado, camposFaltandoProduto, respostaDuplicado } from "@/lib/produto-cadastro";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   // O produto é cadastro compartilhado, então os includes aninhados não passam
@@ -103,7 +104,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const updateData: Record<string, unknown> = {};
   // codigo is auto-generated and immutable — never updated via PATCH
-  if (body.descricao   !== undefined) updateData.descricao   = body.descricao;
+  if (body.descricao   !== undefined) updateData.descricao   = typeof body.descricao === "string" ? body.descricao.trim() : body.descricao;
   if (body.tipo        !== undefined) updateData.tipo        = body.tipo;
   if (body.unidadeId   !== undefined) updateData.unidadeId   = body.unidadeId || null;
   if (body.tipoProdutoId !== undefined) updateData.tipoProdutoId = body.tipoProdutoId || null;
@@ -126,6 +127,27 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.pontoReposicao !== undefined) updateData.pontoReposicao = body.pontoReposicao != null ? parseFloat(body.pontoReposicao) : null;
   if (body.leadTimeDias   !== undefined) updateData.leadTimeDias   = body.leadTimeDias   != null ? parseInt(body.leadTimeDias)     : null;
   if (body.observacoes    !== undefined) updateData.observacoes    = body.observacoes    || null;
+
+  // Edição do cadastro (descrição/tipo/unidade/categoria): exige os campos
+  // obrigatórios no estado final e barra descrição de outro produto ativo.
+  // PATCHes parciais (favorito, parâmetros de reposição) não passam aqui.
+  const mexeCadastro = ["descricao", "tipo", "unidadeId", "tipoProdutoId", "categoriaEstoque"].some((k) => body[k] !== undefined) || body.ativo === true;
+  if (mexeCadastro) {
+    const atual = await prisma.item.findUnique({ where: { id: params.id }, select: { descricao: true, tipo: true, unidadeId: true, tipoProdutoId: true, categoriaEstoque: true, ativo: true } });
+    if (!atual) return NextResponse.json({ error: "Produto não encontrado" }, { status: 404 });
+    const final = { ...atual, ...updateData } as typeof atual;
+    if (typeof final.descricao !== "string" || !final.descricao.trim()) {
+      return NextResponse.json({ error: "Descrição é obrigatória" }, { status: 400 });
+    }
+    const faltando = camposFaltandoProduto(final);
+    if (faltando.length > 0 && final.ativo) {
+      return NextResponse.json({ error: `Preencha: ${faltando.join(", ")}`, faltando }, { status: 400 });
+    }
+    if (final.ativo) {
+      const duplicado = await buscarProdutoDuplicado(prisma, final.descricao, params.id);
+      if (duplicado) return NextResponse.json(respostaDuplicado(duplicado), { status: 409 });
+    }
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     await tx.item.update({ where: { id: params.id }, data: updateData });

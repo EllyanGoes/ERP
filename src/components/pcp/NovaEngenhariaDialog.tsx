@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RefreshCw, Check, X, Search, ChevronDown } from "lucide-react";
+import CamposObrigatoriosProduto, { type CamposProduto } from "@/components/shared/CamposObrigatoriosProduto";
+import { camposFaltandoProduto } from "@/lib/produto-cadastro";
 
 interface FluxoOpt { id: string; nome: string; }
 interface ProdLite { id: string; codigo: string; descricao: string; }
@@ -33,6 +35,7 @@ export default function NovaEngenhariaDialog({ open, onOpenChange, fluxoId, perm
   const [item, setItem] = useState<ProdLite | null>(null);
   const [descricaoNova, setDescricaoNova] = useState("");
   const [novoCategoria, setNovoCategoria] = useState<"PRODUTO_ACABADO" | "WIP">("PRODUTO_ACABADO");
+  const [novoCampos, setNovoCampos] = useState<CamposProduto>({ unidadeId: "", tipoProdutoId: "", categoriaEstoque: "" });
   const [busy, setBusy] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -80,6 +83,8 @@ export default function NovaEngenhariaDialog({ open, onOpenChange, fluxoId, perm
     if (!alvoFluxo) { setErro("Escolha o fluxo de produção"); return; }
     if (modo === "existente" && !item) { setErro("Escolha o produto"); return; }
     if (modo === "novo" && !descricaoNova.trim()) { setErro("Informe a descrição do produto"); return; }
+    const faltando = modo === "novo" ? camposFaltandoProduto({ ...novoCampos, categoriaEstoque: novoCategoria }) : [];
+    if (faltando.length) { setErro(`Preencha: ${faltando.join(", ")}`); return; }
     setBusy(true);
     try {
       let prod: ProdLite;
@@ -87,7 +92,7 @@ export default function NovaEngenhariaDialog({ open, onOpenChange, fluxoId, perm
         const rp = await fetch("/api/suprimentos/produtos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ descricao: descricaoNova.trim(), tipo: "PRODUTO", categoriaEstoque: novoCategoria, vendavel: novoCategoria === "PRODUTO_ACABADO" }),
+          body: JSON.stringify({ descricao: descricaoNova.trim(), tipo: "PRODUTO", unidadeId: novoCampos.unidadeId, tipoProdutoId: novoCampos.tipoProdutoId, categoriaEstoque: novoCategoria, vendavel: novoCategoria === "PRODUTO_ACABADO" }),
         });
         const jp = await rp.json();
         if (!rp.ok) throw new Error(jp?.error ?? "Erro ao criar o produto");
@@ -184,6 +189,7 @@ export default function NovaEngenhariaDialog({ open, onOpenChange, fluxoId, perm
                 <input className={inputCls} value={descricaoNova} onChange={(e) => setDescricaoNova(e.target.value)} placeholder="ex.: BV 09X19X29" autoFocus />
                 <p className="text-[11px] text-muted-foreground mt-1">O código é gerado automaticamente (PROD-XXXX).</p>
               </div>
+              <CamposObrigatoriosProduto value={novoCampos} onChange={setNovoCampos} ocultarCategoria labelCls={labelCls} />
             </div>
           )}
 

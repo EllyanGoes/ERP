@@ -8,13 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
-import { UnidadeQuickCreate } from "@/components/shared/QuickCreateDialogs";
+import { AvisoProdutoDuplicado, TipoProdutoCombobox, UnidadeProdutoCombobox, useOpcoesProduto, asterisco } from "@/components/shared/CamposObrigatoriosProduto";
+import type { ProdutoDuplicado } from "@/lib/produto-cadastro";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
 import CategoriaEstoqueSelect from "@/components/shared/CategoriaEstoqueSelect";
 import EstadosWipMultiSelect from "@/components/shared/EstadosWipMultiSelect";
-
-type Unidade     = { id: string; sigla: string; nome: string };
 
 type FormData = {
   descricao: string;
@@ -22,6 +20,7 @@ type FormData = {
   categoriaEstoque: string;
   estadosWip: string[];
   unidadeId: string;
+  tipoProdutoId: string;
   ncm: string;
   precoVenda: string;
   estoqueMin: string;
@@ -37,6 +36,7 @@ const INITIAL: FormData = {
   categoriaEstoque: "",
   estadosWip: [],
   unidadeId: "",
+  tipoProdutoId: "",
   ncm: "",
   precoVenda: "",
   estoqueMin: "",
@@ -57,6 +57,7 @@ export default function NovoProdutoPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [duplicado, setDuplicado] = useState<ProdutoDuplicado | null>(null);
 
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "produto",
@@ -64,13 +65,12 @@ export default function NovoProdutoPage() {
     viewHref: (id) => `/suprimentos/produtos/${id}`,
   });
 
-  const [unidades, setUnidades] = useState<Unidade[]>([]);
-
+  const { unidades, tipos } = useOpcoesProduto();
+  // Unidade começa em UN (era o "Padrão (UN)" implícito; agora é obrigatória).
   useEffect(() => {
-    fetch("/api/suprimentos/unidades").then((r) => r.json()).then((un) => {
-      setUnidades(Array.isArray(un) ? un : un.data ?? []);
-    });
-  }, []);
+    const un = unidades.find((u) => u.sigla === "UN");
+    if (un) setForm((p) => (p.unidadeId ? p : { ...p, unidadeId: un.id }));
+  }, [unidades]);
 
   function set(key: keyof FormData, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -80,15 +80,19 @@ export default function NovoProdutoPage() {
   function validate(): boolean {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     if (!form.descricao.trim()) newErrors.descricao = "Descrição é obrigatória";
+    if (!form.unidadeId) newErrors.unidadeId = "Unidade é obrigatória";
+    if (!form.tipoProdutoId) newErrors.tipoProdutoId = "Tipo de produto é obrigatório";
+    if (form.tipo !== "SERVICO" && !form.categoriaEstoque) newErrors.categoriaEstoque = "Categoria é obrigatória";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
+    if (saving || !validate()) return;
     setSaving(true);
     setServerError("");
+    setDuplicado(null);
     try {
       const payload: Record<string, unknown> = {
         descricao: form.descricao.trim(),
@@ -104,6 +108,7 @@ export default function NovoProdutoPage() {
       if (form.categoriaEstoque) payload.categoriaEstoque = form.categoriaEstoque;
       payload.estadosWip = form.estadosWip;
       if (form.unidadeId)    payload.unidadeId    = form.unidadeId;
+      if (form.tipoProdutoId) payload.tipoProdutoId = form.tipoProdutoId;
 
       const res = await fetch("/api/suprimentos/produtos", {
         method: "POST",
@@ -111,6 +116,7 @@ export default function NovoProdutoPage() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
+      if (res.status === 409 && json.duplicado) { setDuplicado(json.duplicado); return; }
       if (!res.ok) {
         setServerError(json.error || "Erro ao salvar produto");
         return;
@@ -139,6 +145,7 @@ export default function NovoProdutoPage() {
             {serverError}
           </div>
         )}
+        {duplicado && <AvisoProdutoDuplicado duplicado={duplicado} />}
 
         {/* Identificação */}
         <Card>
@@ -181,8 +188,9 @@ export default function NovoProdutoPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Categoria</Label>
-              <CategoriaEstoqueSelect value={form.categoriaEstoque} onChange={(v) => set("categoriaEstoque", v)} allowNone />
+              <Label>Categoria {form.tipo !== "SERVICO" && asterisco}</Label>
+              <CategoriaEstoqueSelect value={form.categoriaEstoque} onChange={(v) => set("categoriaEstoque", v)} allowNone={form.tipo === "SERVICO"} triggerClassName={errors.categoriaEstoque ? "border-red-300" : undefined} />
+              {errors.categoriaEstoque && <p className="text-red-500 text-xs">{errors.categoriaEstoque}</p>}
               <p className="text-[10px] text-muted-foreground">Natureza do produto — define em quais locais de estoque ele pode entrar.</p>
             </div>
 
@@ -195,18 +203,15 @@ export default function NovoProdutoPage() {
             )}
 
             <div className="space-y-1.5">
-              <Label>Unidade de Medida</Label>
-              <ComboboxWithCreate
-                options={unidades.map((u) => ({ value: u.id, label: `${u.sigla} — ${u.nome}` }))}
-                value={form.unidadeId}
-                onChange={(v) => set("unidadeId", v)}
-                noneLabel="Padrão (UN)"
-                placeholder="Selecionar unidade..."
-                createHref="/suprimentos/unidades"
-                createParam="nome"
-                createLabel="unidade de medida"
-                renderCreateModal={(args) => <UnidadeQuickCreate {...args} />}
-              />
+              <Label>Unidade de Medida {asterisco}</Label>
+              <UnidadeProdutoCombobox unidades={unidades} value={form.unidadeId} onChange={(v) => set("unidadeId", v)} erro={!!errors.unidadeId} />
+              {errors.unidadeId && <p className="text-red-500 text-xs">{errors.unidadeId}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Tipo de Produto {asterisco}</Label>
+              <TipoProdutoCombobox tipos={tipos} value={form.tipoProdutoId} onChange={(v) => set("tipoProdutoId", v)} erro={!!errors.tipoProdutoId} />
+              {errors.tipoProdutoId && <p className="text-red-500 text-xs">{errors.tipoProdutoId}</p>}
             </div>
 
             <div className="space-y-1.5">

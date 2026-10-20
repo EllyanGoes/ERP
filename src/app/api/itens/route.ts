@@ -1,9 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { itemSchema } from "@/lib/validations/item";
-import { generateDocNumber } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -51,34 +48,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data, total, page, limit });
 }
 
-export async function POST(req: NextRequest) {
-  const auth = await requireModulo("empresa");
-  if (!auth.ok) return auth.response;
-
-  const body = await req.json();
-  const parsed = itemSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Dados inválidos", details: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const { quantidadeMin, quantidadeMax, localizacao, ...itemData } = parsed.data;
-
-  const item = await prisma.$transaction(async (tx) => {
-    const newItem = await tx.item.create({ data: itemData });
-    if (newItem.tipo !== "SERVICO") {
-      await tx.estoqueItem.create({
-        data: {
-          itemId: newItem.id,
-          clienteDonoId: null,
-          quantidadeAtual: 0,
-          quantidadeMin: quantidadeMin ?? 0,
-          quantidadeMax: quantidadeMax ?? null,
-          localizacao: localizacao ?? null,
-        },
-      });
-    }
-    return newItem;
-  });
-
-  return NextResponse.json({ data: item }, { status: 201 });
+// Criação legada (código manual, sem unidade/tipo/categoria) desativada:
+// produto novo só por /api/suprimentos/produtos, que aplica as regras do cadastro.
+export async function POST() {
+  return NextResponse.json({ error: "Cadastre o produto em Suprimentos › Produtos." }, { status: 410 });
 }
