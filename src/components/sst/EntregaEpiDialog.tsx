@@ -14,6 +14,7 @@ import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,8 @@ export type EpiOpt = {
   id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean;
   /** Tamanhos (um item de estoque cada). Com 2+ a entrega exige escolher o tamanho. */
   itens?: { itemId: string; tamanho: string | null; saldo?: number }[];
+  /** Saldo próprio somado em todos os locais (null = sem item de estoque). */
+  saldoEstoque?: number | null;
 };
 const temEstoque = (e: EpiOpt) => !!e.itemId || (e.itens?.length ?? 0) > 0;
 const grade = (e?: EpiOpt | null) => (e?.itens ?? []).filter((i) => i.tamanho);
@@ -35,6 +38,14 @@ const opcoesTamanho = (e: EpiOpt) => grade(e).map((i) => ({
   value: i.tamanho!, label: i.tamanho!,
   render: () => <span>{i.tamanho}{i.saldo !== undefined && <span className={cn("ml-1.5 text-xs", i.saldo <= 0 ? "text-danger" : "text-muted-foreground")}>{i.saldo.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} em estoque</span>}</span>,
 }));
+const fmtQtd = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+/** Saldo exibido na linha: o do tamanho escolhido, senão o total do EPI. */
+function saldoLinha(e: EpiOpt, tamanho: string): { valor: number; rotulo: string } | null {
+  const doTam = tamanho ? e.itens?.find((i) => i.tamanho === tamanho)?.saldo : undefined;
+  if (doTam !== undefined) return { valor: doTam, rotulo: `tam. ${tamanho}` };
+  if (e.saldoEstoque != null) return { valor: e.saldoEstoque, rotulo: grade(e).length > 1 ? "todos os tamanhos" : "" };
+  return null;
+}
 export type ColabOpt = { id: string; nome: string; ativo: boolean; afastamento?: unknown | null; funcao: { nome: string } | null };
 type FichaCriada = { id: string; numero: number; colaborador: { id: string; nome: string }; itens: { id: string }[] };
 
@@ -197,7 +208,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className={cn("max-h-[92vh] overflow-y-auto", !ficha && modo === "colaborador" ? "sm:max-w-6xl" : "sm:max-w-4xl")}>
         <DialogHeader><DialogTitle>{ficha ? `Ficha de EPI nº ${String(ficha.numero).padStart(4, "0")}` : "Nova entrega de EPI"}</DialogTitle></DialogHeader>
 
         {ficha ? (
@@ -232,33 +243,42 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
 
             {modo === "colaborador" ? (
               <>
-                <div className="grid grid-cols-[1fr_170px] gap-3">
-                  <div><Label>Colaborador</Label>
-                    {colaboradorFixo ? <Input value={colaboradorFixo.nome} disabled /> :
-                      <ComboboxWithCreate value={colabId} onChange={setColabId} allowNone={false} placeholder="Buscar colaborador…" menuMinWidth={360} options={colabs.filter(participaSst).map((c) => ({ value: c.id, label: c.nome, code: c.funcao?.nome ?? undefined }))} />}
-                  </div>
-                  <div><Label>Data da entrega</Label><DatePicker value={data} onChange={setData} /></div>
-                </div>
-
-                {cadastro && <AvisoCadastroIncompleto faltando={faltando} onCompletar={() => setCadastroAberto(true)} bloqueia="a entrega só pode ser registrada com o cadastro completo" />}
-                {cadastro && <CadastroComplementarDialog open={cadastroAberto} onOpenChange={setCadastroAberto} colaborador={cadastro} onSaved={recarregarCadastro} />}
-                {colabId && (
-                  <div className="rounded-lg border border-border">
-                    <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-t-lg text-xs text-muted-foreground">
-                      <span><b className="text-foreground">{selecionadas.length}</b> EPI(s) selecionado(s) · os exigidos pela função aparecem primeiro</span>
-                      {episAtivos.some(temEstoque) && (
-                        <span className="inline-flex items-center gap-2">Baixar do estoque:
-                          <SelectMenu value={localPadrao} onChange={setLocalPadrao} triggerClassName="h-7 text-xs" options={[{ value: "", label: "— Não baixar —" }, ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} />
-                        </span>
-                      )}
+                <div className="grid gap-4 md:grid-cols-[300px_1fr]">
+                  {/* Esquerda: dados da entrega */}
+                  <div className="space-y-3">
+                    <div><Label>Colaborador</Label>
+                      {colaboradorFixo ? <Input value={colaboradorFixo.nome} disabled /> :
+                        <ComboboxWithCreate value={colabId} onChange={setColabId} allowNone={false} placeholder="Buscar colaborador…" menuMinWidth={360} options={colabs.filter(participaSst).map((c) => ({ value: c.id, label: c.nome, code: c.funcao?.nome ?? undefined }))} />}
                     </div>
-                    <div className="max-h-[46vh] overflow-y-auto divide-y divide-border/60">
+                    <div><Label>Data da entrega</Label><DatePicker value={data} onChange={setData} /></div>
+                    {episAtivos.some(temEstoque) && (
+                      <div><Label>Baixar do estoque</Label>
+                        <SelectMenu value={localPadrao} onChange={setLocalPadrao} options={[{ value: "", label: "— Não baixar —" }, ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} />
+                        <p className="text-[11px] text-muted-foreground mt-1">Local padrão; cada EPI pode baixar de outro local na lista.</p>
+                      </div>
+                    )}
+                    <div><Label>Observações da ficha</Label><Textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional — aparece no termo impresso" rows={3} /></div>
+                    {cadastro && <AvisoCadastroIncompleto faltando={faltando} onCompletar={() => setCadastroAberto(true)} bloqueia="a entrega só pode ser registrada com o cadastro completo" />}
+                    {cadastro && <CadastroComplementarDialog open={cadastroAberto} onOpenChange={setCadastroAberto} colaborador={cadastro} onSaved={recarregarCadastro} />}
+                  </div>
+
+                  {/* Direita: seleção dos EPIs */}
+                  <div className="rounded-lg border border-border min-w-0 flex flex-col">
+                    <div className="px-3 py-2 bg-muted rounded-t-lg text-xs text-muted-foreground">
+                      <b className="text-foreground">{selecionadas.length}</b> EPI(s) selecionado(s) · os exigidos pela função aparecem primeiro
+                    </div>
+                    {!colabId ? (
+                      <p className="px-3 py-10 text-sm text-muted-foreground text-center">Escolha o colaborador para ver os EPIs.</p>
+                    ) : (
+                    <div className="max-h-[60vh] overflow-y-auto divide-y divide-border/60">
                       {episOrdenados.map((e) => {
                         const l = linhas[e.id]; if (!l) return null;
                         const req = detalhe?.episStatus.find((s) => s.epi.id === e.id);
                         const vig = vigente(detalhe, e.id);
                         const ate = l.sel && l.tipo !== "DEVOLUCAO" ? antecipada(e.id) : null;
                         const vencido = vig?.vencimentoUso ? new Date(vig.vencimentoUso).getTime() < Date.now() : false;
+                        const saldo = saldoLinha(e, l.tamanho);
+                        const semSaldo = !!saldo && l.sel && l.tipo !== "DEVOLUCAO" && saldo.valor < (Number(l.qtd) || 1);
                         return (
                           <div key={e.id} className={cn("px-3 py-2", l.sel && "bg-info/5", ((ate && !l.motivo.trim()) || (l.sel && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && !l.tamanho)) && "bg-warning/5")}>
                             <div className="flex items-center gap-3">
@@ -272,12 +292,19 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                                   {e.vidaUtilDias ? ` · vida útil ${e.vidaUtilDias} d` : " · sem prazo definido"}
                                 </p>
                               </div>
+                              <div className={cn("shrink-0 text-right leading-tight w-[84px]", saldo == null ? "text-muted-foreground" : saldo.valor <= 0 || semSaldo ? "text-danger" : "text-foreground")}
+                                title={saldo == null ? "EPI sem item de estoque vinculado" : grade(e).length > 1 ? (e.itens ?? []).map((i) => `${i.tamanho ?? "—"}: ${fmtQtd(i.saldo ?? 0)}`).join("\n") : "Saldo somado em todos os locais"}>
+                                {saldo == null ? <span className="text-[11px]">sem estoque</span> : <>
+                                  <span className="text-sm font-medium tabular-nums">{fmtQtd(saldo.valor)}</span>
+                                  <span className="block text-[10px] text-muted-foreground">em estoque{saldo.rotulo ? ` · ${saldo.rotulo}` : ""}</span>
+                                </>}
+                              </div>
                               {l.sel && (
                                 <>
-                                  <SelectMenu value={l.tipo} onChange={(v) => setLinha(e.id, { tipo: v })} triggerClassName="h-8 w-[120px] text-xs" options={Object.entries(TIPO_ENTREGA).map(([value, label]) => ({ value, label }))} />
-                                  {grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[92px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}
-                                  <Input type="number" min={1} value={l.qtd} onChange={(ev) => setLinha(e.id, { qtd: ev.target.value })} className="h-8 w-16 text-xs text-center" title="Quantidade" />
-                                  {temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[150px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}
+                                  <SelectMenu value={l.tipo} onChange={(v) => setLinha(e.id, { tipo: v })} triggerClassName="h-8 w-[110px] text-xs" options={Object.entries(TIPO_ENTREGA).map(([value, label]) => ({ value, label }))} />
+                                  {grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[84px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}
+                                  <Input type="number" min={1} value={l.qtd} onChange={(ev) => setLinha(e.id, { qtd: ev.target.value })} className="h-8 w-14 text-xs text-center" title="Quantidade" />
+                                  {temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[130px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}
                                 </>
                               )}
                             </div>
@@ -288,17 +315,14 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                                 <Input value={l.motivo} onChange={(ev) => setLinha(e.id, { motivo: ev.target.value })} placeholder="Ex.: dano, perda, extravio, troca por defeito…" className={cn("h-7 text-xs", !l.motivo.trim() && "border-warning")} />
                               </div>
                             )}
-                            {l.sel && !ate && (
-                              <div className="mt-1 ml-7"><Input value={l.motivo} onChange={(ev) => setLinha(e.id, { motivo: ev.target.value })} placeholder="Observação (opcional)" className="h-7 text-xs" /></div>
-                            )}
                           </div>
                         );
                       })}
                       {episAtivos.length === 0 && <p className="px-3 py-6 text-sm text-muted-foreground text-center">Nenhum EPI ativo cadastrado.</p>}
                     </div>
+                    )}
                   </div>
-                )}
-                <div><Label>Observações da ficha</Label><Input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional — aparece no termo impresso" /></div>
+                </div>
                 {erro && <p className="text-sm text-danger">{erro}</p>}
                 <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button onClick={salvarFicha} disabled={saving || !colabId || !cadastro || faltando.length > 0}>{saving ? "Registrando…" : `Registrar e gerar termo${nomeColab ? ` — ${nomeColab.split(" ")[0]}` : ""}`}</Button></DialogFooter>
               </>
