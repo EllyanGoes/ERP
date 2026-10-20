@@ -504,6 +504,7 @@ export const mainModules: Module[] = [
           { href: "/projetos/caixa-de-entrada", label: "Caixa de Entrada", icon: Inbox },
           { href: "/projetos/minhas-tarefas", label: "Minhas Tarefas", icon: ListTodo },
           { href: "/projetos/agenda", label: "Agenda", icon: CalendarDays },
+          { href: "/projetos/equipe", label: "Carga da equipe", icon: Users },
           { href: "/projetos", label: "Meus Projetos", icon: FolderKanban, exact: true },
         ],
       },

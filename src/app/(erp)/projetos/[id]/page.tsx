@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import EscClose from "@/components/shared/EscClose";
 import { useTabTitle } from "@/lib/tabs-context";
@@ -10,7 +11,7 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import {
   Loader2, ArrowLeft, Star, Settings2, LayoutGrid, List, Calendar as CalendarIcon,
-  GanttChartSquare, Activity, Search, X, Archive, Plus, ChevronDown, Check,
+  GanttChartSquare, Activity, Search, X, Archive, UsersRound, Plus, ChevronDown, Check,
 } from "lucide-react";
 import { AvatarUsuario, ProgressoCirculo, SituacaoMenu } from "@/components/projetos/comum";
 import SelectMenu from "@/components/shared/SelectMenu";
@@ -227,6 +228,9 @@ export default function ProjetoBoardPage() {
             )}
           </div>
           <div className="ml-auto order-last flex items-center gap-2">
+            <Link href={`/projetos/equipe?projeto=${id}`} title="Carga da equipe — quem está sem tarefas neste projeto" className="inline-flex h-8 items-center rounded-md border border-border px-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+              <UsersRound className="w-4 h-4" />
+            </Link>
             <Button size="sm" variant="outline" onClick={() => setShowArquivadas(true)} title="Cartões arquivados" className="px-2.5">
               <Archive className="w-4 h-4" />
             </Button>
