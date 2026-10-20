@@ -12,7 +12,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     where: { id: params.id },
     select: {
       ...COLABORADOR_SST_SELECT,
-      cargo: true, dataAdmissao: true, matricula: true,
+      cargo: true, dataAdmissao: true, matricula: true, cpf: true, rg: true, setor: { select: { id: true, nome: true } },
       sstFuncoes: { orderBy: { inicio: "desc" }, select: { id: true, inicio: true, fim: true, funcao: { select: { id: true, nome: true, requisitosEpi: { select: { obrigatorio: true, quantidade: true, epi: { select: { id: true, nome: true, vidaUtilDias: true, caValidade: true, ca: true } } } }, requisitosExame: { select: { periodicidadeMeses: true, exameTipo: { select: { id: true, nome: true } } } }, requisitosTreinamento: { select: { treinamentoTipo: { select: { id: true, nome: true, validadeMeses: true } } } } } } } },
       sstEpiEntregas: { orderBy: { data: "desc" }, select: { id: true, epiId: true, tipo: true, data: true, vencimentoUso: true, quantidade: true, tamanho: true, motivo: true, documentoId: true, movimentacaoEstoqueId: true, epi: { select: { nome: true, ca: true } }, ficha: { select: { id: true, numero: true, documentoId: true } } } },
       sstTreinamentos: { select: { validade: true, aprovado: true, certificadoDocumentoId: true, treinamento: { select: { id: true, tipoId: true, data: true, instrutor: true, cargaHoraria: true, tipo: { select: { nome: true, norma: true } } } } }, orderBy: { treinamento: { data: "desc" } } },

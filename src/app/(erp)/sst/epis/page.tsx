@@ -16,6 +16,7 @@ import Link from "next/link";
 import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power, X } from "lucide-react";
 import { fmtData, useLookups, UploadAnexo, DocLink, AcoesLinha } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
+import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
 
 type ItemRef = { id: string; codigo: string; descricao: string; unidadeMedida: string };
 type Epi = {
@@ -80,6 +81,7 @@ export default function SstEpisPage() {
   async function alternarAtivo(e: Epi) { await fetch(`/api/sst/epis/${e.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: !e.ativo }) }); load(); }
 
   const [entrega, setEntrega] = useState(false);
+  const [cautela, setCautela] = useState<string | null>(null);
 
   return (
     <div>
@@ -108,7 +110,7 @@ export default function SstEpisPage() {
                     <td className="px-3 py-2">{f.documentoId ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-success font-medium">arquivado {fmtData(f.assinadaEm)}</span><DocLink id={f.documentoId} label="ver" /></span> : <span className="text-xs font-medium text-warning">aguardando assinatura</span>}</td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       <AcoesLinha acoes={[
-                        { label: "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, href: `/sst/epis/fichas/${f.id}` },
+                        { label: "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautela(f.id) },
                         ...(!f.documentoId ? [{ label: "Anexar termo assinado", icon: <Paperclip className="w-4 h-4 mr-2" />, onClick: () => setAnexarFicha(f) }] : []),
                         { label: "Desfazer ficha", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDelFicha(f), danger: true, separadorAntes: true },
                       ]} />
@@ -205,6 +207,7 @@ export default function SstEpisPage() {
       </Dialog>
 
       <EntregaEpiDialog open={entrega} onOpenChange={setEntrega} epis={epis} colabs={colabs} lk={lk} onSaved={load} />
+      <CautelaEpiDialog fichaId={cautela} onClose={() => setCautela(null)} />
 
       <Dialog open={!!anexarFicha} onOpenChange={(o) => !o && setAnexarFicha(null)}>
         <DialogContent className="sm:max-w-lg">

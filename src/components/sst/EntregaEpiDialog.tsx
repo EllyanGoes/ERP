@@ -6,8 +6,9 @@
 //  • Em lote — um EPI para vários colaboradores (campanha de troca).
 // Regra de prazo: EPI retirado antes do fim da vida útil exige motivo; a tela
 // avisa antes e o servidor confere de novo (422 precisaMotivo).
+// Ficha só sai com o cadastro que a cautela imprime completo (CPF, RG, matrícula,
+// admissão, setor, cargo) — a tela bloqueia e oferece completar; o servidor confere.
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import SelectMenu from "@/components/shared/SelectMenu";
 import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -18,6 +19,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle2, Printer, User, Users } from "lucide-react";
 import { fmtData, hojeISO, UploadAnexo, TIPO_ENTREGA, participaSst, type Lookups } from "@/components/sst/comum";
+import CadastroComplementarDialog, { AvisoCadastroIncompleto, type ColabCadastro } from "@/components/sst/CadastroComplementarDialog";
+import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
+import { camposFaltandoCautela } from "@/lib/sst-cadastro";
 
 export type EpiOpt = {
   id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean;
@@ -36,6 +40,8 @@ type FichaCriada = { id: string; numero: number; colaborador: { id: string; nome
 
 type Linha = { sel: boolean; qtd: string; tipo: string; motivo: string; local: string; tamanho: string };
 type DetalheColab = {
+  id: string; nome: string; cpf: string | null; rg: string | null; matricula: string | null; cargo: string | null;
+  dataAdmissao: string | null; setor: { id: string; nome: string } | null; sstFuncoes: unknown[];
   episStatus: { epi: { id: string }; obrigatorio: boolean; quantidade: number; entregaVigente: { data: string; vencimentoUso: string | null } | null }[];
   sstEpiEntregas: { epiId: string; tipo: string; data: string; vencimentoUso: string | null; tamanho?: string | null }[];
 };
@@ -62,6 +68,17 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
   const [obs, setObs] = useState("");
   const [ficha, setFicha] = useState<FichaCriada | null>(null);
   const [docAssinado, setDocAssinado] = useState<string | null>(null);
+  const [cautela, setCautela] = useState<string | null>(null);
+  // Cadastro do colaborador (o que a cautela imprime) — recarregado sozinho
+  // depois de completar, sem refazer as linhas de EPI já marcadas.
+  const [cadastro, setCadastro] = useState<ColabCadastro | null>(null);
+  const [cadastroAberto, setCadastroAberto] = useState(false);
+  const paraCadastro = (d: DetalheColab | null): ColabCadastro | null => d ? { id: d.id, nome: d.nome, cpf: d.cpf, rg: d.rg, matricula: d.matricula, cargo: d.cargo, dataAdmissao: d.dataAdmissao, setor: d.setor, temFuncao: d.sstFuncoes.length > 0 } : null;
+  function recarregarCadastro() {
+    if (!colabId) return;
+    fetch(`/api/sst/colaboradores/${colabId}`).then((r) => r.json()).then((j) => setCadastro(paraCadastro(j.data ?? null))).catch(() => {});
+  }
+  const faltando = cadastro ? camposFaltandoCautela(cadastro) : [];
 
   useEffect(() => {
     if (!open) return;
@@ -81,12 +98,13 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
   // atrasada de uma abertura/colaborador anterior.
   useEffect(() => {
     if (!open) return;
-    if (!colabId) { setDetalhe(null); setLinhas({}); return; }
+    if (!colabId) { setDetalhe(null); setLinhas({}); setCadastro(null); return; }
+    setCadastro(null);
     let vivo = true;
     fetch(`/api/sst/colaboradores/${colabId}`).then((r) => r.json()).then((j) => {
       if (!vivo) return;
       const d: DetalheColab | null = j.data ?? null;
-      setDetalhe(d);
+      setDetalhe(d); setCadastro(paraCadastro(d));
       // Pré-marca o que a função exige e ainda não foi entregue (ou venceu).
       const ini: Record<string, Linha> = {};
       for (const e of episAtivos) {
@@ -126,6 +144,8 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
   async function salvarFicha() {
     if (!colabId) { setErro("Escolha o colaborador."); return; }
     if (selecionadas.length === 0) { setErro("Selecione ao menos um EPI."); return; }
+    if (!cadastro) return;
+    if (faltando.length > 0) { setErro(`Complete o cadastro antes da entrega (falta: ${faltando.join(", ")}).`); return; }
     const semMotivo = selecionadas.filter(([id, l]) => l.tipo !== "DEVOLUCAO" && antecipada(id) && !l.motivo.trim());
     if (semMotivo.length > 0) { setErro("Há EPI retirado antes do prazo: informe o motivo nas linhas destacadas."); return; }
     const semTamanho = selecionadas.filter(([id, l]) => l.tipo !== "DEVOLUCAO" && grade(episAtivos.find((e) => e.id === id)).length > 1 && !l.tamanho);
@@ -192,7 +212,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-lg border border-border p-3 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase">1. Imprimir e assinar</p>
-                <Link href={`/sst/epis/fichas/${ficha.id}`} target="_blank" className="inline-flex items-center gap-1.5 text-sm text-info hover:underline"><Printer className="w-4 h-4" /> Abrir termo para impressão</Link>
+                <button type="button" onClick={() => setCautela(ficha.id)} className="inline-flex items-center gap-1.5 text-sm text-info hover:underline"><Printer className="w-4 h-4" /> Abrir termo para impressão</button>
               </div>
               <div className="rounded-lg border border-border p-3 space-y-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase">2. Arquivar o termo assinado</p>
@@ -220,6 +240,8 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                   <div><Label>Data da entrega</Label><DatePicker value={data} onChange={setData} /></div>
                 </div>
 
+                {cadastro && <AvisoCadastroIncompleto faltando={faltando} onCompletar={() => setCadastroAberto(true)} bloqueia="a entrega só pode ser registrada com o cadastro completo" />}
+                {cadastro && <CadastroComplementarDialog open={cadastroAberto} onOpenChange={setCadastroAberto} colaborador={cadastro} onSaved={recarregarCadastro} />}
                 {colabId && (
                   <div className="rounded-lg border border-border">
                     <div className="flex items-center justify-between px-3 py-2 bg-muted rounded-t-lg text-xs text-muted-foreground">
@@ -278,7 +300,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                 )}
                 <div><Label>Observações da ficha</Label><Input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional — aparece no termo impresso" /></div>
                 {erro && <p className="text-sm text-danger">{erro}</p>}
-                <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button onClick={salvarFicha} disabled={saving || !colabId}>{saving ? "Registrando…" : `Registrar e gerar termo${nomeColab ? ` — ${nomeColab.split(" ")[0]}` : ""}`}</Button></DialogFooter>
+                <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button onClick={salvarFicha} disabled={saving || !colabId || !cadastro || faltando.length > 0}>{saving ? "Registrando…" : `Registrar e gerar termo${nomeColab ? ` — ${nomeColab.split(" ")[0]}` : ""}`}</Button></DialogFooter>
               </>
             ) : (
               <>
@@ -322,6 +344,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
           </div>
         )}
       </DialogContent>
+      <CautelaEpiDialog fichaId={cautela} onClose={() => setCautela(null)} />
     </Dialog>
   );
 }

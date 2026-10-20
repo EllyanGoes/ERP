@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText, Pencil } from "lucide-react";
 import { Semaforo, SeloAfastado, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
-import CautelaEpi from "@/components/sst/CautelaEpi";
+import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
 import MedicoSelect, { crmCompleto } from "@/components/sst/MedicoSelect";
 
 type Ficha = {
@@ -309,8 +309,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                             </td>
                             <td className="px-3 py-2"><DocLink id={termo} label="assinado" /></td>
                             <td className="px-2 py-2 text-right"><AcoesLinha acoes={g.ficha ? [
-                              { label: "Ver cautela", icon: <FileText className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(g.ficha!.id) },
-                              { label: "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, href: `/sst/epis/fichas/${g.ficha.id}` },
+                              { label: "Ver / imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(g.ficha!.id) },
                               { label: "Excluir cautela", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "ficha", id: g.ficha!.id }), danger: true, separadorAntes: true },
                             ] : [
                               { label: "Excluir entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: g.itens[0].id }), danger: true },
@@ -559,17 +558,8 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
         </DialogContent>
       </Dialog>
 
-      {/* Popup da cautela */}
-      <Dialog open={!!cautelaAberta} onOpenChange={(o) => !o && setCautelaAberta(null)}>
-        <DialogContent className="sm:max-w-[820px] max-h-[92vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Cautela de EPI</DialogTitle></DialogHeader>
-          {cautelaAberta && <div className="overflow-x-auto rounded-lg border border-border"><CautelaEpi id={cautelaAberta} emDialog /></div>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCautelaAberta(null)}>Fechar</Button>
-            {cautelaAberta && <Link href={`/sst/epis/fichas/${cautelaAberta}`} target="_blank"><Button className="gap-1.5"><Printer className="w-4 h-4" /> Imprimir</Button></Link>}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Popup da cautela (imprime na mesma aba) */}
+      <CautelaEpiDialog fichaId={cautelaAberta} onClose={() => { setCautelaAberta(null); load(); }} />
       <ConfirmDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)} title={excluir?.tipo === "entrega" ? "Excluir entrega de EPI?" : excluir?.tipo === "ficha" ? "Excluir cautela?" : excluir?.tipo === "exame" ? "Excluir exame?" : "Excluir ASO?"} description={excluir?.tipo === "aso" ? "O registro vai para a lixeira. Os exames lançados com ele continuam registrados." : excluir?.tipo === "exame"  ? "O registro vai para a lixeira." : excluir?.tipo === "ficha" ? "Todas as entregas da cautela são excluídas e as saídas de estoque estornadas. Vai para a lixeira." : "A saída de estoque (se houve) é estornada. O registro vai para a lixeira."} onConfirm={confirmarExclusao} loading={salvando} confirmLabel="Excluir" />
     </div>
   );

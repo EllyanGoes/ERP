@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 import { EPI_ENTREGA_SELECT, FICHA_INCLUDE, TIPOS_ENTREGA, entregaDentroDoPrazo, proximoNumeroFicha, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
+import { camposFaltandoCautela } from "@/lib/sst-cadastro";
 
 // GET /api/sst/entregas/fichas?colaboradorId=&pendentes=1 — fichas (mais recentes primeiro)
 export async function GET(req: NextRequest) {
@@ -31,6 +32,11 @@ export async function POST(req: NextRequest) {
   if (!b.colaboradorId) return NextResponse.json({ error: "Informe o colaborador." }, { status: 400 });
   const itensIn: { epiId: string; quantidade?: number; tipo?: string; motivo?: string; localEstoqueId?: string | null; tamanho?: string | null; itemId?: string | null }[] = Array.isArray(b.itens) ? b.itens : [];
   if (itensIn.length === 0) return NextResponse.json({ error: "Selecione ao menos um EPI." }, { status: 400 });
+  // A cautela imprime esses dados: sem eles a ficha não é registrada.
+  const colab = await prismaSemEscopo.colaborador.findUnique({ where: { id: b.colaboradorId }, select: { cpf: true, rg: true, matricula: true, cargo: true, dataAdmissao: true, setorId: true, sstFuncoes: { where: { fim: null }, take: 1, select: { id: true } } } });
+  if (!colab) return NextResponse.json({ error: "Colaborador não encontrado." }, { status: 404 });
+  const faltando = camposFaltandoCautela({ ...colab, setor: colab.setorId, temFuncao: colab.sstFuncoes.length > 0 });
+  if (faltando.length > 0) return NextResponse.json({ error: `Complete o cadastro do colaborador antes da entrega (falta: ${faltando.join(", ")}).`, faltando }, { status: 422 });
   const data = b.data ? new Date(b.data) : new Date();
   const epis = await prisma.sstEpi.findMany({ where: { id: { in: itensIn.map((i) => i.epiId) } }, select: EPI_ENTREGA_SELECT });
   const porId = new Map(epis.map((e) => [e.id, e]));

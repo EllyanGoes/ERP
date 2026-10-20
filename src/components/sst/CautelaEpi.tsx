@@ -6,17 +6,16 @@
 // assinatura e tabela dos EPIs com assinatura por item. A4 retrato; o
 // escaneado volta pelo "Anexar termo assinado" da ficha.
 // Usada na página de impressão (/sst/epis/fichas/[id]) e no popup da ficha do
-// colaborador (emDialog: sem margem externa nem botão de imprimir próprio).
-// Barra de cima (não imprime): data da entrega e aviso de cadastro incompleto.
+// colaborador / da lista de fichas (emDialog: sem margem externa nem botão de
+// imprimir próprio — o CautelaEpiDialog imprime na mesma aba).
+// Barra de cima (não imprime): data da entrega e aviso de cadastro incompleto;
+// com cadastro incompleto a impressão fica bloqueada até completar.
 import { useCallback, useEffect, useState } from "react";
 import { fmtData } from "@/components/sst/comum";
 import DatePicker from "@/components/shared/DatePicker";
-import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import CadastroComplementarDialog, { AvisoCadastroIncompleto } from "@/components/sst/CadastroComplementarDialog";
+import { camposFaltandoCautela } from "@/lib/sst-cadastro";
+import { Loader2 } from "lucide-react";
 
 type Ficha = {
   id: string; numero: number; data: string; observacoes: string | null; documentoId: string | null;
@@ -28,20 +27,20 @@ type Ficha = {
 // Logo impressa no cabeçalho, por empresa (sem logo: caixa com o nome).
 const LOGOS: Record<string, string> = { emp_tramontin: "/logos/tramontin.png" };
 
-// Campos do cadastro que a cautela imprime e que costumam faltar.
-function camposFaltando(c: Ficha["colaborador"]) {
-  return [
-    !c.cpf && "CPF", !c.rg && "RG", !c.matricula && "Matrícula", !c.dataAdmissao && "Admissão", !c.setor && "Setor",
-    !c.sstFuncoes[0] && !c.cargo && "Cargo",
-  ].filter(Boolean) as string[];
-}
+const faltandoDa = (c: Ficha["colaborador"]) => camposFaltandoCautela({ ...c, temFuncao: !!c.sstFuncoes[0] });
 
 const fmtCnpj = (v: string) => (v.replace(/\D/g, "").length === 14 ? v.replace(/\D/g, "").replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5") : v);
 
-export default function CautelaEpi({ id, emDialog = false }: { id: string; emDialog?: boolean }) {
+export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
+  id: string; emDialog?: boolean;
+  /** Avisa quem abriu (o popup) o que falta no cadastro — bloqueia o Imprimir de lá. */
+  onFaltando?: (faltando: string[]) => void;
+}) {
   const [f, setF] = useState<Ficha | null>(null);
   const carregar = useCallback(() => { fetch(`/api/sst/entregas/fichas/${id}`).then((r) => r.json()).then((j) => setF(j.data ?? null)).catch(() => {}); }, [id]);
   useEffect(() => { carregar(); }, [carregar]);
+  const faltandoKey = f ? faltandoDa(f.colaborador).join(",") : null;
+  useEffect(() => { if (faltandoKey !== null) onFaltando?.(faltandoKey ? faltandoKey.split(",") : []); }, [faltandoKey, onFaltando]);
   const [salvandoData, setSalvandoData] = useState(false);
   const [erroData, setErroData] = useState("");
   const [cadastroAberto, setCadastroAberto] = useState(false);
@@ -56,7 +55,7 @@ export default function CautelaEpi({ id, emDialog = false }: { id: string; emDia
     if (!res.ok) { setErroData(j.error || "Erro ao salvar a data"); return; }
     carregar();
   }
-  const faltando = camposFaltando(f.colaborador);
+  const faltando = faltandoDa(f.colaborador);
   const logo = LOGOS[f.empresa.id];
 
   const emp = f.empresa;
@@ -71,7 +70,7 @@ export default function CautelaEpi({ id, emDialog = false }: { id: string; emDia
   const td = { border: "1px solid #000", padding: "5px 5px", fontSize: 10, verticalAlign: "middle" as const };
 
   return (
-    <div className={emDialog ? "bg-white text-black mx-auto" : "print-area bg-white text-black mx-auto my-4"} style={{ width: "190mm", padding: "8mm 9mm", fontFamily: "Arial, Helvetica, sans-serif", fontSize: 10.5, lineHeight: 1.35 }}>
+    <div data-cautela={f.id} className={emDialog ? "bg-white text-black mx-auto" : "print-area bg-white text-black mx-auto my-4"} style={{ width: "190mm", padding: "8mm 9mm", fontFamily: "Arial, Helvetica, sans-serif", fontSize: 10.5, lineHeight: 1.35 }}>
       {!emDialog && <style>{`@media print { @page { size: A4 portrait; margin: 9mm; } }`}</style>}
       <div className="no-print mb-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -81,16 +80,11 @@ export default function CautelaEpi({ id, emDialog = false }: { id: string; emDia
             {salvandoData && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
             {erroData && <span className="text-xs text-red-600">{erroData}</span>}
           </div>
-          {!emDialog && <button onClick={() => window.print()} className="border border-gray-400 rounded px-3 py-1 text-sm">Imprimir / Salvar PDF</button>}
+          {!emDialog && <button onClick={() => window.print()} disabled={faltando.length > 0} title={faltando.length > 0 ? "Complete o cadastro antes de imprimir" : undefined} className="border border-gray-400 rounded px-3 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed">Imprimir / Salvar PDF</button>}
         </div>
-        {faltando.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            <span className="flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 shrink-0" /> Cadastro incompleto — falta: <b>{faltando.join(", ")}</b></span>
-            <button onClick={() => setCadastroAberto(true)} className="rounded border border-amber-400 bg-white px-2.5 py-0.5 text-xs font-medium hover:bg-amber-100">Completar cadastro</button>
-          </div>
-        )}
+        <AvisoCadastroIncompleto faltando={faltando} onCompletar={() => setCadastroAberto(true)} bloqueia="complete para imprimir" />
       </div>
-      <CadastroComplementarDialog open={cadastroAberto} onOpenChange={setCadastroAberto} colaborador={f.colaborador} onSaved={carregar} />
+      <CadastroComplementarDialog open={cadastroAberto} onOpenChange={setCadastroAberto} colaborador={{ ...f.colaborador, temFuncao: !!f.colaborador.sstFuncoes[0] }} onSaved={carregar} />
 
       {/* Cabeçalho */}
       <div style={{ display: "flex", gap: 14, alignItems: "stretch", borderBottom: "2px solid #000", paddingBottom: 8 }}>
@@ -177,45 +171,5 @@ export default function CautelaEpi({ id, emDialog = false }: { id: string; emDia
       {f.observacoes && <p style={{ fontSize: 9.5, marginTop: 6 }}><b>Observações:</b> {f.observacoes}</p>}
       <p style={{ fontSize: 8.5, marginTop: 10, color: "#555", display: "flex", justifyContent: "space-between" }}><span>{nomeEmpresa} · Cautela de EPI nº {numero}</span><span>gerada pelo ERP em {new Date().toLocaleDateString("pt-BR")}</span></p>
     </div>
-  );
-}
-
-// Informações complementares do colaborador (as que a cautela imprime).
-function CadastroComplementarDialog({ open, onOpenChange, colaborador: c, onSaved }: { open: boolean; onOpenChange: (o: boolean) => void; colaborador: Ficha["colaborador"]; onSaved: () => void }) {
-  const [cpf, setCpf] = useState(""); const [rg, setRg] = useState(""); const [matricula, setMatricula] = useState("");
-  const [cargo, setCargo] = useState(""); const [admissao, setAdmissao] = useState(""); const [setorId, setSetorId] = useState("");
-  const [setores, setSetores] = useState<{ value: string; label: string }[]>([]);
-  const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
-  useEffect(() => {
-    if (!open) return;
-    setCpf(c.cpf ?? ""); setRg(c.rg ?? ""); setMatricula(c.matricula ?? ""); setCargo(c.cargo ?? "");
-    setAdmissao(c.dataAdmissao?.slice(0, 10) ?? ""); setSetorId(c.setor?.id ?? ""); setErro("");
-    fetch("/api/empresa/setores?ativo=true").then((r) => r.json()).then((j: { id: string; nome: string }[]) => setSetores(Array.isArray(j) ? j.map((s) => ({ value: s.id, label: s.nome })) : [])).catch(() => {});
-  }, [open, c]);
-  async function salvar() {
-    setSaving(true); setErro("");
-    const res = await fetch(`/api/sst/colaboradores/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cpf, rg, matricula, cargo, dataAdmissao: admissao || null, setorId: setorId || null }) });
-    const j = await res.json().catch(() => ({}));
-    setSaving(false);
-    if (!res.ok) { setErro(j.error || "Erro ao salvar"); return; }
-    onOpenChange(false); onSaved();
-  }
-  const marca = (vazio: boolean) => (vazio ? "border-amber-400" : "");
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>Informações complementares — {c.nome}</DialogTitle></DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label>CPF</Label><Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" className={marca(!cpf)} /></div>
-          <div><Label>RG</Label><Input value={rg} onChange={(e) => setRg(e.target.value)} className={marca(!rg)} /></div>
-          <div><Label>Matrícula</Label><Input value={matricula} onChange={(e) => setMatricula(e.target.value)} className={marca(!matricula)} /></div>
-          <div><Label>Admissão</Label><DatePicker value={admissao} onChange={setAdmissao} /></div>
-          <div className="col-span-2"><Label>Setor</Label><ComboboxWithCreate options={setores} value={setorId} onChange={setSetorId} placeholder="Selecione o setor" /></div>
-          {!c.sstFuncoes[0] && <div className="col-span-2"><Label>Cargo</Label><Input value={cargo} onChange={(e) => setCargo(e.target.value)} className={marca(!cargo)} /></div>}
-        </div>
-        {erro && <p className="text-sm text-danger">{erro}</p>}
-        <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button onClick={salvar} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
