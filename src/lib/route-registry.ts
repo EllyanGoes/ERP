@@ -6,6 +6,8 @@
  *  - icon background colour (matching Sidebar kindStyle)
  *
  * Imported by CommandPalette (search) and TabBar (tab icons).
+ * Toda tela do menu lateral (lib/nav-menu) entra aqui sozinha — as entradas
+ * manuais abaixo só servem p/ refinar rótulo/ícone/keywords ou p/ telas fora do menu.
  */
 
 import {
@@ -29,6 +31,7 @@ import {
   Filter, UserPlus, Globe, LineChart,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { allModules } from "@/lib/nav-menu";
 
 // ── Icon colours (mirrors Sidebar kindStyle) ──────────────────────────────────
 export type IconColor = {
@@ -76,7 +79,7 @@ export type RouteEntry = {
 };
 
 // ── Registry ──────────────────────────────────────────────────────────────────
-export const ROUTES: RouteEntry[] = [
+const ROTAS_MANUAIS: RouteEntry[] = [
   { href: "/",                                     label: "Dashboard",               group: "Início",         section: "Geral",            icon: LayoutDashboard },
 
   { href: "/empresa/filiais",                      label: "Filiais",                 group: "Empresa",        section: "Geral",            icon: GitBranch },
@@ -204,6 +207,13 @@ export const ROUTES: RouteEntry[] = [
   { href: "/configuracoes/integracoes/whatsapp",   label: "Integração WhatsApp",     group: "Configurações",  section: "Configurações",    icon: MessageCircle,  keywords: "whatsapp notificação mensagem" },
   { href: "/configuracoes/integracoes/focus-nfe",  label: "Integração Focus NFe",    group: "Configurações",  section: "Configurações",    icon: Receipt,        keywords: "focus nfe nota fiscal sefaz fiscal master token webhook emissão provedor" },
 ];
+
+// Telas do menu que não têm entrada manual: herdam rótulo, ícone, módulo e seção do menu.
+const ROTAS_DO_MENU: RouteEntry[] = allModules.flatMap((mod) => mod.sections.flatMap((sec) => sec.items
+  .filter((it) => !it.soon && !ROTAS_MANUAIS.some((r) => r.href === it.href))
+  .map((it) => ({ href: it.href, label: it.label, group: mod.label, section: sec.kind, icon: it.icon ?? mod.icon, keywords: `${mod.label} ${sec.kind}`.toLowerCase() }))));
+
+export const ROUTES: RouteEntry[] = [...ROTAS_MANUAIS, ...ROTAS_DO_MENU];
 
 // ── Lookup helpers ────────────────────────────────────────────────────────────
 
