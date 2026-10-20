@@ -96,7 +96,7 @@ export default function CautelaEpi({ id, emDialog = false }: { id: string; emDia
       <div style={{ display: "flex", gap: 14, alignItems: "stretch", borderBottom: "2px solid #000", paddingBottom: 8 }}>
         {logo ? (
           // eslint-disable-next-line @next/next/no-img-element -- impressão: <img> simples sai no PDF sem depender do otimizador
-          <img src={logo} alt={emp.nomeFantasia ?? emp.razaoSocial} style={{ width: 150, height: 79, objectFit: "cover", borderRadius: 4, alignSelf: "center" }} />
+          <img src={logo} alt={emp.nomeFantasia ?? emp.razaoSocial} style={{ width: 170, height: "auto", flexShrink: 0, objectFit: "contain", borderRadius: 4, alignSelf: "center" }} />
         ) : (
           <div style={{ width: 150, minHeight: 78, border: "1px solid #000", borderRadius: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 6, textAlign: "center" }}>
             <div style={{ fontSize: 9, letterSpacing: 1, color: "#444" }}>CERÂMICA</div>
