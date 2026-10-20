@@ -43,7 +43,7 @@ const fmtQtd = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits:
 function saldoLinha(e: EpiOpt, tamanho: string): { valor: number; rotulo: string } | null {
   const doTam = tamanho ? e.itens?.find((i) => i.tamanho === tamanho)?.saldo : undefined;
   if (doTam !== undefined) return { valor: doTam, rotulo: `tam. ${tamanho}` };
-  if (e.saldoEstoque != null) return { valor: e.saldoEstoque, rotulo: grade(e).length > 1 ? "todos os tamanhos" : "" };
+  if (e.saldoEstoque != null) return { valor: e.saldoEstoque, rotulo: grade(e).length > 1 ? "total" : "" };
   return null;
 }
 export type ColabOpt = { id: string; nome: string; ativo: boolean; afastamento?: unknown | null; funcao: { nome: string } | null };
@@ -213,7 +213,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("max-h-[92vh] overflow-y-auto", ficha ? "sm:max-w-4xl" : "sm:max-w-6xl")}>
+      <DialogContent className={cn("max-h-[92vh] overflow-y-auto", ficha ? "sm:max-w-4xl" : "sm:max-w-7xl")}>
         <DialogHeader><DialogTitle>{ficha ? `Ficha de EPI nº ${String(ficha.numero).padStart(4, "0")}` : "Nova entrega de EPI"}</DialogTitle></DialogHeader>
 
         {ficha ? (
@@ -308,21 +308,22 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                                   {e.vidaUtilDias ? ` · vida útil ${e.vidaUtilDias} d` : " · sem prazo definido"}
                                 </p>
                               </div>
-                              <div className={cn("shrink-0 text-right leading-tight w-[84px]", saldo == null ? "text-muted-foreground" : saldo.valor <= 0 || semSaldo ? "text-danger" : "text-foreground")}
+                              <div className={cn("shrink-0 text-right leading-tight w-[110px]", saldo == null ? "text-muted-foreground" : saldo.valor <= 0 || semSaldo ? "text-danger" : "text-foreground")}
                                 title={saldo == null ? "EPI sem item de estoque vinculado" : grade(e).length > 1 ? (e.itens ?? []).map((i) => `${i.tamanho ?? "—"}: ${fmtQtd(i.saldo ?? 0)}`).join("\n") : "Saldo somado em todos os locais"}>
                                 {saldo == null ? <span className="text-[11px]">sem estoque</span> : <>
                                   <span className="text-sm font-medium tabular-nums">{fmtQtd(saldo.valor)}</span>
                                   <span className="block text-[10px] text-muted-foreground">em estoque{saldo.rotulo ? ` · ${saldo.rotulo}` : ""}</span>
                                 </>}
                               </div>
-                              {l.sel && (
-                                <>
+                              {/* Slots de largura fixa (mesmo vazios) p/ a coluna do saldo alinhar em todas as linhas. */}
+                              <div className={cn("shrink-0 flex items-center gap-2", !l.sel && "invisible")} aria-hidden={!l.sel}>
+                                <div className="w-[110px]">
                                   <SelectMenu value={l.tipo} onChange={(v) => setLinha(e.id, { tipo: v })} triggerClassName="h-8 w-[110px] text-xs" options={Object.entries(TIPO_ENTREGA).map(([value, label]) => ({ value, label }))} />
-                                  {grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[104px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}
-                                  <Input type="number" min={1} value={l.qtd} onChange={(ev) => setLinha(e.id, { qtd: ev.target.value })} className="h-8 w-14 text-xs text-center" title="Quantidade" />
-                                  {temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[130px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}
-                                </>
-                              )}
+                                </div>
+                                <div className="w-[104px]">{grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[104px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}</div>
+                                <Input type="number" min={1} value={l.qtd} onChange={(ev) => setLinha(e.id, { qtd: ev.target.value })} className="h-8 w-14 text-xs text-center" title="Quantidade" tabIndex={l.sel ? 0 : -1} />
+                                <div className="w-[140px]">{temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[140px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}</div>
+                              </div>
                             </div>
                             {ate && (
                               <div className="mt-1.5 ml-7 flex items-center gap-2">
