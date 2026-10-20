@@ -31,3 +31,30 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   }) : [];
   return NextResponse.json({ data: { ...c, pendencias, episStatus, afastamento: afastamentoAtual(comoSst) } });
 }
+
+// PATCH /api/sst/colaboradores/[id] — informações complementares de cadastro que
+// a cautela de EPI imprime: { cpf?, rg?, matricula?, cargo?, dataAdmissao?, setorId? }.
+// Só os campos enviados mudam; string vazia limpa.
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await requireModulo("sst");
+  if (!auth.ok) return auth.response;
+  const b = await req.json().catch(() => ({}));
+  const texto = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const data: Record<string, unknown> = {};
+  for (const k of ["rg", "matricula", "cargo"] as const) if (k in b) data[k] = texto(b[k]);
+  if ("cpf" in b) {
+    const dig = String(b.cpf ?? "").replace(/\D/g, "");
+    if (dig && dig.length !== 11) return NextResponse.json({ error: "CPF deve ter 11 dígitos." }, { status: 400 });
+    data.cpf = dig ? dig.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : null;
+  }
+  if ("dataAdmissao" in b) data.dataAdmissao = b.dataAdmissao ? new Date(b.dataAdmissao) : null;
+  if ("setorId" in b) data.setorId = b.setorId || null;
+  try {
+    const c = await prismaSemEscopo.colaborador.update({ where: { id: params.id }, data, select: { id: true, cpf: true, rg: true, matricula: true, cargo: true, dataAdmissao: true, setor: { select: { id: true, nome: true } } } });
+    return NextResponse.json({ data: c });
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2002") return NextResponse.json({ error: "Este CPF já está cadastrado em outro colaborador." }, { status: 409 });
+    if ((e as { code?: string }).code === "P2025") return NextResponse.json({ error: "Colaborador não encontrado" }, { status: 404 });
+    throw e;
+  }
+}

@@ -121,7 +121,7 @@ export async function estornarEstoqueEntrega(tx: Tx, movimentacaoEstoqueId: stri
 
 /** Include da ficha (lista, detalhe e impressão). */
 export const FICHA_INCLUDE = {
-  colaborador: { select: { id: true, nome: true, cpf: true, rg: true, matricula: true, cargo: true, dataAdmissao: true, setor: { select: { nome: true } }, sstFuncoes: { where: { fim: null }, take: 1, select: { funcao: { select: { nome: true } } } } } },
+  colaborador: { select: { id: true, nome: true, cpf: true, rg: true, matricula: true, cargo: true, dataAdmissao: true, setor: { select: { id: true, nome: true } }, sstFuncoes: { where: { fim: null }, take: 1, select: { funcao: { select: { nome: true } } } } } },
   itens: { orderBy: { createdAt: "asc" as const }, include: { epi: { select: { id: true, nome: true, ca: true, vidaUtilDias: true } } } },
 };
 

@@ -9,13 +9,14 @@ import { FICHA_INCLUDE, estornarEstoqueEntrega } from "@/lib/sst-epi";
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
-  const f = await prisma.sstEpiFicha.findUnique({ where: { id: params.id }, include: { ...FICHA_INCLUDE, empresa: { select: { razaoSocial: true, nomeFantasia: true, cnpj: true, telefone: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true } } } });
+  const f = await prisma.sstEpiFicha.findUnique({ where: { id: params.id }, include: { ...FICHA_INCLUDE, empresa: { select: { id: true, razaoSocial: true, nomeFantasia: true, cnpj: true, telefone: true, logradouro: true, numero: true, bairro: true, cidade: true, estado: true } } } });
   if (!f) return NextResponse.json({ error: "Ficha não encontrada" }, { status: 404 });
   return NextResponse.json({ data: f });
 }
 
 // PATCH /api/sst/entregas/fichas/[id] — { documentoId } anexa o termo assinado
-// (propaga p/ as linhas) ou { observacoes }.
+// (propaga p/ as linhas), { observacoes } ou { data } (data da entrega: vale p/
+// as linhas, o vencimento de uso e a saída de estoque).
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
@@ -27,6 +28,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       const documentoId: string | null = b.documentoId || null;
       await tx.sstEpiEntrega.updateMany({ where: { fichaId: f.id }, data: { documentoId } });
       await tx.sstEpiFicha.update({ where: { id: f.id }, data: { documentoId, assinadaEm: documentoId ? new Date() : null, atualizadoPor: auth.session.nome } });
+    }
+    if ("data" in b) {
+      const data = new Date(b.data);
+      if (isNaN(data.getTime())) throw new Error("Data inválida.");
+      const itens = await tx.sstEpiEntrega.findMany({ where: { fichaId: f.id }, select: { id: true, tipo: true, movimentacaoEstoqueId: true, epi: { select: { vidaUtilDias: true } } } });
+      for (const it of itens) {
+        const vencimentoUso = it.tipo !== "DEVOLUCAO" && it.epi.vidaUtilDias ? new Date(data.getTime() + it.epi.vidaUtilDias * 86_400_000) : null;
+        await tx.sstEpiEntrega.update({ where: { id: it.id }, data: { data, vencimentoUso } });
+        if (it.movimentacaoEstoqueId) await tx.movimentacaoEstoque.update({ where: { id: it.movimentacaoEstoqueId }, data: { data } });
+      }
+      await tx.sstEpiFicha.update({ where: { id: f.id }, data: { data, atualizadoPor: auth.session.nome } });
     }
     if ("observacoes" in b) await tx.sstEpiFicha.update({ where: { id: f.id }, data: { observacoes: b.observacoes?.trim() || null, atualizadoPor: auth.session.nome } });
     return tx.sstEpiFicha.findUnique({ where: { id: f.id }, include: FICHA_INCLUDE });
