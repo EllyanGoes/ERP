@@ -303,6 +303,7 @@ model Colaborador {
   sstEpiEntregas             SstEpiEntrega[]
   sstEpiFichas               SstEpiFicha[]
   sstAsos                    SstAso[]
+  sstAgendamentos            SstAgendamento[]
   sstExames                  SstExame[]
   eventos                    ColaboradorEvento[]
   sstTreinamentos            SstTreinamentoParticipante[]
@@ -1779,6 +1780,9 @@ model Empresa {
   empresaDrive                  EmpresaDrive?
   contratos                     Contrato[]
   sstInstrutores                SstInstrutor[]
+  sstClinicas                   SstClinica[]
+  sstAgendamentoLotes           SstAgendamentoLote[]
+  sstAgendamentos               SstAgendamento[]
 }
 
 model EnderecoEstoque {
@@ -1911,6 +1915,7 @@ model Fornecedor {
   atualizadoPor       String? // autoria: última edição manual (proxy de sessão)
   documentos          Documento[]
   contratos           Contrato[]
+  sstClinicas         SstClinica[]
 }
 
 model FornecedorContato {
@@ -5287,19 +5292,21 @@ model SstEpiFicha {
 }
 
 model SstExameTipo {
-  id                 String           @id @default(cuid())
+  id                 String                @id @default(cuid())
   empresaId          String
   nome               String
   periodicidadeMeses Int?
-  ativo              Boolean          @default(true)
+  ativo              Boolean               @default(true)
   // Preço de referência (tabela da clínica) — custo estimado por colaborador/função.
-  preco              Decimal?         @db.Decimal(12, 2)
+  preco              Decimal?              @db.Decimal(12, 2)
   // Consulta clínica do ASO: guarda o preço do ASO, não é exame complementar.
-  clinico            Boolean          @default(false)
-  empresa            Empresa          @relation(fields: [empresaId], references: [id])
+  clinico            Boolean               @default(false)
+  empresa            Empresa               @relation(fields: [empresaId], references: [id])
   requisitos         SstFuncaoExame[]
   asoExames          SstAsoExame[]
   exames             SstExame[]
+  precosClinica      SstClinicaPreco[]
+  agendamentos       SstAgendamentoExame[]
 
   @@unique([empresaId, nome])
 }
@@ -5330,6 +5337,7 @@ model SstAso {
   // Exames realizados para este ASO (o exame vive sozinho — ver SstExame).
   exames        SstExame[]
   examesLegado  SstAsoExame[]
+  agendamento   SstAgendamento?
 
   @@index([colaboradorId, validade])
 }
@@ -5394,6 +5402,102 @@ model SstAsoExame {
 
 // Obrigação documental (PGR, PCMSO, LTCAT, AEP, AVCB…) — o documento vive no
 // GED na categoria apontada; o painel resolve o vigente pela validade.
+// ── SST — Agendamento de exames com a clínica ───────────────────────────────
+// Clínica de medicina do trabalho (com tabela de preço própria por exame; sem
+// preço na clínica vale o preço de referência do tipo de exame).
+model SstClinica {
+  id            String               @id @default(cuid())
+  empresaId     String
+  nome          String
+  fornecedorId  String?
+  cnpj          String?
+  endereco      String?
+  telefone      String?
+  email         String?
+  contato       String?
+  observacoes   String?
+  ativo         Boolean              @default(true)
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  empresa       Empresa              @relation(fields: [empresaId], references: [id])
+  fornecedor    Fornecedor?          @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+  precos        SstClinicaPreco[]
+  lotes         SstAgendamentoLote[]
+  agendamentos  SstAgendamento[]
+
+  @@index([empresaId, nome])
+}
+
+model SstClinicaPreco {
+  clinicaId   String
+  exameTipoId String
+  preco       Decimal      @db.Decimal(12, 2)
+  clinica     SstClinica   @relation(fields: [clinicaId], references: [id], onDelete: Cascade)
+  exameTipo   SstExameTipo @relation(fields: [exameTipoId], references: [id], onDelete: Cascade)
+
+  @@id([clinicaId, exameTipoId])
+}
+
+// Lote enviado à clínica (uma guia/lista): agrupa os agendamentos criados juntos.
+model SstAgendamentoLote {
+  id            String           @id @default(cuid())
+  empresaId     String
+  numero        Int
+  clinicaId     String
+  observacoes   String?
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  empresa       Empresa          @relation(fields: [empresaId], references: [id])
+  clinica       SstClinica       @relation(fields: [clinicaId], references: [id])
+  agendamentos  SstAgendamento[]
+
+  @@unique([empresaId, numero])
+}
+
+// Ida de um colaborador à clínica: dia + período (MANHA | TARDE), tipo de ASO e
+// os exames pedidos. status: AGENDADO | CONFIRMADO | REALIZADO | FALTOU | CANCELADO.
+// Ao registrar o ASO do retorno, asoId liga o resultado e o status vira REALIZADO.
+model SstAgendamento {
+  id            String                @id @default(cuid())
+  empresaId     String
+  loteId        String?
+  clinicaId     String
+  colaboradorId String
+  data          DateTime              @db.Date
+  periodo       String                @default("MANHA")
+  tipoAso       String                @default("PERIODICO")
+  status        String                @default("AGENDADO")
+  asoId         String?               @unique
+  observacoes   String?
+  criadoPor     String?
+  atualizadoPor String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  empresa       Empresa               @relation(fields: [empresaId], references: [id])
+  lote          SstAgendamentoLote?   @relation(fields: [loteId], references: [id], onDelete: SetNull)
+  clinica       SstClinica            @relation(fields: [clinicaId], references: [id])
+  colaborador   Colaborador           @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+  aso           SstAso?               @relation(fields: [asoId], references: [id], onDelete: SetNull)
+  exames        SstAgendamentoExame[]
+
+  @@index([empresaId, data])
+  @@index([colaboradorId, status])
+}
+
+model SstAgendamentoExame {
+  agendamentoId String
+  exameTipoId   String
+  preco         Decimal?       @db.Decimal(12, 2)
+  agendamento   SstAgendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
+  exameTipo     SstExameTipo   @relation(fields: [exameTipoId], references: [id])
+
+  @@id([agendamentoId, exameTipoId])
+}
+
 model SstObrigacao {
   id                 String             @id @default(cuid())
   empresaId          String

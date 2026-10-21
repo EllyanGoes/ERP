@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   HardHat,
   Stethoscope,
+  CalendarCheck,
   GraduationCap,
   Cog,
   Siren,
@@ -396,6 +397,7 @@ export const mainModules: Module[] = [
         items: [
           { href: "/sst/epis", label: "EPIs e entregas", icon: HardHat },
           { href: "/sst/saude", label: "ASO e exames", icon: Stethoscope },
+          { href: "/sst/agendamentos", label: "Agendamento de exames", icon: CalendarCheck },
           { href: "/sst/obrigacoes", label: "Obrigações (PGR, PCMSO…)", icon: FileCheck2 },
           { href: "/sst/treinamentos", label: "Treinamentos", icon: GraduationCap },
           { href: "/sst/maquinas", label: "Máquinas (NR-12)", icon: Cog },

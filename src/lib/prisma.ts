@@ -74,6 +74,8 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "SstFuncao", "SstMedico", "SstInstrutor", "SstExame", "SstEpi", "SstEpiEntrega", "SstEpiFicha", "SstExameTipo", "SstAso", "SstObrigacao",
   "SstTreinamentoTipo", "SstTreinamento", "SstMaquina",
   "SstIncidente", "SstInspecao", "SstCipaMandato", "SstHorasMes", "SstConformidadeSnapshot",
+  // Agendamento de exames (SstClinicaPreco/SstAgendamentoExame escopam via pai)
+  "SstClinica", "SstAgendamentoLote", "SstAgendamento",
   // Contratos — docs/contratos-prd.md (aditivos/eventos escopam via pai)
   "Contrato",
 ])
