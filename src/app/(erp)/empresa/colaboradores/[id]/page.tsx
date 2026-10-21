@@ -151,7 +151,6 @@ export default function ColaboradorDetailPage() {
   // Edit fields
   const [eNome,         setENome]         = useState("");
   const [eCpf,          setECpf]          = useState("");
-  const [eRg,           setERg]           = useState("");
   const [eEmail,        setEEmail]        = useState("");
   const [eTelefone,        setETelefone]        = useState("");
   const [eTelegramChatId,  setETelegramChatId]  = useState("");
@@ -270,7 +269,6 @@ export default function ColaboradorDetailPage() {
     if (!colaborador) return;
     setENome(colaborador.nome);
     setECpf(colaborador.cpf ?? "");
-    setERg(colaborador.rg ?? "");
     setEEmail(colaborador.email ?? "");
     setETelefone(colaborador.telefone ?? "");
     setETelegramChatId(colaborador.telegramChatId ?? "");
@@ -321,7 +319,6 @@ export default function ColaboradorDetailPage() {
         body: JSON.stringify({
           nome:         eNome.trim(),
           cpf:          eCpf.trim()  || null,
-          rg:           eRg.trim()   || null,
           email:        eEmail.trim() || null,
           telefone:       eTelefone.trim() || null,
           telegramChatId: eTelegramChatId.trim() || null,
@@ -498,9 +495,6 @@ export default function ColaboradorDetailPage() {
                     <Field label="CPF">
                       <Input value={eCpf} onChange={(e) => setECpf(e.target.value)} placeholder="000.000.000-00" />
                     </Field>
-                    <Field label="RG">
-                      <Input value={eRg} onChange={(e) => setERg(e.target.value)} />
-                    </Field>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <Field label="E-mail">
@@ -527,7 +521,6 @@ export default function ColaboradorDetailPage() {
                     <InfoField label="Nome">{colaborador.nome}</InfoField>
                   </div>
                   <InfoField label="CPF">{colaborador.cpf}</InfoField>
-                  <InfoField label="RG">{colaborador.rg}</InfoField>
                   <InfoField label="E-mail">{colaborador.email}</InfoField>
                   <InfoField label="Telefone (WhatsApp)">
                     {colaborador.telefone ? (

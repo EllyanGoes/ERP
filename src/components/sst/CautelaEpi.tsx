@@ -118,7 +118,7 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
         <div><span style={label}>Cargo: </span><span style={val}>{cargo}</span></div>
         <div><span style={label}>Admissão: </span><span style={val}>{f.colaborador.dataAdmissao ? fmtData(f.colaborador.dataAdmissao) : "—"}</span></div>
         <div><span style={label}>Unidade: </span><span style={val}>{nomeEmpresa}</span></div>
-        <div><span style={label}>CPF: </span><span style={val}>{f.colaborador.cpf ?? "—"}</span>{"   "}<span style={label}>RG: </span><span style={val}>{f.colaborador.rg ?? "—"}</span></div>
+        <div><span style={label}>CPF: </span><span style={val}>{f.colaborador.cpf ?? "—"}</span></div>
       </div>
 
       {/* Declaração */}

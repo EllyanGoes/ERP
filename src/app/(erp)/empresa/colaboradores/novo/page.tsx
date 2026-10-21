@@ -53,7 +53,6 @@ export default function NovoColaboradorPage() {
 
   const [nome,         setNome]         = useState("");
   const [cpf,          setCpf]          = useState("");
-  const [rg,           setRg]           = useState("");
   const [email,        setEmail]        = useState("");
   const [telefone,     setTelefone]     = useState("");
   const [cargo,        setCargo]        = useState("");
@@ -77,7 +76,7 @@ export default function NovoColaboradorPage() {
   const { confirmCreated, dialog } = useCreateFlow({
     entity: "colaborador",
     onNew: () => {
-      setNome(""); setCpf(""); setRg(""); setEmail(""); setTelefone(""); setCargo("");
+      setNome(""); setCpf(""); setEmail(""); setTelefone(""); setCargo("");
       setSetorId(""); setDataAdmissao(""); setFilialIds([]); setEmpresaIds([]); setUsuarioId("");
       setAtivo(true); setObservacoes(""); setAreasOperacao([]); setError("");
     },
@@ -128,7 +127,6 @@ export default function NovoColaboradorPage() {
         body: JSON.stringify({
           nome:         nome.trim(),
           cpf:          cpf.trim()  || null,
-          rg:           rg.trim()   || null,
           email:        email.trim() || null,
           telefone:     telefone.trim() || null,
           cargo:        cargo.trim()   || null,
@@ -200,12 +198,6 @@ export default function NovoColaboradorPage() {
                   value={cpf}
                   onChange={(e) => setCpf(e.target.value)}
                   placeholder="000.000.000-00"
-                />
-              </Field>
-              <Field label="RG">
-                <Input
-                  value={rg}
-                  onChange={(e) => setRg(e.target.value)}
                 />
               </Field>
             </div>

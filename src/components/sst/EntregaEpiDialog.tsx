@@ -6,7 +6,7 @@
 //  • Em lote — um EPI para vários colaboradores (campanha de troca).
 // Regra de prazo: EPI retirado antes do fim da vida útil exige motivo; a tela
 // avisa antes e o servidor confere de novo (422 precisaMotivo).
-// Ficha só sai com o cadastro que a cautela imprime completo (CPF, RG, matrícula,
+// Ficha só sai com o cadastro que a cautela imprime completo (CPF, matrícula,
 // admissão, setor, cargo) — a tela bloqueia e oferece completar; o servidor confere.
 import { useEffect, useMemo, useState } from "react";
 import SelectMenu from "@/components/shared/SelectMenu";

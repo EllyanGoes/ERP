@@ -1,7 +1,7 @@
 "use client";
 
 // Informações complementares do colaborador — as que a cautela de EPI imprime
-// (CPF, RG, matrícula, admissão, setor, cargo). Aberto pelo aviso de cadastro
+// (CPF, matrícula, admissão, setor, cargo). Aberto pelo aviso de cadastro
 // incompleto da cautela e da nova entrega.
 import { useEffect, useState } from "react";
 import DatePicker from "@/components/shared/DatePicker";
@@ -29,19 +29,19 @@ export function AvisoCadastroIncompleto({ faltando, onCompletar, bloqueia }: { f
 }
 
 export default function CadastroComplementarDialog({ open, onOpenChange, colaborador: c, onSaved }: { open: boolean; onOpenChange: (o: boolean) => void; colaborador: ColabCadastro; onSaved: () => void }) {
-  const [cpf, setCpf] = useState(""); const [rg, setRg] = useState(""); const [matricula, setMatricula] = useState("");
+  const [cpf, setCpf] = useState(""); const [matricula, setMatricula] = useState("");
   const [cargo, setCargo] = useState(""); const [admissao, setAdmissao] = useState(""); const [setorId, setSetorId] = useState("");
   const [setores, setSetores] = useState<{ value: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
   useEffect(() => {
     if (!open) return;
-    setCpf(c.cpf ?? ""); setRg(c.rg ?? ""); setMatricula(c.matricula ?? ""); setCargo(c.cargo ?? "");
+    setCpf(c.cpf ?? ""); setMatricula(c.matricula ?? ""); setCargo(c.cargo ?? "");
     setAdmissao(c.dataAdmissao?.slice(0, 10) ?? ""); setSetorId(c.setor?.id ?? ""); setErro("");
     fetch("/api/empresa/setores?ativo=true").then((r) => r.json()).then((j: { id: string; nome: string }[]) => setSetores(Array.isArray(j) ? j.map((s) => ({ value: s.id, label: s.nome })) : [])).catch(() => {});
   }, [open, c]);
   async function salvar() {
     setSaving(true); setErro("");
-    const res = await fetch(`/api/sst/colaboradores/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cpf, rg, matricula, cargo, dataAdmissao: admissao || null, setorId: setorId || null }) });
+    const res = await fetch(`/api/sst/colaboradores/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cpf, matricula, cargo, dataAdmissao: admissao || null, setorId: setorId || null }) });
     const j = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro ao salvar"); return; }
@@ -54,7 +54,6 @@ export default function CadastroComplementarDialog({ open, onOpenChange, colabor
         <DialogHeader><DialogTitle>Informações complementares — {c.nome}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div><Label>CPF</Label><Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" className={marca(!cpf)} /></div>
-          <div><Label>RG</Label><Input value={rg} onChange={(e) => setRg(e.target.value)} className={marca(!rg)} /></div>
           <div><Label>Matrícula</Label><Input value={matricula} onChange={(e) => setMatricula(e.target.value)} className={marca(!matricula)} /></div>
           <div><Label>Admissão</Label><DatePicker value={admissao} onChange={setAdmissao} /></div>
           <div className="col-span-2"><Label>Setor</Label><ComboboxWithCreate options={setores} value={setorId} onChange={setSetorId} placeholder="Selecione o setor" /></div>

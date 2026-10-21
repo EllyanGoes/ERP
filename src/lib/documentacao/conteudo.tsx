@@ -438,7 +438,7 @@ const epiEntregaFluxo: BpmnGrafo = {
     { id: "i",  tipo: "inicio", x: 0,    y: 40,  label: "Entregar EPI" },
     { id: "c",  tipo: "tarefa", x: 110,  y: 24,  label: "Escolher colaborador", sub: "exigidos pela função 1º", cor: "azul" },
     { id: "g1", tipo: "gateway",x: 330,  y: 28,  label: "Cadastro completo?" },
-    { id: "cc", tipo: "tarefa", x: 460,  y: -60, label: "Completar cadastro", sub: "CPF, RG, matrícula…", cor: "ambar" },
+    { id: "cc", tipo: "tarefa", x: 460,  y: -60, label: "Completar cadastro", sub: "CPF, matrícula, setor…", cor: "ambar" },
     { id: "s",  tipo: "tarefa", x: 460,  y: 96,  label: "Marcar EPIs", sub: "tamanho, qtd, local", cor: "azul" },
     { id: "r",  tipo: "tarefa", x: 690,  y: 96,  label: "Registrar ficha", sub: "baixa estoque (opcional)", cor: "verde" },
     { id: "t",  tipo: "tarefa", x: 910,  y: 96,  label: "Imprimir termo", sub: "assinatura do colaborador", cor: "cinza" },
@@ -788,7 +788,7 @@ export const MODULOS: ModuloDoc[] = [
   },
   {
     id: "sst", label: "SST — EPIs", icon: ShieldCheck,
-    resumo: "Entrega de EPI por ficha: cada entrega para um colaborador gera um termo (cautela) para assinatura, que é anexado e arquivado no GED. A vida útil de cada EPI conta da data da entrega; trocar antes do prazo exige motivo. O cadastro do colaborador precisa estar completo (CPF, RG, matrícula, admissão, setor, cargo) para registrar e imprimir.",
+    resumo: "Entrega de EPI por ficha: cada entrega para um colaborador gera um termo (cautela) para assinatura, que é anexado e arquivado no GED. A vida útil de cada EPI conta da data da entrega; trocar antes do prazo exige motivo. O cadastro do colaborador precisa estar completo (CPF, matrícula, admissão, setor, cargo) para registrar e imprimir.",
     telas: [
       { label: "EPIs e entregas", href: "/sst/epis", descricao: "Cadastro de EPIs, nova entrega (por colaborador ou em lote) e fichas." },
       { label: "Colaboradores", href: "/sst/colaboradores", descricao: "Ficha SST de cada colaborador: EPIs em uso, histórico e cautelas." },
