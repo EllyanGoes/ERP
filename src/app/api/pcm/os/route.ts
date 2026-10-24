@@ -7,8 +7,8 @@ import { criarOrdem, ErroOS, STATUS_OS_ABERTOS } from "@/lib/manutencao/ordem";
 
 const parseData = (v: unknown) => (typeof v === "string" && v ? new Date(v) : null);
 
-// GET /api/pcm/os?situacao=abertas|encerradas|concluidas|canceladas|todas|quadro&ativoId=&equipeId=&tipoId=&q=&de=&ate=&minhas=1
-// Lista operacional das OS (a aba "Relatório de O.S." continua em /api/pcm/ordens).
+// GET /api/pcm/os?situacao=abertas|encerradas|concluidas|canceladas|todas|quadro&ativoId=&equipeId=&tipoId=&q=&de=&ate=&minhas=1&executanteId=
+// Lista operacional das OS.
 // situacao=quadro alimenta o kanban/calendário: todas as abertas + encerradas (a
 // validar) + concluídas nos últimos 30 dias. minhas=1 = OS em que o usuário logado
 // é o responsável ou tem apontamento (via Colaborador.usuarioId).
@@ -34,6 +34,11 @@ export async function GET(req: NextRequest) {
       { responsavel: { usuarioId: auth.session.sub } },
       { apontamentos: { some: { colaborador: { usuarioId: auth.session.sub } } } },
     ] });
+  }
+  // executanteId = colaborador responsável ou com apontamento na OS (filtro "Executante").
+  const executanteId = sp.get("executanteId");
+  if (executanteId) {
+    and.push({ OR: [{ responsavelId: executanteId }, { apontamentos: { some: { colaboradorId: executanteId } } }] });
   }
   if (sp.get("ativoId")) where.ativoId = sp.get("ativoId")!;
   if (sp.get("equipeId")) where.equipeId = sp.get("equipeId")!;

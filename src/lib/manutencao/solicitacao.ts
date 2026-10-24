@@ -5,7 +5,7 @@ import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { proximoNumeroSS, PRIORIDADES } from "@/lib/manutencao/ordem";
 import { notificarUsuario } from "@/lib/notificacoes";
 
-export const ORIGENS_SS = ["USUARIO", "SST_INSPECAO", "SST_INCIDENTE", "CHECKLIST"] as const;
+export const ORIGENS_SS = ["USUARIO", "SST_INSPECAO", "SST_INCIDENTE", "CHECKLIST", "QR"] as const;
 export type OrigemSS = (typeof ORIGENS_SS)[number];
 
 export const ORIGEM_SS_LABEL: Record<string, string> = {
@@ -13,6 +13,7 @@ export const ORIGEM_SS_LABEL: Record<string, string> = {
   SST_INSPECAO: "SST · inspeção",
   SST_INCIDENTE: "SST · incidente",
   CHECKLIST: "Checklist da OS",
+  QR: "QR do ativo",
 };
 
 export type NovaSolicitacao = {
@@ -23,15 +24,20 @@ export type NovaSolicitacao = {
   ativoParado?: boolean;
   paradoDesde?: Date | null;
   prioridade?: string | null;
-  solicitanteId: string;
+  /** null = sem usuário (página pública do QR — quem pediu vai só em solicitanteNome). */
+  solicitanteId: string | null;
   solicitanteNome: string;
   origem?: OrigemSS;
   origemId?: string | null;
 };
 
-/** Cria a SS (cliente escopado — a empresa vem da sessão) e notifica quem tem o módulo PCM. */
-export async function criarSolicitacao(n: NovaSolicitacao) {
-  const ss = await prisma.manutSolicitacao.create({
+/**
+ * Cria a SS e notifica quem tem o módulo PCM. Por padrão usa o cliente escopado
+ * (a empresa vem da sessão); sem sessão (página pública do QR) passe
+ * `db = prismaSemEscopo` — o empresaId vem explícito em `n` de qualquer forma.
+ */
+export async function criarSolicitacao(n: NovaSolicitacao, db: typeof prisma | typeof prismaSemEscopo = prisma) {
+  const ss = await db.manutSolicitacao.create({
     data: {
       empresaId: n.empresaId,
       numero: await proximoNumeroSS(n.empresaId),
@@ -51,7 +57,7 @@ export async function criarSolicitacao(n: NovaSolicitacao) {
 
   // Avisa o PCM (módulo pcm); emergência/máquina parada vai com destaque no título.
   const pcm = await prismaSemEscopo.usuario.findMany({
-    where: { ativo: true, id: { not: n.solicitanteId }, permissoes: { some: { modulo: { startsWith: "pcm" } } }, empresas: { some: { empresaId: n.empresaId } } },
+    where: { ativo: true, ...(n.solicitanteId ? { id: { not: n.solicitanteId } } : {}), permissoes: { some: { modulo: { startsWith: "pcm" } } }, empresas: { some: { empresaId: n.empresaId } } },
     select: { id: true },
   });
   const urgente = ss.ativoParado || ss.prioridade === "EMERGENCIA";

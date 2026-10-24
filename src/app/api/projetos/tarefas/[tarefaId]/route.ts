@@ -41,6 +41,18 @@ export async function GET(_: NextRequest, { params }: { params: { tarefaId: stri
         orderBy: { createdAt: "desc" }, take: 30,
         select: { id: true, tipo: true, detalhe: true, createdAt: true, autor: { select: { id: true, nome: true } } },
       },
+      // OS da Manutenção abertas a partir desta tarefa (qualquer empresa — a
+      // tarefa é do grupo). Materiais previstos × linhas já requisitadas.
+      ordensManutencao: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, numero: true, status: true, prioridade: true, programadaPara: true, createdAt: true,
+          custoMaoObra: true, custoMaterial: true, custoTerceiros: true,
+          ativo: { select: { tag: true, nome: true } },
+          materiais: { where: { origem: "PREVISTO" }, select: { id: true } },
+          requisicoes: { where: { status: { not: "CANCELADA" } }, select: { itens: { select: { id: true } } } },
+        },
+      },
     },
   });
   if (!tarefa) return NextResponse.json({ error: "Tarefa não encontrada" }, { status: 404 });
@@ -49,6 +61,11 @@ export async function GET(_: NextRequest, { params }: { params: { tarefaId: stri
       ...tarefa,
       etiquetas: tarefa.etiquetas.map((e) => e.etiqueta),
       membros: tarefa.membros.map((m) => m.usuario),
+      ordensManutencao: tarefa.ordensManutencao.map(({ materiais, requisicoes, ...o }) => ({
+        ...o,
+        materiaisPrevistos: materiais.length,
+        materiaisRequisitados: requisicoes.reduce((s, r) => s + r.itens.length, 0),
+      })),
       meuNivel: ctx.acesso.nivel,
     },
   });

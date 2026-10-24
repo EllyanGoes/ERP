@@ -207,7 +207,7 @@ function Medidores() {
   if (!lista) return <Carregando />;
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">Lance as leituras de horímetro/odômetro. Os planos por medidor geram a OS quando a leitura chega a 90% do próximo marco. Medidores novos são criados no plano (aplicação por medidor).</p>
+      <p className="text-xs text-muted-foreground">Lance as leituras de horímetro/odômetro. Os planos por medidor geram a OS quando falta a margem para o próximo marco (padrão: 10% do intervalo; ajustável na aplicação do plano). Medidores novos são criados no plano (aplicação por medidor).</p>
       <div className="bg-card border border-border rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="text-left px-4 py-2">Ativo</th><th className="text-left px-3 py-2">Medidor</th><th className="text-right px-3 py-2">Atual</th><th className="text-left px-3 py-2">Última leitura</th><th className="text-left px-3 py-2">Próximo marco</th><th className="text-left px-3 py-2">Nova leitura</th></tr></thead>

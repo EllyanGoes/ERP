@@ -27,7 +27,7 @@ const PRIORIDADE_CHIP: Record<string, string> = {
 };
 
 export default function QuadroOsPage() {
-  useTabTitle("Quadro de O.S.");
+  useTabTitle("Setor x OS");
 
   const { data, loading, refreshing, erro, recarregar } = useRelatorioCache<QuadroOsResponse>("/api/pcm/quadro-os");
 
@@ -64,9 +64,9 @@ export default function QuadroOsPage() {
   return (
     <div className="flex flex-col h-full">
       <PageHeader
-        title="Quadro de O.S. por Setor"
+        title="Setor x OS"
         subtitle="O.S. não finalizadas — cada coluna é uma equipe executante. Clique num card para abrir a O.S."
-        breadcrumbs={[{ label: "PCM" }, { label: "Quadro de O.S." }]}
+        breadcrumbs={[{ label: "PCM" }, { label: "Setor x OS" }]}
       />
 
       {/* Filtros */}

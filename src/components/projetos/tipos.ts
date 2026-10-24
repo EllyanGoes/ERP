@@ -65,7 +65,8 @@ export type TarefaResumoDTO = {
   etiquetas: EtiquetaDTO[];
   checklistFeitos: number;
   checklistTotal: number;
-  _count: { comentarios: number; anexos: number; checklist: number };
+  // ordensManutencao: OS da Manutenção abertas a partir da tarefa (chave inglesa no cartão).
+  _count: { comentarios: number; anexos: number; checklist: number; ordensManutencao?: number };
 };
 
 export type ProjetoBoardDTO = {

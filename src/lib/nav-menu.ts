@@ -453,26 +453,19 @@ export const mainModules: Module[] = [
         kind: "Processos" as SubSection["kind"],
         items: [
           { href: "/pcm",                 label: "Painel",           icon: LayoutDashboard, exact: true },
+          { href: "/pcm/mapa",            label: "Mapa da planta",   icon: MapIcon },
           { href: "/pcm/solicitacoes",    label: "Solicitações",     icon: Inbox },
           { href: "/pcm/os",              label: "Ordens de Serviço", icon: Wrench },
-          { href: "/pcm/quadro-os",       label: "Quadro de O.S.",   icon: Kanban },
+          { href: "/pcm/quadro-os",       label: "Setor x OS",       icon: Kanban },
         ],
       },
       {
         kind: "Relatórios" as SubSection["kind"],
         items: [
           { href: "/pcm/relatorios",      label: "Custos e falhas",  icon: BarChart3 },
-          { href: "/pcm/ordens",          label: "Relatório de O.S.", icon: ClipboardList },
+          { href: "/pcm/indicadores",     label: "Indicadores",      icon: Activity },
           { href: "/pcm/planos",          label: "Aderência dos planos", icon: CalendarCheck },
           { href: "/pcm/qualidade",       label: "Qualidade do cadastro", icon: ShieldCheck },
-        ],
-      },
-      {
-        kind: "Ativo Saúde" as SubSection["kind"],
-        items: [
-          { href: "/pcm/ativo-saude",            label: "MTBF / MTTR",       icon: Activity },
-          { href: "/pcm/ativo-saude/fechamento", label: "Fechamento mensal", icon: ClipboardCheck },
-          { href: "/pcm/ativo-saude/configuracao", label: "Falhas por tipo", icon: Settings2 },
         ],
       },
     ],

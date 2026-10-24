@@ -176,7 +176,7 @@ export const MODULOS: ModuloDef[] = [
       { key: "validacao",    label: "Validar / concluir / cancelar OS", acoes: ["editar"] },
       { key: "planos",       label: "Planos de Manutenção",   acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "configuracoes", label: "Configurações (tipos, catálogo, equipes)", acoes: ["ver", "editar"] },
-      { key: "ativo-saude",  label: "Ativo Saúde (MTBF/MTTR)", acoes: ["ver", "editar"] },
+      { key: "indicadores",  label: "Indicadores (MTBF, MTTR, disponibilidade, confiabilidade)", acoes: ["ver"] },
     ],
   },
   {

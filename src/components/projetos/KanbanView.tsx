@@ -3,7 +3,7 @@
 // Visão Quadro (kanban) — colunas com drag & drop nativo de cartões e colunas.
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Pencil, X, Clock, AlignLeft, Circle, CheckCircle2 } from "lucide-react";
+import { Plus, MoreHorizontal, CheckSquare, Paperclip, MessageSquare, GripVertical, Check, Pencil, X, Clock, AlignLeft, Circle, CheckCircle2, Wrench } from "lucide-react";
 import EscClose from "@/components/shared/EscClose";
 import { useSession } from "@/lib/session-context";
 import { Button } from "@/components/ui/button";
@@ -427,6 +427,9 @@ export default function KanbanView({ board, tarefas, podeEditar, podeGerenciar, 
                         )}
                         {t._count.comentarios > 0 && (
                           <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground"><MessageSquare className="w-3 h-3" /> {t._count.comentarios}</span>
+                        )}
+                        {(t._count.ordensManutencao ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground" title="Ordem de serviço da Manutenção vinculada"><Wrench className="w-3 h-3" />{(t._count.ordensManutencao ?? 0) > 1 ? ` ${t._count.ordensManutencao}` : ""}</span>
                         )}
                         {t.membros.length > 0 && (
                           <span className="ml-auto flex -space-x-1">

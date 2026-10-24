@@ -11,6 +11,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { PrioridadeTxt, StatusOSBadge, brl, fmtData, fmtDataHora, fmtHoras } from "@/components/manutencao/comum";
+import MapaPlanta from "@/components/manutencao/MapaPlanta";
 
 type Painel = {
   parados: { id: string; codApl: number; tag: string; nome: string; os: { id: string; numero: string; paradaInicio: string } | null }[];
@@ -49,6 +50,10 @@ export default function PainelManutencaoPage() {
       <div className="px-8 pb-10 space-y-4">
         {erro && <p className="text-sm text-danger">{erro}</p>}
         {!d && !erro && <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}
+        {/* Mapa da planta — primeira seção (PRD §14) */}
+        <div className="bg-card border border-border rounded-xl p-4">
+          <MapaPlanta />
+        </div>
         {d && <>
           {/* Parados agora */}
           <div className={cn("rounded-xl border p-4", d.parados.length ? "border-danger/40 bg-danger/5" : "border-border bg-card")}>
@@ -96,10 +101,10 @@ export default function PainelManutencaoPage() {
             {/* Disponibilidade + backlog */}
             <div className="space-y-4">
               <div className="bg-card border border-border rounded-xl p-4">
-                <h3 className="text-sm font-semibold">Disponibilidade dos críticos A (mês)</h3>
+                <div className="flex items-baseline justify-between gap-2"><h3 className="text-sm font-semibold">Disponibilidade dos críticos A (mês)</h3><Link href="/pcm/indicadores?criticidade=A" className="text-xs text-info hover:underline">Indicadores</Link></div>
                 {d.disponibilidadeA.ativos === 0 ? <p className="text-xs text-muted-foreground mt-1">Nenhum ativo classificado como A. <Link href="/pcm/ativos" className="text-info hover:underline">Classificar</Link></p> : <>
                   <div className="text-3xl font-semibold mt-1 tabular-nums">{pct(d.disponibilidadeA.percentual)}</div>
-                  <p className="text-xs text-muted-foreground">{d.disponibilidadeA.ativos} ativos · {d.disponibilidadeA.falhas} falha(s) · {fmtHoras(d.disponibilidadeA.horasParada)} parados</p>
+                  <p className="text-xs text-muted-foreground">{d.disponibilidadeA.ativos} ativos · {d.disponibilidadeA.falhas} falha(s) · {fmtHoras(d.disponibilidadeA.horasParada)} parados · <Link href="/pcm/indicadores" className="text-info hover:underline">MTBF, MTTR e confiabilidade</Link></p>
                 </>}
               </div>
               <div className="bg-card border border-border rounded-xl p-4">

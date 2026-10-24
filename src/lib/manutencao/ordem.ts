@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { custosComFallback } from "@/lib/custo-empresa";
+import { inicioDoDia, proximaOcorrencia, somarIntervalo, usaCalendario, usaMedidor } from "@/lib/manutencao/gatilho";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Motor da Ordem de Serviço (docs/manutencao-prd.md §5). Única porta de mudança
@@ -47,7 +48,9 @@ export type AcaoOS = (typeof ACOES_OS)[number];
 export const ACOES_PCM: AcaoOS[] = ["concluir", "devolver", "reabrir", "cancelar", "planejar"];
 
 const ORIGEM: Record<AcaoOS, StatusOS[]> = {
-  planejar: ["ABERTA", "PLANEJADA"],
+  // Replanejar vale também para OS em andamento/espera: volta p/ a fila com nova data
+  // (apontamentos abertos são fechados).
+  planejar: ["ABERTA", "PLANEJADA", "EM_EXECUCAO", "PAUSADA", "AGUARDANDO_MATERIAL", "AGUARDANDO_TERCEIRO"],
   iniciar: ["ABERTA", "PLANEJADA"],
   pausar: ["EM_EXECUCAO"],
   aguardar_material: ["ABERTA", "PLANEJADA", "EM_EXECUCAO", "PAUSADA", "AGUARDANDO_TERCEIRO"],
@@ -190,7 +193,11 @@ export async function transicionarOrdem(
   const agora = new Date();
   const data: Prisma.ManutOrdemUpdateInput = { status: DESTINO[acao] };
 
-  if (acao === "planejar" && opts.programadaPara) data.programadaPara = opts.programadaPara;
+  if (acao === "planejar") {
+    if (opts.programadaPara) data.programadaPara = opts.programadaPara;
+    // voltou para a fila: fecha cronômetros abertos para não acumular horas sem ninguém trabalhando
+    await db.manutApontamento.updateMany({ where: { ordemId, fim: null }, data: { fim: agora } });
+  }
   if (acao === "iniciar" && !o.iniciadaEm) data.iniciadaEm = agora;
   if (acao === "encerrar") {
     if (o.paradaInicio && !o.paradaFim && opts.fimParada) {
@@ -236,6 +243,8 @@ export type NovaOrdem = {
   planoId?: string | null;
   planoAtivoId?: string | null;
   planoRef?: string | null;
+  /** Tarefa do módulo Projetos que originou a OS (reforma, melhoria…). */
+  tarefaId?: string | null;
   status?: StatusOS;
   usuario: string;
   origem?: string;
@@ -263,6 +272,7 @@ export async function criarOrdem(n: NovaOrdem, db: typeof prismaSemEscopo = pris
       horasEstimadas: n.horasEstimadas ?? null, exigeParada: !!n.exigeParada,
       paradaInicio: n.paradaInicio ?? null, centroCustoId: ativo.centroCustoId,
       planoId: n.planoId ?? null, planoAtivoId: n.planoAtivoId ?? null, planoRef: n.planoRef ?? null,
+      tarefaId: n.tarefaId ?? null,
       status: n.status ?? "ABERTA", criadoPor: n.usuario,
     },
   });
@@ -271,29 +281,40 @@ export async function criarOrdem(n: NovaOrdem, db: typeof prismaSemEscopo = pris
   return ordem;
 }
 
-/** Após concluir OS de plano: grava a última execução e calcula o próximo vencimento. */
+/**
+ * Após concluir OS de plano: grava a última execução e recalcula o(s) próximo(s)
+ * marco(s). CALENDARIO soma o intervalo na unidade (dias/semanas/meses de
+ * calendário); MEDIDOR soma o intervalo à leitura; AMBOS recalcula os dois, o
+ * ciclo recomeça pelos dois lados. `baseNaConclusao` decide se conta da execução
+ * real ou do marco teórico.
+ */
 export async function atualizarVencimentoPlano(planoAtivoId: string, execucao: Date, leitura: Prisma.Decimal | null, db: Db = prismaSemEscopo) {
   const pa = await db.manutPlanoAtivo.findUnique({
     where: { id: planoAtivoId },
     include: { plano: { select: { baseNaConclusao: true } }, medidor: { select: { acumulado: true } } },
   });
   if (!pa) return;
-  if (pa.gatilho === "CALENDARIO" && pa.intervaloDias) {
-    const base = pa.plano.baseNaConclusao || !pa.proximoVencimento ? execucao : pa.proximoVencimento;
-    await db.manutPlanoAtivo.update({
-      where: { id: planoAtivoId },
-      data: { ultimaExecucao: execucao, proximoVencimento: new Date(base.getTime() + pa.intervaloDias * 86_400_000) },
-    });
-  } else if (pa.gatilho === "MEDIDOR" && pa.intervaloMedida) {
+  const data: Prisma.ManutPlanoAtivoUncheckedUpdateInput = { ultimaExecucao: execucao };
+  const hoje = inicioDoDia(execucao);
+  if (usaCalendario(pa.gatilho) && pa.repeticao) {
+    // Recorrência (modelo Tractian): APOS_CONCLUSAO conta da conclusão; SEMPRE segue o
+    // calendário após o marco teórico — e, se esse já passou, pula para a próxima de hoje
+    // em diante (não gera um atraso em cima do outro).
+    const aposConclusao = pa.agendarProxima === "APOS_CONCLUSAO" || !pa.proximoVencimento;
+    const base = aposConclusao ? hoje : pa.proximoVencimento!;
+    let prox = proximaOcorrencia(pa, base, { exclusiva: true });
+    if (prox && prox < hoje) prox = proximaOcorrencia(pa, hoje);
+    data.proximoVencimento = prox;
+  } else if (usaCalendario(pa.gatilho) && pa.intervaloDias) {
+    // Legado (sem repeticao): intervalo somado à execução real ou ao marco teórico.
+    const base = pa.plano.baseNaConclusao || !pa.proximoVencimento ? hoje : pa.proximoVencimento;
+    data.proximoVencimento = somarIntervalo(base, pa.intervaloDias, pa.unidadeIntervalo);
+  }
+  if (usaMedidor(pa.gatilho) && pa.intervaloMedida) {
     const medida = leitura != null ? Number(leitura) : pa.medidor ? Number(pa.medidor.acumulado) : null;
     const base = pa.plano.baseNaConclusao || pa.proximaMedida == null ? medida : Number(pa.proximaMedida);
-    await db.manutPlanoAtivo.update({
-      where: { id: planoAtivoId },
-      data: {
-        ultimaExecucao: execucao,
-        ultimaMedida: medida,
-        proximaMedida: base != null ? base + Number(pa.intervaloMedida) : null,
-      },
-    });
+    data.ultimaMedida = medida;
+    data.proximaMedida = base != null ? base + Number(pa.intervaloMedida) : null;
   }
+  await db.manutPlanoAtivo.update({ where: { id: planoAtivoId }, data });
 }

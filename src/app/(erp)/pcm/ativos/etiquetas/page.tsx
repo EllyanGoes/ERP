@@ -2,17 +2,20 @@
 
 // Etiquetas QR dos ativos: escolhe os equipamentos (busca, tipo, ramo inteiro da
 // árvore) e imprime uma grade de etiquetas — TAG grande, nome e o QR que abre a
-// página do ativo no celular (/pcm/a/<codApl>: abrir SS, ver OS, lançar leitura).
+// página PÚBLICA do ativo (/ativo/<qrToken>, sem login: histórico, OS abertas,
+// saúde, planos e "solicitar manutenção"). Por ativo marcado: abrir a página
+// pública e gerar um novo código (a etiqueta antiga deixa de funcionar).
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
-import { GitBranch, Loader2, Printer, Search } from "lucide-react";
-import { useManutLookups, type AtivoLookup } from "@/components/manutencao/comum";
+import { ExternalLink, GitBranch, Loader2, Printer, RefreshCw, Search } from "lucide-react";
+import { api, useManutLookups, type AtivoLookup } from "@/components/manutencao/comum";
 
 const TAMANHOS: Record<string, { label: string; w: number; h: number; qr: number; tag: number; nome: number }> = {
   P: { label: "Pequena — 50 × 30 mm", w: 50, h: 30, qr: 24, tag: 13, nome: 7 },
@@ -39,6 +42,28 @@ export default function EtiquetasQrPage() {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [origem, setOrigem] = useState("");
   useEffect(() => { setOrigem(window.location.origin); }, []);
+
+  // Código da etiqueta (qrToken) por ativo → link público /ativo/<qrToken>.
+  const [tokens, setTokens] = useState<Record<string, string>>({});
+  useEffect(() => { fetch("/api/pcm/ativos/qr").then((r) => r.json()).then((j) => j.data && setTokens(j.data)).catch(() => {}); }, []);
+  const linkPublico = (a: AtivoLookup) => (tokens[a.id] && origem ? `${origem}/ativo/${tokens[a.id]}` : "");
+
+  // "Gerar novo código": troca o qrToken (a etiqueta antiga para de funcionar).
+  const [trocar, setTrocar] = useState<AtivoLookup | null>(null);
+  const [trocando, setTrocando] = useState(false);
+  const [aviso, setAviso] = useState("");
+  async function gerarNovoCodigo() {
+    if (!trocar) return;
+    setTrocando(true);
+    const r = await api<{ id: string; qrToken: string }>(`/api/pcm/ativos/${trocar.codApl}/qr`, "PATCH");
+    setTrocando(false);
+    if (!r.ok || !r.data) { setAviso(r.error || "Não foi possível gerar o novo código."); setTrocar(null); return; }
+    const { id, qrToken } = r.data;
+    setTokens((t) => ({ ...t, [id]: qrToken }));
+    setQrs((m) => { const n = new Map(m); n.delete(id); return n; });
+    setAviso(`Novo código gerado para ${trocar.tag}. Reimprima a etiqueta — a antiga deixou de funcionar.`);
+    setTrocar(null);
+  }
 
   const porId = useMemo(() => new Map(lk.ativos.map((a) => [a.id, a])), [lk.ativos]);
 
@@ -90,27 +115,27 @@ export default function EtiquetasQrPage() {
 
   // Etiquetas na ordem da árvore + QR (data URL gerado no navegador).
   const escolhidos = useMemo(() => ordem.filter((l) => sel.has(l.a.id)).map((l) => l.a), [ordem, sel]);
-  const [qrs, setQrs] = useState<Map<number, string>>(new Map());
+  const [qrs, setQrs] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     if (!origem) return;
-    const faltam = escolhidos.filter((a) => !qrs.has(a.codApl));
+    const faltam = escolhidos.filter((a) => !qrs.has(a.id) && tokens[a.id]);
     if (faltam.length === 0) return;
     let vivo = true;
-    Promise.all(faltam.map(async (a) => [a.codApl, await QRCode.toDataURL(`${origem}/pcm/a/${a.codApl}`, { margin: 0, width: 300, errorCorrectionLevel: "M" })] as const))
+    Promise.all(faltam.map(async (a) => [a.id, await QRCode.toDataURL(`${origem}/ativo/${tokens[a.id]}`, { margin: 0, width: 300, errorCorrectionLevel: "M" })] as const))
       .then((novos) => { if (vivo) setQrs((m) => new Map([...Array.from(m), ...novos])); })
       .catch(() => {});
     return () => { vivo = false; };
-  }, [escolhidos, origem, qrs]);
+  }, [escolhidos, origem, qrs, tokens]);
 
   const t = TAMANHOS[tamanho] ?? TAMANHOS.M;
-  const prontas = escolhidos.every((a) => qrs.has(a.codApl));
+  const prontas = escolhidos.every((a) => qrs.has(a.id));
 
   return (
     <div>
       <div className="no-print">
         <PageHeader
           title="Etiquetas QR"
-          subtitle="Imprima etiquetas para colar nas máquinas: o QR abre o equipamento no celular para abrir solicitação, ver OS e lançar leitura."
+          subtitle="Imprima etiquetas para colar nas máquinas: o QR abre a página pública do equipamento (sem login) com histórico, OS abertas, saúde, planos e o botão para pedir manutenção."
           breadcrumbs={[{ label: "Manutenção" }, { label: "Ativos", href: "/pcm/ativos" }, { label: "Etiquetas QR" }]}
           action={
             <Button onClick={() => window.print()} disabled={escolhidos.length === 0 || !prontas} className="bg-blue-600 hover:bg-blue-700 gap-1.5">
@@ -150,6 +175,18 @@ export default function EtiquetasQrPage() {
                     <input type="checkbox" className="rounded shrink-0" checked={sel.has(a.id)} onChange={(e) => alternar([a.id], e.target.checked)} />
                     <span className={cn("font-mono text-xs shrink-0", casaFiltro(a) ? "text-foreground" : "text-muted-foreground/60")}>{a.tag}</span>
                     <span className={cn("truncate flex-1", casaFiltro(a) ? "text-foreground" : "text-muted-foreground/60")} title={a.nome}>{a.nome}</span>
+                    {sel.has(a.id) && (
+                      <span className="shrink-0 inline-flex items-center gap-0.5">
+                        <a href={linkPublico(a) || undefined} target="_blank" rel="noopener noreferrer" title="Ver página pública"
+                          className={cn("p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground", !linkPublico(a) && "pointer-events-none opacity-40")}>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                        <button onClick={() => { setAviso(""); setTrocar(a); }} title="Gerar novo código (a etiqueta antiga deixa de funcionar)"
+                          className="p-1 rounded text-muted-foreground hover:bg-muted hover:text-foreground">
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    )}
                     {temFilhos && (
                       <button onClick={() => alternar(ids, !ramoTodo)} title={ramoTodo ? "Desmarcar o ramo" : "Marcar este ramo inteiro"}
                         className={cn("shrink-0 inline-flex items-center gap-0.5 text-[11px] rounded px-1.5 py-0.5 border", ramoTodo ? "border-info/40 bg-info/10 text-info" : "border-border text-muted-foreground hover:bg-muted")}>
@@ -164,6 +201,12 @@ export default function EtiquetasQrPage() {
 
         {/* Prévia = o que sai na impressão */}
         <div>
+          {aviso && <p className="no-print mb-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">{aviso}</p>}
+          {escolhidos.length > 0 && (
+            <p className="no-print text-xs text-muted-foreground mb-1">
+              Nos ativos marcados à esquerda: <ExternalLink className="inline w-3 h-3" /> abre a página pública que o QR mostra; <RefreshCw className="inline w-3 h-3" /> gera um novo código.
+            </p>
+          )}
           <p className="no-print text-xs text-muted-foreground mb-2">
             {escolhidos.length === 0 ? "Marque os ativos à esquerda para montar as etiquetas." : `Prévia em tamanho real (${t.w} × ${t.h} mm). Na impressão, use escala 100% e sem margens extras.`}
           </p>
@@ -172,9 +215,9 @@ export default function EtiquetasQrPage() {
             {escolhidos.map((a) => (
               <div key={a.id} className="bg-white text-black flex items-center overflow-hidden"
                 style={{ width: `${t.w}mm`, height: `${t.h}mm`, border: "0.3mm dashed #999", padding: "2mm", gap: "2mm", breakInside: "avoid", pageBreakInside: "avoid", fontFamily: "Arial, Helvetica, sans-serif" }}>
-                {qrs.get(a.codApl)
+                {qrs.get(a.id)
                   // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={qrs.get(a.codApl)} alt={`QR ${a.tag}`} style={{ width: `${t.qr}mm`, height: `${t.qr}mm`, flexShrink: 0 }} />
+                  ? <img src={qrs.get(a.id)} alt={`QR ${a.tag}`} style={{ width: `${t.qr}mm`, height: `${t.qr}mm`, flexShrink: 0 }} />
                   : <div style={{ width: `${t.qr}mm`, height: `${t.qr}mm`, flexShrink: 0, background: "#eee" }} />}
                 <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                   <div style={{ fontSize: `${t.tag}pt`, fontWeight: 800, lineHeight: 1.05, wordBreak: "break-all" }}>{a.tag}</div>
@@ -186,6 +229,16 @@ export default function EtiquetasQrPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!trocar}
+        onOpenChange={(o) => { if (!o && !trocando) setTrocar(null); }}
+        title={`Gerar novo código para ${trocar?.tag ?? ""}?`}
+        description="A etiqueta impressa hoje (e qualquer link da página pública que tenha circulado) deixa de funcionar na hora. Você vai precisar reimprimir e colar a etiqueta nova na máquina."
+        confirmLabel="Gerar novo código"
+        loading={trocando}
+        onConfirm={gerarNovoCodigo}
+      />
     </div>
   );
 }

@@ -603,7 +603,7 @@ export const MODULOS: ModuloDoc[] = [
       { label: "Ativos", href: "/pcm/ativos", descricao: "Cadastro dos equipamentos e sua criticidade." },
       { label: "Planos de Manutenção", href: "/pcm/planos", descricao: "Preventivas por periodicidade ou uso." },
       { label: "Quadro de O.S.", href: "/pcm/quadro-os", descricao: "Programar, atribuir e executar ordens de serviço." },
-      { label: "MTBF / MTTR", href: "/pcm/ativo-saude", descricao: "Confiabilidade e saúde dos ativos." },
+      { label: "Indicadores", href: "/pcm/indicadores", descricao: "MTBF, MTTR, disponibilidade e confiabilidade dos ativos." },
     ],
     processos: [{
       titulo: "Preventiva e corretiva",

@@ -7,8 +7,9 @@ import { acoesPermitidas, pendenciasEncerramento, recomputarStatusAtivo, PRIORID
 
 type Ctx = { params: Promise<{ id: string }> };
 
-// GET /api/pcm/os/[id] — OS completa (serviços, materiais, apontamentos, terceiros,
-// requisições vinculadas, linha do tempo) + ações possíveis para o usuário.
+// GET /api/pcm/os/[id] — OS completa (atividades = serviços/checklist com seus
+// itens, materiais (com servicoId), apontamentos, terceiros, requisições vinculadas
+// (itens com itemId p/ o selo de reserva), linha do tempo) + ações possíveis.
 export async function GET(_req: NextRequest, { params }: Ctx) {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
@@ -24,15 +25,24 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       centroCusto: { select: { id: true, codigo: true, nome: true } },
       servicos: {
         orderBy: { seq: "asc" },
-        include: { servico: { select: { descricao: true } }, sintoma: { select: { descricao: true } }, causa: { select: { descricao: true } } },
+        include: {
+          servico: { select: { descricao: true } }, sintoma: { select: { descricao: true } }, causa: { select: { descricao: true } },
+          // Itens (material previsto) da atividade — também aparecem em `materiais` com servicoId.
+          materiais: {
+            orderBy: { descricao: "asc" },
+            select: { id: true, itemId: true, descricao: true, quantidade: true, unidade: true, origem: true, item: { select: { codigo: true } } },
+          },
+        },
       },
       materiais: { orderBy: { descricao: "asc" }, include: { item: { select: { codigo: true, descricao: true } } } },
       apontamentos: { orderBy: { inicio: "asc" } },
       terceiros: { include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } } },
       eventos: { orderBy: { createdAt: "asc" } },
       solicitacoes: { select: { id: true, numero: true, solicitanteNome: true, createdAt: true, descricao: true } },
+      // OS aberta a partir de uma tarefa do Projetos — link de volta no resumo.
+      tarefa: { select: { id: true, titulo: true, projetoId: true, projeto: { select: { nome: true } } } },
       requisicoes: {
-        select: { id: true, numero: true, tipo: true, status: true, data: true, itens: { select: { quantidade: true, item: { select: { codigo: true, descricao: true } } } } },
+        select: { id: true, numero: true, tipo: true, status: true, data: true, itens: { select: { itemId: true, quantidade: true, item: { select: { codigo: true, descricao: true } } } } },
         orderBy: { data: "asc" },
       },
     },

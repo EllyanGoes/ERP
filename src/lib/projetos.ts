@@ -178,7 +178,7 @@ export const TAREFA_LISTA_SELECT = {
   ordemCronograma: true,
   membros: { select: { usuario: { select: { id: true, nome: true } } } },
   etiquetas: { select: { etiqueta: { select: { id: true, nome: true, cor: true } } } },
-  _count: { select: { comentarios: true, anexos: true, checklist: true } },
+  _count: { select: { comentarios: true, anexos: true, checklist: true, ordensManutencao: true } },
   checklist: { select: { feito: true } },
 } as const;
 

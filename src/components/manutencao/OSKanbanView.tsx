@@ -6,21 +6,23 @@
 // transição inválida avisa e não move. Atualização otimista com reversão.
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Clock, MapPin, Timer, Users } from "lucide-react";
+import { Clock, MapPin, Timer, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AvatarUsuario } from "@/components/projetos/comum";
-import { DataHora, PrioridadeTxt, StatusOSBadge, api, brl, fmtData, fmtDataHora } from "./comum";
+import { DataHora, PrioridadeBadge, StatusOSBadge, api, fmtData, fmtDataHora } from "./comum";
 import {
-  ACAO_LABEL, ACOES_COM_MOTIVO, ACOES_PCM_TELA, COLUNAS_OS, DESTINO_ACAO, PRIORIDADE_BORDA,
-  acoesParaColuna, colunaDoStatus, custoTotalOS, osAtrasada,
+  ACAO_LABEL, ACOES_COM_MOTIVO, ACOES_PCM_TELA, COLUNAS_OS, DESTINO_ACAO,
+  acoesParaColuna, colunaDoStatus, osAtrasada,
   type AcaoOSTela, type OSResumo,
 } from "./os-quadro";
 
 type Props = {
   ordens: OSResumo[];
+  /** Caminho do ativo na árvore (ativoId → "ÁREA / LINHA"), dos lookups. */
+  caminhos?: Map<string, string>;
   podeValidar: boolean;
   onAbrir: (id: string) => void;
   onAtualizarLocal: (id: string, patch: Partial<OSResumo>) => void;
@@ -31,7 +33,7 @@ type Props = {
 /** Diálogo da transição: motivo, fim da parada, programação ou escolha pausa/espera. */
 type Pendente = { os: OSResumo; acoes: AcaoOSTela[]; acao: AcaoOSTela; motivo: string; fimParada: string; programadaPara: string };
 
-export default function OSKanbanView({ ordens, podeValidar, onAbrir, onAtualizarLocal, onRecarregar, onAviso }: Props) {
+export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, onAtualizarLocal, onRecarregar, onAviso }: Props) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropCol, setDropCol] = useState<string | null>(null);
   const [pendente, setPendente] = useState<Pendente | null>(null);
@@ -108,12 +110,12 @@ export default function OSKanbanView({ ordens, podeValidar, onAbrir, onAtualizar
             onDrop={(e) => { e.preventDefault(); soltar(col.key); }}
           >
             <div className="flex items-center gap-2 px-3 py-2.5 shrink-0">
-              <span className={cn("w-2 h-2 rounded-full", col.cor)} />
+              <col.icon className={cn("w-4 h-4 shrink-0", col.corTexto)} />
               <span className="font-semibold text-sm text-foreground truncate">{col.label}</span>
-              <span className="text-xs text-muted-foreground">{lista.length}</span>
+              <span className="ml-auto text-xs font-medium text-muted-foreground bg-card border border-border rounded-full px-2 tabular-nums">{lista.length}</span>
             </div>
             <div className="flex-1 min-h-[3rem] overflow-y-auto px-2 pb-2 space-y-2">
-              {lista.map((o) => <CartaoOS key={o.id} o={o} arrastando={dragId === o.id} onAbrir={onAbrir}
+              {lista.map((o) => <CartaoOS key={o.id} o={o} caminho={o.ativo ? caminhos?.get(o.ativo.id) : undefined} arrastando={dragId === o.id} onAbrir={onAbrir}
                 onDragStart={() => setDragId(o.id)} onDragEnd={() => { setDragId(null); setDropCol(null); }} />)}
               {lista.length === 0 && <p className="text-xs text-muted-foreground/70 text-center py-4">Nenhuma OS</p>}
             </div>
@@ -162,14 +164,16 @@ export default function OSKanbanView({ ordens, podeValidar, onAbrir, onAtualizar
 
 const ordemPrioridade = (p: string) => ({ EMERGENCIA: 0, ALTA: 1, MEDIA: 2, BAIXA: 3 } as Record<string, number>)[p] ?? 4;
 
-function CartaoOS({ o, arrastando, onAbrir, onDragStart, onDragEnd }: {
-  o: OSResumo; arrastando: boolean; onAbrir: (id: string) => void; onDragStart: () => void; onDragEnd: () => void;
+// Cartão limpo (formato CMMS): título, caminho do ativo, prioridade, #número e avatar.
+function CartaoOS({ o, caminho, arrastando, onAbrir, onDragStart, onDragEnd }: {
+  o: OSResumo; caminho?: string; arrastando: boolean; onAbrir: (id: string) => void; onDragStart: () => void; onDragEnd: () => void;
 }) {
   const atrasada = osAtrasada(o);
   const ref = o.prazo ?? o.programadaPara;
-  const custo = custoTotalOS(o);
   const espera = ["PAUSADA", "AGUARDANDO_MATERIAL", "AGUARDANDO_TERCEIRO"].includes(o.status);
   const motivo = espera ? o.eventos?.[0]?.detalhe : null;
+  const titulo = o.descricao.split("\n")[0];
+  const pessoa = o.apontamentos[0]?.nome ?? o.responsavel?.nome;
   return (
     <div
       draggable
@@ -178,49 +182,39 @@ function CartaoOS({ o, arrastando, onAbrir, onDragStart, onDragEnd }: {
       onDragEnd={onDragEnd}
       onClick={() => onAbrir(o.id)}
       className={cn(
-        "relative bg-card rounded-lg border border-border border-l-4 px-3 py-2 shadow-sm cursor-pointer hover:border-blue-400 transition-colors",
-        PRIORIDADE_BORDA[o.prioridade] ?? "border-l-border",
+        "relative bg-card rounded-lg border border-border px-3 py-2.5 shadow-sm cursor-pointer hover:border-info/60 transition-colors",
         arrastando && "opacity-40",
         o.status === "CONCLUIDA" && "opacity-70",
       )}
     >
-      <div className="flex items-center gap-1.5 text-xs">
-        <span className="font-semibold text-foreground">{o.numero}</span>
-        <span className="text-muted-foreground" title={o.tipo.nome}>{o.tipo.sigla}</span>
-        {o.planoId && <span className="text-[10px] px-1 rounded bg-info/10 text-info">plano</span>}
-        <span className="ml-auto"><PrioridadeTxt p={o.prioridade} /></span>
+      <p className="text-sm font-medium text-foreground leading-snug line-clamp-2" title={o.descricao}>{titulo}</p>
+      <div className="mt-1 text-xs text-muted-foreground flex items-start gap-1 min-w-0">
+        {o.ativo ? <Wrench className="w-3 h-3 mt-0.5 shrink-0" /> : <MapPin className="w-3 h-3 mt-0.5 shrink-0" />}
+        <span className="truncate" title={o.ativo ? `${caminho ? `${caminho} / ` : ""}${o.ativo.tag} ${o.ativo.nome}` : o.localTexto ?? ""}>
+          {o.ativo ? <>{caminho ? `${caminho.split(" › ").join(" / ")} / ` : ""}<span className="text-foreground/80">{o.ativo.nome}</span></> : o.localTexto ?? "Sem ativo"}
+        </span>
       </div>
-      <div className="mt-1 text-sm text-foreground leading-snug">
-        {o.ativo ? <><span className="text-xs text-muted-foreground">{o.ativo.tag}</span> {o.ativo.nome}</> : <span className="text-muted-foreground inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{o.localTexto ?? "Sem ativo"}</span>}
-        {o.paradaInicio && !o.paradaFim && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger">parado</span>}
-      </div>
-      <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2" title={o.descricao}>{o.descricao}</p>
-      {espera && (
+      {(espera || (o.paradaInicio && !o.paradaFim)) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          <StatusOSBadge s={o.status} />
+          {espera && <StatusOSBadge s={o.status} />}
+          {o.paradaInicio && !o.paradaFim && <span className="text-[10px] px-1.5 py-0.5 rounded bg-danger/10 text-danger">ativo parado</span>}
           {motivo && <span className="text-[11px] text-muted-foreground truncate max-w-full" title={motivo}>{motivo}</span>}
         </div>
       )}
-      <div className="flex items-center gap-2 mt-2 flex-wrap text-[11px]">
+      <div className="flex items-center gap-2 mt-2 text-[11px]">
+        <PrioridadeBadge p={o.prioridade} />
         {o.status === "CONCLUIDA" ? (
-          <span className="text-success">concluída {fmtData(o.concluidaEm)}</span>
+          <span className="text-success">{fmtData(o.concluidaEm)}</span>
         ) : ref && (
-          <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md", atrasada ? "bg-danger/15 text-danger font-semibold" : "text-muted-foreground")}>
-            <Clock className="w-3 h-3" /> {fmtData(ref)}{atrasada && " · atrasada"}
+          <span className={cn("inline-flex items-center gap-1", atrasada ? "text-danger font-semibold" : "text-muted-foreground")} title={atrasada ? "Atrasada" : undefined}>
+            <Clock className="w-3 h-3" /> {fmtData(ref)}
           </span>
         )}
-        {o.equipe && <span className="inline-flex items-center gap-1 text-muted-foreground truncate max-w-[8rem]" title={o.equipe.nome}><Users className="w-3 h-3" />{o.equipe.nome}</span>}
-        {custo > 0 && <span className="text-muted-foreground tabular-nums">{brl(custo)}</span>}
-        {o.apontamentos.length > 0 && (
-          <span className="ml-auto flex items-center gap-1" title={`Em execução: ${o.apontamentos.map((a) => a.nome).join(", ")}`}>
-            <Timer className="w-3 h-3 text-warning" />
-            <span className="flex -space-x-1">{o.apontamentos.slice(0, 3).map((a, i) => <AvatarUsuario key={i} nome={a.nome} size="sm" />)}</span>
-            {o.apontamentos.length === 1 && <span className="text-muted-foreground truncate max-w-[5rem]">{o.apontamentos[0].nome.split(" ")[0]}</span>}
-          </span>
-        )}
-        {o.apontamentos.length === 0 && o.responsavel && (
-          <span className="ml-auto" title={`Responsável: ${o.responsavel.nome}`}><AvatarUsuario nome={o.responsavel.nome} size="sm" title={`Responsável: ${o.responsavel.nome}`} /></span>
-        )}
+        {o.apontamentos.length > 0 && <span title={`Em execução: ${o.apontamentos.map((a) => a.nome).join(", ")}`}><Timer className="w-3 h-3 text-warning" /></span>}
+        <span className="ml-auto flex items-center gap-1.5">
+          <span className="text-muted-foreground tabular-nums">#{o.numero}</span>
+          {pessoa && <AvatarUsuario nome={pessoa} size="sm" title={o.apontamentos.length ? `Em execução: ${pessoa}` : `Responsável: ${pessoa}`} />}
+        </span>
       </div>
     </div>
   );

@@ -4799,37 +4799,38 @@ model ProjetoEtiqueta {
 }
 
 model Tarefa {
-  id              String                @id @default(cuid())
-  projetoId       String
-  colunaId        String
-  titulo          String
-  descricao       String?
-  ordem           Int
-  prioridade      PrioridadeTarefa      @default(MEDIA)
-  dataInicio      DateTime?
-  prazo           DateTime?
+  id               String                @id @default(cuid())
+  projetoId        String
+  colunaId         String
+  titulo           String
+  descricao        String?
+  ordem            Int
+  prioridade       PrioridadeTarefa      @default(MEDIA)
+  dataInicio       DateTime?
+  prazo            DateTime?
   // Hora do prazo ("HH:MM", local). Null = dia inteiro. prazo continua sendo
   // só a DATA (meia-noite UTC) — a hora vive separada p/ não deslocar o dia.
-  prazoHora       String?
-  concluidaEm     DateTime?
+  prazoHora        String?
+  concluidaEm      DateTime?
   // Ordem manual no cronograma (arrastar linhas); null = ordena por data.
-  ordemCronograma Int?
-  arquivada       Boolean               @default(false)
-  criadoPor       String?
-  atualizadoPor   String?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  projeto         Projeto               @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  coluna          ProjetoColuna         @relation(fields: [colunaId], references: [id])
-  membros         TarefaMembro[]
-  etiquetas       TarefaEtiqueta[]
-  checklist       TarefaChecklistItem[]
-  comentarios     TarefaComentario[]
-  anexos          AnexoTarefa[]
-  atividades      TarefaAtividade[]
+  ordemCronograma  Int?
+  arquivada        Boolean               @default(false)
+  criadoPor        String?
+  atualizadoPor    String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  projeto          Projeto               @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  coluna           ProjetoColuna         @relation(fields: [colunaId], references: [id])
+  membros          TarefaMembro[]
+  etiquetas        TarefaEtiqueta[]
+  checklist        TarefaChecklistItem[]
+  comentarios      TarefaComentario[]
+  anexos           AnexoTarefa[]
+  atividades       TarefaAtividade[]
   // Dependências (cronograma): esta tarefa depende de… / bloqueia…
-  dependeDe       TarefaDependencia[]   @relation("DependenciaTarefa")
-  bloqueia        TarefaDependencia[]   @relation("DependenciaDependeDe")
+  dependeDe        TarefaDependencia[]   @relation("DependenciaTarefa")
+  bloqueia         TarefaDependencia[]   @relation("DependenciaDependeDe")
+  ordensManutencao ManutOrdem[]
 
   @@index([projetoId, colunaId, ordem])
   @@index([prazo])
@@ -6120,6 +6121,13 @@ model ManutAtivo {
   centrosTrabalho  CentroTrabalho[]
   sstMaquinas      SstMaquina[]
   pecasLegado      ManutAtivoPecaLegado[]
+  // Mapa da planta: posição/tamanho do bloco (áreas) ou do ladrilho (equipamentos), em % do canvas
+  // Código aleatório da etiqueta QR (página pública /ativo/<qrToken>); trocar invalida a etiqueta antiga
+  qrToken          String?                @unique
+  mapaX            Float?
+  mapaY            Float?
+  mapaLargura      Float?
+  mapaAltura       Float?
 
   @@unique([empresaId, tag])
   @@index([empresaId, paiId])
@@ -6294,36 +6302,41 @@ model ManutOrdem {
   eventos            ManutOrdemEvento[]
   solicitacoes       ManutSolicitacao[]
   requisicoes        RequisicaoMaterial[]
+  // OS aberta a partir de uma tarefa do módulo Projetos (reforma, melhoria…)
+  tarefaId           String?
+  tarefa             Tarefa?              @relation(fields: [tarefaId], references: [id], onDelete: SetNull)
 
   @@unique([empresaId, numero])
   @@unique([planoAtivoId, planoRef])
   @@index([empresaId, status])
   @@index([ativoId, concluidaEm])
   @@index([planoId])
+  @@index([tarefaId])
 }
 
 // Serviços / checklist da OS (substitui REGSERV). Falha = linha com sintoma.
 model ManutOrdemServico {
-  id           String         @id @default(cuid())
+  id           String               @id @default(cuid())
   ordemId      String
-  seq          Int            @default(0)
+  seq          Int                  @default(0)
   descricao    String
   servicoId    String?
   sintomaId    String?
   causaId      String?
   // NENHUMA (serviço) | OK_NOK | NUMERO | TEXTO (checklist do plano)
-  tipoResposta String         @default("NENHUMA")
-  faixaMin     Decimal?       @db.Decimal(15, 3)
-  faixaMax     Decimal?       @db.Decimal(15, 3)
+  tipoResposta String               @default("NENHUMA")
+  faixaMin     Decimal?             @db.Decimal(15, 3)
+  faixaMax     Decimal?             @db.Decimal(15, 3)
   resposta     String?
   conforme     Boolean?
-  executado    Boolean        @default(false)
-  tempoHoras   Decimal?       @db.Decimal(10, 2)
-  legadoId     Int?           @unique // CODREGSER
-  ordem        ManutOrdem     @relation(fields: [ordemId], references: [id], onDelete: Cascade)
-  servico      ManutCatalogo? @relation("ManutServicoServico", fields: [servicoId], references: [id], onDelete: SetNull)
-  sintoma      ManutCatalogo? @relation("ManutServicoSintoma", fields: [sintomaId], references: [id], onDelete: SetNull)
-  causa        ManutCatalogo? @relation("ManutServicoCausa", fields: [causaId], references: [id], onDelete: SetNull)
+  executado    Boolean              @default(false)
+  tempoHoras   Decimal?             @db.Decimal(10, 2)
+  legadoId     Int?                 @unique // CODREGSER
+  ordem        ManutOrdem           @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  servico      ManutCatalogo?       @relation("ManutServicoServico", fields: [servicoId], references: [id], onDelete: SetNull)
+  sintoma      ManutCatalogo?       @relation("ManutServicoSintoma", fields: [sintomaId], references: [id], onDelete: SetNull)
+  causa        ManutCatalogo?       @relation("ManutServicoCausa", fields: [causaId], references: [id], onDelete: SetNull)
+  materiais    ManutOrdemMaterial[]
 
   @@index([ordemId])
 }
@@ -6332,19 +6345,21 @@ model ManutOrdemServico {
 // histórico de materiais do Engeman (descrição + valor). Consumo real novo vem
 // das requisições vinculadas (RequisicaoMaterial.ordemServicoId).
 model ManutOrdemMaterial {
-  id           String     @id @default(cuid())
+  id           String             @id @default(cuid())
   ordemId      String
   itemId       String?
   descricao    String
-  quantidade   Decimal    @db.Decimal(15, 3)
+  quantidade   Decimal            @db.Decimal(15, 3)
   unidade      String?
-  valorTotal   Decimal    @default(0) @db.Decimal(15, 2)
+  valorTotal   Decimal            @default(0) @db.Decimal(15, 2)
   // PREVISTO (kit) | LEGADO (Engeman)
-  origem       String     @default("PREVISTO")
-  legadoId     String?    @unique
-  ordem        ManutOrdem @relation(fields: [ordemId], references: [id], onDelete: Cascade)
-  item         Item?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  origem       String             @default("PREVISTO")
+  legadoId     String?            @unique
+  ordem        ManutOrdem         @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  item         Item?              @relation(fields: [itemId], references: [id], onDelete: SetNull)
   codMatLegado Int?
+  servicoId    String?
+  servico      ManutOrdemServico? @relation(fields: [servicoId], references: [id], onDelete: SetNull)
 
   @@index([ordemId])
 }
@@ -6430,29 +6445,32 @@ model ManutPlano {
 }
 
 model ManutPlanoTarefa {
-  id           String         @id @default(cuid())
+  id           String               @id @default(cuid())
   planoId      String
   seq          Int
   descricao    String
   ativoId      String? // componente a que a tarefa se refere (opcional)
   servicoId    String?
-  tipoResposta String         @default("OK_NOK")
-  faixaMin     Decimal?       @db.Decimal(15, 3)
-  faixaMax     Decimal?       @db.Decimal(15, 3)
-  plano        ManutPlano     @relation(fields: [planoId], references: [id], onDelete: Cascade)
-  ativo        ManutAtivo?    @relation(fields: [ativoId], references: [id], onDelete: SetNull)
-  servico      ManutCatalogo? @relation(fields: [servicoId], references: [id], onDelete: SetNull)
+  tipoResposta String               @default("OK_NOK")
+  faixaMin     Decimal?             @db.Decimal(15, 3)
+  faixaMax     Decimal?             @db.Decimal(15, 3)
+  plano        ManutPlano           @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  ativo        ManutAtivo?          @relation(fields: [ativoId], references: [id], onDelete: SetNull)
+  servico      ManutCatalogo?       @relation(fields: [servicoId], references: [id], onDelete: SetNull)
+  materiais    ManutPlanoMaterial[]
 
   @@index([planoId, seq])
 }
 
 model ManutPlanoMaterial {
-  id         String     @id @default(cuid())
+  id         String            @id @default(cuid())
   planoId    String
   itemId     String
-  quantidade Decimal    @db.Decimal(15, 3)
-  plano      ManutPlano @relation(fields: [planoId], references: [id], onDelete: Cascade)
-  item       Item       @relation(fields: [itemId], references: [id])
+  quantidade Decimal           @db.Decimal(15, 3)
+  plano      ManutPlano        @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  item       Item              @relation(fields: [itemId], references: [id])
+  tarefaId   String?
+  tarefa     ManutPlanoTarefa? @relation(fields: [tarefaId], references: [id], onDelete: SetNull)
 
   @@unique([planoId, itemId])
 }
@@ -6476,6 +6494,28 @@ model ManutPlanoAtivo {
   plano             ManutPlano    @relation(fields: [planoId], references: [id], onDelete: Cascade)
   ativoRef          ManutAtivo    @relation(fields: [ativoId], references: [id], onDelete: Cascade)
   medidor           ManutMedidor? @relation(fields: [medidorId], references: [id], onDelete: SetNull)
+  // Gatilho: CALENDARIO | MEDIDOR | AMBOS (o que vencer primeiro). Intervalo de calendário em
+  // DIAS | SEMANAS | MESES; margemMedida = quanto antes do marco a OS nasce (padrão 10% do intervalo).
+  unidadeIntervalo  String        @default("DIAS")
+  margemMedida      Decimal?      @db.Decimal(15, 2)
+  // Recorrência no modelo Tractian (calendário): DIARIA | SEMANAL | MENSAL | ANUAL | PERSONALIZADA.
+  // diasSemana 0=dom..6=sáb (semanal/personalizada); diaMes (mensal); horario "HH:MM".
+  repeticao         String?
+  diasSemana        Int[]         @default([])
+  diaMes            Int?
+  horario           String?
+  inicio            DateTime?
+  // fim: NUNCA | DATA | OCORRENCIAS
+  fimTipo           String        @default("NUNCA")
+  fimData           DateTime?
+  fimOcorrencias    Int?
+  ocorrencias       Int           @default(0)
+  // SEMPRE (agenda pelo calendário) | APOS_CONCLUSAO (só agenda a próxima quando a anterior fecha)
+  agendarProxima    String        @default("SEMPRE")
+  // prazo da OS gerada (dias após a data programada) e lembrete (dias antes) aos responsáveis
+  vencimentoDias    Int?
+  lembreteDias      Int?
+  responsavelIds    String[]      @default([])
 
   @@index([planoId])
   @@index([ativoId])

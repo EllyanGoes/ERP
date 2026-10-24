@@ -19,8 +19,13 @@ const COOKIE_NAME = "erp_session";
 //                     siteId ativo + Origin na allowlist de SiteRastreado
 //   /api/projetos/agenda/ics → feed iCalendar assinado por apps de calendário
 //                     (Mac/Google, sem cookie): valida token HMAC da URL
+//   /ativo/*        → página PÚBLICA da etiqueta QR do ativo (Manutenção): quem
+//                     está na máquina vê histórico/saúde e abre SS sem login; o
+//                     token aleatório da URL (ManutAtivo.qrToken) é a chave
+//   /api/publico/*  → APIs dessa página: só leem/gravam pelo ativo do token,
+//                     sem custos/nomes, com limite de envios por ativo e por IP
 // Qualquer OUTRA rota /api/* agora exige um JWT de sessão válido.
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t", "/api/projetos/agenda/ics"];
+const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t", "/api/projetos/agenda/ics", "/ativo", "/api/publico"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));

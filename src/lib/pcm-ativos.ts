@@ -66,7 +66,7 @@ export function flattenTree(nodes: TreeNode[]): (Omit<TreeNode, "children" | "is
  * um ativo comum (tipo LOCAL) que precisa ser editável, e boa parte dos ativos
  * importados já fica fora dela (raízes próprias).
  *
- * Fonte única reusada por GET /api/pcm/aplicacoes, /api/pcm/ativos e SST/PCP.
+ * Fonte única reusada por GET /api/pcm/ativos e SST/PCP.
  */
 export async function fetchAtivosTree(opts: { incluirInativos?: boolean } = {}): Promise<TreeNode[]> {
   const rows = await prisma.manutAtivo.findMany({

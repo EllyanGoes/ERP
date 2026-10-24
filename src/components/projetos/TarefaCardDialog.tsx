@@ -10,10 +10,14 @@ import AnexosSection from "@/components/shared/AnexosSection";
 import {
   Loader2, X, Trash2, Archive, CheckSquare, Square, Plus, Send,
   Circle, CheckCircle2, Copy, Link as LinkIcon, Check,
-  MoreHorizontal, AlignLeft, Paperclip, MessageSquare, UserPlus, GripVertical,
+  MoreHorizontal, AlignLeft, Paperclip, MessageSquare, UserPlus, GripVertical, Wrench, ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
+import { useSession } from "@/lib/session-context";
 import { AvatarUsuario, EtiquetaChip } from "./comum";
 import SelectMenu from "@/components/shared/SelectMenu";
+import CriarOsDaTarefaDialog from "@/components/manutencao/CriarOsDaTarefaDialog";
+import { StatusOSBadge, brl } from "@/components/manutencao/comum";
 import { MembrosPopover, DatasPopover, EtiquetasPopover } from "./popovers";
 import { ProjetoBoardDTO, PRIORIDADES, instantePrazo } from "./tipos";
 
@@ -38,6 +42,13 @@ type CardDTO = {
   comentarios: { id: string; texto: string; createdAt: string; editadoEm: string | null; autor: { id: string; nome: string } }[];
   anexos: { id: string; nome: string; url: string; tamanho: number; tipo: string; createdAt: string }[];
   atividades: { id: string; tipo: string; detalhe: unknown; createdAt: string; autor: { id: string; nome: string } }[];
+  // OS da Manutenção abertas a partir da tarefa (ManutOrdem.tarefaId).
+  ordensManutencao: {
+    id: string; numero: string; status: string; prioridade: string; programadaPara: string | null; createdAt: string;
+    custoMaoObra: string; custoMaterial: string; custoTerceiros: string;
+    ativo: { tag: string; nome: string } | null;
+    materiaisPrevistos: number; materiaisRequisitados: number;
+  }[];
   meuNivel: string;
 };
 
@@ -108,6 +119,7 @@ const ATIVIDADE_LABEL: Record<string, string> = {
   ATRIBUIU: "alterou o responsável", COMENTOU: "comentou", PRAZO: "alterou o prazo",
   ARQUIVOU: "arquivou", DESARQUIVOU: "desarquivou", EXCLUIU: "excluiu",
   CHECK_CONCLUIU: "concluiu o item", CHECK_REABRIU: "desmarcou o item",
+  OS_CRIADA: "abriu a ordem de serviço",
 };
 
 export default function TarefaCardDialog({
@@ -120,6 +132,10 @@ export default function TarefaCardDialog({
   onFechar: () => void;
   onMudou: () => void;
 }) {
+  const { canAccess } = useSession();
+  // Manutenção: quem tem o módulo pcm cria OS da tarefa; os demais só veem as ligadas.
+  const podeCriarOS = canAccess("pcm");
+  const [showCriarOS, setShowCriarOS] = useState(false);
   const [card, setCard] = useState<CardDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -744,6 +760,42 @@ export default function TarefaCardDialog({
             <AnexosSection apiBase={`/api/projetos/tarefas/${tarefaId}/anexos`} disabled={!podeEditar} />
           </div>
 
+          {/* Manutenção: OS abertas a partir da tarefa (só aparece p/ quem tem pcm ou se já houver OS) */}
+          {(podeCriarOS || card.ordensManutencao.length > 0) && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-sm font-semibold text-foreground flex items-center gap-2"><Wrench className="w-4 h-4 text-muted-foreground" /> Manutenção</p>
+                {podeCriarOS && podeEditar && (
+                  <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => setShowCriarOS(true)}><Plus className="w-3.5 h-3.5" /> Criar ordem de serviço</Button>
+                )}
+              </div>
+              {card.ordensManutencao.length === 0 ? (
+                <p className="text-xs text-muted-foreground pl-6">Nenhuma OS ligada. Crie uma para planejar o serviço e os materiais necessários.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {card.ordensManutencao.map((os) => (
+                    <Link key={os.id} href={`/pcm/os?os=${os.id}`} className="flex items-center gap-3 border border-border rounded-lg bg-card px-3 py-2 hover:bg-muted group">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-foreground">{os.numero}</span>
+                          <StatusOSBadge s={os.status} />
+                          <span className="text-xs text-muted-foreground truncate">{os.ativo ? `${os.ativo.tag} — ${os.ativo.nome}` : "sem ativo"}</span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Custo {brl(Number(os.custoMaoObra) + Number(os.custoMaterial) + Number(os.custoTerceiros))}
+                          {" · "}{os.materiaisPrevistos} {os.materiaisPrevistos === 1 ? "material previsto" : "materiais previstos"}
+                          {os.materiaisRequisitados > 0 && ` · ${os.materiaisRequisitados} ${os.materiaisRequisitados === 1 ? "linha requisitada" : "linhas requisitadas"}`}
+                          {os.programadaPara && ` · programada ${new Date(os.programadaPara).toLocaleDateString("pt-BR")}`}
+                        </div>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <p className="text-[10px] text-muted-foreground">
             Criada {card.criadoPor ? `por ${card.criadoPor} ` : ""}em {new Date(card.createdAt).toLocaleDateString("pt-BR")}
           </p>
@@ -808,7 +860,8 @@ export default function TarefaCardDialog({
                     <span className="font-semibold text-foreground">{f.a.autor.nome}</span>{" "}
                     {ATIVIDADE_LABEL[f.a.tipo] ?? f.a.tipo.toLowerCase()}
                     {(() => {
-                      const d = f.a.detalhe as { de?: string; para?: string; item?: string } | null;
+                      const d = f.a.detalhe as { de?: string; para?: string; item?: string; numero?: string } | null;
+                      if (d?.numero) return ` ${d.numero}`;
                       if (d?.item) return ` "${d.item}"`;
                       return d?.de && d?.para ? ` de "${d.de}" para "${d.para}"` : "";
                     })()}
@@ -822,6 +875,14 @@ export default function TarefaCardDialog({
           </div>
         </div>
       </div>
+
+      {showCriarOS && (
+        <CriarOsDaTarefaDialog
+          tarefa={{ id: card.id, titulo: card.titulo, descricao: card.descricao, prioridade: card.prioridade, dataInicio: card.dataInicio, prazo: card.prazo, membros: card.membros }}
+          onFechar={() => setShowCriarOS(false)}
+          onCriada={async () => { setShowCriarOS(false); await load(); onMudou(); }}
+        />
+      )}
     </div>
   );
 }

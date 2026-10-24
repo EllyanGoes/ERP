@@ -1,12 +1,15 @@
 "use client";
 
-// Ordens de Serviço — quadro no padrão do módulo Projetos: cabeçalho em uma linha
-// (visões estilo Trello + filtros), visão ativa ocupando a área (Quadro por
-// status com arrastar = ação da OS, Lista com as situações, Calendário) e o
-// cartão da OS abrindo POR CIMA (?os=<id>) sem sair do quadro. Mantém a nova OS
-// direta (emergência sem SS) e a geração manual das preventivas vencendo.
+// Ordens de Serviço no formato de CMMS (modelo Tractian): 1ª linha com título,
+// visões como abas com ícone (Painel → /pcm, Tabela, Calendário, Kanban), busca
+// larga, preventivas e "+ Adicionar"; 2ª linha com os filtros-chip (Filtros, Eu,
+// Executante, Equipe, Data, Ativo/Local, Prioridade, Limpar) — persistidos por
+// usuário. A OS abre POR CIMA (?os=<id>) sem sair do quadro. Kanban por status
+// com arrastar = ação do motor da OS.
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import DateRangePicker from "@/components/shared/DateRangePicker";
 import SelectMenu from "@/components/shared/SelectMenu";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import EscClose from "@/components/shared/EscClose";
@@ -18,12 +21,14 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import {
-  AlertTriangle, Calendar as CalendarIcon, CalendarClock, Check, ChevronDown, LayoutGrid, List, Loader2, Plus, Search, UserRound, X,
+  AlertTriangle, BookmarkCheck, Calendar as CalendarIcon, CalendarClock, Check, ChevronDown, Flag, HardHat, Kanban, LayoutDashboard,
+  Loader2, MapPin, Plus, Search, SlidersHorizontal, Table2, UserRound, Users, X,
 } from "lucide-react";
 import {
   AtivoCombobox, DataHora, OPCOES_PRIORIDADE, api, fmtData, useManutLookups,
 } from "@/components/manutencao/comum";
-import type { OSResumo } from "@/components/manutencao/os-quadro";
+import { dataReferenciaOS, type OSResumo } from "@/components/manutencao/os-quadro";
+import { SITUACOES_OS } from "@/components/manutencao/OSListaView";
 import OSKanbanView from "@/components/manutencao/OSKanbanView";
 import OSListaView from "@/components/manutencao/OSListaView";
 import OSCalendarioView from "@/components/manutencao/OSCalendarioView";
@@ -31,14 +36,14 @@ import OrdemServicoDetalhe from "@/components/manutencao/OrdemServicoDetalhe";
 
 type Visao = "kanban" | "lista" | "calendario";
 
-const VISOES: { key: Visao; label: string; icon: typeof LayoutGrid }[] = [
-  { key: "kanban", label: "Quadro", icon: LayoutGrid },
-  { key: "lista", label: "Lista", icon: List },
+const VISOES: { key: Visao; label: string; icon: typeof Kanban }[] = [
+  { key: "lista", label: "Tabela", icon: Table2 },
   { key: "calendario", label: "Calendário", icon: CalendarIcon },
+  { key: "kanban", label: "Kanban", icon: Kanban },
 ];
 
-// Modais Radix (dialogs do detalhe) ou popovers abertos: o ESC é deles, não do cartão.
-const SELETOR_CAMADA_ABERTA = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [data-radix-popper-content-wrapper]';
+// Modais (dialogs do detalhe), popovers ou o menu ⋮ abertos: o ESC é deles, não do cartão.
+const SELETOR_CAMADA_ABERTA = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [data-radix-popper-content-wrapper], [role="menu"]';
 
 export default function OrdensServicoPage() {
   // useSearchParams exige Suspense numa rota estática.
@@ -52,7 +57,6 @@ function QuadroOS() {
   const lk = useManutLookups();
 
   const [visao, setVisao] = usePersistedState<Visao>("pcm:os:visao", "kanban");
-  const [showVisoes, setShowVisoes] = useState(false);
 
   // Filtros (persistidos por usuário). Situação vale só na Lista; Quadro e
   // Calendário mostram as abertas + a validar + concluídas dos últimos 30 dias.
@@ -61,6 +65,9 @@ function QuadroOS() {
   const [tipoId, setTipoId] = usePersistedState<string>("pcm:os:tipo", "");
   const [prioridade, setPrioridade] = usePersistedState<string>("pcm:os:prioridade", "");
   const [minhas, setMinhas] = usePersistedState<boolean>("pcm:os:minhas", false);
+  const [executanteId, setExecutanteId] = usePersistedState<string>("pcm:os:executante", "");
+  const [ativoFiltro, setAtivoFiltro] = usePersistedState<string>("pcm:os:ativo", "");
+  const [periodo, setPeriodo] = usePersistedState<{ from: string; to: string }>("pcm:os:periodo", { from: "", to: "" });
   const [busca, setBusca] = useState("");
 
   const [lista, setLista] = useState<OSResumo[]>([]);
@@ -73,11 +80,11 @@ function QuadroOS() {
   const load = useCallback(async (silencioso = false) => {
     const seq = ++reqSeq.current;
     if (!silencioso) setLoading(true);
-    const qs = new URLSearchParams({ situacao: fonte, ...(equipeId ? { equipeId } : {}), ...(tipoId ? { tipoId } : {}), ...(minhas ? { minhas: "1" } : {}) });
+    const qs = new URLSearchParams({ situacao: fonte, ...(equipeId ? { equipeId } : {}), ...(tipoId ? { tipoId } : {}), ...(minhas ? { minhas: "1" } : {}), ...(executanteId ? { executanteId } : {}) });
     const j = await fetch(`/api/pcm/os?${qs}`).then((r) => r.json()).catch(() => ({}));
     if (seq !== reqSeq.current) return;
     setLista(j.data ?? []); setPodeValidar(!!j.podeValidar); setLoading(false);
-  }, [fonte, equipeId, tipoId, minhas]);
+  }, [fonte, equipeId, tipoId, minhas, executanteId]);
   useEffect(() => { load(); }, [load]);
 
   // Recarrega ao voltar o foco (colaboração sem websocket, como em Projetos).
@@ -87,14 +94,36 @@ function QuadroOS() {
     return () => window.removeEventListener("focus", onFocus);
   }, [load]);
 
+  // Ativo/Local: o escolhido e tudo abaixo dele na árvore.
+  const ativosDoFiltro = useMemo(() => {
+    if (!ativoFiltro) return null;
+    const filhos = new Map<string, string[]>();
+    for (const a of lk.ativos) if (a.paiId) filhos.set(a.paiId, [...(filhos.get(a.paiId) ?? []), a.id]);
+    const out = new Set<string>([ativoFiltro]);
+    const fila = [ativoFiltro];
+    while (fila.length) for (const f of filhos.get(fila.shift()!) ?? []) if (!out.has(f)) { out.add(f); fila.push(f); }
+    return out;
+  }, [ativoFiltro, lk.ativos]);
+  const caminhos = useMemo(() => new Map(lk.ativos.map((a) => [a.id, a.caminho])), [lk.ativos]);
+
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return lista.filter((o) => {
       if (prioridade && o.prioridade !== prioridade) return false;
+      if (ativosDoFiltro && !(o.ativo && ativosDoFiltro.has(o.ativo.id))) return false;
+      // Data: programação (ou vencimento) dentro do período
+      if (periodo.from || periodo.to) {
+        const ref = dataReferenciaOS(o);
+        if (!ref) return false;
+        const d = new Date(ref);
+        const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        if (periodo.from && dia < periodo.from) return false;
+        if (periodo.to && dia > periodo.to) return false;
+      }
       if (q && !`${o.numero} ${o.descricao} ${o.ativo?.tag ?? ""} ${o.ativo?.nome ?? ""} ${o.localTexto ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [lista, busca, prioridade]);
+  }, [lista, busca, prioridade, ativosDoFiltro, periodo]);
 
   // Mutação local otimista (arrastar no quadro).
   const atualizarLocal = useCallback((id: string, patch: Partial<OSResumo>) => {
@@ -173,77 +202,68 @@ function QuadroOS() {
     load(true);
   }
 
-  const temFiltro = !!(equipeId || tipoId || prioridade || minhas || busca);
-  const atual = VISOES.find((v) => v.key === visao) ?? VISOES[0];
+  const nFiltros = [equipeId, tipoId, prioridade, minhas, executanteId, ativoFiltro, periodo.from || periodo.to].filter(Boolean).length + (visao === "lista" && situacao !== "abertas" ? 1 : 0);
+  const temFiltro = nFiltros > 0 || !!busca;
+  function limparFiltros() {
+    setEquipeId(""); setTipoId(""); setPrioridade(""); setMinhas(false); setExecutanteId(""); setAtivoFiltro(""); setPeriodo({ from: "", to: "" }); setBusca("");
+  }
+  const nomeDe = <T extends { id: string }>(l: T[], id: string, f: (x: T) => string) => { const x = l.find((y) => y.id === id); return x ? f(x) : null; };
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* ── Cabeçalho em UMA linha (modelo Trello): título, visões, filtros e ações ── */}
-      <div className="px-6 py-2.5 border-b border-border shrink-0 flex items-center gap-x-2.5 gap-y-2 flex-wrap">
+      {/* ── Linha 1: título, visões (abas com ícone), busca larga e ações ── */}
+      <div className="px-6 pt-3 pb-2 shrink-0 flex items-center gap-3 flex-wrap">
         <h1 className="font-bold text-lg text-foreground whitespace-nowrap">Ordens de Serviço</h1>
+        <nav className="flex items-center gap-0.5 border-b border-transparent">
+          <Link href="/pcm" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Painel da Manutenção">
+            <LayoutDashboard className="w-4 h-4" /> Painel
+          </Link>
+          {VISOES.map((v) => (
+            <button key={v.key} onClick={() => setVisao(v.key)}
+              className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded-md transition-colors", visao === v.key ? "bg-info/10 text-info font-medium" : "text-muted-foreground hover:text-foreground hover:bg-muted")}>
+              <v.icon className="w-4 h-4" /> {v.label}
+            </button>
+          ))}
+        </nav>
+        <div className="relative flex-1 min-w-[14rem]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar Ordem de Serviço (nº, descrição, ativo…)" className="h-9 w-full pl-9 pr-3 text-sm border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-info/50" />
+        </div>
+        <div className="shrink-0 flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={abrirPrevia} disabled={gerando} title="Gerar preventivas (com prévia)" aria-label="Gerar preventivas" className="h-9 w-9 p-0">{gerando && !previa ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />}</Button>
+          <Button size="sm" onClick={abrirNova} className="h-9 gap-1.5"><Plus className="w-4 h-4" /> Adicionar</Button>
+        </div>
+      </div>
 
-        {/* Visões — botão único (ícone da visão atual + seta) com o menu por nome. */}
-        <div className="relative">
-          <button
-            onClick={() => setShowVisoes((v) => !v)}
-            title={`Visualização: ${atual.label}`}
-            aria-label={`Visualização: ${atual.label}`}
-            className={cn("inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border text-foreground transition-colors", showVisoes ? "bg-muted" : "bg-card hover:bg-muted")}
-          >
-            <atual.icon className="w-4 h-4" />
-            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-          </button>
-          {showVisoes && (
-            <>
-              <div className="fixed inset-0 z-40" onMouseDown={() => setShowVisoes(false)} />
-              <div className="absolute left-0 top-full mt-1.5 z-50 w-60 bg-card border border-border rounded-xl shadow-xl p-1.5">
-                <EscClose onClose={() => setShowVisoes(false)} />
-                <div className="flex items-center justify-between px-2 pt-1 pb-1.5">
-                  <span className="w-4" />
-                  <span className="text-xs font-semibold text-muted-foreground">Visualizações</span>
-                  <button onClick={() => setShowVisoes(false)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
-                </div>
-                {VISOES.map((v) => (
-                  <button
-                    key={v.key}
-                    onClick={() => { setVisao(v.key); setShowVisoes(false); }}
-                    className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-left transition-colors", visao === v.key ? "bg-info/10 text-info font-medium" : "text-foreground hover:bg-muted")}
-                  >
-                    <v.icon className="w-4 h-4" />
-                    <span className="flex-1">{v.label}</span>
-                    {visao === v.key && <Check className="w-3.5 h-3.5" />}
-                  </button>
-                ))}
-              </div>
-            </>
+      {/* ── Linha 2: filtros-chip ── */}
+      <div className="px-6 pb-2.5 border-b border-border shrink-0 flex items-center gap-1.5 flex-wrap">
+        <ChipMenu icon={SlidersHorizontal} label={`Filtros${nFiltros ? ` (${nFiltros})` : ""}`} ativo={nFiltros > 0} largura="w-72">
+          {() => (
+            <div className="space-y-3 p-1">
+              <div><Label className="text-xs">Categoria (tipo)</Label><SelectMenu value={tipoId} onChange={setTipoId} options={[{ value: "", label: "Todas" }, ...lk.tipos.map((t) => ({ value: t.id, label: `${t.sigla} — ${t.nome}` }))]} /></div>
+              {visao === "lista" && <div><Label className="text-xs">Situação (Tabela)</Label><SelectMenu value={situacao} onChange={setSituacao} options={SITUACOES_OS} /></div>}
+              <p className="text-[11px] text-muted-foreground">Kanban e Calendário mostram as abertas, as a validar e as concluídas nos últimos 30 dias.</p>
+            </div>
           )}
-        </div>
-
-        {/* Filtros */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nº, ativo, descrição…" className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
-        </div>
-        <SelectMenu value={equipeId} onChange={setEquipeId} className="w-40" options={[{ value: "", label: "Todas as equipes" }, ...lk.equipes.map((e) => ({ value: e.id, label: e.nome }))]} />
-        <SelectMenu value={tipoId} onChange={setTipoId} className="w-40" options={[{ value: "", label: "Todos os tipos" }, ...lk.tipos.map((t) => ({ value: t.id, label: `${t.sigla} — ${t.nome}` }))]} />
-        <SelectMenu value={prioridade} onChange={setPrioridade} className="w-36" options={[{ value: "", label: "Todas as prioridades" }, ...OPCOES_PRIORIDADE]} />
-        <button
-          onClick={() => setMinhas(!minhas)}
-          title="OS em que sou o responsável ou tenho apontamento"
-          className={cn("inline-flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg border transition-colors", minhas ? "border-info bg-info/10 text-info" : "border-border bg-card text-muted-foreground hover:bg-muted")}
-        >
-          <UserRound className="w-3.5 h-3.5" /> Só minhas
+        </ChipMenu>
+        <button onClick={() => setMinhas(!minhas)} title="Só minhas — OS em que sou o responsável ou tenho apontamento" className={chipCls(minhas)}>
+          <UserRound className="w-3.5 h-3.5" /> Eu
         </button>
-        {temFiltro && (
-          <button onClick={() => { setEquipeId(""); setTipoId(""); setPrioridade(""); setMinhas(false); setBusca(""); }} className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-            <X className="w-3 h-3" /> Limpar
-          </button>
-        )}
-
-        <div className="ml-auto order-last flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={abrirPrevia} disabled={gerando} className="gap-1.5">{gerando && !previa ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />} Gerar preventivas…</Button>
-          <Button size="sm" onClick={abrirNova} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Nova OS</Button>
+        <ChipLista icon={HardHat} label="Executante" valor={nomeDe(lk.colaboradores, executanteId, (c) => c.nome)} onLimpar={() => setExecutanteId("")}
+          opcoes={lk.colaboradores.map((c) => ({ value: c.id, label: c.nome }))} onEscolher={setExecutanteId} selecionado={executanteId} />
+        <ChipLista icon={Users} label="Equipe" valor={nomeDe(lk.equipes, equipeId, (e) => e.nome)} onLimpar={() => setEquipeId("")}
+          opcoes={lk.equipes.map((e) => ({ value: e.id, label: e.nome }))} onEscolher={setEquipeId} selecionado={equipeId} />
+        <div className="shrink-0" title="Data (programação ou vencimento)">
+          <DateRangePicker value={periodo} onChange={setPeriodo} placeholder="Data" triggerClassName={cn(chipCls(!!(periodo.from || periodo.to)), "w-auto")} />
         </div>
+        <ChipLista icon={MapPin} label="Ativo/Local" valor={nomeDe(lk.ativos, ativoFiltro, (a) => `${a.tag} ${a.nome}`)} onLimpar={() => setAtivoFiltro("")} largura="w-96"
+          opcoes={lk.ativos.map((a) => ({ value: a.id, label: `${a.tag} — ${a.nome}`, sub: a.caminho }))} onEscolher={setAtivoFiltro} selecionado={ativoFiltro} />
+        <ChipLista icon={Flag} label="Prioridade" valor={OPCOES_PRIORIDADE.find((p) => p.value === prioridade)?.label ?? null} onLimpar={() => setPrioridade("")}
+          opcoes={OPCOES_PRIORIDADE} onEscolher={setPrioridade} selecionado={prioridade} semBusca />
+        {temFiltro && <button onClick={limparFiltros} className="text-xs px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center gap-1"><X className="w-3.5 h-3.5" /> Limpar</button>}
+        <span className="ml-auto text-[11px] text-muted-foreground inline-flex items-center gap-1" title="Os filtros e a visão ficam salvos para o seu usuário neste navegador">
+          <BookmarkCheck className="w-3.5 h-3.5" /> Filtros salvos{!loading && <> · {visiveis.length} OS</>}
+        </span>
       </div>
 
       {msgGerar && (
@@ -261,7 +281,7 @@ function QuadroOS() {
         ) : visao === "calendario" ? (
           <OSCalendarioView ordens={visiveis} onAbrir={abrirOS} />
         ) : (
-          <OSKanbanView ordens={visiveis} podeValidar={podeValidar} onAbrir={abrirOS} onAtualizarLocal={atualizarLocal} onRecarregar={recarregarSilencioso} onAviso={setAviso} />
+          <OSKanbanView ordens={visiveis} caminhos={caminhos} podeValidar={podeValidar} onAbrir={abrirOS} onAtualizarLocal={atualizarLocal} onRecarregar={recarregarSilencioso} onAviso={setAviso} />
         )}
       </div>
 
@@ -337,5 +357,78 @@ function QuadroOS() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** Classe do chip de filtro (ativo = destacado). */
+function chipCls(ativo: boolean) {
+  return cn(
+    "shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border text-xs transition-colors",
+    ativo ? "border-info/50 bg-info/10 text-info" : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+  );
+}
+
+/** Chip com popover artesanal (fecha clicando fora ou ESC). */
+function ChipMenu({ icon: Icon, label, ativo, largura = "w-64", children, onLimpar }: {
+  icon: typeof Users; label: string; ativo: boolean; largura?: string; children: (fechar: () => void) => React.ReactNode; onLimpar?: () => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const fechar = () => setAberto(false);
+  return (
+    <div className="relative shrink-0">
+      <button onClick={() => setAberto((v) => !v)} className={chipCls(ativo)}>
+        <Icon className="w-3.5 h-3.5" /> <span className="max-w-[12rem] truncate">{label}</span>
+        {ativo && onLimpar ? (
+          <span role="button" tabIndex={-1} aria-label="Limpar" onClick={(e) => { e.stopPropagation(); onLimpar(); }} className="hover:text-foreground"><X className="w-3 h-3" /></span>
+        ) : <ChevronDown className="w-3 h-3 opacity-70" />}
+      </button>
+      {aberto && (
+        <>
+          <div className="fixed inset-0 z-40" onMouseDown={fechar} />
+          <div className={cn("absolute left-0 top-full mt-1.5 z-50 bg-card border border-border rounded-xl shadow-xl p-1.5", largura)}>
+            <EscClose onClose={fechar} />
+            {children(fechar)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Chip com lista de opções pesquisável (Executante, Equipe, Ativo/Local, Prioridade). */
+function ChipLista({ icon, label, valor, opcoes, selecionado, onEscolher, onLimpar, largura, semBusca }: {
+  icon: typeof Users; label: string; valor: string | null; opcoes: { value: string; label: string; sub?: string }[];
+  selecionado: string; onEscolher: (v: string) => void; onLimpar: () => void; largura?: string; semBusca?: boolean;
+}) {
+  const [q, setQ] = useState("");
+  const termo = q.trim().toLowerCase();
+  const filtradas = termo ? opcoes.filter((o) => `${o.label} ${o.sub ?? ""}`.toLowerCase().includes(termo)) : opcoes;
+  return (
+    <ChipMenu icon={icon} label={valor ? `${label}: ${valor}` : label} ativo={!!valor} largura={largura} onLimpar={onLimpar}>
+      {(fechar) => (
+        <div>
+          {!semBusca && (
+            <div className="relative mb-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="h-8 w-full pl-8 pr-2 text-sm border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-info/50" />
+            </div>
+          )}
+          <div className="max-h-72 overflow-y-auto">
+            {selecionado && <button onClick={() => { onLimpar(); fechar(); }} className="w-full text-left px-2.5 py-1.5 rounded-lg text-sm text-muted-foreground hover:bg-muted">Todos</button>}
+            {filtradas.slice(0, 300).map((o) => (
+              <button key={o.value} onClick={() => { onEscolher(o.value); fechar(); }}
+                className={cn("w-full flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-sm text-left", selecionado === o.value ? "bg-info/10 text-info" : "text-foreground hover:bg-muted")}>
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate">{o.label}</span>
+                  {o.sub && <span className="block text-[11px] text-muted-foreground truncate">{o.sub}</span>}
+                </span>
+                {selecionado === o.value && <Check className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+              </button>
+            ))}
+            {filtradas.length === 0 && <p className="px-2.5 py-2 text-xs text-muted-foreground">Nada encontrado.</p>}
+          </div>
+        </div>
+      )}
+    </ChipMenu>
   );
 }

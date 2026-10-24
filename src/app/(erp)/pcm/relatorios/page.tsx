@@ -27,6 +27,7 @@ const ABAS = [
   { id: "equipe", label: "Por equipe" },
   { id: "pareto", label: "Pareto de falhas" },
   { id: "produtividade", label: "Horas por executante" },
+  { id: "backlog", label: "Backlog por ativo" },
 ];
 
 const iso = (d: Date) => d.toLocaleDateString("sv-SE");
@@ -46,6 +47,29 @@ export default function RelatoriosManutencaoPage() {
     setD(j.data); setLoading(false);
   }, [de, ate]);
   useEffect(() => { load(); }, [load]);
+
+  // Backlog: OS em aberto agora, agrupadas por ativo (independe do período).
+  type OsAberta = { id: string; numero: string; status: string; prioridade: string; descricao: string; prazo: string | null; programadaPara: string | null; createdAt: string; localTexto: string | null; ativo: { id: string; tag: string; nome: string } | null };
+  const [abertas, setAbertas] = useState<OsAberta[] | null>(null);
+  useEffect(() => {
+    if (aba !== "backlog" || abertas) return;
+    fetch("/api/pcm/os?situacao=abertas").then((r) => r.json()).then((j) => setAbertas(j.data ?? [])).catch(() => setAbertas([]));
+  }, [aba, abertas]);
+  const backlog = (() => {
+    if (!abertas) return [];
+    const hoje = new Date(new Date().toDateString()).getTime();
+    const m = new Map<string, { rotulo: string; os: OsAberta[]; atrasadas: number; maisAntiga: number }>();
+    for (const o of abertas) {
+      const k = o.ativo?.id ?? "-";
+      const g = m.get(k) ?? { rotulo: o.ativo ? `${o.ativo.tag} — ${o.ativo.nome}` : "(sem ativo)", os: [], atrasadas: 0, maisAntiga: Infinity };
+      g.os.push(o);
+      const venc = o.prazo ?? o.programadaPara;
+      if (venc && new Date(venc).getTime() < hoje) g.atrasadas++;
+      g.maisAntiga = Math.min(g.maisAntiga, new Date(o.createdAt).getTime());
+      m.set(k, g);
+    }
+    return Array.from(m.entries()).map(([k, g]) => ({ chave: k, ...g, dias: Math.floor((Date.now() - g.maisAntiga) / 86_400_000) })).sort((a, b) => b.os.length - a.os.length || b.dias - a.dias);
+  })();
 
   const linhas = d ? ({ ativo: d.porAtivo, centro: d.porCentro, tipo: d.porTipo, equipe: d.porEquipe } as Record<string, Linha[]>)[aba] : undefined;
 
@@ -94,6 +118,23 @@ export default function RelatoriosManutencaoPage() {
                 {d.pareto.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Nenhuma falha registrada no período.</td></tr>}</tbody>
                 {d.pareto.length > 0 && <tfoot><tr><td colSpan={4} className="px-4 py-2 text-[11px] text-muted-foreground">{d.totalFalhas} falhas no período. Destacadas: as combinações que somam os primeiros 80%.</td></tr></tfoot>}
               </table>
+            )}
+            {aba === "backlog" && (
+              !abertas ? <div className="flex justify-center py-16"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div> : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="text-left px-4 py-2">Ativo</th><th className="text-right px-3 py-2">OS abertas</th><th className="text-right px-3 py-2">Atrasadas</th><th className="text-right px-3 py-2">Mais antiga</th><th className="text-left px-4 py-2">OS</th></tr></thead>
+                <tbody>{backlog.map((g) => (
+                  <tr key={g.chave} className="border-t border-border/60 align-top">
+                    <td className="px-4 py-1.5">{g.rotulo}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{g.os.length}</td>
+                    <td className={cn("px-3 py-1.5 text-right tabular-nums", g.atrasadas && "text-danger font-medium")}>{g.atrasadas || "—"}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{g.dias} d</td>
+                    <td className="px-4 py-1.5 text-xs"><div className="flex flex-wrap gap-1">{g.os.map((o) => <Link key={o.id} href={`/pcm/os?os=${o.id}`} className="rounded border border-border px-1.5 py-0.5 hover:bg-muted" title={o.descricao}>{o.numero}</Link>)}</div></td>
+                  </tr>
+                ))}
+                {backlog.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Nenhuma OS em aberto.</td></tr>}</tbody>
+                <tfoot><tr><td colSpan={5} className="px-4 py-2 text-[11px] text-muted-foreground">Situação de agora (não depende do período). {abertas.length} OS em aberto.</td></tr></tfoot>
+              </table>)
             )}
             {aba === "produtividade" && (
               <table className="w-full text-sm">

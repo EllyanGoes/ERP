@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { ritmoMedio } from "@/lib/manutencao/gatilho";
 
-// GET — medidores ativos da empresa com a última leitura e o próximo marco de plano.
+// GET — medidores ativos da empresa com as últimas leituras (leituras[0] = a mais recente),
+// o ritmo médio de uso (unidades/dia, p/ prever quando o marco chega) e o próximo marco de plano.
 export async function GET() {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
@@ -12,12 +14,12 @@ export async function GET() {
     where: { ativo: true, ativoId: { in: ativos.map((a) => a.id) } },
     include: {
       ativoRef: { select: { id: true, tag: true, nome: true } },
-      leituras: { orderBy: { data: "desc" }, take: 1 },
+      leituras: { orderBy: { data: "desc" }, take: 12 },
       planos: { where: { ativo: true }, select: { proximaMedida: true, plano: { select: { nome: true } } }, orderBy: { proximaMedida: "asc" } },
     },
     orderBy: { ativoRef: { tag: "asc" } },
   });
-  return NextResponse.json({ data });
+  return NextResponse.json({ data: data.map((m) => ({ ...m, ritmoDia: ritmoMedio(m.leituras) })) });
 }
 
 // POST { acao: "criar", ativoId, nome, unidade } | { acao: "leitura", medidorId, valor, data?, trocaMedidor? }

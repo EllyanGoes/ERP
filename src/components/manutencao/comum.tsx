@@ -16,7 +16,7 @@ export type ManutLookups = {
   ativos: AtivoLookup[];
   tipos: TipoLookup[];
   equipes: (Opcao & { externa: boolean; membros: { colaboradorId: string }[] })[];
-  colaboradores: Opcao[];
+  colaboradores: (Opcao & { usuarioId?: string | null })[];
   sintomas: CatalogoLookup[];
   causas: CatalogoLookup[];
   servicos: CatalogoLookup[];
@@ -59,6 +59,23 @@ export function PrioridadeTxt({ p }: { p: string | null }) {
   if (!p) return <span className="text-muted-foreground/60">—</span>;
   const v = PRIORIDADE[p] ?? { label: p, cls: "" };
   return <span className={cn("text-xs", v.cls)}>{v.label}</span>;
+}
+
+const PRIORIDADE_BADGE: Record<string, string> = {
+  EMERGENCIA: "bg-danger/15 text-danger border-danger/30",
+  ALTA: "bg-orange-500/15 text-orange-600 border-orange-500/30",
+  MEDIA: "bg-warning/15 text-warning border-warning/30",
+  BAIXA: "bg-info/10 text-info border-info/30",
+};
+
+/** Prioridade como selo colorido (cartão do quadro e detalhe da OS). */
+export function PrioridadeBadge({ p, className }: { p: string | null; className?: string }) {
+  if (!p) return null;
+  return (
+    <span className={cn("inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md border whitespace-nowrap", PRIORIDADE_BADGE[p] ?? "bg-muted text-foreground border-border", className)}>
+      {PRIORIDADE[p]?.label ?? p}
+    </span>
+  );
 }
 
 /** Combobox de ativo: busca por tag, nome e caminho na árvore. */
