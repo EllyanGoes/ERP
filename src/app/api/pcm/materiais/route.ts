@@ -1,10 +1,8 @@
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo as db } from "@/lib/prisma";
-import { importarMateriaisEngeman, itensParaDePara, propagarVinculo, sugestoes } from "@/lib/manutencao/materiais";
-import { engemanErrorResponse } from "@/lib/engeman";
+import { itensParaDePara, propagarVinculo, sugestoes } from "@/lib/manutencao/materiais";
 
 // De-para materiais do Engeman → produtos do estoque do ERP (cadastro do grupo).
 // GET ?situacao=PENDENTES|LIGADOS|SEM_PRODUTO|TODOS — lista com até 3 sugestões nos não ligados.
@@ -33,19 +31,10 @@ export async function GET(req: NextRequest) {
 //      { codMat, semProduto: true }  → marca que não há produto equivalente
 //      { codMat, desfazer: true }    → volta a pendente
 //      { acao: "confirmarSugestoes", codMats: number[] } → aceita a 1ª sugestão de cada
-//      { acao: "importar", aplicar }  → lê do Engeman (prévia/aplicar) — só ADMIN
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
   const b = await req.json().catch(() => ({}));
-  if (b.acao === "importar") {
-    if (auth.session.perfil !== "ADMIN") return NextResponse.json({ error: "Só administradores." }, { status: 403 });
-    try {
-      return NextResponse.json({ data: await importarMateriaisEngeman({ aplicar: b.aplicar === true }) });
-    } catch (e) {
-      return engemanErrorResponse("PCM /api/pcm/materiais", e);
-    }
-  }
   if (b.acao === "confirmarSugestoes") {
     const cods: number[] = Array.isArray(b.codMats) ? b.codMats.map(Number).filter(Number.isFinite) : [];
     const mats = await db.manutMaterialLegado.findMany({ where: { codMat: { in: cods }, itemId: null } });

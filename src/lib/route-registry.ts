@@ -210,7 +210,6 @@ const ROTAS_MANUAIS: RouteEntry[] = [
 
   { href: "/configuracoes/aprovacoes",             label: "Aprovações",              group: "Configurações",  section: "Configurações",    icon: Settings2 },
   { href: "/configuracoes/integracoes",            label: "Integrações",             group: "Configurações",  section: "Configurações",    icon: Plug },
-  { href: "/configuracoes/integracoes/db-engeman", label: "Integração DB Engeman",   group: "Configurações",  section: "Configurações",    icon: Database,       keywords: "engeman integração banco dados importação legado" },
   { href: "/configuracoes/integracoes/telegram",   label: "Integração Telegram",     group: "Configurações",  section: "Configurações",    icon: MessageCircle,  keywords: "telegram notificação bot" },
   { href: "/configuracoes/integracoes/whatsapp",   label: "Integração WhatsApp",     group: "Configurações",  section: "Configurações",    icon: MessageCircle,  keywords: "whatsapp notificação mensagem" },
   { href: "/configuracoes/integracoes/focus-nfe",  label: "Integração Focus NFe",    group: "Configurações",  section: "Configurações",    icon: Receipt,        keywords: "focus nfe nota fiscal sefaz fiscal master token webhook emissão provedor" },

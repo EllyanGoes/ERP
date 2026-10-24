@@ -1,7 +1,7 @@
 "use client";
 
 // Configurações da Manutenção: tipos de OS, catálogo técnico (sintoma/causa/serviço),
-// equipes (membros e custo-hora), leituras de medidores e a importação do Engeman.
+// equipes (membros e custo-hora), leituras de medidores e o de-para de materiais.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
@@ -12,9 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
-import { Database, Loader2, Plus, Search, X } from "lucide-react";
+import { Loader2, Plus, Search, X } from "lucide-react";
 import { api, brl, fmtDataHora, useManutLookups } from "@/components/manutencao/comum";
 
 const ABAS = [
@@ -23,7 +22,6 @@ const ABAS = [
   { id: "equipes", label: "Equipes" },
   { id: "medidores", label: "Medidores" },
   { id: "materiais", label: "Materiais → produtos" },
-  { id: "importacao", label: "Importação Engeman" },
 ];
 const NATUREZAS = ["CORRETIVA", "PREVENTIVA", "PREDITIVA", "INSPECAO", "LUBRIFICACAO", "MELHORIA", "OUTROS"].map((v) => ({ value: v, label: v.charAt(0) + v.slice(1).toLowerCase().replace("inspecao", "inspeção").replace("lubrificacao", "lubrificação") }));
 const TIPOS_CAT = [{ value: "SINTOMA", label: "Sintomas (defeitos)" }, { value: "CAUSA", label: "Causas" }, { value: "SERVICO", label: "Serviços" }];
@@ -43,7 +41,6 @@ export default function ManutencaoConfigPage() {
         {aba === "equipes" && <Equipes />}
         {aba === "medidores" && <Medidores />}
         {aba === "materiais" && <Materiais />}
-        {aba === "importacao" && <Importacao />}
       </div>
     </div>
   );
@@ -246,7 +243,6 @@ type MatLeg = {
 };
 const FILTROS_MAT = [{ value: "PENDENTES", label: "Sem produto" }, { value: "LIGADOS", label: "Ligados" }, { value: "SEM_PRODUTO", label: "Sem equivalente" }, { value: "TODOS", label: "Todos" }];
 function Materiais() {
-  const { user } = useSession();
   const [filtro, setFiltro] = usePersistedState<string>("pcm:config:mat", "PENDENTES");
   const [lista, setLista] = useState<MatLeg[] | null>(null);
   const [contagem, setContagem] = useState<{ situacao: string; _count: number }[]>([]);
@@ -274,13 +270,6 @@ function Materiais() {
     const r = await api<{ ligados: number }>("/api/pcm/materiais", "POST", { acao: "confirmarSugestoes", codMats: cods });
     setRodando(false); setMsg(r.ok ? `${r.data!.ligados} material(is) ligado(s) pela sugestão.` : r.error!); load();
   }
-  async function importar() {
-    setRodando(true); setMsg("Lendo o Engeman…");
-    const r = await api<{ materiais: number; exatos: number; sugeridos: number; semSugestao: number }>("/api/pcm/materiais", "POST", { acao: "importar", aplicar: true });
-    setRodando(false);
-    setMsg(r.ok ? `${r.data!.materiais} materiais: ${r.data!.exatos} ligados automaticamente (descrição idêntica), ${r.data!.sugeridos} com sugestão, ${r.data!.semSugestao} sem sugestão.` : r.error!);
-    load();
-  }
   const fortes = visiveis.filter((m) => !m.item && m.sugestoes[0] && m.sugestoes[0].nota >= 0.75).length;
   return (
     <div className="space-y-3">
@@ -290,14 +279,13 @@ function Materiais() {
         <div className="relative"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-card w-56" /></div>
         <div className="ml-auto flex gap-2">
           {filtro === "PENDENTES" && fortes > 0 && <Button size="sm" variant="outline" disabled={rodando} onClick={confirmarTodas}>Aceitar {fortes} sugestões fortes (≥ 75%)</Button>}
-          {user?.perfil === "ADMIN" && <Button size="sm" variant="outline" disabled={rodando} onClick={importar} className="gap-1"><Database className="w-3.5 h-3.5" /> Ler materiais do Engeman</Button>}
         </div>
       </div>
       {msg && <p className="text-sm text-muted-foreground bg-muted/50 border border-border rounded-lg px-3 py-2">{msg}</p>}
       {!lista ? <Carregando /> : (
         <div className="bg-card border border-border rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="text-left px-4 py-2">Material (Engeman)</th><th className="text-right px-3 py-2">Usos</th><th className="text-left px-3 py-2 w-[46%]">Produto do ERP</th><th className="px-3 py-2" /></tr></thead>
+            <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="text-left px-4 py-2">Material (histórico)</th><th className="text-right px-3 py-2">Usos</th><th className="text-left px-3 py-2 w-[46%]">Produto do ERP</th><th className="px-3 py-2" /></tr></thead>
             <tbody>{visiveis.map((m) => (
               <tr key={m.codMat} className="border-t border-border/60 align-top">
                 <td className="px-4 py-2">{m.descricao}<div className="text-[11px] text-muted-foreground">{m.tag ? `${m.tag} · ` : ""}{m.unidade ?? ""}{m._count.kits ? ` · em ${m._count.kits} plano(s)` : ""}{m._count.pecas ? ` · sobressalente de ${m._count.pecas} ativo(s)` : ""}</div></td>
@@ -324,47 +312,7 @@ function Materiais() {
                 </td>
               </tr>
             ))}
-            {visiveis.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">{filtro === "PENDENTES" ? "Nenhum material pendente." : "Nada aqui."}{user?.perfil === "ADMIN" && (lista ?? []).length === 0 && filtro !== "LIGADOS" ? " Se ainda não leu do Engeman, use “Ler materiais do Engeman”." : ""}</td></tr>}</tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Importação do Engeman ────────────────────────────────────────────────────
-function Importacao() {
-  const { user } = useSession();
-  const [ultima, setUltima] = useState<string | null>(null);
-  const [resumo, setResumo] = useState<Record<string, { engeman: number; novos: number; atualizados?: number }> | null>(null);
-  const [rodando, setRodando] = useState<"" | "previa" | "aplicar">(""); const [erro, setErro] = useState(""); const [aplicado, setAplicado] = useState(false);
-  const admin = user?.perfil === "ADMIN";
-  useEffect(() => { if (admin) fetch("/api/pcm/importar-engeman").then((r) => r.json()).then((j) => setUltima(j.data?.ultimaImportacao ?? null)).catch(() => {}); }, [admin, aplicado]);
-  async function rodar(aplicar: boolean) {
-    setRodando(aplicar ? "aplicar" : "previa"); setErro("");
-    const r = await api<Record<string, { engeman: number; novos: number }>>("/api/pcm/importar-engeman", "POST", { aplicar });
-    setRodando("");
-    if (!r.ok) { setErro(r.error!); return; }
-    setResumo(r.data!); if (aplicar) setAplicado(true);
-  }
-  if (!admin) return <p className="text-sm text-muted-foreground">Só administradores rodam a importação.</p>;
-  const ROTULO: Record<string, string> = { familias: "Famílias", tipos: "Tipos de OS", catalogo: "Catálogo (sintoma/causa/serviço)", equipes: "Equipes", ativos: "Ativos", ordens: "Ordens de serviço", servicosOs: "Serviços / falhas das OS", materiaisOs: "Materiais das OS", apontamentos: "Apontamentos de mão de obra", planos: "Planos", medidores: "Medidores", planoAtivos: "Aplicações de plano", executantesSemColaborador: "Executantes sem colaborador no ERP" };
-  return (
-    <div className="space-y-3 max-w-3xl">
-      <div className="bg-card border border-border rounded-xl p-4 text-sm space-y-2">
-        <div className="flex items-center gap-2 font-medium"><Database className="w-4 h-4" /> Engeman → Manutenção do ERP</div>
-        <p className="text-muted-foreground text-xs">Traz ativos (árvore), tipos, catálogo, equipes, planos, medidores e TODO o histórico de OS com serviços, falhas, materiais e apontamentos. Pode rodar de novo: só cria o que faltou e fecha OS que fecharam lá. Os ativos entram na Tramontin.</p>
-        <p className="text-xs">Última importação: <b>{ultima ? fmtDataHora(ultima) : "nunca"}</b></p>
-        <div className="flex gap-2"><Button variant="outline" onClick={() => rodar(false)} disabled={!!rodando}>{rodando === "previa" ? "Lendo o Engeman…" : "Prévia"}</Button><Button onClick={() => rodar(true)} disabled={!!rodando || !resumo}>{rodando === "aplicar" ? "Importando…" : "Importar"}</Button></div>
-        {erro && <p className="text-sm text-danger">{erro}</p>}
-      </div>
-      {resumo && (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="text-left px-4 py-2">{aplicado ? "Importado" : "Prévia"}</th><th className="text-right px-3 py-2">No Engeman</th><th className="text-right px-4 py-2">{aplicado ? "Criados" : "A criar"}</th></tr></thead>
-            <tbody>{Object.entries(resumo).map(([k, v]) => (
-              <tr key={k} className="border-t border-border/60"><td className="px-4 py-1.5">{ROTULO[k] ?? k}</td><td className="px-3 py-1.5 text-right">{v.engeman}</td><td className="px-4 py-1.5 text-right">{v.novos}{v.atualizados ? ` (+${v.atualizados} atualizadas)` : ""}</td></tr>
-            ))}</tbody>
+            {visiveis.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">{filtro === "PENDENTES" ? "Nenhum material pendente." : "Nada aqui."}</td></tr>}</tbody>
           </table>
         </div>
       )}

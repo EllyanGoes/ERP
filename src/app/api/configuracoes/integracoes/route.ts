@@ -18,11 +18,6 @@ const MANAGED_KEYS = [
   "wa_zapi_instance_id",
   "wa_zapi_token",
   "wa_zapi_security_token",
-  // DB Engeman Slave
-  "db_engeman_host",
-  "db_engeman_name",
-  "db_engeman_user",
-  "db_engeman_password",
   // Telegram
   "tg_bot_token",
   "tg_chat_id",
@@ -60,7 +55,6 @@ const SECRET_KEYS: readonly string[] = [
   "wa_meta_webhook_token",
   "wa_zapi_token",
   "wa_zapi_security_token",
-  "db_engeman_password",
   "tg_bot_token",
   "fiscal_master_token",
   "fiscal_webhook_secret",

@@ -1,14 +1,13 @@
-import sql from "mssql";
 import { prismaSemEscopo as db } from "@/lib/prisma";
-import { getEngemanConfig } from "@/lib/engeman";
 import { recalcularCustoOrdem } from "@/lib/manutencao/ordem";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// De-para dos materiais do Engeman → produtos (Item) do estoque do ERP. A
-// Manutenção usa SÓ o estoque do ERP: o histórico de material das OS, os kits dos
-// planos (CHKPLANO) e os sobressalentes (APLXMAT) passam a apontar para o Item.
-// Descrição idêntica (normalizada) liga sozinho; o resto recebe sugestões por
-// similaridade (mesma 1ª palavra + medidas compatíveis) e alguém confirma.
+// De-para dos materiais que vieram do Engeman → produtos (Item) do estoque do ERP.
+// A Manutenção usa SÓ o estoque do ERP: o histórico de material das OS, os kits
+// dos planos e os sobressalentes passam a apontar para o Item. A leitura do
+// Engeman já foi feita (24/10/2026, 513 materiais em ManutMaterialLegado); aqui
+// fica só a ligação: sugestões por similaridade (mesma 1ª palavra + medidas
+// compatíveis) e a propagação quando alguém confirma.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PARADAS = new Set(["X", "DE", "DA", "DO", "DAS", "DOS", "C", "P", "COM", "PARA", "E", "EM", "UND", "UN", "PC", "PCS"]);
@@ -55,93 +54,6 @@ export function sugestoes(descricao: string, itens: ItemBase[], max = 3) {
     .filter((s) => s.nota >= 0.5)
     .sort((x, y) => y.nota - x.nota)
     .slice(0, max);
-}
-
-/**
- * Lê do Engeman os materiais usados (OS, planos, sobressalentes) e grava o de-para
- * pendente + as ligações legadas. Reexecutável. Liga sozinho o que tem descrição
- * idêntica a um produto do ERP.
- */
-export async function importarMateriaisEngeman(opts: { aplicar: boolean }) {
-  const pool = await sql.connect(await getEngemanConfig({ requestTimeout: 120000 }));
-  let mats: { CODMAT: number; TAG: string | null; DESCRICAO: string; UN: string | null; USOS: number }[];
-  let regs: { CODREGSER: number; CODMAT: number }[];
-  let rxs: { CODRXMAT: number; CODMAT: number }[];
-  let kits: { CODPLA: number; CODMAT: number; QTDE: number }[];
-  let pecas: { CODAPL: number; CODMAT: number; QTDE: number }[];
-  try {
-    const q = async <T,>(s: string) => (await pool.request().query<T>(s)).recordset;
-    mats = await q(`
-      SELECT m.CODMAT, m.TAG, RTRIM(m.DESCRICAO) AS DESCRICAO, RTRIM(u.TAG) AS UN, ISNULL(z.USOS, 0) AS USOS
-      FROM MATERIAL m
-      LEFT JOIN UNIDADE u ON u.CODUNI = m.CODUNI
-      JOIN (SELECT CODMAT, COUNT(*) USOS FROM (
-              SELECT CODMAT FROM REGSERV WHERE CODMAT IS NOT NULL
-              UNION ALL SELECT CODMAT FROM REGSERVXMAT WHERE CODMAT IS NOT NULL
-              UNION ALL SELECT CODMAT FROM CHKPLANO WHERE CODMAT IS NOT NULL
-              UNION ALL SELECT CODMAT FROM APLXMAT WHERE CODMAT IS NOT NULL) x GROUP BY CODMAT) z ON z.CODMAT = m.CODMAT`);
-    regs = await q(`SELECT CODREGSER, CODMAT FROM REGSERV WHERE CODMAT IS NOT NULL`);
-    rxs = await q(`SELECT CODRXMAT, CODMAT FROM REGSERVXMAT WHERE CODMAT IS NOT NULL`);
-    kits = await q(`SELECT CODPLA, CODMAT, SUM(ISNULL(QTDE, 1)) AS QTDE FROM CHKPLANO WHERE CODMAT IS NOT NULL GROUP BY CODPLA, CODMAT`);
-    pecas = await q(`SELECT CODAPL, CODMAT, SUM(ISNULL(QTDE, 1)) AS QTDE FROM APLXMAT WHERE CODMAT IS NOT NULL GROUP BY CODAPL, CODMAT`);
-  } finally {
-    await pool.close();
-  }
-
-  const itens = await itensParaDePara();
-  const porChave = new Map<string, ItemBase[]>();
-  for (const i of itens) { const k = i.tokens.join(" "); porChave.set(k, [...(porChave.get(k) ?? []), i]); }
-  const existentes = new Map((await db.manutMaterialLegado.findMany({ select: { codMat: true, situacao: true } })).map((m) => [m.codMat, m.situacao]));
-
-  let exatos = 0, sugeridos = 0, semSugestao = 0;
-  const linhas = mats.map((m) => {
-    const ex = porChave.get(chaveExata(m.DESCRICAO)) ?? [];
-    if (ex.length === 1) { exatos++; return { m, situacao: "EXATO", itemId: ex[0].id, sug: null as null | { id: string; nota: number } }; }
-    const s = sugestoes(m.DESCRICAO, itens, 1)[0];
-    if (s) sugeridos++; else semSugestao++;
-    return { m, situacao: s ? "SUGERIDO" : "PENDENTE", itemId: null as string | null, sug: s ? { id: s.id, nota: s.nota } : null };
-  });
-  const resumo = { materiais: mats.length, novos: mats.filter((m) => !existentes.has(m.CODMAT)).length, exatos, sugeridos, semSugestao, kits: kits.length, pecas: pecas.length };
-  if (!opts.aplicar) return resumo;
-
-  for (const l of linhas) {
-    const atual = existentes.get(l.m.CODMAT);
-    const base = { tag: l.m.TAG?.trim() || null, descricao: l.m.DESCRICAO || `Material ${l.m.CODMAT}`, unidade: l.m.UN || null, usos: l.m.USOS };
-    if (!atual) {
-      await db.manutMaterialLegado.create({ data: { codMat: l.m.CODMAT, ...base, situacao: l.situacao, itemId: l.itemId, sugestaoId: l.sug?.id ?? null, sugestaoNota: l.sug?.nota ?? null } });
-    } else if (["PENDENTE", "SUGERIDO"].includes(atual)) {
-      // não mexe no que alguém já decidiu (MANUAL / SEM_PRODUTO / EXATO)
-      await db.manutMaterialLegado.update({ where: { codMat: l.m.CODMAT }, data: { ...base, situacao: l.situacao, itemId: l.itemId, sugestaoId: l.sug?.id ?? null, sugestaoNota: l.sug?.nota ?? null } });
-    } else {
-      await db.manutMaterialLegado.update({ where: { codMat: l.m.CODMAT }, data: base });
-    }
-  }
-  // Ligações legadas: material das OS (por CODREGSER / CODRXMAT), kits e peças.
-  const codPorLegado = new Map<string, number>([
-    ...regs.map((r) => [`RS:${r.CODREGSER}`, r.CODMAT] as [string, number]),
-    ...rxs.map((r) => [`RX:${r.CODRXMAT}`, r.CODMAT] as [string, number]),
-  ]);
-  const semCod = await db.manutOrdemMaterial.findMany({ where: { origem: "LEGADO", codMatLegado: null }, select: { id: true, legadoId: true } });
-  const porCod = new Map<number, string[]>();
-  for (const m of semCod) { const c = m.legadoId ? codPorLegado.get(m.legadoId) : undefined; if (c != null) porCod.set(c, [...(porCod.get(c) ?? []), m.id]); }
-  for (const [codMat, ids] of Array.from(porCod.entries())) await db.manutOrdemMaterial.updateMany({ where: { id: { in: ids } }, data: { codMatLegado: codMat } });
-
-  const conhecidos = new Set(mats.map((m) => m.CODMAT));
-  const planoId = new Map((await db.manutPlano.findMany({ where: { legadoId: { not: null } }, select: { id: true, legadoId: true } })).map((p) => [p.legadoId!, p.id]));
-  await db.manutPlanoKitLegado.createMany({
-    data: kits.filter((k) => planoId.get(k.CODPLA) && conhecidos.has(k.CODMAT)).map((k) => ({ planoId: planoId.get(k.CODPLA)!, codMat: k.CODMAT, quantidade: k.QTDE || 1 })),
-    skipDuplicates: true,
-  });
-  const ativoId = new Map((await db.manutAtivo.findMany({ select: { id: true, codApl: true } })).map((a) => [a.codApl, a.id]));
-  await db.manutAtivoPecaLegado.createMany({
-    data: pecas.filter((p) => ativoId.get(p.CODAPL) && conhecidos.has(p.CODMAT)).map((p) => ({ ativoId: ativoId.get(p.CODAPL)!, codMat: p.CODMAT, quantidade: p.QTDE || 1 })),
-    skipDuplicates: true,
-  });
-
-  // Propaga os que já têm produto (exatos e decisões anteriores).
-  const ligados = await db.manutMaterialLegado.findMany({ where: { itemId: { not: null } }, select: { codMat: true, itemId: true } });
-  for (const l of ligados) await propagarVinculo(l.codMat, l.itemId!);
-  return resumo;
 }
 
 /**

@@ -1,8 +1,10 @@
 # PRD — Módulo de Manutenção (PCM nativo, substituição do Engeman)
 
-> Status: APROVADO (24/out/2026). Fases 1–2 em produção com o histórico do Engeman importado
-> (24/out); fase 3 entregue (painel `/pcm`, relatórios `/pcm/relatorios`, OS na requisição) exceto
-> medidores alimentados pelo PCP. Decisões do dono no §11.
+> Status: APROVADO (24/out/2026). Fases 1–4 em produção em 24/out: histórico do Engeman importado,
+> Engeman REMOVIDO do código (sem `mssql`, sem tela de integração). Pendentes: medidores pelo PCP
+> (§11) e a confirmação manual do de-para de materiais (Configurações › Materiais → produtos).
+> Próximo ciclo (decidido em 24/out): mapa da planta + indicadores (Confiabilidade), fusão de telas,
+> limpeza de tipos/equipes/catálogo — ver §14.
 > Decisão de partida: **o Engeman deixa de ser usado.** A manutenção passa a ser registrada e
 > planejada dentro do ERP; o Engeman vira só fonte de uma **importação única** do histórico.
 > Princípio central: **a OS é o fato da manutenção** — tudo (parada, mão de obra, peça, terceiro,
@@ -585,3 +587,28 @@ não deixa fechar sem parada/falha, e (fase 4) QR na máquina.
 - Custo de manutenção por ativo disponível mensalmente, conciliando com o consumo de "Material de
   manutenção" do estoque (diferença = requisições sem OS, que devem cair mês a mês).
 - Tempo médio de triagem de SS < 1 dia útil.
+
+## 14. Simplificação (aprovada em 24/out/2026, referência de UX: Tractian CMMS)
+
+Ordem: (a) ✔ publicar fase 4; (b) mapa da planta + Indicadores c/ Confiabilidade; (c) fusão de
+telas; (d) limpeza dos cadastros herdados (lista final decidida pelo dono).
+
+**Menu alvo (7 telas):** Painel (mapa da planta + números) · Ordens de Serviço (quadro único; a
+Solicitação é a 1ª coluna, triar = arrastar) · Ativos (FMEA e indicadores como abas do ativo) ·
+Planos (aderência como aba) · Custos e falhas (absorve Relatório de O.S.) · Indicadores (MTBF,
+MTTR, Disponibilidade, Confiabilidade R(t)=e^(−t/MTBF) por ativo/período; "fechar mês" é um botão)
+· Configurações (Qualidade do cadastro vira cartão no Painel).
+
+**Saem:** Quadro de O.S. antigo, Relatório de O.S., Aderência dos planos (vira aba), Falhas por
+tipo (duplicado de Configurações › Tipos), Fechamento mensal como tela própria.
+
+**Cadastros:** Tipos 16 → 6 (Corretiva, Preventiva, Preditiva, Inspeção, Lubrificação, Melhoria);
+Equipes 32 → ~6 de manutenção; catálogo curado (~30 sintomas, ~30 causas; mais usados primeiro).
+Antigos ficam inativos (histórico preservado).
+
+**OS:** 4 abas — Execução (MO + checklist) · Falha · Custos (materiais + terceiros) · Histórico.
+
+**Mapa da planta:** blocos por área (nós LOCAL da árvore) posicionados pelo usuário uma vez
+(posição salva), equipamentos como ladrilhos coloridos por status (operando / parado / em
+manutenção / atenção / inativo) com nº de OS abertas; clique abre ativo/OS; drill-down planta →
+área → equipamento; opcional planta baixa (imagem) com pinos.

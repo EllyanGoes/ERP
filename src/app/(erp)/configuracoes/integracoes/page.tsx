@@ -34,7 +34,6 @@ export default function IntegracoesPage() {
   const [loading,    setLoading]    = useState(true);
   const [waStatus,   setWaStatus]   = useState<ConnStatus>("idle");
   const [tgStatus,   setTgStatus]   = useState<ConnStatus>("idle");
-  const [dbStatus,   setDbStatus]   = useState<ConnStatus>("idle");
   const [waProvider, setWaProvider] = useState("Evolution API");
   const [payStatus,  setPayStatus]  = useState<ConnStatus>("idle");
   const [nfeStatus,  setNfeStatus]  = useState<ConnStatus>("idle");
@@ -62,9 +61,6 @@ export default function IntegracoesPage() {
       // Telegram
       setTgStatus(!!(cfg.tg_bot_token && cfg.tg_chat_id) ? "ok" : "unconfigured");
 
-      // DB Engeman
-      setDbStatus(!!(cfg.db_engeman_host && cfg.db_engeman_name && cfg.db_engeman_user) ? "ok" : "unconfigured");
-
       // Focus NFe (módulo Fiscal): "ok" se o master token da conta está salvo
       setNfeStatus(cfg.fiscal_master_token ? "ok" : "unconfigured");
 
@@ -84,7 +80,6 @@ export default function IntegracoesPage() {
     } catch {
       setWaStatus("unconfigured");
       setTgStatus("unconfigured");
-      setDbStatus("unconfigured");
       setPayStatus("unconfigured");
       setNfeStatus("unconfigured");
       setAdsStatus("unconfigured");
@@ -121,16 +116,6 @@ export default function IntegracoesPage() {
       badge:   "Bot API",
       badgeCn: "bg-sky-50 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-100",
       status:  tgStatus,
-    },
-    {
-      href:    "/configuracoes/integracoes/db-engeman",
-      icon:    <Database className="w-5 h-5 text-info" />,
-      bg:      "bg-info/10 border-info/20",
-      title:   "DB Engeman Slave",
-      desc:    "Acesso somente leitura ao banco de dados do Engeman (manutenção)",
-      badge:   "SQL Server",
-      badgeCn: "bg-info/10 text-info border-info/20",
-      status:  dbStatus,
     },
     {
       href:    "/contabilidade/integracao-dexion",
