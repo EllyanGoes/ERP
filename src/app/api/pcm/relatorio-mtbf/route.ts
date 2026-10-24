@@ -2,8 +2,9 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import sql from "mssql";
-import { getEngemanConfig, engemanErrorResponse } from "@/lib/engeman";
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { dataReferenciaOS, wherePeriodoOS } from "@/lib/manutencao/consultas";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface MtbfMensal {
@@ -33,9 +34,30 @@ export interface MtbfAplicacaoResponse {
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
 // ── Query principal ────────────────────────────────────────────────────────────
+// Falha aqui = OS (não cancelada) com ao menos um serviço com sintoma — mesma
+// regra do relatório antigo (REGSERV.CODDEF preenchido), sem olhar o tipo.
+// Data = data de referência da OS (programadaPara, senão createdAt).
+
+/** Diferença em minutos como o DATEDIFF(MI) do SQL Server (conta viradas de minuto). */
+function diffMinutos(a: Date, b: Date): number {
+  return Math.floor(b.getTime() / 60_000) - Math.floor(a.getTime() / 60_000);
+}
+
+/** MTBF da fórmula do usuário: ROUND(DATEDIFF(MI, menor, maior) / 60.0, 2) / QTDEOS (só com > 1 OS). */
+function mtbfFormula(datas: Date[]): number | null {
+  if (datas.length <= 1) return null;
+  let menor = datas[0];
+  let maior = datas[0];
+  for (const d of datas) {
+    if (d < menor) menor = d;
+    if (d > maior) maior = d;
+  }
+  const horas = Math.round((diffMinutos(menor, maior) / 60) * 100) / 100;
+  return parseFloat((horas / datas.length).toFixed(2));
+}
+
 async function queryMtbf(
   codApl:     number,
-  codemp:     number,
   dataInicio: Date | null,
   dataFim:    Date | null,
 ): Promise<{
@@ -43,126 +65,75 @@ async function queryMtbf(
   tendencia: MtbfMensal[];
   aplicacao: { codApl: number; tag: string; descricao: string };
 }> {
-  const pool = await sql.connect(await getEngemanConfig());
+  // ── 1. Dados do ativo ────────────────────────────────────────────────────
+  const ativo = await prisma.manutAtivo.findFirst({
+    where: { codApl },
+    select: { codApl: true, tag: true, nome: true },
+  });
 
-  try {
-    // ── 1. Dados da aplicação ──────────────────────────────────────────────
-    const aplResult = await pool.request()
-      .input("codApl", sql.Int, codApl)
-      .query<{ CODAPL: number; TAG: string; DESCRICAO: string }>(`
-        SELECT
-          a.CODAPL,
-          RTRIM(ISNULL(a.TAG, CAST(a.CODAPL AS VARCHAR(20)))) AS TAG,
-          RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))          AS DESCRICAO
-        FROM APLIC a
-        WHERE a.CODAPL = @codApl
-      `);
-    const aplRow = aplResult.recordset[0];
+  const baseFalha: Prisma.ManutOrdemWhereInput = {
+    ativo: { codApl },
+    status: { not: "CANCELADA" },
+    servicos: { some: { sintomaId: { not: null } } },
+  };
+  const buscar = async (inicio: Date | null, fim: Date | null) =>
+    (
+      await prisma.manutOrdem.findMany({
+        where: { AND: [baseFalha, wherePeriodoOS(inicio, fim)] },
+        select: { programadaPara: true, createdAt: true },
+      })
+    ).map(dataReferenciaOS);
 
-    // ── Filtro de período (NULL = sem filtro) ──────────────────────────────
-    const periodoWhere = [
-      dataInicio ? "AND ORDSERV.DATPRO >= @dataInicio" : "",
-      dataFim    ? "AND ORDSERV.DATPRO <= @dataFim"    : "",
-    ].join("\n          ");
+  // ── 2. MTBF acumulado — fórmula exata do usuário ──────────────────────────
+  const datas = await buscar(dataInicio, dataFim);
+  let menor: Date | null = null;
+  let maior: Date | null = null;
+  for (const d of datas) {
+    if (!menor || d < menor) menor = d;
+    if (!maior || d > maior) maior = d;
+  }
 
-    // ── 2. MTBF acumulado — fórmula exata do usuário ──────────────────────
-    const req2 = pool.request()
-      .input("codApl", sql.Int, codApl)
-      .input("codemp", sql.Int, codemp);
-    if (dataInicio) req2.input("dataInicio", sql.DateTime, dataInicio);
-    if (dataFim)    req2.input("dataFim",    sql.DateTime, dataFim);
-
-    const mtbfResult = await req2.query<{
-      MTBF: number | null;
-      QTDEOS: number;
-      DATAMENOR: Date | null;
-      DATAMAIOR: Date | null;
-    }>(`
-      SELECT
-        CASE
-          WHEN X.QTDEOS > 1
-            THEN ROUND((DATEDIFF(MI, X.DATAMENOR, X.DATAMAIOR) / 60.0), 2) / X.QTDEOS
-          ELSE NULL
-        END AS MTBF,
-        X.QTDEOS,
-        X.DATAMENOR,
-        X.DATAMAIOR
-      FROM (
-        SELECT
-          MAX(ORDSERV.DATPRO)             AS DATAMAIOR,
-          MIN(ORDSERV.DATPRO)             AS DATAMENOR,
-          COUNT(DISTINCT ORDSERV.CODORD)  AS QTDEOS
-        FROM ORDSERV
-        INNER JOIN REGSERV ON REGSERV.CODORD = ORDSERV.CODORD
-        WHERE REGSERV.CODDEF IS NOT NULL
-          AND ORDSERV.CODAPL  = @codApl
-          AND ORDSERV.CODEMP  = @codemp
-          AND ORDSERV.CODFIL NOT IN (0)
-          ${periodoWhere}
-      ) X
-    `);
-    const mtbfRow = mtbfResult.recordset[0];
-
-    // ── 3. Tendência mensal — agrupada por mês dentro do período ──────────
-    const req3 = pool.request()
-      .input("codApl", sql.Int, codApl)
-      .input("codemp", sql.Int, codemp);
-    if (dataInicio) req3.input("dataInicio", sql.DateTime, dataInicio);
-    if (dataFim)    req3.input("dataFim",    sql.DateTime, dataFim);
-
-    // Se sem filtro de período, usa 6 meses por padrão para a tendência
-    const trendWhere = (dataInicio || dataFim)
-      ? periodoWhere
-      : "AND ORDSERV.DATPRO >= DATEADD(MONTH, -6, GETDATE())";
-
-    const trendResult = await req3.query<{
-      ANO: number; MES: number;
-      QTDEOS: number; MTBF: number | null;
-    }>(`
-      SELECT
-        YEAR(ORDSERV.DATPRO)            AS ANO,
-        MONTH(ORDSERV.DATPRO)           AS MES,
-        COUNT(DISTINCT ORDSERV.CODORD)  AS QTDEOS,
-        CASE
-          WHEN COUNT(DISTINCT ORDSERV.CODORD) > 1
-            THEN ROUND(
-              (DATEDIFF(MI, MIN(ORDSERV.DATPRO), MAX(ORDSERV.DATPRO)) / 60.0), 2
-            ) / COUNT(DISTINCT ORDSERV.CODORD)
-          ELSE NULL
-        END AS MTBF
-      FROM ORDSERV
-      INNER JOIN REGSERV ON REGSERV.CODORD = ORDSERV.CODORD
-      WHERE REGSERV.CODDEF IS NOT NULL
-        AND ORDSERV.CODAPL  = @codApl
-        AND ORDSERV.CODEMP  = @codemp
-        AND ORDSERV.CODFIL NOT IN (0)
-        ${trendWhere}
-      GROUP BY YEAR(ORDSERV.DATPRO), MONTH(ORDSERV.DATPRO)
-      ORDER BY ANO, MES
-    `);
-
-    const tendencia: MtbfMensal[] = trendResult.recordset.map((r) => ({
-      mes:    `${r.ANO}-${String(r.MES).padStart(2, "0")}`,
-      label:  `${MESES[r.MES - 1]}/${String(r.ANO).slice(2)}`,
-      falhas: r.QTDEOS,
-      mtbf:   r.MTBF != null ? parseFloat(r.MTBF.toFixed(2)) : null,
+  // ── 3. Tendência mensal — agrupada por mês dentro do período ──────────────
+  // Sem filtro de período, usa 6 meses por padrão para a tendência.
+  let datasTrend = datas;
+  if (!dataInicio && !dataFim) {
+    const seisMeses = new Date();
+    seisMeses.setMonth(seisMeses.getMonth() - 6);
+    datasTrend = await buscar(seisMeses, null);
+  }
+  const porMes = new Map<string, { ano: number; mes: number; datas: Date[] }>();
+  for (const d of datasTrend) {
+    const ano = d.getUTCFullYear();
+    const mes = d.getUTCMonth() + 1;
+    const key = `${ano}-${String(mes).padStart(2, "0")}`;
+    let acc = porMes.get(key);
+    if (!acc) {
+      acc = { ano, mes, datas: [] };
+      porMes.set(key, acc);
+    }
+    acc.datas.push(d);
+  }
+  const tendencia: MtbfMensal[] = Array.from(porMes.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, a]) => ({
+      mes:    key,
+      label:  `${MESES[a.mes - 1]}/${String(a.ano).slice(2)}`,
+      falhas: a.datas.length,
+      mtbf:   mtbfFormula(a.datas),
     }));
 
-    return {
-      atual: {
-        mtbf:        mtbfRow?.MTBF != null ? parseFloat(mtbfRow.MTBF.toFixed(2)) : null,
-        totalFalhas: mtbfRow?.QTDEOS ?? 0,
-        dataInicio:  mtbfRow?.DATAMENOR ?? null,
-        dataFim:     mtbfRow?.DATAMAIOR ?? null,
-      },
-      tendencia,
-      aplicacao: aplRow
-        ? { codApl: aplRow.CODAPL, tag: aplRow.TAG, descricao: aplRow.DESCRICAO }
-        : { codApl, tag: String(codApl), descricao: "Aplicação não encontrada" },
-    };
-  } finally {
-    await pool.close();
-  }
+  return {
+    atual: {
+      mtbf:        mtbfFormula(datas),
+      totalFalhas: datas.length,
+      dataInicio:  menor,
+      dataFim:     maior,
+    },
+    tendencia,
+    aplicacao: ativo
+      ? { codApl: ativo.codApl, tag: ativo.tag || String(ativo.codApl), descricao: ativo.nome || "Sem descrição" }
+      : { codApl, tag: String(codApl), descricao: "Aplicação não encontrada" },
+  };
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────────
@@ -172,7 +143,6 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const codAplParam      = searchParams.get("codApl");
-  const codemParam       = searchParams.get("codemp");
   const dataInicioParam  = searchParams.get("dataInicio"); // "YYYY-MM-DD"
   const dataFimParam     = searchParams.get("dataFim");    // "YYYY-MM-DD"
 
@@ -180,46 +150,42 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Parâmetro codApl obrigatório" }, { status: 400 });
   }
   const codApl = parseInt(codAplParam, 10);
-  const codemp = parseInt(codemParam ?? "1", 10);
   if (isNaN(codApl) || codApl <= 0) {
     return NextResponse.json({ error: "codApl inválido" }, { status: 400 });
   }
 
-  // Parse dates — null = sem filtro
+  // Parse dates — null = sem filtro. Em UTC: as datas das OS (inclusive o
+  // histórico do Engeman) são comparadas pelo dia gravado.
   function parseDate(s: string | null): Date | null {
     if (!s) return null;
-    const d = new Date(s + "T00:00:00");
+    const d = new Date(s + "T00:00:00Z");
     return isNaN(d.getTime()) ? null : d;
   }
   // dataFim goes to end of day
   function parseDateFim(s: string | null): Date | null {
     if (!s) return null;
-    const d = new Date(s + "T23:59:59");
+    const d = new Date(s + "T23:59:59.999Z");
     return isNaN(d.getTime()) ? null : d;
   }
 
   const dataInicio = parseDate(dataInicioParam);
   const dataFim    = parseDateFim(dataFimParam);
 
-  try {
-    const { atual, tendencia, aplicacao } = await queryMtbf(codApl, codemp, dataInicio, dataFim);
+  const { atual, tendencia, aplicacao } = await queryMtbf(codApl, dataInicio, dataFim);
 
-    const response: MtbfAplicacaoResponse = {
-      codApl:       aplicacao.codApl,
-      tag:          aplicacao.tag,
-      descricao:    aplicacao.descricao,
-      mtbfAtual:    atual.mtbf,
-      totalFalhas:  atual.totalFalhas,
-      dataInicio:   atual.dataInicio?.toISOString() ?? null,
-      dataFim:      atual.dataFim?.toISOString()    ?? null,
-      periodoFiltro: { de: dataInicioParam ?? null, ate: dataFimParam ?? null },
-      tendencia,
-      source:       "db",
-      generatedAt:  new Date().toISOString(),
-    };
+  const response: MtbfAplicacaoResponse = {
+    codApl:       aplicacao.codApl,
+    tag:          aplicacao.tag,
+    descricao:    aplicacao.descricao,
+    mtbfAtual:    atual.mtbf,
+    totalFalhas:  atual.totalFalhas,
+    dataInicio:   atual.dataInicio?.toISOString() ?? null,
+    dataFim:      atual.dataFim?.toISOString()    ?? null,
+    periodoFiltro: { de: dataInicioParam ?? null, ate: dataFimParam ?? null },
+    tendencia,
+    source:       "db",
+    generatedAt:  new Date().toISOString(),
+  };
 
-    return NextResponse.json(response);
-  } catch (err) {
-    return engemanErrorResponse("PCM /api/pcm/relatorio-mtbf", err);
-  }
+  return NextResponse.json(response);
 }

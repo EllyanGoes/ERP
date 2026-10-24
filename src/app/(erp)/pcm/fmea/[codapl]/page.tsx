@@ -59,20 +59,27 @@ function fmtH(h: number): string {
 }
 
 const PRIORIDADE_COLOR: Record<string, string> = {
+  EMERGÊNCIA: "bg-danger/15 text-danger border-danger/30",
   ALTA:  "bg-danger/15 text-danger border-danger/30",
   MÉDIA: "bg-warning/15 text-warning border-warning/30",
   BAIXA: "bg-success/15 text-success border-success/30",
 };
 
+// Status da OS (ManutOrdem.status) — os não listados caem no estilo "em aberto".
 const STATUS_COLOR: Record<string, string> = {
-  A: "bg-info/15 text-info",
-  F: "bg-success/15 text-success",
-  C: "bg-muted text-muted-foreground",
+  CONCLUIDA: "bg-success/15 text-success",
+  CANCELADA: "bg-muted text-muted-foreground",
 };
 const STATUS_LABEL: Record<string, string> = {
-  A: "Em Aberto",
-  F: "Concluída",
-  C: "Cancelada",
+  ABERTA: "Aberta",
+  PLANEJADA: "Planejada",
+  EM_EXECUCAO: "Em execução",
+  PAUSADA: "Pausada",
+  AGUARDANDO_MATERIAL: "Aguard. material",
+  AGUARDANDO_TERCEIRO: "Aguard. terceiro",
+  ENCERRADA: "Encerrada (validar)",
+  CONCLUIDA: "Concluída",
+  CANCELADA: "Cancelada",
 };
 
 type SortKey = "datent" | "horasParada" | "prioridade" | "tipo";
@@ -116,7 +123,6 @@ export default function FMEAPage() {
   const [loading, setLoading] = useState<boolean>(() =>
     !_fmeaMemCache.has(`${codapl}:365`)
   );
-  const [engemanOffline, setEngemanOffline] = useState(false);
 
   const [sortKey, setSortKey]   = useState<SortKey>("datent");
   const [sortDir, setSortDir]   = useState<"asc" | "desc">("desc");
@@ -138,9 +144,7 @@ export default function FMEAPage() {
     setLoading(true);
     try {
       const res  = await fetch(`/api/pcm/fmea/${codapl}?dias=${dias}`);
-      if (res.status === 503) { setEngemanOffline(true); setData(null); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setEngemanOffline(false);
       const json = await res.json() as FMEAResponse;
       _fmeaMemCache.set(`${codapl}:${dias}`, json);
       setData(json);
@@ -166,7 +170,7 @@ export default function FMEAPage() {
         if (sortKey === "horasParada") cmp = a.horasParada - b.horasParada;
         if (sortKey === "tipo")        cmp = (a.tipo ?? "").localeCompare(b.tipo ?? "");
         if (sortKey === "prioridade") {
-          const order = { ALTA: 0, MÉDIA: 1, BAIXA: 2 };
+          const order = { EMERGÊNCIA: -1, ALTA: 0, MÉDIA: 1, BAIXA: 2 };
           const ap = a.prioridade ? (order[a.prioridade as keyof typeof order] ?? 3) : 3;
           const bp = b.prioridade ? (order[b.prioridade as keyof typeof order] ?? 3) : 3;
           cmp = ap - bp;
@@ -204,20 +208,6 @@ export default function FMEAPage() {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            {engemanOffline ? (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-danger/10 border-danger/30 text-danger">
-                <Database className="w-3.5 h-3.5" />
-                <span className="w-2 h-2 rounded-full bg-red-500" />
-                Engeman inacessível
-              </div>
-            ) : data && (
-              <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border", "bg-success/10 border-success/30 text-success")}>
-                <Database className="w-3.5 h-3.5" />
-                <span className={cn("w-2 h-2 rounded-full", "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]")} />
-                Engeman online
-              </div>
-            )}
-
             <Select value={String(dias)} onValueChange={(v) => setDias(Number(v))}>
               <SelectTrigger className="w-44 h-8 text-sm">
                 <SelectValue />
@@ -253,13 +243,10 @@ export default function FMEAPage() {
             <span className="text-sm">Buscando histórico de O.S…</span>
           </div>
         )}
-        {!loading && engemanOffline && !data && (
+        {!loading && !data && (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-sm">
             <Database className="w-10 h-10 text-red-300" />
-            <p className="font-semibold text-danger">Engeman inacessível</p>
-            <p className="text-muted-foreground text-center max-w-sm">
-              O servidor Engeman não está acessível neste ambiente (rede local apenas).
-            </p>
+            <p className="font-semibold text-danger">Não foi possível carregar o histórico de O.S.</p>
             <Button variant="outline" size="sm" className="gap-1.5 mt-1" onClick={fetchData}>
               <RefreshCw className="w-4 h-4" />
               Tentar novamente
@@ -432,7 +419,7 @@ export default function FMEAPage() {
                       </thead>
                       <tbody>
                         {sorted.map((f, i) => (
-                          <tr key={f.codord} className={`border-b border-gray-50 hover:bg-muted/70 transition-colors ${i % 2 === 1 ? "bg-muted/30" : ""}`}>
+                          <tr key={f.id} className={`border-b border-gray-50 hover:bg-muted/70 transition-colors ${i % 2 === 1 ? "bg-muted/30" : ""}`}>
                             <td className="px-5 py-3">
                               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                 <CalendarCheck className="w-3 h-3 text-muted-foreground" />
@@ -441,7 +428,13 @@ export default function FMEAPage() {
                             </td>
                             <td className="px-4 py-3">
                               <p className="font-medium text-foreground text-xs truncate max-w-[220px]">{f.descricao}</p>
-                              <p className="text-[11px] text-muted-foreground font-mono mt-0.5">#{f.codord}</p>
+                              <Link
+                                href={`/pcm/os/${f.id}`}
+                                className="text-[11px] text-info hover:underline font-mono mt-0.5 inline-block"
+                                title="Abrir a OS no ERP"
+                              >
+                                {f.numero}
+                              </Link>
                             </td>
                             <td className="px-4 py-3 hidden md:table-cell">
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border">
@@ -466,9 +459,9 @@ export default function FMEAPage() {
                             </td>
                             <td className="px-4 py-3 text-center">
                               <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium",
-                                STATUS_COLOR[f.statord] ?? "bg-muted text-muted-foreground"
+                                STATUS_COLOR[f.status] ?? "bg-info/15 text-info"
                               )}>
-                                {STATUS_LABEL[f.statord] ?? f.statord}
+                                {STATUS_LABEL[f.status] ?? f.status}
                               </span>
                             </td>
                             <td className="px-4 py-3 hidden lg:table-cell">
@@ -500,7 +493,7 @@ export default function FMEAPage() {
             {/* Footer */}
             <p className="text-xs text-muted-foreground text-right">
               Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} ·{" "}
-              Fonte: Engeman CMMS
+              Fonte: Ordens de serviço do ERP
             </p>
           </>
         )}

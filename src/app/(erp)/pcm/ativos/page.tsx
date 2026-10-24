@@ -5,6 +5,10 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
+import SelectMenu from "@/components/shared/SelectMenu";
+import { Button } from "@/components/ui/button";
+import AtivoFormDialog, { type AtivoFicha, type Lookups } from "./AtivoFormDialog";
+import AtivoPainel, { StatusAtivoBadge } from "./AtivoPainel";
 import { cn } from "@/lib/utils";
 import {
   ChevronDown,
@@ -17,6 +21,10 @@ import {
   RefreshCw,
   AlertTriangle,
   PackageSearch,
+  Plus,
+  MapPin,
+  Truck,
+  Puzzle,
 } from "lucide-react";
 import type { AtivoNode } from "@/app/api/pcm/ativos/route";
 
@@ -61,7 +69,7 @@ function allGroupTaggrus(nodes: AtivoNode[]): string[] {
   const walk = (ns: AtivoNode[]) => {
     for (const n of ns) {
       if (n.children.length) {
-        out.push(n.taggru);
+        out.push(n.id);
         walk(n.children);
       }
     }
@@ -81,7 +89,10 @@ function filterTree(
     filtro === "all" ||
     (filtro === "none" ? n.criticidade === null : n.criticidade === filtro);
   const matchBusca = (n: AtivoNode) =>
-    !q || n.descricao.toLowerCase().includes(q) || n.tag.toLowerCase().includes(q);
+    !q ||
+    n.descricao.toLowerCase().includes(q) ||
+    n.tag.toLowerCase().includes(q) ||
+    (n.localizacao ?? "").toLowerCase().includes(q);
 
   const rec = (ns: AtivoNode[]): AtivoNode[] =>
     ns.flatMap((n) => {
@@ -146,25 +157,23 @@ function RegimeSelector({
   onPick: (v: number | null) => void;
 }) {
   return (
-    <select
-      value={value ?? ""}
-      disabled={saving}
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => onPick(e.target.value === "" ? null : Number(e.target.value))}
-      title="Regime de operação (horas/dia) — base do tempo de funcionamento no MTBF"
-      className="shrink-0 rounded border border-border bg-card text-xs text-muted-foreground px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
-    >
-      <option value="">— 24h</option>
-      {REGIMES.map((h) => (
-        <option key={h} value={h}>
-          {h}h/dia
-        </option>
-      ))}
-    </select>
+    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+      <SelectMenu
+        value={value == null ? "" : String(value)}
+        disabled={saving}
+        onChange={(v) => onPick(v === "" ? null : Number(v))}
+        title="Regime de operação (horas/dia) — base do tempo de funcionamento no MTBF"
+        className="w-[92px]"
+        triggerClassName="h-7 text-xs px-2"
+        options={[{ value: "", label: "— 24h" }, ...REGIMES.map((h) => ({ value: String(h), label: `${h}h/dia` }))]}
+      />
+    </div>
   );
 }
 
 // ── Linha da árvore ──────────────────────────────────────────────────────────
+const ICONE_TIPO: Record<string, typeof Cpu> = { LOCAL: MapPin, EQUIPAMENTO: Cpu, COMPONENTE: Puzzle, VEICULO: Truck };
+
 function AtivoRow({
   node,
   depth,
@@ -172,34 +181,43 @@ function AtivoRow({
   toggle,
   forceOpen,
   savingCodApl,
+  selecionado,
+  onSelect,
   onClassify,
   onRegime,
 }: {
   node: AtivoNode;
   depth: number;
   expanded: Set<string>;
-  toggle: (taggru: string) => void;
+  toggle: (id: string) => void;
   forceOpen: boolean;
   savingCodApl: number | null;
+  selecionado: number | null;
+  onSelect: (node: AtivoNode) => void;
   onClassify: (node: AtivoNode, v: Crit | null) => void;
   onRegime: (node: AtivoNode, v: number | null) => void;
 }) {
   const hasChildren = node.children.length > 0;
-  const isOpen = forceOpen || expanded.has(node.taggru);
+  const isOpen = forceOpen || expanded.has(node.id);
   const indent = 8 + depth * 18;
-  const Icon = hasChildren ? Layers : Cpu;
+  const Icon = hasChildren && node.tipo !== "VEICULO" ? Layers : ICONE_TIPO[node.tipo] ?? Cpu;
 
   return (
     <div>
       <div
-        className="flex items-center gap-2 pr-3 py-1.5 border-b border-gray-50 hover:bg-muted"
+        className={cn(
+          "flex items-center gap-2 pr-3 py-1.5 border-b border-border/40 hover:bg-muted cursor-pointer",
+          selecionado === node.codApl && "bg-info/10 hover:bg-info/15",
+          !node.ativo && "opacity-60",
+        )}
         style={{ paddingLeft: indent }}
+        onClick={() => onSelect(node)}
       >
         {hasChildren ? (
           <button
             type="button"
-            onClick={() => toggle(node.taggru)}
-            className="p-0.5 text-muted-foreground hover:text-muted-foreground shrink-0"
+            onClick={(e) => { e.stopPropagation(); toggle(node.id); }}
+            className="p-0.5 text-muted-foreground hover:text-foreground shrink-0"
           >
             {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
@@ -216,8 +234,12 @@ function AtivoRow({
           >
             {node.descricao}
           </p>
-          <p className="text-[11px] text-muted-foreground font-mono truncate">{node.tag}</p>
+          <p className="text-[11px] text-muted-foreground font-mono truncate">
+            {node.tag}
+            {node.localizacao && <span className="font-sans"> · {node.localizacao}</span>}
+          </p>
         </div>
+        {(node.status === "PARADO" || !node.ativo) && <StatusAtivoBadge status={node.status} ativo={node.ativo} />}
         <RegimeSelector
           value={node.regimeHorasDia}
           saving={savingCodApl === node.codApl}
@@ -232,13 +254,15 @@ function AtivoRow({
       {isOpen &&
         node.children.map((c) => (
           <AtivoRow
-            key={c.taggru}
+            key={c.id}
             node={c}
             depth={depth + 1}
             expanded={expanded}
             toggle={toggle}
             forceOpen={forceOpen}
             savingCodApl={savingCodApl}
+            selecionado={selecionado}
+            onSelect={onSelect}
             onClassify={onClassify}
             onRegime={onRegime}
           />
@@ -285,17 +309,34 @@ export default function AtivosPage() {
   const [busca, setBusca] = usePersistedState("pcm:ativos:busca", "");
   const [filtro, setFiltro] = usePersistedState<Filtro>("pcm:ativos:filtro", "all");
   const [savingCodApl, setSavingCodApl] = useState<number | null>(null);
+  const [inativos, setInativos] = usePersistedState("pcm:ativos:inativos", false);
+
+  // Painel do ativo selecionado (?ativo=<codApl> abre direto — links da Qualidade).
+  const [selecionado, setSelecionado] = useState<number | null>(null);
+  const [versao, setVersao] = useState(0);
+  useEffect(() => {
+    const cod = Number(new URLSearchParams(window.location.search).get("ativo"));
+    if (Number.isInteger(cod) && cod > 0) setSelecionado(cod);
+  }, []);
+
+  // Formulário (criar/editar)
+  const [formAberto, setFormAberto] = useState(false);
+  const [editando, setEditando] = useState<AtivoFicha | null>(null);
+  const [paiInicial, setPaiInicial] = useState<string | null>(null);
+  const [lookups, setLookups] = useState<Lookups | null>(null);
+  useEffect(() => {
+    if (!formAberto || lookups) return;
+    fetch("/api/pcm/ativos/lookups")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => j && setLookups(j.data))
+      .catch(() => {});
+  }, [formAberto, lookups]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setErroCarga(null);
     try {
-      const res = await fetch("/api/pcm/ativos");
-      if (res.status === 503) {
-        setErroCarga("Engeman indisponível no momento. Tente novamente.");
-        setTree([]);
-        return;
-      }
+      const res = await fetch(`/api/pcm/ativos${inativos ? "?inativos=1" : ""}`);
       if (!res.ok) {
         setErroCarga("Não foi possível carregar os ativos.");
         setTree([]);
@@ -309,11 +350,22 @@ export default function AtivosPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [inativos]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  function novoAtivo(paiId: string | null = null) {
+    setEditando(null);
+    setPaiInicial(paiId);
+    setFormAberto(true);
+  }
+  function aposSalvar(codApl: number) {
+    setSelecionado(codApl);
+    setVersao((v) => v + 1);
+    load();
+  }
 
   const resumo = useMemo(() => computeResumo(tree), [tree]);
 
@@ -323,11 +375,11 @@ export default function AtivosPage() {
     [tree, busca, filtro, filtering],
   );
 
-  const toggle = useCallback((taggru: string) => {
+  const toggle = useCallback((id: string) => {
     setExpanded((prev) => {
       const n = new Set(prev);
-      if (n.has(taggru)) n.delete(taggru);
-      else n.add(taggru);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
       return n;
     });
   }, []);
@@ -349,9 +401,10 @@ export default function AtivosPage() {
         const res = await fetch(`/api/pcm/ativos/${node.codApl}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ criticidade: v, tag: node.tag, descricao: node.descricao }),
+          body: JSON.stringify({ criticidade: v }),
         });
         if (!res.ok) throw new Error();
+        if (selecionado === node.codApl) setVersao((x) => x + 1);
       } catch {
         setTree((t) => updateCrit(t, node.codApl, anterior)); // reverte
         setErroSalvar(`Não foi possível salvar a criticidade de "${node.tag}". Tente novamente.`);
@@ -359,7 +412,7 @@ export default function AtivosPage() {
         setSavingCodApl(null);
       }
     },
-    [],
+    [selecionado],
   );
 
   const onRegime = useCallback(async (node: AtivoNode, v: number | null) => {
@@ -386,8 +439,13 @@ export default function AtivosPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Ativos"
-        subtitle="Árvore de ativos da empresa (Engeman). Classifique a criticidade de cada ativo em A, B ou C."
-        breadcrumbs={[{ label: "PCM" }, { label: "Ativos" }]}
+        subtitle="Árvore de ativos da empresa. Cadastre, organize e classifique a criticidade (A, B ou C) de cada ativo."
+        breadcrumbs={[{ label: "Manutenção" }, { label: "Ativos" }]}
+        action={
+          <Button onClick={() => novoAtivo()} className="bg-blue-600 hover:bg-blue-700 gap-1.5">
+            <Plus className="w-4 h-4" /> Novo ativo
+          </Button>
+        }
       />
 
       {/* Toolbar */}
@@ -397,10 +455,14 @@ export default function AtivosPage() {
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por TAG ou descrição…"
+            placeholder="Buscar por TAG, nome ou localização…"
             className="w-full rounded-lg border border-border pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
+        <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" checked={inativos} onChange={(e) => setInativos(e.target.checked)} />
+          Mostrar inativos
+        </label>
         <div className="flex items-center gap-1.5 ml-auto">
           <button
             type="button"
@@ -444,8 +506,9 @@ export default function AtivosPage() {
         </div>
       )}
 
-      {/* Conteúdo */}
-      <div className="flex-1 overflow-y-auto px-8 pb-8">
+      {/* Conteúdo: árvore + painel do ativo */}
+      <div className="flex-1 min-h-0 flex gap-4 px-8 pb-8">
+      <div className="flex-1 min-w-0 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground gap-2 text-sm">
             <RefreshCw className="w-4 h-4 animate-spin" /> Carregando ativos…
@@ -471,20 +534,22 @@ export default function AtivosPage() {
             </div>
             <p className="text-sm font-medium text-foreground">Nenhum ativo encontrado</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {filtering ? "Ajuste a busca ou o filtro de criticidade." : "Nenhum ativo ativo no Engeman."}
+              {filtering ? "Ajuste a busca ou o filtro de criticidade." : "Cadastre o primeiro ativo em \"Novo ativo\"."}
             </p>
           </div>
         ) : (
           <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
             {visible.map((node) => (
               <AtivoRow
-                key={node.taggru}
+                key={node.id}
                 node={node}
                 depth={0}
                 expanded={expanded}
                 toggle={toggle}
                 forceOpen={filtering}
                 savingCodApl={savingCodApl}
+                selecionado={selecionado}
+                onSelect={(n) => setSelecionado(n.codApl)}
                 onClassify={onClassify}
                 onRegime={onRegime}
               />
@@ -492,6 +557,29 @@ export default function AtivosPage() {
           </div>
         )}
       </div>
+      {selecionado != null && (
+        <aside className="w-full max-w-[440px] shrink-0 overflow-y-auto bg-card rounded-xl border border-border shadow-sm">
+          <AtivoPainel
+            codApl={selecionado}
+            versao={versao}
+            onFechar={() => setSelecionado(null)}
+            onEditar={(a) => { setEditando(a); setPaiInicial(null); setFormAberto(true); }}
+            onNovoFilho={(paiId) => novoAtivo(paiId)}
+            onAlterado={load}
+          />
+        </aside>
+      )}
+      </div>
+
+      <AtivoFormDialog
+        open={formAberto}
+        onOpenChange={setFormAberto}
+        editando={editando}
+        paiInicial={paiInicial}
+        tree={tree}
+        lookups={lookups}
+        onSalvo={aposSalvar}
+      />
     </div>
   );
 }

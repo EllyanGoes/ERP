@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import EscClose from "@/components/shared/EscClose";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import {
   RefreshCw,
-  Database,
+  ExternalLink,
   ClipboardList,
   X,
   MapPin,
@@ -33,7 +34,7 @@ import {
   User,
   FileText,
 } from "lucide-react";
-import type { OSDetalhe } from "@/app/api/pcm/ordens/[codord]/route";
+import type { OSDetalhe } from "@/app/api/pcm/ordens/[id]/route";
 import {
   ResponsiveContainer,
   LineChart,
@@ -53,7 +54,7 @@ import type { OrdensResponse, DetalheOS, AplicacaoEmAberto } from "@/app/api/pcm
 import { cn } from "@/lib/utils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const LS_CACHE_KEY    = "pcm_ordens_cache_v2";
+const LS_CACHE_KEY    = "pcm_ordens_cache_v3";
 const LS_FILTER_KEY   = "pcm_ordens_filters";
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 
@@ -67,12 +68,13 @@ const STATUS_CONFIG: Record<string, {
 }> = {
   A: { label: "Em Aberto",    color: "#3b82f6", bg: "bg-info/10",   border: "border-info/30",  text: "text-info",   Icon: AlertCircle   },
   E: { label: "Em Espera",    color: "#f59e0b", bg: "bg-warning/10",  border: "border-warning/30", text: "text-warning",  Icon: Clock         },
-  P: { label: "Em Progresso", color: "#6366f1", bg: "bg-indigo-50 dark:bg-indigo-500/15", border: "border-indigo-200 dark:border-indigo-500/30",text: "text-indigo-700 dark:text-indigo-300", Icon: Circle        },
+  P: { label: "Em Execução",  color: "#6366f1", bg: "bg-indigo-50 dark:bg-indigo-500/15", border: "border-indigo-200 dark:border-indigo-500/30",text: "text-indigo-700 dark:text-indigo-300", Icon: Circle        },
   F: { label: "Concluídas",   color: "#22c55e", bg: "bg-success/10",  border: "border-success/30", text: "text-success",  Icon: CheckCircle2  },
   C: { label: "Canceladas",   color: "#94a3b8", bg: "bg-slate-50 dark:bg-slate-500/15",  border: "border-slate-200 dark:border-slate-500/30", text: "text-slate-600 dark:text-slate-400",  Icon: XCircle       },
 };
 
 const PRIORIDADE_CONFIG: Record<string, string> = {
+  "EMERGÊNCIA": "bg-danger text-white",
   ALTA:   "bg-danger/15 text-danger",
   MÉDIA:  "bg-warning/15 text-warning",
   BAIXA:  "bg-success/15 text-success",
@@ -132,9 +134,9 @@ function statusLabel(code: string): string {
     E: "Em Espera",
     F: "Concluída",
     C: "Cancelada",
-    P: "Em Progresso",
+    P: "Em Execução",
   };
-  return map[code] ?? "Em Progresso";
+  return map[code] ?? "Em Aberto";
 }
 
 // ── Custom Tooltip ────────────────────────────────────────────────────────────
@@ -158,10 +160,10 @@ function ChartTooltip({ active, payload, label }: {
 
 // ── OS Detail Panel ───────────────────────────────────────────────────────────
 function OSDetailPanel({
-  codord,
+  id,
   onClose,
 }: {
-  codord: number;
+  id: string;
   onClose: () => void;
 }) {
   const [detail, setDetail]     = useState<OSDetalhe | null>(null);
@@ -172,7 +174,7 @@ function OSDetailPanel({
     setLoading(true);
     setError(null);
     setDetail(null);
-    fetch(`/api/pcm/ordens/${codord}`)
+    fetch(`/api/pcm/ordens/${id}`)
       .then((r) => {
         if (!r.ok) throw new Error("OS não encontrada");
         return r.json();
@@ -180,7 +182,7 @@ function OSDetailPanel({
       .then((j) => setDetail(j.os as OSDetalhe))
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [codord]);
+  }, [id]);
 
   const cfg = detail ? STATUS_CONFIG[detail.statord] : null;
 
@@ -196,7 +198,7 @@ function OSDetailPanel({
         {/* Header */}
         <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-border">
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] text-muted-foreground font-mono mb-0.5">OS #{codord}</p>
+            <p className="text-[11px] text-muted-foreground font-mono mb-0.5">{detail?.numero ?? "O.S."}</p>
             {loading && (
               <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando...
@@ -230,12 +232,20 @@ function OSDetailPanel({
               </>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-muted-foreground flex-shrink-0 ml-2"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+            <Link
+              href={`/pcm/os/${id}`}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-info hover:bg-info/10"
+            >
+              <ExternalLink className="w-3.5 h-3.5" /> Abrir O.S.
+            </Link>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-muted-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -243,7 +253,7 @@ function OSDetailPanel({
           {error && (
             <div className="flex items-center gap-2 bg-danger/10 text-danger text-xs rounded-lg px-3 py-2 border border-danger/20">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {error} — Engeman pode estar offline.
+              {error}
             </div>
           )}
 
@@ -265,6 +275,9 @@ function OSDetailPanel({
                   )}
                   {detail.horasParada > 0 && (
                     <Row icon={Timer} label="Tempo parada" value={`${detail.horasParada.toFixed(1)}h`} />
+                  )}
+                  {detail.horexerea > 0 && (
+                    <Row icon={Timer} label="Homem-hora apontado" value={`${detail.horexerea.toFixed(1)}h`} />
                   )}
                 </div>
               </section>
@@ -292,7 +305,7 @@ function OSDetailPanel({
               {/* ── Observações de fechamento ───────────────────── */}
               {detail.observacoes && (
                 <section>
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">Observações de Fechamento</p>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">Observação técnica</p>
                   <div className="bg-muted rounded-lg p-3 border border-border">
                     <div className="flex items-start gap-2">
                       <FileText className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
@@ -325,16 +338,18 @@ function Row({ icon: Icon, label, value, mono = false }: { icon: React.ElementTy
 // ── Drill-down Modal ──────────────────────────────────────────────────────────
 function DrillModal({
   statusCode,
+  titulo,
   items,
   onClose,
   onSelectOS,
 }: {
-  statusCode: string;
+  statusCode: string | null;
+  titulo?: string;
   items: DetalheOS[];
   onClose: () => void;
-  onSelectOS: (codord: number) => void;
+  onSelectOS: (id: string) => void;
 }) {
-  const cfg = STATUS_CONFIG[statusCode];
+  const cfg = statusCode ? STATUS_CONFIG[statusCode] : null;
 
   return (
     <div
@@ -348,22 +363,24 @@ function DrillModal({
           <div className="flex items-center gap-3">
             <ClipboardList className="w-5 h-5 text-muted-foreground" />
             <div>
-              <h2 className="text-base font-semibold text-foreground">Ordens de Serviço</h2>
+              <h2 className="text-base font-semibold text-foreground">{titulo ?? "Ordens de Serviço"}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Clique em uma O.S. para ver detalhes
               </p>
             </div>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border",
-                cfg?.bg,
-                cfg?.border,
-                cfg?.text,
-              )}
-            >
-              {cfg?.Icon && <cfg.Icon className="w-3.5 h-3.5" />}
-              {cfg?.label ?? statusLabel(statusCode)}
-            </span>
+            {statusCode && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border",
+                  cfg?.bg,
+                  cfg?.border,
+                  cfg?.text,
+                )}
+              >
+                {cfg?.Icon && <cfg.Icon className="w-3.5 h-3.5" />}
+                {cfg?.label ?? statusLabel(statusCode)}
+              </span>
+            )}
             <span className="text-xs text-muted-foreground font-medium">
               {items.length} O.S.
             </span>
@@ -394,8 +411,8 @@ function DrillModal({
 
                 return (
                   <button
-                    key={`${os.codord}-${os.datent}`}
-                    onClick={() => onSelectOS(os.codord)}
+                    key={os.id}
+                    onClick={() => onSelectOS(os.id)}
                     className="w-full flex items-start gap-3 p-3 rounded-xl border border-border hover:border-info/30 hover:bg-info/10 transition-colors text-left group"
                   >
                     {/* Body */}
@@ -403,7 +420,7 @@ function DrillModal({
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold text-foreground truncate group-hover:text-info">{os.titulo}</p>
                         <span className="text-xs text-muted-foreground font-mono flex-shrink-0 pt-0.5">
-                          #{os.codord}
+                          {os.numero}
                         </span>
                       </div>
 
@@ -422,7 +439,7 @@ function DrillModal({
                             osCfg?.text,
                           )}
                         >
-                          {statusLabel(os.statord)}
+                          {os.statusLabel}
                         </span>
 
                         {/* Tipo chip */}
@@ -494,11 +511,12 @@ export default function OrdensReportPage() {
       return getOrdensCache(d, a) === null;
     } catch { return true; }
   });
-  const [engemanOffline, setEngemanOffline] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [drillStatus, setDrillStatus] = useState<string | null>(null);
-  const [drillEquip, setDrillEquip]   = useState<string | null>(null);
-  const [selectedCodord, setSelectedCodord] = useState<number | null>(null);
+  // drill a partir do backlog: O.S. abertas de um ativo (status opcional)
+  const [drillAtivo, setDrillAtivo]   = useState<{ apl: AplicacaoEmAberto; status: string | null } | null>(null);
+  const [selectedId, setSelectedId]   = useState<string | null>(null);
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchData = useCallback(async (background = false) => {
@@ -506,17 +524,16 @@ export default function OrdensReportPage() {
     else setLoading(true);
     try {
       const res  = await fetch(`/api/pcm/ordens?dias=${dias}&agrupamento=${agrupamento}`);
-      if (res.status === 503) {
-        setEngemanOffline(true);
-        if (!background) setData(null);
-        return;
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error ?? `HTTP ${res.status}`);
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: OrdensResponse = await res.json();
-      setEngemanOffline(false);
+      setErro(null);
       setData(json);
       saveCache(json, dias, agrupamento);
-    } catch {
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Falha ao carregar");
       if (!background) setData(null);
     } finally {
       if (background) setRefreshing(false);
@@ -555,7 +572,7 @@ export default function OrdensReportPage() {
   const pieData = [
     { key: "A", name: "Em Aberto",    value: statusData?.emAberto    ?? 0, color: "#3b82f6" },
     { key: "E", name: "Em Espera",    value: statusData?.emEspera    ?? 0, color: "#f59e0b" },
-    { key: "P", name: "Em Progresso", value: statusData?.emProgresso ?? 0, color: "#6366f1" },
+    { key: "P", name: "Em Execução",  value: statusData?.emProgresso ?? 0, color: "#6366f1" },
     { key: "F", name: "Concluídas",   value: statusData?.concluidas  ?? 0, color: "#22c55e" },
     { key: "C", name: "Canceladas",   value: statusData?.canceladas  ?? 0, color: "#94a3b8" },
   ].filter((s) => s.value > 0);
@@ -605,20 +622,6 @@ export default function OrdensReportPage() {
               <span className="text-xs text-muted-foreground hidden sm:block">
                 Atualizado às {fmtTime(data.generatedAt)}
               </span>
-            )}
-
-            {engemanOffline ? (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border bg-danger/10 border-danger/30 text-danger">
-                <Database className="w-3.5 h-3.5" />
-                <span className="w-2 h-2 rounded-full bg-red-500" />
-                Engeman inacessível
-              </div>
-            ) : data && (
-              <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border", "bg-success/10 border-success/30 text-success")}>
-                <Database className="w-3.5 h-3.5" />
-                <span className={cn("w-2 h-2 rounded-full", "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.6)]")} />
-                Engeman online
-              </div>
             )}
 
             <Button
@@ -681,16 +684,14 @@ export default function OrdensReportPage() {
         {loading && !data && (
           <div className="flex items-center justify-center py-24 text-muted-foreground gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm">Carregando dados do Engeman…</span>
+            <span className="text-sm">Carregando ordens de serviço…</span>
           </div>
         )}
-        {!loading && engemanOffline && !data && (
+        {!loading && erro && !data && (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-sm">
-            <Database className="w-10 h-10 text-red-300" />
-            <p className="font-semibold text-danger">Engeman inacessível</p>
-            <p className="text-muted-foreground text-center max-w-sm">
-              O servidor Engeman não está acessível neste ambiente (rede local apenas).
-            </p>
+            <AlertCircle className="w-10 h-10 text-red-300" />
+            <p className="font-semibold text-danger">Não foi possível carregar o relatório</p>
+            <p className="text-muted-foreground text-center max-w-sm">{erro}</p>
             <Button variant="outline" size="sm" className="gap-1.5 mt-1" onClick={() => fetchData(false)}>
               <RefreshCw className="w-4 h-4" />
               Tentar novamente
@@ -1006,20 +1007,20 @@ export default function OrdensReportPage() {
                           <th className="text-left px-4 py-2.5 font-medium">Local</th>
                           <th className="text-center px-3 py-2.5 font-medium">Em Aberto</th>
                           <th className="text-center px-3 py-2.5 font-medium">Em Espera</th>
-                          <th className="text-center px-3 py-2.5 font-medium">Em Progresso</th>
+                          <th className="text-center px-3 py-2.5 font-medium">Em Execução</th>
                           <th className="text-center px-3 py-2.5 font-medium">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {aplicacoesEmAberto.map((apl: AplicacaoEmAberto, idx: number) => (
                           <tr
-                            key={apl.codApl ?? idx}
+                            key={apl.ativoId ?? `sem-${idx}`}
                             className="hover:bg-info/10 transition-colors group"
                           >
                             <td className="px-4 py-2.5 text-xs text-muted-foreground font-mono">{idx + 1}</td>
                             <td className="px-4 py-2.5">
                               <p className="text-sm font-medium text-foreground group-hover:text-info">{apl.equipamento}</p>
-                              {apl.codApl && <p className="text-[11px] text-muted-foreground font-mono">TAG {apl.codApl}</p>}
+                              {apl.tag && <p className="text-[11px] text-muted-foreground font-mono">{apl.tag}</p>}
                             </td>
                             <td className="px-4 py-2.5">
                               <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -1030,7 +1031,7 @@ export default function OrdensReportPage() {
                             <td className="px-3 py-2.5 text-center">
                               {apl.emAberto > 0 ? (
                                 <button
-                                  onClick={() => { setDrillStatus("A"); setDrillEquip(apl.equipamento); }}
+                                  onClick={() => setDrillAtivo({ apl, status: "A" })}
                                   className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold bg-info/15 text-info hover:bg-blue-200 transition-colors"
                                 >
                                   {apl.emAberto}
@@ -1040,7 +1041,7 @@ export default function OrdensReportPage() {
                             <td className="px-3 py-2.5 text-center">
                               {apl.emEspera > 0 ? (
                                 <button
-                                  onClick={() => { setDrillStatus("E"); setDrillEquip(apl.equipamento); }}
+                                  onClick={() => setDrillAtivo({ apl, status: "E" })}
                                   className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold bg-warning/15 text-warning hover:bg-amber-200 transition-colors"
                                 >
                                   {apl.emEspera}
@@ -1050,7 +1051,7 @@ export default function OrdensReportPage() {
                             <td className="px-3 py-2.5 text-center">
                               {apl.emProgresso > 0 ? (
                                 <button
-                                  onClick={() => { setDrillStatus("P"); setDrillEquip(apl.equipamento); }}
+                                  onClick={() => setDrillAtivo({ apl, status: "P" })}
                                   className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 dark:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 transition-colors"
                                 >
                                   {apl.emProgresso}
@@ -1059,7 +1060,7 @@ export default function OrdensReportPage() {
                             </td>
                             <td className="px-3 py-2.5 text-center">
                               <button
-                                onClick={() => { setDrillStatus("A"); setDrillEquip(apl.equipamento); }}
+                                onClick={() => setDrillAtivo({ apl, status: null })}
                                 className="inline-flex items-center justify-center min-w-[32px] px-2.5 py-1 rounded-full text-xs font-bold bg-muted text-foreground hover:bg-muted transition-colors"
                               >
                                 {apl.total}
@@ -1078,7 +1079,7 @@ export default function OrdensReportPage() {
             <p className="text-xs text-muted-foreground text-right">
               Atualizado em{" "}
               {new Date(data.generatedAt).toLocaleString("pt-BR")} ·{" "}
-              Fonte: Engeman CMMS
+              Fonte: ordens de serviço do ERP
             </p>
           </>
         )}
@@ -1088,19 +1089,26 @@ export default function OrdensReportPage() {
       {drillStatus !== null && data && (
         <DrillModal
           statusCode={drillStatus}
-          items={(detalhe[drillStatus] ?? []).filter((os) =>
-            drillEquip ? os.equipamento === drillEquip : true
-          )}
-          onClose={() => { setDrillStatus(null); setDrillEquip(null); setSelectedCodord(null); }}
-          onSelectOS={(codord) => setSelectedCodord(codord)}
+          items={detalhe[drillStatus] ?? []}
+          onClose={() => { setDrillStatus(null); setSelectedId(null); }}
+          onSelectOS={(id) => setSelectedId(id)}
+        />
+      )}
+      {drillAtivo && (
+        <DrillModal
+          statusCode={drillAtivo.status}
+          titulo={drillAtivo.apl.equipamento}
+          items={drillAtivo.apl.ordens.filter((os) => !drillAtivo.status || os.statord === drillAtivo.status)}
+          onClose={() => { setDrillAtivo(null); setSelectedId(null); }}
+          onSelectOS={(id) => setSelectedId(id)}
         />
       )}
 
       {/* ── OS Detail side panel ──────────────────────────────────────────── */}
-      {selectedCodord !== null && (
+      {selectedId !== null && (
         <OSDetailPanel
-          codord={selectedCodord}
-          onClose={() => setSelectedCodord(null)}
+          id={selectedId}
+          onClose={() => setSelectedId(null)}
         />
       )}
     </div>

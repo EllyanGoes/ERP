@@ -54,11 +54,6 @@ export default function FechamentoPage() {
     setErroSalvar("");
     try {
       const res = await fetch(`/api/pcm/ativo-saude/fechamento?ano=${ano}&mes=${mes}`);
-      if (res.status === 503) {
-        setErroCarga("Engeman indisponível no momento. Tente novamente.");
-        setRows([]);
-        return;
-      }
       if (!res.ok) {
         const j = await res.json().catch(() => null);
         setErroCarga(j?.error || "Não foi possível carregar os ativos do mês.");
@@ -180,7 +175,7 @@ export default function FechamentoPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Fechamento mensal"
-        subtitle="Confira e ajuste funcionamento, parada não planejada e nº de falhas (pré-preenchidos do Engeman) e feche o mês. Só meses fechados entram no relatório de MTBF/MTTR."
+        subtitle="Confira e ajuste funcionamento, parada não planejada e nº de falhas (pré-preenchidos pelas OS do mês) e feche o mês. Só meses fechados entram no relatório de MTBF/MTTR."
         breadcrumbs={[{ label: "PCM" }, { label: "Ativo Saúde" }, { label: "Fechamento mensal" }]}
       />
 
@@ -232,7 +227,7 @@ export default function FechamentoPage() {
           <button
             type="button"
             onClick={() => setSoRevisar((v) => !v)}
-            title="Mostrar só os ativos com falha sem o carimbo de parada MAQPAR→MAQFUN (parada principal entrou como 0h)"
+            title="Mostrar só os ativos com falha sem início/fim de parada na OS (parada entrou como 0h)"
             className={cn(
               "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium border transition-colors",
               soRevisar
@@ -270,10 +265,9 @@ export default function FechamentoPage() {
         <div className="mx-8 mb-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           <TriangleAlert className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
           <span>
-            A tag <strong>Revisar</strong> indica que há <strong>falha sem o carimbo de parada</strong>{" "}
-            <code>MAQPAR→MAQFUN</code> no Engeman — nesse caso a parada principal entra como{" "}
-            <strong>0h</strong> (só contam paradas adicionais, se houver). Vale conferir/preencher
-            antes de fechar o mês. Use o filtro <strong>“Só a revisar”</strong> para ver apenas
+            A tag <strong>Revisar</strong> indica que há <strong>falha sem início/fim de parada</strong>{" "}
+            na OS — nesse caso a parada entra como <strong>0h</strong>. Vale conferir/preencher na OS
+            (abra o detalhe do ativo e clique no nº da OS) antes de fechar o mês. Use o filtro <strong>“Só a revisar”</strong> para ver apenas
             esses ativos.
           </span>
         </div>
@@ -306,7 +300,7 @@ export default function FechamentoPage() {
             </div>
             <p className="text-sm font-medium text-foreground">Nenhum ativo neste mês</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Sem falhas registradas no Engeman em {MESES[mes - 1]}/{ano} para o filtro atual.
+              Sem falhas registradas nas OS em {MESES[mes - 1]}/{ano} para o filtro atual.
             </p>
           </div>
         ) : (
@@ -340,7 +334,7 @@ export default function FechamentoPage() {
                             type="button"
                             onClick={() => setDetalhe((d) => (d === row.codApl ? null : row.codApl))}
                             className="text-muted-foreground hover:text-muted-foreground shrink-0"
-                            title="Ver as OS do Engeman deste ativo no mês"
+                            title="Ver as OS deste ativo no mês"
                           >
                             {detalhe === row.codApl ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                           </button>
@@ -367,7 +361,7 @@ export default function FechamentoPage() {
                           <div className="flex justify-end mb-1">
                             <span
                               className="inline-flex items-center gap-1 rounded bg-warning/15 text-warning px-1.5 py-0.5 text-[10px] font-semibold"
-                              title="Há falha sem o carimbo de parada MAQPAR→MAQFUN — a parada principal entrou como 0h. Confira/preencha antes de fechar."
+                              title="Há falha sem início/fim de parada na OS — a parada entrou como 0h. Confira/preencha na OS antes de fechar."
                             >
                               <TriangleAlert className="w-3 h-3" /> Revisar
                             </span>
@@ -377,7 +371,7 @@ export default function FechamentoPage() {
                           type="number" min={0} step={0.5}
                           value={row.horasParadaNaoPlanejada}
                           disabled={row.fechado || saving}
-                          title={row.temEstimativa ? "Há falha sem o carimbo de parada MAQPAR→MAQFUN (parada principal = 0h)" : `Engeman: ${numFmt.format(row.engemanParada)} h`}
+                          title={row.temEstimativa ? "Há falha sem início/fim de parada na OS (parada = 0h)" : `OS do mês: ${numFmt.format(row.osParada)} h`}
                           onChange={(e) => setCampo(row.codApl, "horasParadaNaoPlanejada", e.target.value === "" ? 0 : Number(e.target.value))}
                           className="w-24 rounded border border-border px-2 py-1 text-right tabular-nums disabled:bg-muted disabled:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
@@ -387,7 +381,7 @@ export default function FechamentoPage() {
                           type="number" min={0} step={1}
                           value={row.numeroFalhas}
                           disabled={row.fechado || saving}
-                          title={`Engeman: ${row.engemanFalhas}`}
+                          title={`OS do mês: ${row.osFalhas}`}
                           onChange={(e) => setCampo(row.codApl, "numeroFalhas", e.target.value === "" ? 0 : Number(e.target.value))}
                           className="w-16 rounded border border-border px-2 py-1 text-right tabular-nums disabled:bg-muted disabled:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />

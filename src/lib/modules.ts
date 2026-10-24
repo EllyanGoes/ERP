@@ -166,14 +166,17 @@ export const MODULOS: ModuloDef[] = [
   },
   {
     key: "pcm",
-    label: "PCM",
+    label: "Manutenção (PCM)",
     group: "Manutenção",
     recursos: [
-      { key: "dashboard",   label: "Dashboard PCM",       acoes: ["ver"] },
-      { key: "ativos",      label: "Ativos",              acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "ordens",      label: "Ordens de Serviço",   acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "planos",      label: "Planos de Manutenção", acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "ativo-saude", label: "Ativo Saúde (MTBF/MTTR)", acoes: ["ver", "editar"] },
+      { key: "dashboard",    label: "Dashboard PCM",          acoes: ["ver"] },
+      { key: "solicitacoes", label: "Solicitações (triagem)", acoes: ["ver", "inserir", "editar"] },
+      { key: "ativos",       label: "Ativos",                 acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "ordens",       label: "Ordens de Serviço (execução)", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "validacao",    label: "Validar / concluir / cancelar OS", acoes: ["editar"] },
+      { key: "planos",       label: "Planos de Manutenção",   acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "configuracoes", label: "Configurações (tipos, catálogo, equipes)", acoes: ["ver", "editar"] },
+      { key: "ativo-saude",  label: "Ativo Saúde (MTBF/MTTR)", acoes: ["ver", "editar"] },
     ],
   },
   {

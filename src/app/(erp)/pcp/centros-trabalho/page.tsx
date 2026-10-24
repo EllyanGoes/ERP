@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import SelectMenu from "@/components/shared/SelectMenu";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Boxes, Plus, Pencil, Trash2, RefreshCw, X, Check } from "lucide-react";
@@ -72,6 +74,16 @@ export default function CentrosTrabalhoPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Ativos da Manutenção (forno/secador) — vínculo gravado por codApl.
+  const [ativos, setAtivos] = useState<{ codApl: number; tag: string; descricao: string; caminho: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/pcm/ativos/lista")
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j) => setAtivos(j.data ?? []))
+      .catch(() => {});
+  }, []);
+  const tagPorCod = new Map(ativos.map((a) => [a.codApl, a.tag]));
+
   function abrirNovo() { setForm({ ...vazio }); }
   function abrirEdicao(c: Centro) {
     setForm({
@@ -130,7 +142,7 @@ export default function CentrosTrabalhoPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Centros de Trabalho"
-        subtitle="Recursos da produção (preparação, secagem, forno…). O forno/secador pode apontar para um ativo do Engeman."
+        subtitle="Recursos da produção (preparação, secagem, forno…). O forno/secador pode apontar para um ativo da Manutenção."
         breadcrumbs={[{ label: "PCP" }, { label: "Centros de Trabalho" }]}
         action={
           <button
@@ -167,14 +179,26 @@ export default function CentrosTrabalhoPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Tipo</label>
-                    <select className={inputCls} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value as Tipo | "" })}>
-                      <option value="">—</option>
-                      {TIPOS.map((t) => <option key={t} value={t}>{TIPO_LABEL[t]}</option>)}
-                    </select>
+                    <SelectMenu
+                      value={form.tipo}
+                      onChange={(v) => setForm({ ...form, tipo: v as Tipo | "" })}
+                      options={[{ value: "", label: "—" }, ...TIPOS.map((t) => ({ value: t, label: TIPO_LABEL[t] }))]}
+                    />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Ativo Engeman (codApl)</label>
-                    <input className={inputCls} inputMode="numeric" value={form.codApl} onChange={(e) => setForm({ ...form, codApl: e.target.value })} placeholder="opcional" />
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Ativo da Manutenção</label>
+                    <ComboboxWithCreate
+                      value={form.codApl}
+                      onChange={(v) => setForm({ ...form, codApl: v })}
+                      placeholder="opcional"
+                      noneLabel="Sem vínculo"
+                      menuMinWidth={420}
+                      options={ativos.map((a) => ({
+                        value: String(a.codApl),
+                        code: a.tag,
+                        label: a.caminho ? `${a.descricao} — ${a.caminho}` : a.descricao,
+                      }))}
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -225,7 +249,7 @@ export default function CentrosTrabalhoPage() {
                   <th className="text-left font-medium px-4 py-2.5">Nome</th>
                   <th className="text-left font-medium px-4 py-2.5">Tipo</th>
                   <th className="text-right font-medium px-4 py-2.5">Capacidade</th>
-                  <th className="text-center font-medium px-4 py-2.5">Engeman</th>
+                  <th className="text-center font-medium px-4 py-2.5">Ativo (Manutenção)</th>
                   <th className="text-center font-medium px-4 py-2.5">Ativo</th>
                   <th className="px-4 py-2.5 w-24" />
                 </tr>
@@ -239,7 +263,7 @@ export default function CentrosTrabalhoPage() {
                     <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                       {c.capacidadePadrao != null ? `${c.capacidadePadrao} ${c.unidadeCapacidade ?? ""}`.trim() : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-center text-muted-foreground">{c.codApl ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-center text-muted-foreground font-mono text-xs">{c.codApl != null ? tagPorCod.get(c.codApl) ?? `#${c.codApl}` : "—"}</td>
                     <td className="px-4 py-2.5 text-center">
                       <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", c.ativo ? "bg-success/10 text-success" : "bg-muted text-muted-foreground")}>
                         {c.ativo ? "Sim" : "Não"}

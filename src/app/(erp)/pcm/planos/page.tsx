@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
+import SelectMenu from "@/components/shared/SelectMenu";
 import { cn, formatDate } from "@/lib/utils";
 import { useRelatorioCache } from "@/lib/use-relatorio-cache";
-import { RefreshCw, AlertTriangle, CalendarClock } from "lucide-react";
+import { RefreshCw, AlertTriangle, CalendarClock, ListChecks } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts";
@@ -24,27 +26,30 @@ export default function PlanosPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Planos de Manutenção"
-        subtitle="Execução dos planos — O.S. geradas pelos planos do Engeman: concluídas, em aberto e atrasadas, por plano e por mês."
+        subtitle="Execução dos planos — O.S. geradas pelos planos de manutenção: concluídas, em aberto e atrasadas, por plano e por mês."
         breadcrumbs={[{ label: "PCM" }, { label: "Planos de Manutenção" }]}
       />
 
       <div className="px-8 pb-3 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
           Período
-          <select
-            value={meses}
-            onChange={(e) => setMeses(Number(e.target.value))}
-            className="rounded-lg border border-border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value={3}>Últimos 3 meses</option>
-            <option value={6}>Últimos 6 meses</option>
-            <option value={12}>Últimos 12 meses</option>
-            <option value={24}>Últimos 24 meses</option>
-          </select>
+          <SelectMenu
+            value={String(meses)}
+            onChange={(v) => setMeses(Number(v))}
+            triggerClassName="h-9 rounded-lg"
+            options={[3, 6, 12, 24].map((m) => ({ value: String(m), label: `Últimos ${m} meses` }))}
+          />
         </label>
+        <Link
+          href="/pcm/planos/cadastro"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-foreground hover:bg-muted"
+        >
+          <ListChecks className="w-4 h-4" />
+          Cadastro de planos
+        </Link>
         <button
           onClick={recarregar}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
         >
           <RefreshCw className={cn("w-4 h-4", (loading || refreshing) && "animate-spin")} />
           {refreshing ? "Atualizando…" : "Atualizar"}
@@ -54,7 +59,7 @@ export default function PlanosPage() {
       <div className="flex-1 overflow-y-auto px-8 pb-8 space-y-4">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground gap-2 text-sm">
-            <RefreshCw className="w-4 h-4 animate-spin" /> Carregando dados do Engeman…
+            <RefreshCw className="w-4 h-4 animate-spin" /> Carregando planos…
           </div>
         ) : erro ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -115,7 +120,7 @@ export default function PlanosPage() {
                     <tr><td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">Nenhuma O.S. gerada por plano no período.</td></tr>
                   )}
                   {planos.map((p) => (
-                    <tr key={p.codPla} className={cn(p.atrasadas > 0 && "bg-danger/10")}>
+                    <tr key={p.planoId} className={cn(p.atrasadas > 0 && "bg-danger/10")}>
                       <td className="px-3 py-2">
                         <div className="text-foreground">{p.descricao}</div>
                         <div className="text-[11px] text-muted-foreground font-mono">Plano {p.tag}</div>

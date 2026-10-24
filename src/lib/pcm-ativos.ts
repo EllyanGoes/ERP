@@ -1,34 +1,26 @@
-import sql from "mssql";
-import { getEngemanConfig } from "@/lib/engeman";
+import { prisma } from "@/lib/prisma";
 
 // ── Nó da árvore ────────────────────────────────────────────────────────────────
-// Cada linha de APLIC É um nó na hierarquia do Engeman.
-// TAGGRU guarda o endereço hierárquico do próprio nó (ex.: "001.001.003.").
-// O pai imediato tem TAGGRU = endereço sem o último segmento.
-// isLeaf = true quando nenhum outro nó ativo aponta para este como pai.
+// Árvore de ativos da Manutenção (ManutAtivo, hierarquia por paiId). Substitui a
+// leitura da tabela APLIC do Engeman. `codApl` segue sendo a chave numérica
+// estável (= antigo CODAPL) usada por AtivoCriticidade/AtivoRegime/FechamentoMtbf,
+// SstMaquina.codApl e CentroTrabalho.codApl.
+// `taggru` é mantido por compatibilidade com quem usa o campo como chave de
+// expansão/React key: agora carrega o id do ManutAtivo (único).
 export interface TreeNode {
+  id: string;
   codApl: number;
   tag: string;
   descricao: string;
+  /** @deprecated use `id` — mantido igual ao id do ManutAtivo. */
   taggru: string;
+  tipo: string;
+  ativo: boolean;
   isLeaf: boolean;
   children: TreeNode[];
 }
 
 // ── Helpers puros ───────────────────────────────────────────────────────────────
-
-/** TAGGRU do pai imediato ("001.001.003." → "001.001.") */
-function parentTaggru(tg: string): string | null {
-  const s = tg.endsWith(".") ? tg.slice(0, -1) : tg;
-  const i = s.lastIndexOf(".");
-  if (i < 0) return null;
-  return s.slice(0, i + 1);
-}
-
-/** Número de segmentos separados por ponto ("001.001.003." → 3) */
-function depth(tg: string): number {
-  return (tg.match(/\./g) ?? []).length;
-}
 
 function sortTree(nodes: TreeNode[]) {
   nodes.sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR"));
@@ -48,68 +40,70 @@ export function forEachNode(nodes: TreeNode[], fn: (n: TreeNode) => void) {
   }
 }
 
-// ── Busca a árvore de ativos do Engeman ──────────────────────────────────────────
+/** Lista plana com o caminho (ancestrais) de cada nó — para droplists. */
+export function flattenTree(nodes: TreeNode[]): (Omit<TreeNode, "children" | "isLeaf"> & { caminho: string; nivel: number })[] {
+  const out: (Omit<TreeNode, "children" | "isLeaf"> & { caminho: string; nivel: number })[] = [];
+  const walk = (ns: TreeNode[], trilha: string[]) => {
+    for (const n of ns) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { children, isLeaf, ...resto } = n;
+      out.push({ ...resto, caminho: trilha.join(" › "), nivel: trilha.length });
+      if (children.length) walk(children, [...trilha, n.descricao]);
+    }
+  };
+  walk(nodes, []);
+  return out;
+}
+
+// ── Busca a árvore de ativos (dados nativos) ─────────────────────────────────────
 /**
- * Monta a árvore de ativos a partir da tabela APLIC do Engeman (TAGGRU).
- * O nível 1 (raiz, ex.: "PLANTA FABRIL") é removido — a árvore começa nas áreas
- * (nível 2+). Lança em caso de falha de conexão (o chamador trata como 503).
+ * Monta a árvore a partir de ManutAtivo da empresa ativa (escopo automático do
+ * proxy). Por padrão só ativos ativos; um filho ativo de pai inativo sobe para a
+ * raiz (não some da árvore).
  *
- * Fonte única reusada por GET /api/pcm/aplicacoes e GET /api/pcm/ativos.
+ * A raiz "PLANTA FABRIL" do Engeman NÃO é mais removida: no modelo nativo ela é
+ * um ativo comum (tipo LOCAL) que precisa ser editável, e boa parte dos ativos
+ * importados já fica fora dela (raízes próprias).
+ *
+ * Fonte única reusada por GET /api/pcm/aplicacoes, /api/pcm/ativos e SST/PCP.
  */
-export async function fetchAtivosTree(): Promise<TreeNode[]> {
-  const pool = await sql.connect(await getEngemanConfig());
-  try {
-    const result = await pool.request().query<{
-      CODAPL: number;
-      TAG: string;
-      DESCRICAO: string;
-      TAGGRU: string | null;
-    }>(`
-      SELECT
-        a.CODAPL,
-        RTRIM(ISNULL(a.TAG,       CAST(a.CODAPL AS VARCHAR(20)))) AS TAG,
-        RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))                AS DESCRICAO,
-        a.TAGGRU
-      FROM APLIC a
-      WHERE a.ATIVO = 'S'
-      ORDER BY a.TAGGRU, a.TAG
-    `);
+export async function fetchAtivosTree(opts: { incluirInativos?: boolean } = {}): Promise<TreeNode[]> {
+  const rows = await prisma.manutAtivo.findMany({
+    where: opts.incluirInativos ? {} : { ativo: true },
+    select: { id: true, codApl: true, tag: true, nome: true, tipo: true, paiId: true, ativo: true },
+    orderBy: [{ nome: "asc" }],
+  });
 
-    // 1. mapa de nós chaveado por TAGGRU (endereço posicional único)
-    const nodeMap = new Map<string, TreeNode>();
-    for (const r of result.recordset) {
-      const tg = r.TAGGRU?.trim() ?? null;
-      if (!tg) continue; // ignora linhas sem TAGGRU
-      if (nodeMap.has(tg)) continue; // cada posição é única
-      nodeMap.set(tg, {
-        codApl: r.CODAPL,
-        tag: r.TAG,
-        descricao: r.DESCRICAO,
-        taggru: tg,
-        isLeaf: true,
-        children: [],
-      });
-    }
-
-    // 2. liga pai ↔ filho
-    const roots: TreeNode[] = [];
-    for (const node of Array.from(nodeMap.values())) {
-      const pTg = parentTaggru(node.taggru);
-      if (pTg && nodeMap.has(pTg)) {
-        const parent = nodeMap.get(pTg)!;
-        parent.isLeaf = false;
-        parent.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
-
-    // 3. ordena cada nível
-    sortTree(roots);
-
-    // 4. remove a raiz de nível 1 → expõe os filhos dela
-    return roots.flatMap((r) => (depth(r.taggru) <= 1 ? r.children : [r]));
-  } finally {
-    await pool.close();
+  // 1. mapa de nós por id
+  const nodeMap = new Map<string, TreeNode>();
+  for (const r of rows) {
+    nodeMap.set(r.id, {
+      id: r.id,
+      codApl: r.codApl,
+      tag: r.tag,
+      descricao: r.nome,
+      taggru: r.id,
+      tipo: r.tipo,
+      ativo: r.ativo,
+      isLeaf: true,
+      children: [],
+    });
   }
+
+  // 2. liga pai ↔ filho (pai fora do conjunto → raiz)
+  const roots: TreeNode[] = [];
+  for (const r of rows) {
+    const node = nodeMap.get(r.id)!;
+    const parent = r.paiId ? nodeMap.get(r.paiId) : undefined;
+    if (parent && parent !== node) {
+      parent.isLeaf = false;
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  // 3. ordena cada nível
+  sortTree(roots);
+  return roots;
 }

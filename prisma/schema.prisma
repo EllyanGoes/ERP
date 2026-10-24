@@ -148,7 +148,9 @@ model CentroCusto {
   criadoPor              String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor          String? // autoria: última edição manual (proxy de sessão)
 
-  contratos Contrato[]
+  contratos   Contrato[]
+  manutAtivos ManutAtivo[]
+  manutOrdens ManutOrdem[]
 
   @@unique([empresaId, codigo])
   @@index([grupoCentroCustoId])
@@ -310,6 +312,9 @@ model Colaborador {
   sstIncidentes              SstIncidente[]
   sstCipa                    SstCipaMembro[]
   documentos                 Documento[]
+  manutEquipes               ManutEquipeMembro[]
+  manutOrdensResp            ManutOrdem[]                 @relation("ManutOrdemResponsavel")
+  manutApontamentos          ManutApontamento[]
 }
 
 // ── Escala de trabalho ───────────────────────────────────────────────────────
@@ -554,6 +559,7 @@ model Setor {
   colaboradores        Colaborador[]
   solicitacoesCompra   NecessidadeCompra[]
   requisicoesMateriais RequisicaoMaterial[]
+  manutAtivos          ManutAtivo[]
 
   @@index([paiId])
 }
@@ -1517,6 +1523,7 @@ model Imobilizado {
   criadoPor                   String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor               String? // autoria: última edição manual (proxy de sessão)
   documentos                  Documento[]
+  manutAtivos                 ManutAtivo[]
 
   @@index([empresaId])
 }
@@ -1783,6 +1790,10 @@ model Empresa {
   sstClinicas                   SstClinica[]
   sstAgendamentoLotes           SstAgendamentoLote[]
   sstAgendamentos               SstAgendamento[]
+  manutAtivos                   ManutAtivo[]
+  manutSolicitacoes             ManutSolicitacao[]
+  manutOrdens                   ManutOrdem[]
+  manutPlanos                   ManutPlano[]
 }
 
 model EnderecoEstoque {
@@ -1916,6 +1927,8 @@ model Fornecedor {
   documentos          Documento[]
   contratos           Contrato[]
   sstClinicas         SstClinica[]
+  manutAtivos         ManutAtivo[]
+  manutTerceiros      ManutOrdemTerceiro[]
 }
 
 model FornecedorContato {
@@ -2047,6 +2060,9 @@ model Item {
   concorrentePrecos         ConcorrentePreco[]
   criadoPor                 String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor             String? // autoria: última edição manual (proxy de sessão)
+  manutPecas                ManutAtivoPeca[]
+  manutOrdemMateriais       ManutOrdemMaterial[]
+  manutPlanoMateriais       ManutPlanoMaterial[]
 
   @@index([codigo])
   @@index([tipo])
@@ -3721,15 +3737,19 @@ model RequisicaoMaterial {
   naturezaFinanceira   NaturezaFinanceira?      @relation(fields: [naturezaFinanceiraId], references: [id])
   itens                RequisicaoMaterialItem[]
 
-  empresa       Empresa @relation(fields: [empresaId], references: [id])
-  criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
-  atualizadoPor String? // autoria: última edição manual (proxy de sessão)
+  empresa        Empresa     @relation(fields: [empresaId], references: [id])
+  criadoPor      String? // autoria: carimbado automaticamente pelo proxy de sessão
+  atualizadoPor  String? // autoria: última edição manual (proxy de sessão)
+  // OS de manutenção atendida por esta requisição (substitui o texto `os`)
+  ordemServicoId String?
+  ordemServico   ManutOrdem? @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
 
   @@unique([empresaId, numero])
   @@index([status])
   @@index([localEstoqueId])
   @@index([localDestinoId])
   @@index([empresaId])
+  @@index([ordemServicoId])
 }
 
 model RequisicaoMaterialItem {
@@ -6019,4 +6039,454 @@ model ContratoEvento {
   contrato   Contrato           @relation(fields: [contratoId], references: [id], onDelete: Cascade)
 
   @@index([contratoId, data])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Manutenção (PCM nativo) — docs/manutencao-prd.md. Substitui o Engeman.
+// codApl é o código numérico ESTÁVEL do ativo (importados mantêm o CODAPL do
+// Engeman; novos seguem a sequência). É a chave que AtivoCriticidade,
+// AtivoRegime, FechamentoMtbf, SstMaquina e CentroTrabalho já usam.
+// Catálogos (família, tipo, sintoma/causa/serviço, equipe) são do GRUPO;
+// ativo, solicitação, OS e plano são por empresa.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model ManutFamilia {
+  id        String       @id @default(cuid())
+  nome      String
+  ativo     Boolean      @default(true)
+  legadoId  Int?         @unique // CODTIPAPL do Engeman
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  ativos    ManutAtivo[]
+}
+
+model ManutAtivo {
+  id               String             @id @default(cuid())
+  empresaId        String
+  codApl           Int                @unique
+  paiId            String?
+  tag              String
+  nome             String
+  // LOCAL (nó agrupador) | EQUIPAMENTO | COMPONENTE | VEICULO
+  tipo             String             @default("EQUIPAMENTO")
+  familiaId        String?
+  localizacao      String?
+  // OPERANDO | PARADO (derivado das OS com parada aberta)
+  status           String             @default("OPERANDO")
+  setorId          String?
+  centroCustoId    String?
+  imobilizadoId    String?
+  fornecedorId     String?
+  fabricante       String?
+  modelo           String?
+  numeroSerie      String?
+  numeroPatrimonio String?
+  placa            String?
+  anoFabricacao    Int?
+  dataAquisicao    DateTime?
+  garantiaAte      DateTime?
+  observacoes      String?
+  ativo            Boolean            @default(true)
+  criadoPor        String?
+  atualizadoPor    String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  empresa          Empresa            @relation(fields: [empresaId], references: [id])
+  pai              ManutAtivo?        @relation("ManutAtivoArvore", fields: [paiId], references: [id], onDelete: SetNull)
+  filhos           ManutAtivo[]       @relation("ManutAtivoArvore")
+  familia          ManutFamilia?      @relation(fields: [familiaId], references: [id], onDelete: SetNull)
+  setor            Setor?             @relation(fields: [setorId], references: [id], onDelete: SetNull)
+  centroCusto      CentroCusto?       @relation(fields: [centroCustoId], references: [id], onDelete: SetNull)
+  imobilizado      Imobilizado?       @relation(fields: [imobilizadoId], references: [id], onDelete: SetNull)
+  fornecedor       Fornecedor?        @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+  ordens           ManutOrdem[]
+  solicitacoes     ManutSolicitacao[]
+  medidores        ManutMedidor[]
+  planos           ManutPlanoAtivo[]
+  planoTarefas     ManutPlanoTarefa[]
+  pecas            ManutAtivoPeca[]
+
+  @@unique([empresaId, tag])
+  @@index([empresaId, paiId])
+}
+
+// Sobressalentes do ativo (lista de peças do estoque).
+model ManutAtivoPeca {
+  id         String     @id @default(cuid())
+  ativoId    String
+  itemId     String
+  quantidade Decimal    @default(1) @db.Decimal(15, 3)
+  observacao String?
+  ativo      ManutAtivo @relation(fields: [ativoId], references: [id], onDelete: Cascade)
+  item       Item       @relation(fields: [itemId], references: [id])
+
+  @@unique([ativoId, itemId])
+}
+
+// Tipo de manutenção (substitui TIPMANUT + config pcm_tipos_corretivos).
+model ManutTipo {
+  id             String       @id @default(cuid())
+  sigla          String       @unique
+  nome           String
+  // CORRETIVA | PREVENTIVA | PREDITIVA | INSPECAO | LUBRIFICACAO | MELHORIA | OUTROS
+  natureza       String
+  // true = OS deste tipo com sintoma conta como FALHA no MTBF/MTTR
+  contaComoFalha Boolean      @default(false)
+  prioridade     Int          @default(3)
+  ativo          Boolean      @default(true)
+  legadoId       Int?         @unique // CODTIPMAN
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  ordens         ManutOrdem[]
+  planos         ManutPlano[]
+}
+
+// Catálogo técnico: SINTOMA (defeito), CAUSA, SERVICO (substitui DEFEITO/CAUSA/SERVICO).
+model ManutCatalogo {
+  id        String   @id @default(cuid())
+  tipo      String
+  descricao String
+  ativo     Boolean  @default(true)
+  legadoId  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  servicosComoSintoma ManutOrdemServico[] @relation("ManutServicoSintoma")
+  servicosComoCausa   ManutOrdemServico[] @relation("ManutServicoCausa")
+  servicosComoServico ManutOrdemServico[] @relation("ManutServicoServico")
+  tarefasPlano        ManutPlanoTarefa[]
+
+  @@unique([tipo, legadoId])
+  @@index([tipo, ativo])
+}
+
+// Equipe / setor executante (substitui SETEXE).
+model ManutEquipe {
+  id        String              @id @default(cuid())
+  nome      String
+  externa   Boolean             @default(false)
+  custoHora Decimal?            @db.Decimal(10, 2)
+  ativo     Boolean             @default(true)
+  legadoId  Int?                @unique // CODSET
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  membros   ManutEquipeMembro[]
+  ordens    ManutOrdem[]
+  planos    ManutPlano[]
+}
+
+model ManutEquipeMembro {
+  equipeId      String
+  colaboradorId String
+  equipe        ManutEquipe @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id], onDelete: Cascade)
+
+  @@id([equipeId, colaboradorId])
+}
+
+// Solicitação de Serviço — qualquer usuário abre; o PCM faz a triagem.
+model ManutSolicitacao {
+  id              String      @id @default(cuid())
+  empresaId       String
+  numero          String
+  ativoId         String?
+  localTexto      String?
+  descricao       String
+  ativoParado     Boolean     @default(false)
+  paradoDesde     DateTime?
+  prioridade      String? // EMERGENCIA | ALTA | MEDIA | BAIXA (sugerida)
+  // ABERTA | CONVERTIDA | ANEXADA | RECUSADA
+  status          String      @default("ABERTA")
+  ordemId         String?
+  motivoRecusa    String?
+  solicitanteId   String? // Usuario
+  solicitanteNome String?
+  // USUARIO | SST_INSPECAO | SST_INCIDENTE | CHECKLIST
+  origem          String      @default("USUARIO")
+  origemId        String?
+  triadoPor       String?
+  triadoEm        DateTime?
+  criadoPor       String?
+  atualizadoPor   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  empresa         Empresa     @relation(fields: [empresaId], references: [id])
+  ativo           ManutAtivo? @relation(fields: [ativoId], references: [id], onDelete: SetNull)
+  ordem           ManutOrdem? @relation(fields: [ordemId], references: [id], onDelete: SetNull)
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, status])
+}
+
+// Ordem de Serviço. Conclusão em DUAS etapas: técnico ENCERRA, PCM CONCLUI.
+model ManutOrdem {
+  id                 String               @id @default(cuid())
+  empresaId          String
+  numero             String
+  // obrigatório nas OS novas (UI/API); nulo só no histórico do Engeman sem ativo
+  ativoId            String?
+  localTexto         String?
+  tipoId             String
+  planoId            String?
+  planoAtivoId       String?
+  // vencimento que originou a OS (data ISO ou leitura) — idempotência do gerador
+  planoRef           String?
+  equipeId           String?
+  responsavelId      String? // Colaborador
+  // EMERGENCIA | ALTA | MEDIA | BAIXA
+  prioridade         String               @default("MEDIA")
+  // ABERTA | PLANEJADA | EM_EXECUCAO | PAUSADA | AGUARDANDO_MATERIAL |
+  // AGUARDANDO_TERCEIRO | ENCERRADA | CONCLUIDA | CANCELADA
+  status             String               @default("ABERTA")
+  descricao          String
+  programadaPara     DateTime?
+  prazo              DateTime?
+  horasEstimadas     Decimal?             @db.Decimal(10, 2)
+  exigeParada        Boolean              @default(false)
+  iniciadaEm         DateTime?
+  encerradaEm        DateTime?
+  encerradaPor       String?
+  concluidaEm        DateTime?
+  concluidaPor       String?
+  paradaInicio       DateTime?
+  paradaFim          DateTime?
+  observacaoTecnica  String?
+  centroCustoId      String?
+  leituraMedidor     Decimal?             @db.Decimal(15, 2)
+  custoMaoObra       Decimal              @default(0) @db.Decimal(15, 2)
+  custoMaterial      Decimal              @default(0) @db.Decimal(15, 2)
+  custoTerceiros     Decimal              @default(0) @db.Decimal(15, 2)
+  canceladaEm        DateTime?
+  motivoCancelamento String?
+  codOrdLegado       Int?                 @unique // CODORD do Engeman
+  criadoPor          String?
+  atualizadoPor      String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  empresa            Empresa              @relation(fields: [empresaId], references: [id])
+  ativo              ManutAtivo?          @relation(fields: [ativoId], references: [id], onDelete: SetNull)
+  tipo               ManutTipo            @relation(fields: [tipoId], references: [id])
+  plano              ManutPlano?          @relation(fields: [planoId], references: [id], onDelete: SetNull)
+  equipe             ManutEquipe?         @relation(fields: [equipeId], references: [id], onDelete: SetNull)
+  responsavel        Colaborador?         @relation("ManutOrdemResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+  centroCusto        CentroCusto?         @relation(fields: [centroCustoId], references: [id], onDelete: SetNull)
+  servicos           ManutOrdemServico[]
+  materiais          ManutOrdemMaterial[]
+  apontamentos       ManutApontamento[]
+  terceiros          ManutOrdemTerceiro[]
+  eventos            ManutOrdemEvento[]
+  solicitacoes       ManutSolicitacao[]
+  requisicoes        RequisicaoMaterial[]
+
+  @@unique([empresaId, numero])
+  @@unique([planoAtivoId, planoRef])
+  @@index([empresaId, status])
+  @@index([ativoId, concluidaEm])
+  @@index([planoId])
+}
+
+// Serviços / checklist da OS (substitui REGSERV). Falha = linha com sintoma.
+model ManutOrdemServico {
+  id           String         @id @default(cuid())
+  ordemId      String
+  seq          Int            @default(0)
+  descricao    String
+  servicoId    String?
+  sintomaId    String?
+  causaId      String?
+  // NENHUMA (serviço) | OK_NOK | NUMERO | TEXTO (checklist do plano)
+  tipoResposta String         @default("NENHUMA")
+  faixaMin     Decimal?       @db.Decimal(15, 3)
+  faixaMax     Decimal?       @db.Decimal(15, 3)
+  resposta     String?
+  conforme     Boolean?
+  executado    Boolean        @default(false)
+  tempoHoras   Decimal?       @db.Decimal(10, 2)
+  legadoId     Int?           @unique // CODREGSER
+  ordem        ManutOrdem     @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  servico      ManutCatalogo? @relation("ManutServicoServico", fields: [servicoId], references: [id], onDelete: SetNull)
+  sintoma      ManutCatalogo? @relation("ManutServicoSintoma", fields: [sintomaId], references: [id], onDelete: SetNull)
+  causa        ManutCatalogo? @relation("ManutServicoCausa", fields: [causaId], references: [id], onDelete: SetNull)
+
+  @@index([ordemId])
+}
+
+// Material da OS que NÃO veio por requisição do ERP: kit previsto do plano e o
+// histórico de materiais do Engeman (descrição + valor). Consumo real novo vem
+// das requisições vinculadas (RequisicaoMaterial.ordemServicoId).
+model ManutOrdemMaterial {
+  id         String     @id @default(cuid())
+  ordemId    String
+  itemId     String?
+  descricao  String
+  quantidade Decimal    @db.Decimal(15, 3)
+  unidade    String?
+  valorTotal Decimal    @default(0) @db.Decimal(15, 2)
+  // PREVISTO (kit) | LEGADO (Engeman)
+  origem     String     @default("PREVISTO")
+  legadoId   String?    @unique
+  ordem      ManutOrdem @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  item       Item?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@index([ordemId])
+}
+
+// Mão de obra (substitui ORDXFUN). fim null = cronômetro em andamento.
+model ManutApontamento {
+  id            String       @id @default(cuid())
+  ordemId       String
+  colaboradorId String?
+  nome          String // nome do executante (legado sem vínculo com Colaborador)
+  inicio        DateTime
+  fim           DateTime?
+  custoHora     Decimal?     @db.Decimal(10, 2)
+  observacao    String?
+  legadoId      Int?         @unique // CODREGFUN
+  criadoPor     String?
+  createdAt     DateTime     @default(now())
+  ordem         ManutOrdem   @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  colaborador   Colaborador? @relation(fields: [colaboradorId], references: [id], onDelete: SetNull)
+
+  @@index([ordemId])
+  @@index([colaboradorId, inicio])
+}
+
+model ManutOrdemTerceiro {
+  id             String      @id @default(cuid())
+  ordemId        String
+  fornecedorId   String?
+  descricao      String
+  pedidoCompraId String?
+  contaPagarId   String?
+  valor          Decimal     @default(0) @db.Decimal(15, 2)
+  createdAt      DateTime    @default(now())
+  ordem          ManutOrdem  @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+  fornecedor     Fornecedor? @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+
+  @@index([ordemId])
+}
+
+model ManutOrdemEvento {
+  id        String     @id @default(cuid())
+  ordemId   String
+  tipo      String
+  detalhe   String?
+  usuario   String?
+  createdAt DateTime   @default(now())
+  ordem     ManutOrdem @relation(fields: [ordemId], references: [id], onDelete: Cascade)
+
+  @@index([ordemId, createdAt])
+}
+
+// Plano de manutenção (substitui PLAMANUT + PLAPER/PLAACU + CHKPLANO).
+model ManutPlano {
+  id               String               @id @default(cuid())
+  empresaId        String
+  codigo           String
+  nome             String
+  tipoId           String
+  equipeId         String?
+  horasEstimadas   Decimal?             @db.Decimal(10, 2)
+  exigeParada      Boolean              @default(false)
+  antecedenciaDias Int                  @default(3)
+  toleranciaPct    Int                  @default(10)
+  // true: próximo vencimento conta da execução real; false: da data teórica
+  baseNaConclusao  Boolean              @default(true)
+  observacoes      String?
+  ativo            Boolean              @default(true)
+  legadoId         Int?                 @unique // CODPLA
+  criadoPor        String?
+  atualizadoPor    String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  empresa          Empresa              @relation(fields: [empresaId], references: [id])
+  tipo             ManutTipo            @relation(fields: [tipoId], references: [id])
+  equipe           ManutEquipe?         @relation(fields: [equipeId], references: [id], onDelete: SetNull)
+  tarefas          ManutPlanoTarefa[]
+  materiais        ManutPlanoMaterial[]
+  ativos           ManutPlanoAtivo[]
+  ordens           ManutOrdem[]
+
+  @@unique([empresaId, codigo])
+}
+
+model ManutPlanoTarefa {
+  id           String         @id @default(cuid())
+  planoId      String
+  seq          Int
+  descricao    String
+  ativoId      String? // componente a que a tarefa se refere (opcional)
+  servicoId    String?
+  tipoResposta String         @default("OK_NOK")
+  faixaMin     Decimal?       @db.Decimal(15, 3)
+  faixaMax     Decimal?       @db.Decimal(15, 3)
+  plano        ManutPlano     @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  ativo        ManutAtivo?    @relation(fields: [ativoId], references: [id], onDelete: SetNull)
+  servico      ManutCatalogo? @relation(fields: [servicoId], references: [id], onDelete: SetNull)
+
+  @@index([planoId, seq])
+}
+
+model ManutPlanoMaterial {
+  id         String     @id @default(cuid())
+  planoId    String
+  itemId     String
+  quantidade Decimal    @db.Decimal(15, 3)
+  plano      ManutPlano @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  item       Item       @relation(fields: [itemId], references: [id])
+
+  @@unique([planoId, itemId])
+}
+
+// Aplicação do plano a um ativo: gatilho e controle do próximo vencimento.
+model ManutPlanoAtivo {
+  id                String        @id @default(cuid())
+  planoId           String
+  ativoId           String
+  // CALENDARIO | MEDIDOR
+  gatilho           String        @default("CALENDARIO")
+  intervaloDias     Int?
+  medidorId         String?
+  intervaloMedida   Decimal?      @db.Decimal(15, 2)
+  ultimaExecucao    DateTime?
+  ultimaMedida      Decimal?      @db.Decimal(15, 2)
+  proximoVencimento DateTime?
+  proximaMedida     Decimal?      @db.Decimal(15, 2)
+  ativo             Boolean       @default(true)
+  legadoRef         String?       @unique // PER:<CODPLA>:<CODAPL> | ACU:<CODPLA>:<CODAPL>
+  plano             ManutPlano    @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  ativoRef          ManutAtivo    @relation(fields: [ativoId], references: [id], onDelete: Cascade)
+  medidor           ManutMedidor? @relation(fields: [medidorId], references: [id], onDelete: SetNull)
+
+  @@index([planoId])
+  @@index([ativoId])
+}
+
+// Medidor de uso do ativo (horímetro, km, ciclos…).
+model ManutMedidor {
+  id        String            @id @default(cuid())
+  ativoId   String
+  nome      String
+  unidade   String            @default("h")
+  acumulado Decimal           @default(0) @db.Decimal(15, 2)
+  ativo     Boolean           @default(true)
+  legadoId  Int?              @unique // CODPONACU
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  ativoRef  ManutAtivo        @relation(fields: [ativoId], references: [id], onDelete: Cascade)
+  leituras  ManutLeitura[]
+  planos    ManutPlanoAtivo[]
+}
+
+model ManutLeitura {
+  id        String       @id @default(cuid())
+  medidorId String
+  data      DateTime
+  valor     Decimal      @db.Decimal(15, 2)
+  origem    String?
+  criadoPor String?
+  createdAt DateTime     @default(now())
+  medidor   ManutMedidor @relation(fields: [medidorId], references: [id], onDelete: Cascade)
+
+  @@index([medidorId, data])
 }

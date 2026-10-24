@@ -90,6 +90,19 @@ export async function POST(req: NextRequest) {
       if (semCentro) return NextResponse.json({ error: "Centro de custo é obrigatório em cada item" }, { status: 400 });
     }
 
+    // Vínculo com a OS de manutenção: id explícito (botão "Requisitar material" da
+    // OS) ou o nº digitado no campo OS ("OS-2573" / "2573") quando bater com uma OS.
+    let ordemServicoId: string | null = null;
+    const osAlvo = body.ordemServicoId
+      ? await prisma.manutOrdem.findUnique({ where: { id: body.ordemServicoId }, select: { id: true, numero: true } })
+      : /^(os-?)?\d+$/i.test(String(body.os ?? "").trim())
+        ? await prisma.manutOrdem.findFirst({
+            where: { numero: `OS-${String(parseInt(String(body.os).replace(/\D/g, ""), 10)).padStart(4, "0")}` },
+            select: { id: true, numero: true },
+          })
+        : null;
+    if (osAlvo) { ordemServicoId = osAlvo.id; body.os = osAlvo.numero; }
+
     const record = await prisma.$transaction(async (tx) => {
       const prefix = body.tipo === "DEVOLUCAO" ? "DV" : "RM";
       const seq = await tx.sequencia.upsert({
@@ -110,6 +123,7 @@ export async function POST(req: NextRequest) {
           setorId:       body.setorId        || null,
           almoxarifeId:  body.almoxarifeId   || null,
           os:            body.os?.trim()     || null,
+          ordemServicoId,
           centroCustoId: body.centroCustoId  || null,
           naturezaFinanceiraId: body.naturezaFinanceiraId || null,
           data:          body.data ? new Date(body.data) : new Date(),

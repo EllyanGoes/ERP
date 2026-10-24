@@ -2,88 +2,77 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import sql from "mssql";
 import { prisma } from "@/lib/prisma";
-import { getEngemanConfig, getCorretivoCodes, engemanErrorResponse } from "@/lib/engeman";
 
-const CHAVE = "pcm_tipos_corretivos";
+// Quais tipos de OS contam como falha / parada não planejada no MTBF/MTTR.
+// Fonte da verdade: ManutTipo.contaComoFalha (substitui a antiga chave
+// pcm_tipos_corretivos com CODTIPMAN do Engeman).
 
 export interface TipoManutencao {
-  codTipMan: number;
-  descricao: string;
-  conta: boolean; // conta como falha / parada não planejada
+  id: string;
+  sigla: string;
+  descricao: string; // ManutTipo.nome
+  natureza: string;
+  ativo: boolean;
+  conta: boolean; // contaComoFalha
 }
 
 export interface TiposResponse {
   tipos: TipoManutencao[];
-  fonte: "config" | "auto"; // config explícita salva, ou auto-detecção por "CORRETIV"
   source: "db";
 }
 
-// ── GET: lista os tipos do Engeman + marca quais contam hoje ─────────────────────
+// ── GET: lista os tipos de OS + marca quais contam hoje ──────────────────────────
 export async function GET() {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
 
-  try {
-    const pool = await sql.connect(await getEngemanConfig());
-    try {
-      const [tiposRes, config] = await Promise.all([
-        pool.request().query<{ CODTIPMAN: number; DESCRICAO: string }>(`
-          SELECT
-            CODTIPMAN,
-            RTRIM(ISNULL(DESCRICAO, 'Tipo ' + CAST(CODTIPMAN AS VARCHAR))) AS DESCRICAO
-          FROM TIPMANUT
-          ORDER BY DESCRICAO
-        `),
-        prisma.configuracao.findUnique({ where: { chave: CHAVE } }),
-      ]);
+  const lista = await prisma.manutTipo.findMany({
+    orderBy: [{ ativo: "desc" }, { nome: "asc" }],
+    select: { id: true, sigla: true, nome: true, natureza: true, ativo: true, contaComoFalha: true },
+  });
 
-      const corretivos = new Set(await getCorretivoCodes(pool));
-      const fonte: "config" | "auto" = config?.valor?.trim() ? "config" : "auto";
+  const tipos: TipoManutencao[] = lista.map((t) => ({
+    id: t.id,
+    sigla: t.sigla,
+    descricao: t.nome,
+    natureza: t.natureza,
+    ativo: t.ativo,
+    conta: t.contaComoFalha,
+  }));
 
-      const tipos: TipoManutencao[] = tiposRes.recordset.map((t) => ({
-        codTipMan: t.CODTIPMAN,
-        descricao: t.DESCRICAO,
-        conta: corretivos.has(t.CODTIPMAN),
-      }));
-
-      return NextResponse.json({ tipos, fonte, source: "db" } satisfies TiposResponse);
-    } finally {
-      await pool.close();
-    }
-  } catch (err) {
-    return engemanErrorResponse("PCM /api/pcm/config/tipos-manutencao", err);
-  }
+  return NextResponse.json({ tipos, source: "db" } satisfies TiposResponse);
 }
 
-// ── PUT: salva quais CODTIPMAN contam (em pcm_tipos_corretivos) ──────────────────
+// ── PUT: salva quais tipos contam (ManutTipo.contaComoFalha) ─────────────────────
 export async function PUT(req: NextRequest) {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
 
-  const body = (await req.json().catch(() => null)) as { codTipMans?: unknown } | null;
-  if (!body || !Array.isArray(body.codTipMans)) {
-    return NextResponse.json({ error: "Envie codTipMans: number[]" }, { status: 400 });
+  const body = (await req.json().catch(() => null)) as { ids?: unknown } | null;
+  if (!body || !Array.isArray(body.ids)) {
+    return NextResponse.json({ error: "Envie ids: string[]" }, { status: 400 });
   }
 
-  const codes = Array.from(
-    new Set(body.codTipMans.map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0)),
-  ).sort((a, b) => a - b);
-
-  if (codes.length === 0) {
+  const ids = Array.from(
+    new Set(body.ids.filter((v): v is string => typeof v === "string" && v.trim() !== "")),
+  );
+  if (ids.length === 0) {
     return NextResponse.json(
       { error: "Selecione ao menos um tipo que conta como falha" },
       { status: 400 },
     );
   }
 
-  const valor = codes.join(",");
-  await prisma.configuracao.upsert({
-    where: { chave: CHAVE },
-    update: { valor },
-    create: { chave: CHAVE, valor },
+  const existentes = await prisma.manutTipo.count({ where: { id: { in: ids } } });
+  if (existentes !== ids.length) {
+    return NextResponse.json({ error: "Tipo de OS não encontrado" }, { status: 400 });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.manutTipo.updateMany({ where: { id: { in: ids } }, data: { contaComoFalha: true } });
+    await tx.manutTipo.updateMany({ where: { id: { notIn: ids } }, data: { contaComoFalha: false } });
   });
 
-  return NextResponse.json({ data: { chave: CHAVE, codTipMans: codes } });
+  return NextResponse.json({ data: { ids } });
 }

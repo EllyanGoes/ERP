@@ -1,14 +1,15 @@
-import sql from "mssql";
-import { getEngemanConfig, getCorretivoCodes, inList } from "@/lib/engeman";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { dataReferenciaOS, horasParada, wherePeriodoOS } from "@/lib/manutencao/consultas";
 
-// Agregado mensal de um ativo, vindo do Engeman.
+// Agregado mensal de um ativo, a partir das OS nativas (ManutOrdem).
 export interface AgregadoMensalAtivo {
   codApl: number;
   tag: string;
   descricao: string;
-  numeroFalhas: number; // OS de tipo corretivo no mês
+  numeroFalhas: number; // OS de tipo que conta como falha no mês
   horasParada: number; // parada não planejada (h) = janelas de máquina parada
-  falhasComCarimbo: number; // quantas têm carimbo MAQPAR→MAQFUN (resto = sem janela de parada)
+  falhasComCarimbo: number; // quantas têm parada início→fim (resto = sem janela de parada)
 }
 
 /** Dias do mês (mes de 1 a 12). */
@@ -16,6 +17,28 @@ export function diasNoMes(ano: number, mes: number): number {
   // mes é 1-based; em JS o índice é 0-based, então (ano, mes, 0) = último dia do mês `mes`.
   return new Date(ano, mes, 0).getDate();
 }
+
+/**
+ * Janela do mês em UTC: [inicio, fim] (fim = último ms do mês). As datas do
+ * histórico do Engeman foram gravadas "como UTC" (o mssql lê DATETIME sem fuso
+ * como UTC), então YEAR/MONTH(DATPRO) do Engeman = mês UTC aqui.
+ */
+export function janelaMesUTC(ano: number, mes: number): { inicio: Date; fim: Date; fimExclusivo: Date } {
+  const inicio = new Date(Date.UTC(ano, mes - 1, 1));
+  const fimExclusivo = new Date(Date.UTC(ano, mes, 1));
+  return { inicio, fim: new Date(fimExclusivo.getTime() - 1), fimExclusivo };
+}
+
+/**
+ * OS que entram na parada não planejada / nº de falhas do MTBF: tipo marcado
+ * como falha (ManutTipo.contaComoFalha, antigo pcm_tipos_corretivos) e não
+ * cancelada. NÃO exige sintoma (mesma regra do fechamento do Engeman: conta o
+ * TIPO corretivo, não "tem defeito registrado").
+ */
+export const WHERE_FALHA_MTBF: Prisma.ManutOrdemWhereInput = {
+  status: { not: "CANCELADA" },
+  tipo: { contaComoFalha: true },
+};
 
 /**
  * MTBF (definição MaintainX): (tempo de funcionamento − parada não planejada) / nº de falhas.
@@ -40,82 +63,61 @@ export function calcMttr(horasParada: number, numeroFalhas: number): number | nu
 }
 
 /**
- * Agregado mensal por ativo do Engeman: nº de falhas (OS de tipo corretivo,
- * configurável via pcm_tipos_corretivos) e horas de parada não planejada.
- * A parada vem SÓ das janelas de máquina parada — principal (MAQPAR→MAQFUN) +
- * adicionais (ORDXPAR). NÃO usa HOREXEREA: aquilo é homem-hora de mão de obra
- * (soma dos REGSERV, pode se sobrepor) e não representa tempo de máquina parada.
+ * Agregado mensal por ativo: nº de falhas (OS de tipo que conta como falha,
+ * configurável em ManutTipo.contaComoFalha) e horas de parada não planejada.
+ * A parada vem SÓ da janela de máquina parada da OS (paradaInicio→paradaFim) —
+ * NÃO usa horas apontadas (homem-hora, pode se sobrepor entre técnicos).
  * Sem carimbo de parada, a OS entra com 0h (e é sinalizada para revisão).
- * Lança se o Engeman estiver inacessível (o chamador trata como 503).
+ * O mês é o da data de referência da OS (programadaPara, senão createdAt).
  */
-export async function getAgregadoMensalEngeman(
+export async function getAgregadoMensal(
   ano: number,
   mes: number,
   codApls?: number[],
 ): Promise<AgregadoMensalAtivo[]> {
-  const pool = await sql.connect(await getEngemanConfig());
-  try {
-    const codAplList = codApls && codApls.length > 0 ? codApls.join(",") : null;
-    // "Falha" = OS de TIPO corretivo (configurável via pcm_tipos_corretivos), em vez
-    // de "tem defeito registrado". Inspeção/preventiva deixam de descontar.
-    const corretivosIn = inList(await getCorretivoCodes(pool));
-    const result = await pool
-      .request()
-      .input("ano", sql.Int, ano)
-      .input("mes", sql.Int, mes)
-      .input("codAplList", sql.VarChar(sql.MAX), codAplList)
-      .query<{
-        CODAPL: number;
-        TAG: string;
-        DESCRICAO: string;
-        NUMERO_FALHAS: number;
-        HORAS_PARADA: number;
-        COM_CARIMBO: number;
-      }>(`
-        SELECT
-          o.CODAPL,
-          RTRIM(ISNULL(a.TAG, CAST(o.CODAPL AS VARCHAR(20)))) AS TAG,
-          RTRIM(ISNULL(a.DESCRICAO, 'Sem descrição'))          AS DESCRICAO,
-          COUNT(*) AS NUMERO_FALHAS,
-          SUM(
-            -- Parada principal = janela de máquina parada (MAQPAR→MAQFUN).
-            -- Sem carimbo → 0h. NÃO usa HOREXEREA (homem-hora, pode se sobrepor).
-            (CASE WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, o.MAQPAR, o.MAQFUN)) / 60.0
-              ELSE 0
-            END)
-            -- + paradas adicionais (ORDXPAR), pré-agregadas no LEFT JOIN abaixo
-            -- (não dá pra usar subconsulta com SUM dentro de outro SUM no SQL Server)
-            + ISNULL(xpa.H_ADD, 0)
-          ) AS HORAS_PARADA,
-          SUM(CASE WHEN o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL THEN 1 ELSE 0 END) AS COM_CARIMBO
-        FROM ORDSERV o
-        LEFT JOIN APLIC a ON a.CODAPL = o.CODAPL
-        LEFT JOIN (
-          SELECT xp.CODORD,
-            SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
-              THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
-              ELSE ISNULL(xp.HORINTPARAD, 0) END) AS H_ADD
-          FROM ORDXPAR xp
-          GROUP BY xp.CODORD
-        ) xpa ON xpa.CODORD = o.CODORD
-        WHERE o.CODAPL IS NOT NULL
-          AND o.CODFIL NOT IN (0)
-          AND YEAR(o.DATPRO) = @ano
-          AND MONTH(o.DATPRO) = @mes
-          AND o.CODTIPMAN IN ${corretivosIn}
-          AND (@codAplList IS NULL OR o.CODAPL IN (SELECT CAST(value AS INT) FROM STRING_SPLIT(@codAplList, ',')))
-        GROUP BY o.CODAPL, a.TAG, a.DESCRICAO
-      `);
-    return result.recordset.map((r) => ({
-      codApl: r.CODAPL,
-      tag: r.TAG ?? String(r.CODAPL),
-      descricao: r.DESCRICAO ?? "",
-      numeroFalhas: r.NUMERO_FALHAS ?? 0,
-      horasParada: parseFloat((r.HORAS_PARADA ?? 0).toFixed(2)),
-      falhasComCarimbo: r.COM_CARIMBO ?? 0,
-    }));
-  } finally {
-    await pool.close();
+  const { inicio, fim } = janelaMesUTC(ano, mes);
+  const ordens = await prisma.manutOrdem.findMany({
+    where: {
+      AND: [
+        WHERE_FALHA_MTBF,
+        wherePeriodoOS(inicio, fim),
+        { ativo: codApls && codApls.length > 0 ? { codApl: { in: codApls } } : { isNot: null } },
+      ],
+    },
+    select: {
+      programadaPara: true,
+      createdAt: true,
+      paradaInicio: true,
+      paradaFim: true,
+      ativo: { select: { codApl: true, tag: true, nome: true } },
+    },
+  });
+
+  const porAtivo = new Map<number, AgregadoMensalAtivo>();
+  for (const o of ordens) {
+    if (!o.ativo) continue;
+    // defesa extra: a data de referência precisa cair no mês
+    const ref = dataReferenciaOS(o);
+    if (ref < inicio || ref > fim) continue;
+    let acc = porAtivo.get(o.ativo.codApl);
+    if (!acc) {
+      acc = {
+        codApl: o.ativo.codApl,
+        tag: o.ativo.tag || String(o.ativo.codApl),
+        descricao: o.ativo.nome || "Sem descrição",
+        numeroFalhas: 0,
+        horasParada: 0,
+        falhasComCarimbo: 0,
+      };
+      porAtivo.set(o.ativo.codApl, acc);
+    }
+    acc.numeroFalhas += 1;
+    acc.horasParada += horasParada(o);
+    if (o.paradaInicio && o.paradaFim) acc.falhasComCarimbo += 1;
   }
+
+  return Array.from(porAtivo.values()).map((a) => ({
+    ...a,
+    horasParada: parseFloat(a.horasParada.toFixed(2)),
+  }));
 }

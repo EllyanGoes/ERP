@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,10 @@ export default function SstMaquinaPage() {
   useTabTitle(m ? `NR-12 · ${m.nome}` : "Máquina");
   const load = useCallback(async () => { const j = await fetch(`/api/sst/maquinas/${id}`).then((r) => r.json()).catch(() => null); setM(j?.data ?? null); setLoading(false); }, [id]);
   useEffect(() => { load(); }, [load]);
+  // ativos da Manutenção (vínculo da máquina por codApl)
+  const [ativos, setAtivos] = useState<{ codApl: number; tag: string; descricao: string; caminho: string }[]>([]);
+  useEffect(() => { fetch("/api/pcm/ativos/lista").then((r) => (r.ok ? r.json() : { data: [] })).then((j) => setAtivos(j.data ?? [])).catch(() => {}); }, []);
+  const ativoVinculado = m?.codApl ? ativos.find((a) => a.codApl === m.codApl) : undefined;
 
   const [erro, setErro] = useState(""); const [saving, setSaving] = useState(false);
   async function patch(data: Record<string, unknown>) {
@@ -82,7 +87,7 @@ export default function SstMaquinaPage() {
 
   return (
     <div>
-      <PageHeader title={m.nome} subtitle={[m.local, m.setor?.nome, m.fabricante, m.anoFabricacao ? `fab. ${m.anoFabricacao}` : null, m.codApl ? `Engeman ${m.codApl}` : null].filter(Boolean).join(" · ") || "—"}
+      <PageHeader title={m.nome} subtitle={[m.local, m.setor?.nome, m.fabricante, m.anoFabricacao ? `fab. ${m.anoFabricacao}` : null, m.codApl ? `Ativo ${ativoVinculado?.tag ?? `#${m.codApl}`}` : null].filter(Boolean).join(" · ") || "—"}
         breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "Máquinas", href: "/sst/maquinas" }, { label: m.nome }]}
         action={<div className="flex items-center gap-2">
           <StatusMaquinaBadge s={m.status} />
@@ -173,7 +178,7 @@ export default function SstMaquinaPage() {
               <div><Label>Setor</Label><SelectMenu value={f.setorId} onChange={(v) => setF({ ...f, setorId: v })} options={[{ value: "", label: "—" }, ...lk.setores.map((s) => ({ value: s.id, label: s.nome }))]} /></div>
               <div><Label>Fabricante</Label><Input value={f.fabricante} onChange={(e) => setF({ ...f, fabricante: e.target.value })} /></div>
               <div><Label>Ano</Label><Input type="number" value={f.anoFabricacao} onChange={(e) => setF({ ...f, anoFabricacao: e.target.value })} /></div>
-              <div><Label>Cód. Engeman (CODAPL)</Label><Input type="number" value={f.codApl} onChange={(e) => setF({ ...f, codApl: e.target.value })} /></div>
+              <div><Label>Ativo da Manutenção</Label><ComboboxWithCreate value={f.codApl} onChange={(v) => setF({ ...f, codApl: v })} placeholder="Selecionar ativo…" noneLabel="Sem vínculo" menuMinWidth={420} options={ativos.map((a) => ({ value: String(a.codApl), code: a.tag, label: a.caminho ? `${a.descricao} — ${a.caminho}` : a.descricao }))} /></div>
             </div>
             <div><Label>Observações</Label><Input value={f.observacoes} onChange={(e) => setF({ ...f, observacoes: e.target.value })} /></div>
           </div>

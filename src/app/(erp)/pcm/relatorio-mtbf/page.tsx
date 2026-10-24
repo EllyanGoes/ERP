@@ -304,7 +304,6 @@ export default function RelatorioMtbfPage() {
 
   // Seleção
   const [codAplSel,  setCodAplSel]  = useState<number | null>(null);
-  const [codemp,     setCodemp]     = useState("1");
   const [dataInicio, setDataInicio] = useState("");   // "YYYY-MM-DD"
   const [dataFim,    setDataFim]    = useState("");
 
@@ -335,7 +334,7 @@ export default function RelatorioMtbfPage() {
     setLoading(true);
     setResultado(null);
     try {
-      const params = new URLSearchParams({ codApl: String(codAplSel), codemp });
+      const params = new URLSearchParams({ codApl: String(codAplSel) });
       if (dataInicio) params.set("dataInicio", dataInicio);
       if (dataFim)    params.set("dataFim",    dataFim);
       const res  = await fetch(`/api/pcm/relatorio-mtbf?${params}`);
@@ -347,7 +346,7 @@ export default function RelatorioMtbfPage() {
     } finally {
       setLoading(false);
     }
-  }, [codAplSel, codemp, dataInicio, dataFim]);
+  }, [codAplSel, dataInicio, dataFim]);
 
   // Calcular média da tendência para linha de referência
   const mediasMtbf = useMemo(() => {
@@ -387,7 +386,7 @@ export default function RelatorioMtbfPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Linha 1: Aplicação + Empresa */}
+            {/* Linha 1: Aplicação (a empresa vem da sessão) */}
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex-1 min-w-[280px] space-y-1.5">
                 <Label className="text-xs text-muted-foreground">
@@ -398,15 +397,6 @@ export default function RelatorioMtbfPage() {
                   value={codAplSel}
                   onChange={(v) => { setCodAplSel(v || null); setResultado(null); }}
                   loading={loadingApl}
-                />
-              </div>
-              <div className="w-28 space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Empresa (CODEMP)</Label>
-                <Input
-                  value={codemp}
-                  onChange={(e) => setCodemp(e.target.value)}
-                  className="h-10 text-sm"
-                  placeholder="1"
                 />
               </div>
             </div>

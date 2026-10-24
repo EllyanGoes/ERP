@@ -1,28 +1,28 @@
 export const dynamic = "force-dynamic";
-import sql from "mssql";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { getEngemanConfig } from "@/lib/engeman";
+import { prisma } from "@/lib/prisma";
+import { STATUS_ABERTOS } from "@/lib/manutencao/consultas";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Execução dos planos de manutenção (Engeman, somente leitura).
+// Execução dos planos de manutenção (aderência).
 //
-// "Plano" = PLAMANUT; as O.S. geradas por plano carregam ORDSERV.CODPLA.
-// Acompanha, por plano e por mês: O.S. geradas × concluídas, abertas,
-// atrasadas (programada no passado e ainda não concluída) e % de execução.
+// As O.S. geradas por plano carregam ManutOrdem.planoId. Acompanha, por plano e
+// por mês de abertura: O.S. geradas × concluídas, abertas, atrasadas (programada
+// no passado e ainda não concluída) e % de execução.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface PlanoResumo {
-  codPla: number;
-  tag: string;
+  planoId: string;
+  tag: string;                 // ManutPlano.codigo
   descricao: string;
   geradas: number;
   concluidas: number;
   abertas: number;
   canceladas: number;
-  atrasadas: number;          // abertas com DATPRO < hoje
-  concluidasComAtraso: number; // fechadas depois da data programada
-  pctExecucao: number | null; // concluídas / (geradas − canceladas)
+  atrasadas: number;           // abertas com data programada < hoje
+  concluidasComAtraso: number; // concluídas depois do dia programado
+  pctExecucao: number | null;  // concluídas / (geradas − canceladas)
   ultimaConclusao: string | null;
   proximaProgramada: string | null;
 }
@@ -44,79 +44,73 @@ export interface PlanosResponse {
 }
 
 const MESES_LABEL = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const diaISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 10 : null);
 
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
 
-  const meses = Math.min(Math.max(Number(req.nextUrl.searchParams.get("meses") ?? 12), 1), 36);
+  const meses = Math.min(Math.max(Number(req.nextUrl.searchParams.get("meses") ?? 12) || 12, 1), 36);
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - meses);
 
-  let pool: sql.ConnectionPool | null = null;
   try {
-    pool = await sql.connect(await getEngemanConfig());
-
-    // ── Por plano ────────────────────────────────────────────────────────────
-    const porPlano = await pool.request()
-      .input("meses", sql.Int, meses)
-      .query<{
-        CODPLA: number; TAG: string | null; DESCRICAO: string | null;
-        GERADAS: number; CONCLUIDAS: number; ABERTAS: number; CANCELADAS: number;
-        ATRASADAS: number; CONCL_ATRASO: number;
-        ULT_CONCLUSAO: Date | null; PROX_PROGRAMADA: Date | null;
-      }>(`
-        SELECT
-          o.CODPLA,
-          RTRIM(p.TAG)                                       AS TAG,
-          RTRIM(ISNULL(CAST(p.DESCRICAO AS VARCHAR(200)), 'Plano ' + CAST(o.CODPLA AS VARCHAR))) AS DESCRICAO,
-          COUNT(*)                                           AS GERADAS,
-          SUM(CASE WHEN ISNULL(o.STATORD,'A') = 'F' THEN 1 ELSE 0 END) AS CONCLUIDAS,
-          SUM(CASE WHEN ISNULL(o.STATORD,'A') IN ('A','E','P') THEN 1 ELSE 0 END) AS ABERTAS,
-          SUM(CASE WHEN ISNULL(o.STATORD,'A') = 'C' THEN 1 ELSE 0 END) AS CANCELADAS,
-          SUM(CASE WHEN ISNULL(o.STATORD,'A') IN ('A','E','P') AND o.DATPRO < GETDATE() THEN 1 ELSE 0 END) AS ATRASADAS,
-          SUM(CASE WHEN ISNULL(o.STATORD,'A') = 'F' AND o.DATFEC IS NOT NULL AND o.DATPRO IS NOT NULL
-                    AND CAST(o.DATFEC AS DATE) > CAST(o.DATPRO AS DATE) THEN 1 ELSE 0 END) AS CONCL_ATRASO,
-          MAX(CASE WHEN ISNULL(o.STATORD,'A') = 'F' THEN o.DATFEC END) AS ULT_CONCLUSAO,
-          MIN(CASE WHEN ISNULL(o.STATORD,'A') IN ('A','E','P') THEN o.DATPRO END) AS PROX_PROGRAMADA
-        FROM ORDSERV o
-        LEFT JOIN PLAMANUT p ON p.CODPLA = o.CODPLA
-        WHERE o.CODPLA IS NOT NULL
-          AND o.DATENT >= DATEADD(MONTH, -@meses, GETDATE())
-        GROUP BY o.CODPLA, p.TAG, p.DESCRICAO
-        ORDER BY GERADAS DESC
-      `);
-
-    // ── Série mensal (geradas × concluídas de O.S. de plano) ────────────────
-    const serieResult = await pool.request()
-      .input("meses", sql.Int, meses)
-      .query<{ ANO: number; MES: number; GERADAS: number; CONCLUIDAS: number }>(`
-        SELECT
-          YEAR(o.DATENT) AS ANO, MONTH(o.DATENT) AS MES,
-          COUNT(*) AS GERADAS,
-          SUM(CASE WHEN ISNULL(o.STATORD,'A') = 'F' THEN 1 ELSE 0 END) AS CONCLUIDAS
-        FROM ORDSERV o
-        WHERE o.CODPLA IS NOT NULL
-          AND o.DATENT >= DATEADD(MONTH, -@meses, GETDATE())
-        GROUP BY YEAR(o.DATENT), MONTH(o.DATENT)
-        ORDER BY ANO, MES
-      `);
-
-    const planos: PlanoResumo[] = porPlano.recordset.map((r) => {
-      const validas = r.GERADAS - r.CANCELADAS;
-      return {
-        codPla: r.CODPLA,
-        tag: r.TAG ?? String(r.CODPLA),
-        descricao: r.DESCRICAO ?? `Plano ${r.CODPLA}`,
-        geradas: r.GERADAS,
-        concluidas: r.CONCLUIDAS,
-        abertas: r.ABERTAS,
-        canceladas: r.CANCELADAS,
-        atrasadas: r.ATRASADAS,
-        concluidasComAtraso: r.CONCL_ATRASO,
-        pctExecucao: validas > 0 ? Math.round((r.CONCLUIDAS / validas) * 1000) / 10 : null,
-        ultimaConclusao: r.ULT_CONCLUSAO ? r.ULT_CONCLUSAO.toISOString() : null,
-        proximaProgramada: r.PROX_PROGRAMADA ? r.PROX_PROGRAMADA.toISOString() : null,
-      };
+    const ordens = await prisma.manutOrdem.findMany({
+      where: { planoId: { not: null }, createdAt: { gte: desde } },
+      select: {
+        planoId: true, status: true, createdAt: true, programadaPara: true, concluidaEm: true,
+        plano: { select: { codigo: true, nome: true } },
+      },
     });
+
+    const agora = Date.now();
+    const porPlano = new Map<string, PlanoResumo>();
+    const porMes = new Map<string, { label: string; geradas: number; concluidas: number }>();
+
+    for (const o of ordens) {
+      const p = porPlano.get(o.planoId!) ?? {
+        planoId: o.planoId!,
+        tag: o.plano?.codigo ?? "—",
+        descricao: o.plano?.nome ?? "Plano",
+        geradas: 0, concluidas: 0, abertas: 0, canceladas: 0, atrasadas: 0, concluidasComAtraso: 0,
+        pctExecucao: null, ultimaConclusao: null, proximaProgramada: null,
+      };
+      p.geradas++;
+      const concluida = o.status === "CONCLUIDA";
+      if (concluida) {
+        p.concluidas++;
+        if (o.concluidaEm && o.programadaPara && diaISO(o.concluidaEm) > diaISO(o.programadaPara)) p.concluidasComAtraso++;
+        if (o.concluidaEm && (!p.ultimaConclusao || o.concluidaEm.toISOString() > p.ultimaConclusao)) {
+          p.ultimaConclusao = o.concluidaEm.toISOString();
+        }
+      } else if (o.status === "CANCELADA") {
+        p.canceladas++;
+      } else if (STATUS_ABERTOS.includes(o.status)) {
+        p.abertas++;
+        if (o.programadaPara) {
+          if (o.programadaPara.getTime() < agora) p.atrasadas++;
+          if (!p.proximaProgramada || o.programadaPara.toISOString() < p.proximaProgramada) {
+            p.proximaProgramada = o.programadaPara.toISOString();
+          }
+        }
+      }
+      porPlano.set(o.planoId!, p);
+
+      // série mensal pela abertura
+      const chave = `${o.createdAt.getFullYear()}-${String(o.createdAt.getMonth() + 1).padStart(2, "0")}`;
+      const m = porMes.get(chave) ?? {
+        label: `${MESES_LABEL[o.createdAt.getMonth()]}/${String(o.createdAt.getFullYear()).slice(2)}`,
+        geradas: 0, concluidas: 0,
+      };
+      m.geradas++;
+      if (concluida) m.concluidas++;
+      porMes.set(chave, m);
+    }
+
+    const planos = Array.from(porPlano.values())
+      .map((p) => ({ ...p, pctExecucao: pct(p.concluidas, p.geradas - p.canceladas) }))
+      .sort((a, b) => b.geradas - a.geradas);
 
     const soma = (f: (p: PlanoResumo) => number) => planos.reduce((s, p) => s + f(p), 0);
     const geradas = soma((p) => p.geradas);
@@ -131,13 +125,9 @@ export async function GET(req: NextRequest) {
         concluidas,
         abertas: soma((p) => p.abertas),
         atrasadas: soma((p) => p.atrasadas),
-        pctExecucao: geradas - canceladas > 0 ? Math.round((concluidas / (geradas - canceladas)) * 1000) / 10 : null,
+        pctExecucao: pct(concluidas, geradas - canceladas),
       },
-      serie: serieResult.recordset.map((r) => ({
-        label: `${MESES_LABEL[r.MES - 1]}/${String(r.ANO).slice(2)}`,
-        geradas: r.GERADAS,
-        concluidas: r.CONCLUIDAS,
-      })),
+      serie: Array.from(porMes.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([, m]) => m),
       planos,
       source: "db",
       generatedAt: new Date().toISOString(),
@@ -146,11 +136,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(resposta);
   } catch (err) {
     console.error("[pcm/planos]", err);
-    return NextResponse.json(
-      { error: "Não foi possível consultar o Engeman." },
-      { status: 502 }
-    );
-  } finally {
-    await pool?.close().catch(() => {});
+    return NextResponse.json({ error: "Não foi possível montar a execução dos planos." }, { status: 500 });
   }
 }

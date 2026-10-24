@@ -1,160 +1,226 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import sql from "mssql";
-import { getEngemanConfig } from "@/lib/engeman";
+import { prisma, empresasDoEscopo } from "@/lib/prisma";
+import { wherePeriodoOS } from "@/lib/manutencao/consultas";
 
-export interface OsSemEquipamento {
-  codord: number;
-  datent: string;
+// ─────────────────────────────────────────────────────────────────────────────
+// Qualidade dos dados da Manutenção (regras nativas — docs/manutencao-prd.md §7).
+// Tudo sobre ManutAtivo/ManutOrdem da empresa ativa (escopo automático):
+//   • OS sem ativo                       • ativo sem localização
+//   • corretiva concluída sem sintoma/causa (não entra direito no MTBF/FMEA)
+//   • OS com parada iniciada e sem fim   • apontamento aberto há > 24h
+//   • ativo crítico A sem plano ativo
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface OsRef {
+  id: string;
+  numero: string;
+  data: string;      // ISO (programada ou abertura)
+  status: string;
   tipo: string;
+  ativo: string | null; // "TAG — nome"
 }
 
-export interface EquipamentoSemLocal {
+export interface AtivoRef {
   codApl: number;
   tag: string;
   descricao: string;
 }
 
-export interface OsTempoLongo {
-  codord: number;
-  equip: string;
-  tag: string;
-  maqpar: string;
-  maqfun: string;
-  hhReparo: number;
-}
-
 export interface QualidadeResponse {
   periodo: number; // dias analisados
-  totalCorretivas: number;
+  totalOs: number;          // OS (não canceladas) no período
+  totalCorretivas: number;  // corretivas concluídas no período
   // Crítico
-  osSemEquipamento: { total: number; pct: number; lista: OsSemEquipamento[] };
+  osSemAtivo:        { total: number; pct: number; lista: OsRef[] };
+  corretivaSemFalha: { total: number; pct: number; semSintoma: number; semCausa: number; lista: (OsRef & { falta: string })[] };
   // Importante
-  comMaqparMaqfun:   { total: number; pct: number };
-  semMaqparComHh:    { total: number; pct: number };
-  semNenhumTempo:    { total: number; pct: number };
+  comParada:         { total: number; pct: number }; // corretivas concluídas com início+fim de parada
+  paradaSemFim:      { total: number; fechadas: number; lista: (OsRef & { paradaInicio: string; horas: number })[] };
+  apontamentoAberto: { total: number; lista: { ordemId: string; numero: string; nome: string; inicio: string; horas: number }[] };
   // Complementar
-  equipSemLocal:     { total: number; totalAtivos: number; lista: EquipamentoSemLocal[] };
-  osTempoLongo:      { total: number; lista: OsTempoLongo[] };
+  ativoSemLocal:     { total: number; totalAtivos: number; lista: AtivoRef[] };
+  criticoSemPlano:   { total: number; totalCriticos: number; lista: AtivoRef[] };
   // Resumo score (0-100)
   score: number;
   source: "db";
   generatedAt: string;
 }
 
+const HORA = 3_600_000;
+const STATUS_FECHADOS = ["ENCERRADA", "CONCLUIDA"];
 
-async function queryQualidade(dias: number): Promise<Omit<QualidadeResponse, "source" | "generatedAt">> {
-  const pool = await sql.connect(await getEngemanConfig());
-  const q = async <T>(query: string) =>
-    (await pool.request().input("dias", sql.Int, dias).query<T>(query)).recordset;
+const SELECT_OS = {
+  id: true, numero: true, status: true, programadaPara: true, createdAt: true,
+  tipo: { select: { sigla: true, nome: true } },
+  ativo: { select: { tag: true, nome: true } },
+} as const;
 
-  // Totais e cobertura de tempo
-  const [cob] = await q<{
-    TOTAL: number; COM_MAQPAR: number; SEM_MAQPAR_COM_HH: number; SEM_NENHUM: number; SEM_APL: number;
-  }>(`
-    SELECT
-      COUNT(*) AS TOTAL,
-      SUM(CASE WHEN MAQPAR IS NOT NULL AND MAQFUN IS NOT NULL THEN 1 ELSE 0 END) AS COM_MAQPAR,
-      SUM(CASE WHEN (MAQPAR IS NULL OR MAQFUN IS NULL) AND ISNULL(HOREXEREA,0) > 0 THEN 1 ELSE 0 END) AS SEM_MAQPAR_COM_HH,
-      SUM(CASE WHEN (MAQPAR IS NULL OR MAQFUN IS NULL) AND ISNULL(HOREXEREA,0) = 0 THEN 1 ELSE 0 END) AS SEM_NENHUM,
-      SUM(CASE WHEN CODAPL IS NULL THEN 1 ELSE 0 END) AS SEM_APL
-    FROM ORDSERV
-    WHERE CODTIPMAN IN (1,2,3) AND STATORD = 'F'
-      AND DATENT >= DATEADD(DAY, -@dias, GETDATE())
-  `);
+type OsRow = {
+  id: string; numero: string; status: string; programadaPara: Date | null; createdAt: Date;
+  tipo: { sigla: string; nome: string }; ativo: { tag: string; nome: string } | null;
+};
 
-  // OS sem equipamento — 30 mais recentes
-  const semAplLista = await q<{ CODORD: number; DATENT: string; TIPO: string }>(`
-    SELECT TOP 30
-      o.CODORD,
-      CONVERT(varchar(16), o.DATENT, 120) AS DATENT,
-      ISNULL(t.DESCRICAO, 'N/D') AS TIPO
-    FROM ORDSERV o
-    LEFT JOIN TIPMANUT t ON t.CODTIPMAN = o.CODTIPMAN
-    WHERE o.CODTIPMAN IN (1,2,3) AND o.STATORD = 'F'
-      AND o.CODAPL IS NULL AND o.DATENT >= DATEADD(DAY, -@dias, GETDATE())
-    ORDER BY o.DATENT DESC
-  `);
+function osRef(o: OsRow): OsRef {
+  return {
+    id: o.id,
+    numero: o.numero,
+    data: (o.programadaPara ?? o.createdAt).toISOString(),
+    status: o.status,
+    tipo: `${o.tipo.sigla} — ${o.tipo.nome}`,
+    ativo: o.ativo ? `${o.ativo.tag} — ${o.ativo.nome}` : null,
+  };
+}
 
-  // Equipamentos sem local
-  const equipSemLocLista = await q<{ CODAPL: number; TAG: string; DESCRICAO: string }>(`
-    SELECT CODAPL, CAST(CODAPL AS VARCHAR(20)) AS TAG, RTRIM(DESCRICAO) AS DESCRICAO
-    FROM APLIC WHERE CODLOCAPL IS NULL AND ATIVO = 'S'
-    ORDER BY CODAPL
-  `);
-  const [totAtivos] = await q<{ QTD: number }>(`SELECT COUNT(*) AS QTD FROM APLIC WHERE ATIVO='S'`);
+async function calcular(dias: number): Promise<Omit<QualidadeResponse, "source" | "generatedAt">> {
+  const agora = new Date();
+  const desde = new Date(agora.getTime() - dias * 24 * HORA);
+  const noPeriodo = { ...wherePeriodoOS(desde, agora), status: { not: "CANCELADA" } };
+  const corretivaConcluida = {
+    status: "CONCLUIDA",
+    tipo: { contaComoFalha: true },
+    concluidaEm: { gte: desde },
+  };
 
-  // OS com tempo longo (> 72h)
-  const osLongasLista = await q<{
-    CODORD: number; EQUIP: string; TAG: string;
-    MAQPAR: string; MAQFUN: string; HH: number;
-  }>(`
-    SELECT
-      o.CODORD,
-      ISNULL(RTRIM(a.DESCRICAO), 'Sem equipamento') AS EQUIP,
-      ISNULL(CAST(a.CODAPL AS VARCHAR(20)), '—') AS TAG,
-      CONVERT(varchar(16), o.MAQPAR, 120) AS MAQPAR,
-      CONVERT(varchar(16), o.MAQFUN, 120) AS MAQFUN,
-      DATEDIFF(HOUR, o.MAQPAR, o.MAQFUN) AS HH
-    FROM ORDSERV o
-    LEFT JOIN APLIC a ON a.CODAPL = o.CODAPL
-    WHERE o.CODTIPMAN IN (1,2,3) AND o.STATORD = 'F'
-      AND o.MAQPAR IS NOT NULL AND o.MAQFUN IS NOT NULL
-      AND DATEDIFF(HOUR, o.MAQPAR, o.MAQFUN) > 72
-      AND o.DATENT >= DATEADD(DAY, -@dias, GETDATE())
-    ORDER BY HH DESC
-  `);
+  // ManutApontamento não é escopado: filtra pela empresa da OS à mão.
+  const empresas = await empresasDoEscopo();
 
-  await pool.close();
+  const [
+    totalOs, semAtivoTotal, semAtivoLista,
+    corretivas, paradaAberta, apontamentos,
+    ativos, criticos,
+  ] = await Promise.all([
+    prisma.manutOrdem.count({ where: noPeriodo }),
+    prisma.manutOrdem.count({ where: { ...noPeriodo, ativoId: null } }),
+    prisma.manutOrdem.findMany({
+      where: { ...noPeriodo, ativoId: null },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      select: SELECT_OS,
+    }),
+    prisma.manutOrdem.findMany({
+      where: corretivaConcluida,
+      orderBy: { concluidaEm: "desc" },
+      select: {
+        ...SELECT_OS,
+        paradaInicio: true, paradaFim: true,
+        servicos: { select: { sintomaId: true, causaId: true } },
+      },
+    }),
+    prisma.manutOrdem.findMany({
+      where: { status: { not: "CANCELADA" }, paradaInicio: { not: null }, paradaFim: null },
+      orderBy: { paradaInicio: "asc" },
+      select: { ...SELECT_OS, paradaInicio: true },
+    }),
+    prisma.manutApontamento.findMany({
+      where: {
+        fim: null,
+        inicio: { lt: new Date(agora.getTime() - 24 * HORA) },
+        ordem: { status: { not: "CANCELADA" }, empresaId: { in: empresas } },
+      },
+      orderBy: { inicio: "asc" },
+      take: 100,
+      select: { ordemId: true, nome: true, inicio: true, ordem: { select: { numero: true } } },
+    }),
+    prisma.manutAtivo.findMany({
+      where: { ativo: true },
+      select: {
+        id: true, codApl: true, tag: true, nome: true, tipo: true, localizacao: true,
+        planos: { where: { ativo: true, plano: { ativo: true } }, select: { id: true }, take: 1 },
+      },
+      orderBy: { tag: "asc" },
+    }),
+    prisma.ativoCriticidade.findMany({ where: { criticidade: "A" }, select: { codApl: true } }),
+  ]);
 
-  const total = cob.TOTAL || 1;
-  const pct = (n: number) => parseFloat(((n / total) * 100).toFixed(1));
+  // ── Corretivas concluídas sem sintoma/causa ──────────────────────────────
+  let semSintoma = 0;
+  let semCausa = 0;
+  const semFalha: (OsRef & { falta: string })[] = [];
+  let comParadaTotal = 0;
+  for (const o of corretivas) {
+    if (o.paradaInicio && o.paradaFim) comParadaTotal++;
+    const temSintoma = o.servicos.some((s) => s.sintomaId);
+    const temCausa = o.servicos.some((s) => s.causaId);
+    if (temSintoma && temCausa) continue;
+    if (!temSintoma) semSintoma++;
+    if (!temCausa) semCausa++;
+    semFalha.push({ ...osRef(o), falta: !temSintoma && !temCausa ? "sintoma e causa" : !temSintoma ? "sintoma" : "causa" });
+  }
 
-  // Score: penaliza OS sem equipamento (peso 40), sem tempo (peso 30), equipamentos sem local (peso 15), OS longas (peso 15)
-  const scoreOsApl   = Math.max(0, 100 - (cob.SEM_APL / total) * 100);
-  const scoreTempo   = Math.max(0, 100 - (cob.SEM_NENHUM / total) * 100);
-  const scoreLocApl  = totAtivos.QTD > 0 ? Math.max(0, 100 - (equipSemLocLista.length / totAtivos.QTD) * 100) : 100;
-  const scoreOsLong  = Math.max(0, 100 - Math.min(osLongasLista.length * 5, 100));
-  const score = Math.round(scoreOsApl * 0.40 + scoreTempo * 0.30 + scoreLocApl * 0.15 + scoreOsLong * 0.15);
+  // ── Ativos ───────────────────────────────────────────────────────────────
+  // LOCAL é nó agrupador: a própria árvore já diz onde ele está.
+  const equipamentos = ativos.filter((a) => a.tipo !== "LOCAL");
+  const semLocal = equipamentos.filter((a) => !a.localizacao);
+  const codCriticos = new Set(criticos.map((c) => c.codApl));
+  const ativosCriticos = ativos.filter((a) => codCriticos.has(a.codApl));
+  const criticoSemPlano = ativosCriticos.filter((a) => a.planos.length === 0);
+  const ref = (a: { codApl: number; tag: string; nome: string }): AtivoRef => ({ codApl: a.codApl, tag: a.tag, descricao: a.nome });
+
+  const totalCorretivas = corretivas.length;
+  const pctDe = (n: number, total: number) => (total > 0 ? parseFloat(((n / total) * 100).toFixed(1)) : 0);
+  const fechadas = paradaAberta.filter((o) => STATUS_FECHADOS.includes(o.status)).length;
+
+  // Score: OS sem ativo (25), corretiva sem sintoma/causa (25), parada registrada
+  // nas corretivas (20), ativo sem local (10), crítico sem plano (10),
+  // apontamentos/paradas esquecidos (10).
+  const sOsAtivo = 100 - pctDe(semAtivoTotal, totalOs);
+  const sFalha = 100 - pctDe(semFalha.length, totalCorretivas);
+  const sParada = totalCorretivas > 0 ? pctDe(comParadaTotal, totalCorretivas) : 100;
+  const sLocal = 100 - pctDe(semLocal.length, equipamentos.length);
+  const sCritico = 100 - pctDe(criticoSemPlano.length, ativosCriticos.length);
+  const sEsquecidos = Math.max(0, 100 - (apontamentos.length + fechadas) * 5);
+  const score = Math.round(
+    sOsAtivo * 0.25 + sFalha * 0.25 + sParada * 0.2 + sLocal * 0.1 + sCritico * 0.1 + sEsquecidos * 0.1,
+  );
 
   return {
     periodo: dias,
-    totalCorretivas: cob.TOTAL,
-    osSemEquipamento: {
-      total: cob.SEM_APL,
-      pct: pct(cob.SEM_APL),
-      lista: semAplLista.map((r) => ({ codord: r.CODORD, datent: r.DATENT, tipo: r.TIPO })),
+    totalOs,
+    totalCorretivas,
+    osSemAtivo: { total: semAtivoTotal, pct: pctDe(semAtivoTotal, totalOs), lista: semAtivoLista.map(osRef) },
+    corretivaSemFalha: {
+      total: semFalha.length,
+      pct: pctDe(semFalha.length, totalCorretivas),
+      semSintoma,
+      semCausa,
+      lista: semFalha.slice(0, 50),
     },
-    comMaqparMaqfun:  { total: cob.COM_MAQPAR,       pct: pct(cob.COM_MAQPAR) },
-    semMaqparComHh:   { total: cob.SEM_MAQPAR_COM_HH, pct: pct(cob.SEM_MAQPAR_COM_HH) },
-    semNenhumTempo:   { total: cob.SEM_NENHUM,         pct: pct(cob.SEM_NENHUM) },
-    equipSemLocal: {
-      total: equipSemLocLista.length,
-      totalAtivos: totAtivos.QTD,
-      lista: equipSemLocLista.map((r) => ({ codApl: r.CODAPL, tag: r.TAG, descricao: r.DESCRICAO })),
-    },
-    osTempoLongo: {
-      total: osLongasLista.length,
-      lista: osLongasLista.map((r) => ({
-        codord: r.CODORD, equip: r.EQUIP, tag: r.TAG,
-        maqpar: r.MAQPAR, maqfun: r.MAQFUN, hhReparo: r.HH,
+    comParada: { total: comParadaTotal, pct: pctDe(comParadaTotal, totalCorretivas) },
+    paradaSemFim: {
+      total: paradaAberta.length,
+      fechadas,
+      lista: paradaAberta.map((o) => ({
+        ...osRef(o),
+        paradaInicio: o.paradaInicio!.toISOString(),
+        horas: Math.round((agora.getTime() - o.paradaInicio!.getTime()) / HORA),
       })),
     },
+    apontamentoAberto: {
+      total: apontamentos.length,
+      lista: apontamentos.map((a) => ({
+        ordemId: a.ordemId,
+        numero: a.ordem.numero,
+        nome: a.nome,
+        inicio: a.inicio.toISOString(),
+        horas: Math.round((agora.getTime() - a.inicio.getTime()) / HORA),
+      })),
+    },
+    ativoSemLocal: { total: semLocal.length, totalAtivos: equipamentos.length, lista: semLocal.map(ref) },
+    criticoSemPlano: { total: criticoSemPlano.length, totalCriticos: ativosCriticos.length, lista: criticoSemPlano.map(ref) },
     score,
   };
 }
 
-export async function GET() {
+// GET /api/pcm/qualidade[?dias=365]
+export async function GET(req: NextRequest) {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
 
-  try {
-    const data = await queryQualidade(365);
-    return NextResponse.json({ ...data, source: "db", generatedAt: new Date().toISOString() });
-  } catch (err) {
-    console.error("[PCM qualidade] DB offline:", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "Engeman inacessível" }, { status: 503 });
-  }
+  const n = Number(req.nextUrl.searchParams.get("dias"));
+  const dias = Number.isInteger(n) && n > 0 && n <= 3650 ? n : 365;
+  const data = await calcular(dias);
+  return NextResponse.json({ ...data, source: "db", generatedAt: new Date().toISOString() } satisfies QualidadeResponse);
 }

@@ -5,13 +5,12 @@ import { requireModulo } from "@/lib/permissions";
 import type { Criticidade, FechamentoMtbf } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  getAgregadoMensalEngeman,
+  getAgregadoMensal,
   diasNoMes,
   calcMtbf,
   calcMttr,
   type AgregadoMensalAtivo,
 } from "@/lib/pcm-mtbf";
-import { engemanErrorResponse } from "@/lib/engeman";
 
 export interface FechamentoRow {
   codApl: number;
@@ -28,10 +27,10 @@ export interface FechamentoRow {
   fechado: boolean;
   observacao: string | null;
   salvo: boolean; // já existe registro salvo
-  // referência do Engeman (origem / detecção de ajuste)
-  engemanFalhas: number;
-  engemanParada: number;
-  temEstimativa: boolean; // tem falha sem carimbo de parada MAQPAR→MAQFUN (parada principal = 0h)
+  // referência das OS do ERP (origem / detecção de ajuste)
+  osFalhas: number;
+  osParada: number;
+  temEstimativa: boolean; // tem falha sem início/fim de parada na OS (parada = 0h)
 }
 
 export interface FechamentoResponse {
@@ -42,7 +41,7 @@ export interface FechamentoResponse {
   source: "db";
 }
 
-// ── GET: lista do mês (prefill Engeman + regime + salvo) ─────────────────────────
+// ── GET: lista do mês (prefill das OS + regime + salvo) ──────────────────────────
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
@@ -53,16 +52,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Parâmetros ano/mes inválidos" }, { status: 400 });
   }
 
-  // 1) Engeman (somente leitura) — indisponível → 503
-  let agregados: AgregadoMensalAtivo[];
-  try {
-    agregados = await getAgregadoMensalEngeman(ano, mes);
-  } catch (err) {
-    return engemanErrorResponse("PCM /api/pcm/ativo-saude/fechamento", err);
-  }
-
-  // 2) Dados locais
-  const [salvos, regimes, criticidades] = await Promise.all([
+  // OS do mês (ManutOrdem) + dados de fechamento/regime/criticidade
+  const [agregados, salvos, regimes, criticidades] = await Promise.all([
+    getAgregadoMensal(ano, mes),
     prisma.fechamentoMtbf.findMany({ where: { ano, mes } }),
     prisma.ativoRegime.findMany({ select: { codApl: true, horasPorDia: true } }),
     prisma.ativoCriticidade.findMany({ select: { codApl: true, criticidade: true } }),
@@ -86,15 +78,15 @@ export async function GET(req: NextRequest) {
     const saved = savedMap.get(codApl);
     const regime = regimeMap.get(codApl) ?? null;
 
-    const engemanFalhas = agg?.numeroFalhas ?? 0;
-    const engemanParada = agg?.horasParada ?? 0;
+    const osFalhas = agg?.numeroFalhas ?? 0;
+    const osParada = agg?.horasParada ?? 0;
     const temEstimativa = agg ? agg.falhasComCarimbo < agg.numeroFalhas : false;
 
-    // prefill: funcionamento = dias × regime (padrão 24); parada/falhas = Engeman
+    // prefill: funcionamento = dias × regime (padrão 24); parada/falhas = OS do mês
     const prefillFunc = dias * (regime ?? 24);
     const horasFuncionamento = saved?.horasFuncionamento ?? prefillFunc;
-    const horasParadaNaoPlanejada = saved?.horasParadaNaoPlanejada ?? engemanParada;
-    const numeroFalhas = saved?.numeroFalhas ?? engemanFalhas;
+    const horasParadaNaoPlanejada = saved?.horasParadaNaoPlanejada ?? osParada;
+    const numeroFalhas = saved?.numeroFalhas ?? osFalhas;
 
     rows.push({
       codApl,
@@ -110,8 +102,8 @@ export async function GET(req: NextRequest) {
       fechado: saved?.fechado ?? false,
       observacao: saved?.observacao ?? null,
       salvo: !!saved,
-      engemanFalhas,
-      engemanParada,
+      osFalhas,
+      osParada,
       temEstimativa,
     });
   }

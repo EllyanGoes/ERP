@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { RefreshCw, AlertTriangle, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DetalheResponse, Segmento } from "@/app/api/pcm/ativo-saude/detalhe/route";
@@ -17,7 +18,7 @@ function fmtDT(isoStr: string | null): string {
 }
 
 /**
- * Detalhe das OS do Engeman de um ativo no mês: linha do tempo (Online / parada
+ * Detalhe das OS de um ativo no mês: linha do tempo (Online / parada
  * não planejada / planejada) + tabela das OS, para validar manualmente o que
  * entra (e o que não entra) no cálculo de MTBF/MTTR.
  */
@@ -41,7 +42,7 @@ export default function DetalheOs({
     setErro(null);
     fetch(`/api/pcm/ativo-saude/detalhe?codApl=${codApl}&ano=${ano}&mes=${mes}`)
       .then(async (res) => {
-        if (!res.ok) throw new Error(res.status === 503 ? "Engeman indisponível" : "Falha ao carregar");
+        if (!res.ok) throw new Error("Falha ao carregar");
         return res.json();
       })
       .then((j) => vivo && setData(j))
@@ -55,7 +56,7 @@ export default function DetalheOs({
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
-        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Carregando detalhe do Engeman…
+        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Carregando detalhe das OS…
       </div>
     );
   }
@@ -68,7 +69,7 @@ export default function DetalheOs({
   }
   if (!data) return null;
 
-  const hoverOs = hover ? data.os.find((o) => o.codord === hover.codord) ?? null : null;
+  const hoverOs = hover ? data.os.find((o) => o.id === hover.osId) ?? null : null;
   const r = data.resumo;
   const ddMM = (isoStr: string) => {
     const d = new Date(isoStr);
@@ -88,7 +89,7 @@ export default function DetalheOs({
         {r.semJanela > 0 && (
           <span
             className="inline-flex items-center gap-1 rounded-full bg-warning/15 text-warning px-2.5 py-1 font-medium"
-            title="Falhas sem o carimbo de parada MAQPAR→MAQFUN. A parada principal entrou como 0h — confira/preencha no Engeman."
+            title="Falhas sem início/fim de parada na OS. A parada entrou como 0h — confira/preencha na OS (clique no nº da OS na tabela)."
           >
             <TriangleAlert className="w-3 h-3" /> {r.semJanela} sem carimbo de parada — revisar
           </span>
@@ -104,7 +105,7 @@ export default function DetalheOs({
           <div className="relative h-7 w-full rounded bg-emerald-500/80 overflow-hidden" title="Verde = Online (operando)">
             {data.segmentos.map((s, i) => (
               <div
-                key={`${s.codord}-${i}`}
+                key={`${s.osId}-${i}`}
                 onMouseEnter={() => setHover(s)}
                 onMouseLeave={() => setHover((h) => (h === s ? null : h))}
                 className={cn(
@@ -134,7 +135,7 @@ export default function DetalheOs({
                 style={pos}
               >
                 <div className="font-semibold">
-                  O.S. {hoverOs?.osNumero ?? hover.codord}
+                  O.S. {hoverOs?.osNumero ?? "—"}
                   {hoverOs ? ` · ${hoverOs.tipo}` : ""} · {fmtH(hover.horas)}
                 </div>
                 {hoverOs?.ocorrencia && (
@@ -158,13 +159,13 @@ export default function DetalheOs({
           <Legenda cor="bg-emerald-500/80" texto="Online (operando)" />
           <Legenda cor="bg-red-500" texto="Parada não planejada (desconta)" />
           <Legenda cor="bg-amber-400" texto="Planejada (não desconta)" />
-          <span className="text-muted-foreground">Passe o mouse nas paradas para ver a OS. A timeline usa só OS com carimbo MAQPAR→MAQFUN.</span>
+          <span className="text-muted-foreground">Passe o mouse nas paradas para ver a OS. A timeline usa só OS com início e fim de parada.</span>
         </div>
       </div>
 
       {/* Tabela de OS */}
       {data.os.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nenhuma OS no Engeman para este ativo no mês.</p>
+        <p className="text-xs text-muted-foreground">Nenhuma OS para este ativo no mês.</p>
       ) : (
         <div className="rounded-lg border border-border overflow-x-auto bg-card">
           <table className="w-full min-w-[1280px] text-xs">
@@ -185,10 +186,15 @@ export default function DetalheOs({
             </thead>
             <tbody className="divide-y divide-border">
               {data.os.map((o) => (
-                <tr key={o.codord} className={cn(o.contabilizada && "bg-danger/10")}>
+                <tr key={o.id} className={cn(o.contabilizada && "bg-danger/10")}>
                   <td className="px-2 py-1.5 text-foreground whitespace-nowrap">
-                    <div className="font-mono">{o.osNumero}</div>
-                    <div className="text-[10px] text-muted-foreground/60 font-mono">red. {o.codord}</div>
+                    <Link
+                      href={`/pcm/os/${o.id}`}
+                      className="font-mono text-info hover:underline"
+                      title="Abrir a OS no ERP"
+                    >
+                      {o.osNumero}
+                    </Link>
                   </td>
                   <td className="px-2 py-1.5">
                     <span className="font-semibold text-foreground" title={o.tipo}>{o.tipoSigla}</span>
@@ -224,6 +230,8 @@ export default function DetalheOs({
                   <td className="px-2 py-1.5 text-center">
                     {o.contabilizada ? (
                       <span className="inline-flex items-center rounded-full bg-danger/15 text-danger px-2 py-0.5 font-medium">Não planejada</span>
+                    ) : o.cancelada ? (
+                      <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 font-medium">Cancelada</span>
                     ) : o.planejada ? (
                       <span className="inline-flex items-center rounded-full bg-warning/15 text-warning px-2 py-0.5 font-medium">Planejada</span>
                     ) : (
@@ -237,13 +245,8 @@ export default function DetalheOs({
                     {o.contabilizada && !o.comJanela && (
                       <TriangleAlert
                         className="inline w-3 h-3 text-amber-400 ml-1 align-middle"
-                        aria-label="sem carimbo de parada (MAQPAR→MAQFUN)"
+                        aria-label="sem início/fim de parada na OS"
                       />
-                    )}
-                    {o.paradaAdicional > 0 && (
-                      <div className="text-[10px] text-muted-foreground" title="Inclui paradas adicionais do Engeman (ORDXPAR)">
-                        inclui +{fmtH(o.paradaAdicional)} adic.
-                      </div>
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-center">

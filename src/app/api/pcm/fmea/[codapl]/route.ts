@@ -2,19 +2,20 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import sql from "mssql";
-import { getEngemanConfig, engemanErrorResponse } from "@/lib/engeman";
+import { prisma } from "@/lib/prisma";
+import { horasParada } from "@/lib/manutencao/consultas";
 
 export interface FalhaRegistro {
-  codord: number;
-  descricao: string;        // OBS
-  datent: string;           // data abertura
-  datafim: string | null;   // data conclusão (DATFEC)
-  statord: string;
+  id: string;               // ManutOrdem.id (link /pcm/os/<id>)
+  numero: string;           // nº da OS
+  descricao: string;        // descrição da OS
+  datent: string;           // data abertura (createdAt)
+  datafim: string | null;   // data conclusão (concluidaEm)
+  status: string;           // ManutOrdem.status
   horasParada: number;      // tempo de parada calculado
-  tipo: string;             // TIPMANUT.DESCRICAO
+  tipo: string;             // ManutTipo.nome
   prioridade: string | null;
-  fechadoPor: string | null; // NOME_FECHOU
+  fechadoPor: string | null; // concluidaPor
 }
 
 export interface FMEAResponse {
@@ -35,22 +36,6 @@ export interface FMEAResponse {
 }
 
 
-/** Strip RTF encoding — Engeman stores OBS fields as RTF documents */
-function stripRtf(input: string | null | undefined): string {
-  if (!input) return "";
-  // If it doesn't look like RTF, return as-is
-  if (!input.trim().startsWith("{\\rtf")) return input.trim();
-  // Remove RTF control groups like {\fonttbl...} {\colortbl...} etc.
-  let text = input.replace(/\{\\[^{}]*\}/g, "");
-  // Remove remaining RTF control words like \par \pard \fs20 \b \i etc.
-  text = text.replace(/\\[a-zA-Z]+\d*\s?/g, " ");
-  // Remove remaining braces
-  text = text.replace(/[{}]/g, "");
-  // Collapse whitespace
-  text = text.replace(/\s+/g, " ").trim();
-  return text || "Sem descrição";
-}
-
 function fmtDatetime(d: Date | string | null): string {
   if (!d) return "";
   const dt = d instanceof Date ? d : new Date(d);
@@ -59,150 +44,82 @@ function fmtDatetime(d: Date | string | null): string {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
 }
 
+const PRIORIDADE_FMEA: Record<string, string> = {
+  EMERGENCIA: "EMERGÊNCIA",
+  ALTA: "ALTA",
+  MEDIA: "MÉDIA",
+  BAIXA: "BAIXA",
+};
+
 async function queryFMEA(codapl: number, dias: number): Promise<FMEAResponse> {
-  const pool = await sql.connect(await getEngemanConfig());
   const periodoHoras = dias * 24;
+  const desde = new Date(Date.now() - dias * 86_400_000);
 
-  try {
-    // ── Detalhes do equipamento + lista de falhas ──────────────────────────
-    const result = await pool.request()
-      .input("codapl", sql.Int, codapl)
-      .input("diasPeriodo", sql.Int, dias)
-      .query<{
-        CODORD: number;
-        OBS: string | null;
-        DATENT: Date | null;
-        DATAFIM: Date | null;
-        MAQPAR: Date | null;
-        MAQFUN: Date | null;
-        STATORD: string | null;
-        TIPO: string | null;
-        PRISUB: number | null;
-        EQUIPAMENTO: string | null;
-        TAG: string | null;
-        LOCAL: string | null;
-        NOME_FECHOU: string | null;
-      }>(`
-        SELECT
-          o.CODORD,
-          o.OBS,
-          o.DATENT,
-          o.DATFEC                                                  AS DATAFIM,
-          o.MAQPAR,
-          o.MAQFUN,
-          ISNULL(o.STATORD, 'A')                                    AS STATORD,
-          ISNULL(RTRIM(t.DESCRICAO), 'Tipo ' + CAST(ISNULL(o.CODTIPMAN,0) AS VARCHAR)) AS TIPO,
-          o.PRISUB,
-          ISNULL(RTRIM(a.DESCRICAO), 'Não informado')               AS EQUIPAMENTO,
-          CAST(a.CODAPL AS VARCHAR(20))                             AS TAG,
-          ISNULL(RTRIM(l.DESCRICAO), 'Não informado')               AS LOCAL,
-          o.NOME_FECHOU
-        FROM ORDSERV o
-        INNER JOIN APLIC    a ON a.CODAPL    = o.CODAPL
-        LEFT  JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
-        LEFT  JOIN TIPMANUT t ON t.CODTIPMAN = o.CODTIPMAN
-        WHERE o.CODAPL    = @codapl
-          AND o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
-        ORDER BY o.DATENT DESC
-      `);
+  // ── Equipamento ──────────────────────────────────────────────────────────
+  const ativo = await prisma.manutAtivo.findFirst({
+    where: { codApl: codapl },
+    select: { id: true, tag: true, nome: true, localizacao: true, pai: { select: { nome: true } } },
+  });
+  const equipamento = ativo?.nome || "Equipamento não encontrado";
+  const tag = ativo?.tag ?? "";
+  const local = ativo?.localizacao || ativo?.pai?.nome || "Não informado";
 
-    if (result.recordset.length === 0) {
-      // Equipamento sem falhas — retorna info básica
-      const infoResult = await pool.request()
-        .input("codapl2", sql.Int, codapl)
-        .query<{ EQUIPAMENTO: string | null; TAG: string | null; LOCAL: string | null }>(`
-          SELECT RTRIM(a.DESCRICAO) AS EQUIPAMENTO, CAST(a.CODAPL AS VARCHAR(20)) AS TAG,
-                 ISNULL(RTRIM(l.DESCRICAO), 'Não informado') AS LOCAL
-          FROM APLIC a
-          LEFT JOIN LOCAPLIC l ON l.CODLOCAPL = a.CODLOCAPL
-          WHERE a.CODAPL = @codapl2
-        `);
-      const info = infoResult.recordset[0];
-      return {
-        codapl,
-        equipamento: info?.EQUIPAMENTO ?? "Equipamento não encontrado",
-        tag:         info?.TAG ?? "",
-        local:       info?.LOCAL ?? "Não informado",
-        totalFalhas: 0, totalHorasParada: 0,
-        mtbf: periodoHoras, mttr: 0, disponibilidade: 100, confiabilidade: 0,
-        periodoMeses: Math.round(dias / 30),
-        falhas: [], source: "db", generatedAt: new Date().toISOString(),
-      };
-    }
+  // ── OS do ativo abertas no período (todas, como no relatório antigo) ──────
+  const ordens = ativo
+    ? await prisma.manutOrdem.findMany({
+        where: { ativoId: ativo.id, createdAt: { gte: desde } },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          numero: true,
+          descricao: true,
+          createdAt: true,
+          concluidaEm: true,
+          concluidaPor: true,
+          paradaInicio: true,
+          paradaFim: true,
+          status: true,
+          prioridade: true,
+          tipo: { select: { nome: true, sigla: true } },
+        },
+      })
+    : [];
 
-    const first = result.recordset[0];
-    const equipamento = first.EQUIPAMENTO ?? "Não informado";
-    const tag         = first.TAG ?? "";
-    const local       = first.LOCAL ?? "Não informado";
+  // Tempo de parada = janela de máquina parada da OS (0h sem carimbo). NÃO usa
+  // horas apontadas (homem-hora, pode se sobrepor).
+  const falhas: FalhaRegistro[] = ordens.map((r) => ({
+    id:          r.id,
+    numero:      r.numero,
+    descricao:   r.descricao?.trim() || "Sem descrição",
+    datent:      fmtDatetime(r.createdAt),
+    datafim:     r.concluidaEm ? fmtDatetime(r.concluidaEm) : null,
+    status:      r.status,
+    horasParada: parseFloat(horasParada(r).toFixed(2)),
+    tipo:        r.tipo.nome || r.tipo.sigla || "—",
+    prioridade:  PRIORIDADE_FMEA[r.prioridade] ?? null,
+    fechadoPor:  r.concluidaPor ?? null,
+  }));
 
-    // Paradas adicionais (ORDXPAR) por OS no período — somam ao tempo de parada.
-    // Pré-agregadas por CODORD (não dá pra somar SUM dentro de SUM no SQL Server).
-    const parAddRes = await pool.request()
-      .input("codapl", sql.Int, codapl)
-      .input("diasPeriodo", sql.Int, dias)
-      .query<{ CODORD: number; H_ADD: number }>(`
-        SELECT xp.CODORD,
-          SUM(CASE WHEN xp.MAQPAR IS NOT NULL AND xp.MAQFUN IS NOT NULL
-            THEN ABS(DATEDIFF(MINUTE, xp.MAQPAR, xp.MAQFUN)) / 60.0
-            ELSE ISNULL(xp.HORINTPARAD, 0) END) AS H_ADD
-        FROM ORDXPAR xp
-        WHERE EXISTS (
-          SELECT 1 FROM ORDSERV o
-          WHERE o.CODORD = xp.CODORD AND o.CODAPL = @codapl
-            AND o.DATENT >= DATEADD(DAY, -@diasPeriodo, GETDATE())
-        )
-        GROUP BY xp.CODORD
-      `);
-    const parAddMap = new Map<number, number>();
-    for (const p of parAddRes.recordset) parAddMap.set(p.CODORD, p.H_ADD ?? 0);
+  const totalFalhas      = falhas.length;
+  const totalHorasParada = falhas.reduce((s, f) => s + f.horasParada, 0);
+  const mttr  = totalFalhas > 0 ? totalHorasParada / totalFalhas : 0;
+  const mtbf  = totalFalhas > 0 ? Math.max((periodoHoras - totalHorasParada) / totalFalhas, 0) : periodoHoras;
+  const disp  = Math.min(Math.max((1 - totalHorasParada / periodoHoras) * 100, 0), 100);
+  const conf  = totalFalhas > 0 ? (mtbf > 0 ? Math.exp(-720 / mtbf) * 100 : 0) : 0;
 
-    const falhas: FalhaRegistro[] = result.recordset.map((r) => {
-      // Tempo de parada = janela principal MAQPAR→MAQFUN (0h sem carimbo) + paradas
-      // adicionais (ORDXPAR). NÃO usa HOREXEREA (homem-hora, pode se sobrepor).
-      const mainHoras = r.MAQPAR && r.MAQFUN
-        ? Math.abs((r.MAQFUN.getTime() - r.MAQPAR.getTime()) / 3600000)
-        : 0;
-      const horasParada = mainHoras + (parAddMap.get(r.CODORD) ?? 0);
-      return {
-        codord:     r.CODORD,
-        descricao:  stripRtf(r.OBS) || "Sem descrição",
-        datent:     fmtDatetime(r.DATENT),
-        datafim:    r.DATAFIM ? fmtDatetime(r.DATAFIM) : null,
-        statord:    r.STATORD ?? "A",
-        horasParada: parseFloat(horasParada.toFixed(2)),
-        tipo:       r.TIPO ?? "—",
-        prioridade:
-          r.PRISUB === 1 ? "ALTA"
-          : r.PRISUB === 2 ? "MÉDIA"
-          : r.PRISUB === 3 ? "BAIXA"
-          : null,
-        fechadoPor: r.NOME_FECHOU ?? null,
-      };
-    });
-
-    const totalFalhas      = falhas.length;
-    const totalHorasParada = falhas.reduce((s, f) => s + f.horasParada, 0);
-    const mttr  = totalFalhas > 0 ? totalHorasParada / totalFalhas : 0;
-    const mtbf  = totalFalhas > 0 ? Math.max((periodoHoras - totalHorasParada) / totalFalhas, 0) : periodoHoras;
-    const disp  = Math.min(Math.max((1 - totalHorasParada / periodoHoras) * 100, 0), 100);
-    const conf  = mtbf > 0 ? Math.exp(-720 / mtbf) * 100 : 0;
-
-    return {
-      codapl, equipamento, tag, local,
-      totalFalhas,
-      totalHorasParada: parseFloat(totalHorasParada.toFixed(2)),
-      mtbf:             parseFloat(mtbf.toFixed(2)),
-      mttr:             parseFloat(mttr.toFixed(2)),
-      disponibilidade:  parseFloat(disp.toFixed(2)),
-      confiabilidade:   parseFloat(conf.toFixed(2)),
-      periodoMeses:     Math.round(dias / 30),
-      falhas,
-      source: "db",
-      generatedAt: new Date().toISOString(),
-    };
-  } finally {
-    await pool.close();
-  }
+  return {
+    codapl, equipamento, tag, local,
+    totalFalhas,
+    totalHorasParada: parseFloat(totalHorasParada.toFixed(2)),
+    mtbf:             parseFloat(mtbf.toFixed(2)),
+    mttr:             parseFloat(mttr.toFixed(2)),
+    disponibilidade:  parseFloat(disp.toFixed(2)),
+    confiabilidade:   parseFloat(conf.toFixed(2)),
+    periodoMeses:     Math.round(dias / 30),
+    falhas,
+    source: "db",
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 export async function GET(
@@ -218,10 +135,6 @@ export async function GET(
   }
   const dias = parseInt(req.nextUrl.searchParams.get("dias") ?? "365", 10) || 365;
 
-  try {
-    const data = await queryFMEA(codapl, dias);
-    return NextResponse.json(data);
-  } catch (err) {
-    return engemanErrorResponse("PCM /api/pcm/fmea/[codapl]", err);
-  }
+  const data = await queryFMEA(codapl, dias);
+  return NextResponse.json(data);
 }

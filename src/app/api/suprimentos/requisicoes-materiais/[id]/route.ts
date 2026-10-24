@@ -8,6 +8,7 @@ import { assertItensPermitidosNosLocais, CategoriaLocalInvalidaError, respostaCa
 import { recontabilizarRequisicao, recontabilizarLoteMovimentacao, apagarLancamentosContabeis } from "@/lib/contabilidade";
 import { recalcularSaldos } from "@/lib/estoque-saldos";
 import { custosComFallback } from "@/lib/custo-empresa";
+import { recalcularCustoOrdem } from "@/lib/manutencao/ordem";
 import { LOCAL_EMBALAGEM_PRODUCAO_NOME } from "@/lib/locais-producao";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -330,6 +331,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (loteTransferId) await recontabilizarLoteMovimentacao(loteTransferId).catch(() => {});
     else await recontabilizarRequisicao(params.id).catch(() => {});
   }
+  // Custo de material da OS de manutenção vinculada acompanha o atendimento/cancelamento.
+  if (record.ordemServicoId) await recalcularCustoOrdem(record.ordemServicoId).catch(() => {});
 
   return NextResponse.json({ data: record });
   } catch (err) {
@@ -345,7 +348,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
 
   const req = await prisma.requisicaoMaterial.findUnique({
     where: { id: params.id },
-    select: { numero: true, empresaId: true, status: true },
+    select: { numero: true, empresaId: true, status: true, ordemServicoId: true },
   });
   if (!req) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
   if (req.status === "ATENDIDA" && auth.session.perfil !== "ADMIN") {
@@ -395,5 +398,6 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
       await apagarLancamentosContabeis({ empresaId: req.empresaId, origemTipo: "ESTOQUE_TRANSFERENCIA", origemId: { in: lotesArr } }, tx);
     }
   });
+  if (req.ordemServicoId) await recalcularCustoOrdem(req.ordemServicoId).catch(() => {});
   return NextResponse.json({ ok: true });
 }

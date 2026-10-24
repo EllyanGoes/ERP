@@ -1,28 +1,30 @@
 export const dynamic = "force-dynamic";
-import sql from "mssql";
 import { NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { getEngemanConfig, stripRtf } from "@/lib/engeman";
+import { prisma } from "@/lib/prisma";
+import { STATUS_ABERTOS } from "@/lib/manutencao/consultas";
+import { STATUS_OS_LABEL, PRIORIDADE_LABEL, type StatusOS } from "@/lib/manutencao/ordem";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Quadro de O.S. por setor executante (Engeman, somente leitura).
+// Quadro de O.S. por equipe executante (ManutEquipe).
 //
-// Traz as O.S. NÃO finalizadas (em aberto / em espera / em progresso),
-// agrupadas por setor executante (SETEXE), com os detalhes que o card mostra:
-// número, descrição, ativo, tipo, datas, atraso e responsáveis (mão de obra
-// alocada na O.S. via ORDXFUN → FUNC; o Engeman costuma apontar na execução,
-// então O.S. recém-abertas podem ainda não ter responsável).
+// Traz as O.S. NÃO finalizadas (STATUS_ABERTOS, inclui ENCERRADA aguardando a
+// validação do PCM), agrupadas por equipe, com o que o card mostra: número,
+// descrição, ativo, tipo, datas, atraso e responsáveis (responsável da OS +
+// executantes dos apontamentos de mão de obra). Atrasada = prazo (ou data
+// programada) no passado. O card leva à tela da OS (/pcm/os/<id>).
 // ─────────────────────────────────────────────────────────────────────────────
-
-export type StatusOS = "A" | "E" | "P";
 
 export interface CardOS {
-  codOrd: number;
+  id: string;
   numero: string;
   descricao: string;
   ativo: string | null;
   tipo: string | null;
-  status: StatusOS;
+  status: string;        // status nativo (ABERTA, EM_EXECUCAO…)
+  statusLabel: string;
+  prioridade: string;    // EMERGENCIA | ALTA | MEDIA | BAIXA
+  prioridadeLabel: string;
   dataEntrada: string | null;
   dataProgramada: string | null;
   atrasada: boolean;
@@ -34,7 +36,7 @@ export interface CardOS {
 }
 
 export interface SetorQuadro {
-  codSet: number | null;
+  equipeId: string | null;
   setor: string;
   total: number;
   atrasadas: number;
@@ -48,117 +50,87 @@ export interface QuadroOsResponse {
   generatedAt: string;
 }
 
+const EM_ESPERA = ["PAUSADA", "AGUARDANDO_MATERIAL", "AGUARDANDO_TERCEIRO"];
+const EM_PROGRESSO = ["EM_EXECUCAO", "ENCERRADA"];
+const SEM_EQUIPE = "(sem equipe)";
+
 export async function GET() {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
 
-  let pool: sql.ConnectionPool | null = null;
   try {
-    pool = await sql.connect(await getEngemanConfig());
-
-    const osResult = await pool.request().query<{
-      CODORD: number; NUMERO: string; OBS: string | null; STATORD: string;
-      SETOR: string | null; CODSET: number | null;
-      ATIVO: string | null; TIPO: string | null;
-      DATENT: Date | null; DATPRO: Date | null;
-    }>(`
-      SELECT
-        o.CODORD,
-        RTRIM(ISNULL(o.TAG, CAST(o.CODORD AS VARCHAR(20)))) AS NUMERO,
-        LEFT(CAST(o.OBS AS VARCHAR(400)), 400)              AS OBS,
-        ISNULL(o.STATORD, 'A')                              AS STATORD,
-        RTRIM(CAST(s.DESCRICAO AS VARCHAR(80)))             AS SETOR,
-        o.CODSET                                            AS CODSET,
-        RTRIM(ISNULL(CAST(a.DESCRICAO AS VARCHAR(120)), a.TAG)) AS ATIVO,
-        RTRIM(CAST(t.DESCRICAO AS VARCHAR(80)))             AS TIPO,
-        o.DATENT, o.DATPRO
-      FROM ORDSERV o
-      LEFT JOIN SETEXE s   ON s.CODSET = o.CODSET
-      LEFT JOIN APLIC a    ON a.CODAPL = o.CODAPL
-      LEFT JOIN TIPMANUT t ON t.CODTIPMAN = o.CODTIPMAN
-      WHERE ISNULL(o.STATORD, 'A') IN ('A', 'E', 'P')
-      ORDER BY o.DATPRO ASC, o.DATENT ASC
-    `);
-
-    // responsáveis (mão de obra) das O.S. abertas
-    const respResult = await pool.request().query<{ CODORD: number; NOME: string }>(`
-      SELECT DISTINCT x.CODORD, RTRIM(CAST(f.NOME AS VARCHAR(80))) AS NOME
-      FROM ORDXFUN x
-      JOIN FUNC f ON f.CODFUN = x.CODFUN
-      WHERE x.CODORD IN (SELECT CODORD FROM ORDSERV WHERE ISNULL(STATORD, 'A') IN ('A', 'E', 'P'))
-    `);
-
-    // ocorrência/causa/serviço apontados (REGSERV) — para o popup de detalhe
-    const regResult = await pool.request().query<{ CODORD: number; OCORRENCIA: string | null; CAUSA: string | null; SERVICO: string | null }>(`
-      SELECT r.CODORD,
-        RTRIM(ISNULL(d.DESCRICAO, '')) AS OCORRENCIA,
-        RTRIM(ISNULL(c.DESCRICAO, '')) AS CAUSA,
-        RTRIM(ISNULL(CAST(r.DESCRICAO AS VARCHAR(400)), '')) AS SERVICO
-      FROM REGSERV r
-      LEFT JOIN DEFEITO d ON d.CODDEF = r.CODDEF
-      LEFT JOIN CAUSA   c ON c.CODCAU = r.CODCAU
-      WHERE r.CODORD IN (SELECT CODORD FROM ORDSERV WHERE ISNULL(STATORD, 'A') IN ('A', 'E', 'P'))
-    `);
-    const regPorOs = new Map<number, { oc: Set<string>; ca: Set<string>; se: Set<string> }>();
-    for (const r of regResult.recordset) {
-      let e = regPorOs.get(r.CODORD);
-      if (!e) { e = { oc: new Set(), ca: new Set(), se: new Set() }; regPorOs.set(r.CODORD, e); }
-      if (r.OCORRENCIA) e.oc.add(r.OCORRENCIA);
-      if (r.CAUSA) e.ca.add(r.CAUSA);
-      if (r.SERVICO) e.se.add(stripRtf(r.SERVICO));
-    }
-
-    const respPorOs = new Map<number, string[]>();
-    for (const r of respResult.recordset) {
-      const lista = respPorOs.get(r.CODORD) ?? [];
-      lista.push(r.NOME);
-      respPorOs.set(r.CODORD, lista);
-    }
+    const ordens = await prisma.manutOrdem.findMany({
+      where: { status: { in: STATUS_ABERTOS } },
+      select: {
+        id: true, numero: true, descricao: true, status: true, prioridade: true,
+        createdAt: true, programadaPara: true, prazo: true, localTexto: true,
+        equipe: { select: { id: true, nome: true } },
+        ativo: { select: { tag: true, nome: true } },
+        tipo: { select: { nome: true } },
+        responsavel: { select: { nome: true } },
+        apontamentos: { select: { nome: true } },
+        servicos: {
+          select: { descricao: true, sintoma: { select: { descricao: true } }, causa: { select: { descricao: true } } },
+          orderBy: { seq: "asc" },
+        },
+      },
+      orderBy: [{ programadaPara: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+    });
 
     const agora = Date.now();
     const porSetor = new Map<string, SetorQuadro>();
     let emAberto = 0, emEspera = 0, emProgresso = 0, atrasadasTotal = 0;
 
-    for (const r of osResult.recordset) {
-      const status = (["A", "E", "P"].includes(r.STATORD) ? r.STATORD : "A") as StatusOS;
-      if (status === "A") emAberto++;
-      else if (status === "E") emEspera++;
-      else emProgresso++;
+    for (const o of ordens) {
+      if (EM_ESPERA.includes(o.status)) emEspera++;
+      else if (EM_PROGRESSO.includes(o.status)) emProgresso++;
+      else emAberto++;
 
-      const atrasada = !!r.DATPRO && r.DATPRO.getTime() < agora;
+      // OS encerrada pelo técnico já não está "atrasada" — só falta a validação
+      const limite = o.prazo ?? o.programadaPara;
+      const atrasada = !!limite && limite.getTime() < agora && o.status !== "ENCERRADA";
       if (atrasada) atrasadasTotal++;
 
-      const reg = regPorOs.get(r.CODORD);
+      const responsaveis = Array.from(new Set(
+        [o.responsavel?.nome, ...o.apontamentos.map((a) => a.nome)]
+          .map((n) => n?.trim())
+          .filter((n): n is string => !!n),
+      ));
+      const setor = o.equipe?.nome ?? SEM_EQUIPE;
+      const servicosTxt = o.servicos.map((s) => s.descricao?.trim()).filter((s): s is string => !!s && s !== "—");
+
       const card: CardOS = {
-        codOrd: r.CODORD,
-        numero: r.NUMERO,
-        descricao: stripRtf(r.OBS).replace(/\r?\n/g, " ").trim() || "(sem descrição)",
-        ativo: r.ATIVO,
-        tipo: r.TIPO,
-        status,
-        dataEntrada: r.DATENT ? r.DATENT.toISOString() : null,
-        dataProgramada: r.DATPRO ? r.DATPRO.toISOString() : null,
+        id: o.id,
+        numero: o.numero,
+        descricao: o.descricao.replace(/\r?\n/g, " ").trim() || "(sem descrição)",
+        ativo: o.ativo ? `${o.ativo.tag} — ${o.ativo.nome}` : o.localTexto,
+        tipo: o.tipo.nome,
+        status: o.status,
+        statusLabel: STATUS_OS_LABEL[o.status as StatusOS] ?? o.status,
+        prioridade: o.prioridade,
+        prioridadeLabel: PRIORIDADE_LABEL[o.prioridade] ?? o.prioridade,
+        dataEntrada: o.createdAt.toISOString(),
+        dataProgramada: (o.programadaPara ?? o.prazo)?.toISOString() ?? null,
         atrasada,
-        responsaveis: respPorOs.get(r.CODORD) ?? [],
-        setor: r.SETOR ?? "(sem setor)",
-        ocorrencias: Array.from(reg?.oc ?? []),
-        causas: Array.from(reg?.ca ?? []),
-        servicos: Array.from(reg?.se ?? []),
+        responsaveis,
+        setor,
+        ocorrencias: Array.from(new Set(o.servicos.map((s) => s.sintoma?.descricao).filter((s): s is string => !!s))),
+        causas: Array.from(new Set(o.servicos.map((s) => s.causa?.descricao).filter((s): s is string => !!s))),
+        servicos: Array.from(new Set(servicosTxt)),
       };
 
-      const chave = r.SETOR ?? "(sem setor)";
-      const grupo = porSetor.get(chave) ?? { codSet: r.CODSET, setor: chave, total: 0, atrasadas: 0, os: [] };
+      const grupo = porSetor.get(setor) ?? { equipeId: o.equipe?.id ?? null, setor, total: 0, atrasadas: 0, os: [] };
       grupo.total++;
       if (atrasada) grupo.atrasadas++;
       grupo.os.push(card);
-      porSetor.set(chave, grupo);
+      porSetor.set(setor, grupo);
     }
 
     const setores = Array.from(porSetor.values()).sort((a, b) => b.total - a.total);
 
     const resposta: QuadroOsResponse = {
       totais: {
-        os: osResult.recordset.length,
+        os: ordens.length,
         emAberto,
         emEspera,
         emProgresso,
@@ -173,8 +145,6 @@ export async function GET() {
     return NextResponse.json(resposta);
   } catch (err) {
     console.error("[pcm/quadro-os]", err);
-    return NextResponse.json({ error: "Não foi possível consultar o Engeman." }, { status: 502 });
-  } finally {
-    await pool?.close().catch(() => {});
+    return NextResponse.json({ error: "Não foi possível montar o quadro de O.S." }, { status: 500 });
   }
 }

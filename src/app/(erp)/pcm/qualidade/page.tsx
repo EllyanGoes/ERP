@@ -4,13 +4,16 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import SelectMenu from "@/components/shared/SelectMenu";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import {
   AlertTriangle, CheckCircle2, XCircle, Info,
   RefreshCw, ArrowLeft, ClipboardList,
-  MapPin, Clock, Tag, Database,
+  MapPin, Clock, Tag, Database, Timer, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { QualidadeResponse } from "@/app/api/pcm/qualidade/route";
+import type { QualidadeResponse, OsRef, AtivoRef } from "@/app/api/pcm/qualidade/route";
 
 // ── Score ring ────────────────────────────────────────────────────────────────
 function ScoreRing({ score }: { score: number }) {
@@ -108,46 +111,116 @@ function Section({
   );
 }
 
+// ── Helpers de exibição ───────────────────────────────────────────────────────
+const STATUS_LABEL: Record<string, string> = {
+  ABERTA: "Aberta", PLANEJADA: "Planejada", EM_EXECUCAO: "Em execução", PAUSADA: "Pausada",
+  AGUARDANDO_MATERIAL: "Aguard. material", AGUARDANDO_TERCEIRO: "Aguard. terceiro",
+  ENCERRADA: "Encerrada (validar)", CONCLUIDA: "Concluída", CANCELADA: "Cancelada",
+};
+const fmtData = (iso: string) => new Date(iso).toLocaleDateString("pt-BR");
+const fmtDataHora = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+function OsLink({ id, numero }: { id: string; numero: string }) {
+  return <Link href={`/pcm/os/${id}`} className="font-mono font-semibold text-info hover:underline">{numero}</Link>;
+}
+
+function TabelaOs<T extends OsRef>({ lista, extra }: { lista: T[]; extra?: { titulo: string; render: (o: T) => React.ReactNode } }) {
+  if (lista.length === 0) return null;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b text-muted-foreground">
+            <th className="text-left py-1.5 pr-3">Nº OS</th>
+            <th className="text-left py-1.5 pr-3">Data</th>
+            <th className="text-left py-1.5 pr-3">Tipo</th>
+            <th className="text-left py-1.5 pr-3">Ativo</th>
+            <th className="text-left py-1.5 pr-3">Status</th>
+            {extra && <th className="text-left py-1.5">{extra.titulo}</th>}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/60">
+          {lista.map((o) => (
+            <tr key={o.id} className="hover:bg-muted">
+              <td className="py-1.5 pr-3"><OsLink id={o.id} numero={o.numero} /></td>
+              <td className="py-1.5 pr-3 text-muted-foreground">{fmtData(o.data)}</td>
+              <td className="py-1.5 pr-3 text-muted-foreground">{o.tipo}</td>
+              <td className="py-1.5 pr-3 text-foreground">{o.ativo ?? <span className="text-muted-foreground/60">—</span>}</td>
+              <td className="py-1.5 pr-3 text-muted-foreground">{STATUS_LABEL[o.status] ?? o.status}</td>
+              {extra && <td className="py-1.5">{extra.render(o)}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TabelaAtivos({ lista }: { lista: AtivoRef[] }) {
+  if (lista.length === 0) return null;
+  return (
+    <div className="overflow-x-auto max-h-80 overflow-y-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-muted-foreground text-xs">
+            <th className="text-left py-1.5 pr-4">TAG</th>
+            <th className="text-left py-1.5">Ativo</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/60">
+          {lista.map((a) => (
+            <tr key={a.codApl} className="hover:bg-muted">
+              <td className="py-1.5 pr-4">
+                <Link href={`/pcm/ativos?ativo=${a.codApl}`} className="font-mono text-[11px] text-info hover:underline">{a.tag}</Link>
+              </td>
+              <td className="py-1.5 text-foreground">{a.descricao}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const PERIODOS = [
+  { value: "90", label: "Últimos 90 dias" },
+  { value: "180", label: "Últimos 180 dias" },
+  { value: "365", label: "Últimos 12 meses" },
+  { value: "730", label: "Últimos 24 meses" },
+];
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function QualidadeDadosPage() {
   const router = useRouter();
   const [data, setData] = useState<QualidadeResponse | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [engemanOffline, setEngemanOffline] = useState(false);
+  const [dias, setDias] = usePersistedState("pcm:qualidade:dias", "365");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/pcm/qualidade");
-      if (res.status === 503) { setEngemanOffline(true); setData(null); return; }
+      const res = await fetch(`/api/pcm/qualidade?dias=${dias}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setEngemanOffline(false);
       setData(await res.json());
     } catch { setData(null); }
     finally { setLoading(false); }
-  }, []);
+  }, [dias]);
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return (
+  if (loading && !data) return (
     <div className="flex items-center justify-center py-32 gap-2 text-muted-foreground">
       <RefreshCw className="w-5 h-5 animate-spin" />
-      <span className="text-sm">Analisando qualidade dos dados no Engeman…</span>
+      <span className="text-sm">Analisando a qualidade dos dados da Manutenção…</span>
     </div>
   );
 
   if (!data) return (
     <div className="flex flex-col items-center justify-center py-32 gap-3 text-sm">
       <Database className="w-10 h-10 text-red-300" />
-      <p className="font-semibold text-danger">
-        {engemanOffline ? "Engeman inacessível" : "Erro ao carregar dados"}
-      </p>
-      <p className="text-muted-foreground text-center max-w-sm">
-        {engemanOffline
-          ? "O servidor Engeman não está acessível neste ambiente (rede local apenas)."
-          : "Não foi possível carregar os dados de qualidade."}
-      </p>
+      <p className="font-semibold text-danger">Erro ao carregar dados</p>
+      <p className="text-muted-foreground text-center max-w-sm">Não foi possível carregar os dados de qualidade.</p>
       <Button variant="outline" size="sm" className="gap-1.5 mt-1" onClick={load}>
         <RefreshCw className="w-4 h-4" />
         Tentar novamente
@@ -159,22 +232,25 @@ export default function QualidadeDadosPage() {
   const scoreLabel = data.score >= 80 ? "Dados confiáveis" : data.score >= 60 ? "Atenção necessária" : "Dados críticos";
 
   // Níveis de criticidade
-  const levelOsSemApl  = data.osSemEquipamento.pct > 20 ? "error" : data.osSemEquipamento.pct > 10 ? "warn" : "ok";
-  const levelTempo     = data.semNenhumTempo.pct > 5    ? "error" : data.semNenhumTempo.pct > 2    ? "warn" : "ok";
-  const levelLocal     = data.equipSemLocal.total > 20  ? "warn"  : data.equipSemLocal.total > 0   ? "warn" : "ok";
-  const levelLongas    = data.osTempoLongo.total > 0    ? "warn"  : "ok";
+  const lvlOsAtivo  = data.osSemAtivo.pct > 20 ? "error" : data.osSemAtivo.pct > 5 ? "warn" : "ok";
+  const lvlFalha    = data.corretivaSemFalha.pct > 20 ? "error" : data.corretivaSemFalha.total > 0 ? "warn" : "ok";
+  const lvlParada   = data.paradaSemFim.fechadas > 0 ? "error" : data.paradaSemFim.total > 0 ? "warn" : "ok";
+  const lvlApont    = data.apontamentoAberto.total > 0 ? "warn" : "ok";
+  const lvlLocal    = data.ativoSemLocal.total > 0 ? "warn" : "ok";
+  const lvlCritico  = data.criticoSemPlano.total > 0 ? "error" : "ok";
 
   return (
     <div>
       <PageHeader
-        title="Qualidade dos Dados — PCM"
+        title="Qualidade dos Dados — Manutenção"
         breadcrumbs={[
-          { label: "PCM" },
+          { label: "Manutenção" },
           { label: "Ativo Saúde", href: "/pcm/ativo-saude" },
           { label: "Qualidade dos Dados" },
         ]}
         action={
           <div className="flex items-center gap-2">
+            <SelectMenu value={dias} onChange={setDias} options={PERIODOS} className="w-44" />
             <Button variant="outline" size="sm" onClick={load} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Atualizar
@@ -187,48 +263,25 @@ export default function QualidadeDadosPage() {
         }
       />
 
-      <div className="px-8 pb-8 max-w-4xl space-y-6">
+      <div className="px-8 pb-8 max-w-5xl space-y-6">
 
         {/* ── Score + resumo ────────────────────────────────────────────── */}
         <div className="bg-card rounded-xl border border-border p-6">
           <div className="flex items-center gap-8">
-            {/* Ring */}
             <div className="relative flex items-center justify-center shrink-0">
               <ScoreRing score={data.score} />
             </div>
-
-            {/* Summary */}
             <div className="flex-1 min-w-0">
               <p className={cn("text-lg font-bold mb-0.5", scoreColor)}>{scoreLabel}</p>
               <p className="text-xs text-muted-foreground mb-4">
-                Score calculado sobre {data.totalCorretivas} OS corretivas dos últimos {data.periodo} dias.
-                Fonte: Engeman CMMS.
+                {data.totalOs} OS no período ({data.totalCorretivas} corretivas concluídas) — últimos {data.periodo} dias.
               </p>
               <div className="space-y-2.5">
-                <CoverageBar
-                  label="OS com equipamento vinculado"
-                  value={data.totalCorretivas - data.osSemEquipamento.total}
-                  total={data.totalCorretivas}
-                  color="bg-green-500"
-                />
-                <CoverageBar
-                  label="OS com MAQPAR + MAQFUN (parada real)"
-                  value={data.comMaqparMaqfun.total}
-                  total={data.totalCorretivas}
-                  color="bg-blue-500"
-                />
-                <CoverageBar
-                  label="OS com horas executadas (HOREXEREA)"
-                  value={data.semMaqparComHh.total}
-                  total={data.totalCorretivas}
-                  color="bg-amber-400"
-                />
-                <CoverageBar
-                  label="Equipamentos com local de instalação"
-                  value={data.equipSemLocal.totalAtivos - data.equipSemLocal.total}
-                  total={data.equipSemLocal.totalAtivos}
-                  color="bg-purple-400"
-                />
+                <CoverageBar label="OS com ativo vinculado" value={data.totalOs - data.osSemAtivo.total} total={data.totalOs} color="bg-green-500" />
+                <CoverageBar label="Corretivas com sintoma e causa" value={data.totalCorretivas - data.corretivaSemFalha.total} total={data.totalCorretivas} color="bg-blue-500" />
+                <CoverageBar label="Corretivas com parada registrada (início e fim)" value={data.comParada.total} total={data.totalCorretivas} color="bg-amber-400" />
+                <CoverageBar label="Equipamentos com localização" value={data.ativoSemLocal.totalAtivos - data.ativoSemLocal.total} total={data.ativoSemLocal.totalAtivos} color="bg-purple-400" />
+                <CoverageBar label="Ativos críticos (A) com plano ativo" value={data.criticoSemPlano.totalCriticos - data.criticoSemPlano.total} total={data.criticoSemPlano.totalCriticos} color="bg-rose-400" />
               </div>
             </div>
           </div>
@@ -238,168 +291,125 @@ export default function QualidadeDadosPage() {
         <div className="bg-info/10 border border-info/20 rounded-xl px-5 py-4 flex gap-3">
           <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
           <div className="text-sm text-info space-y-1">
-            <p className="font-semibold">Como o relatório calcula os indicadores</p>
+            <p className="font-semibold">Por que isso importa</p>
             <p className="text-xs text-info">
-              <strong>MTBF</strong> = (período total − horas de reparo) ÷ nº de falhas &nbsp;|&nbsp;
-              <strong>MTTR</strong> = horas de reparo ÷ nº de falhas &nbsp;|&nbsp;
-              <strong>Confiabilidade</strong> R(24h) = e<sup>−24/MTBF</sup> — probabilidade de operar 24h sem falha
+              <strong>MTBF</strong> = (período − horas de reparo) ÷ nº de falhas &nbsp;|&nbsp;
+              <strong>MTTR</strong> = horas de reparo ÷ nº de falhas. Falha é corretiva concluída com
+              <strong> sintoma</strong> registrado; o tempo de reparo vem da <strong>parada</strong> (início → fim) da OS.
             </p>
             <p className="text-xs text-info">
-              O tempo de reparo é lido de <strong>MAQPAR → MAQFUN</strong> (hora parada → hora retorno).
-              Quando não preenchido, usa <strong>Horas Executadas Reais (HOREXEREA)</strong> como fallback.
-              OS sem nenhum dado de tempo contam como falha mas com 0h de reparo, distorcendo o MTTR para baixo.
+              OS sem ativo não entram em nenhum indicador; corretiva sem sintoma não conta como falha; parada sem fim
+              deixa o ativo como PARADO indefinidamente.
             </p>
           </div>
         </div>
 
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pontos de atenção</p>
 
-        {/* ── Seção 1: OS sem equipamento ───────────────────────────────── */}
         <Section
           icon={Tag}
-          title={`OS sem Equipamento Vinculado — ${data.osSemEquipamento.total} OS (${data.osSemEquipamento.pct}%)`}
-          subtitle="OS corretivas fechadas sem CODAPL preenchido. Essas ordens NÃO entram no cálculo de MTBF/MTTR e são invisíveis no relatório."
-          level={levelOsSemApl}
+          title={`OS sem ativo — ${data.osSemAtivo.total} OS (${data.osSemAtivo.pct}%)`}
+          subtitle="OS não canceladas do período sem ativo vinculado. Ficam fora de MTBF/MTTR, custo por ativo e histórico."
+          level={lvlOsAtivo}
         >
           <p className="text-xs text-muted-foreground mb-3">
-            <strong className="text-foreground">Ação:</strong> Ao abrir uma OS corretiva no Engeman, sempre selecionar o equipamento no campo <em>Aplicação</em>.
+            <strong className="text-foreground">Ação:</strong> abrir a OS e informar o ativo (as mais recentes abaixo).
           </p>
-          {data.osSemEquipamento.lista.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="text-left py-1.5 pr-4">Nº OS</th>
-                    <th className="text-left py-1.5 pr-4">Data Abertura</th>
-                    <th className="text-left py-1.5">Tipo</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data.osSemEquipamento.lista.slice(0, 15).map((os) => (
-                    <tr key={os.codord} className="hover:bg-muted">
-                      <td className="py-1.5 pr-4 text-orange-500 font-medium">{os.codord}</td>
-                      <td className="py-1.5 pr-4 text-muted-foreground">{os.datent}</td>
-                      <td className="py-1.5 text-muted-foreground">{os.tipo}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {data.osSemEquipamento.lista.length > 15 && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  +{data.osSemEquipamento.lista.length - 15} registros adicionais não exibidos.
-                </p>
-              )}
-            </div>
+          <TabelaOs lista={data.osSemAtivo.lista} />
+        </Section>
+
+        <Section
+          icon={ClipboardList}
+          title={`Corretivas concluídas sem sintoma/causa — ${data.corretivaSemFalha.total} (${data.corretivaSemFalha.pct}%)`}
+          subtitle={`${data.corretivaSemFalha.semSintoma} sem sintoma (não contam como falha) · ${data.corretivaSemFalha.semCausa} sem causa (fora do FMEA).`}
+          level={lvlFalha}
+        >
+          <TabelaOs
+            lista={data.corretivaSemFalha.lista}
+            extra={{ titulo: "Falta", render: (o) => <span className="text-danger font-medium">{o.falta}</span> }}
+          />
+          {data.corretivaSemFalha.total > data.corretivaSemFalha.lista.length && (
+            <p className="text-xs text-muted-foreground mt-2">
+              +{data.corretivaSemFalha.total - data.corretivaSemFalha.lista.length} registros adicionais não exibidos.
+            </p>
           )}
         </Section>
 
-        {/* ── Seção 2: Tempo de parada ──────────────────────────────────── */}
         <Section
           icon={Clock}
-          title={`Tempo de Parada — ${data.comMaqparMaqfun.pct}% com MAQPAR+MAQFUN preenchidos`}
-          subtitle="MAQPAR (hora parada) e MAQFUN (hora retorno) são os campos mais precisos para calcular o tempo real de inatividade."
-          level={levelTempo}
+          title={`Parada sem fim — ${data.paradaSemFim.total} OS${data.paradaSemFim.fechadas ? ` (${data.paradaSemFim.fechadas} já encerradas/concluídas)` : ""}`}
+          subtitle="OS com início de parada e sem retorno. O ativo segue PARADO; se a OS já foi encerrada, o fim da parada foi esquecido."
+          level={lvlParada}
         >
-          <div className="space-y-3 text-xs text-muted-foreground">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-success/10 border border-green-100 rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-success">{data.comMaqparMaqfun.total}</p>
-                <p className="text-success font-medium">Com MAQPAR+MAQFUN</p>
-                <p className="text-green-500 text-[11px]">Tempo real registrado</p>
-              </div>
-              <div className="bg-warning/10 border border-amber-100 rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-warning">{data.semMaqparComHh.total}</p>
-                <p className="text-warning font-medium">Apenas HOREXEREA</p>
-                <p className="text-amber-500 text-[11px]">Tempo estimado (fallback)</p>
-              </div>
-              <div className="bg-danger/10 border border-danger/20 rounded-lg p-3 text-center">
-                <p className="text-xl font-bold text-danger">{data.semNenhumTempo.total}</p>
-                <p className="text-danger font-medium">Sem nenhum dado</p>
-                <p className="text-red-500 text-[11px]">Contam como 0h de reparo</p>
-              </div>
-            </div>
-            <p>
-              <strong className="text-foreground">Ação:</strong> Ao <strong>abrir</strong> a OS, registrar
-              a <em>Hora Parada Máquina</em>. Ao <strong>fechar</strong>, registrar a <em>Hora Retorno</em>.
-              Se não for possível, preencher as <em>Horas Executadas Reais</em> (HOREXEREA).
-            </p>
-          </div>
+          {data.paradaSemFim.lista.length === 0 ? (
+            <p className="text-xs text-success">Nenhuma parada em aberto.</p>
+          ) : (
+            <TabelaOs
+              lista={data.paradaSemFim.lista}
+              extra={{
+                titulo: "Parada desde",
+                render: (o) => (
+                  <span className="text-warning">{fmtDataHora(o.paradaInicio)} · {o.horas}h</span>
+                ),
+              }}
+            />
+          )}
         </Section>
 
-        {/* ── Seção 3: Equipamentos sem local ──────────────────────────── */}
         <Section
-          icon={MapPin}
-          title={`Equipamentos sem Local de Instalação — ${data.equipSemLocal.total} de ${data.equipSemLocal.totalAtivos} ativos`}
-          subtitle="Equipamentos sem local aparecem como 'Não informado' no filtro do dashboard, dificultando a análise por área."
-          level={levelLocal}
+          icon={Timer}
+          title={`Apontamentos abertos há mais de 24h — ${data.apontamentoAberto.total}`}
+          subtitle="Cronômetro de mão de obra iniciado e nunca encerrado: infla horas e custo da OS."
+          level={lvlApont}
+        >
+          {data.apontamentoAberto.lista.length === 0 ? (
+            <p className="text-xs text-success">Nenhum apontamento esquecido.</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b text-muted-foreground">
+                  <th className="text-left py-1.5 pr-3">Nº OS</th>
+                  <th className="text-left py-1.5 pr-3">Executante</th>
+                  <th className="text-left py-1.5 pr-3">Início</th>
+                  <th className="text-right py-1.5">Aberto há</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {data.apontamentoAberto.lista.map((a, i) => (
+                  <tr key={`${a.ordemId}-${i}`} className="hover:bg-muted">
+                    <td className="py-1.5 pr-3"><OsLink id={a.ordemId} numero={a.numero} /></td>
+                    <td className="py-1.5 pr-3 text-foreground">{a.nome}</td>
+                    <td className="py-1.5 pr-3 text-muted-foreground">{fmtDataHora(a.inicio)}</td>
+                    <td className="py-1.5 text-right font-bold text-warning">{a.horas}h</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Section>
+
+        <Section
+          icon={ShieldAlert}
+          title={`Ativos críticos (A) sem plano ativo — ${data.criticoSemPlano.total} de ${data.criticoSemPlano.totalCriticos}`}
+          subtitle="Ativo classificado como crítico sem nenhum plano de manutenção ativo aplicado: só recebe corretiva."
+          level={lvlCritico}
         >
           <p className="text-xs text-muted-foreground mb-3">
-            <strong className="text-foreground">Ação:</strong> Acessar o cadastro de cada equipamento no Engeman e preencher o campo <em>Local de Instalação</em>.
+            <strong className="text-foreground">Ação:</strong> aplicar um plano preventivo/inspeção em Manutenção › Planos.
           </p>
-          {data.equipSemLocal.lista.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="text-left py-1.5 pr-4">Cód APL</th>
-                    <th className="text-left py-1.5 pr-4">TAG</th>
-                    <th className="text-left py-1.5">Equipamento</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data.equipSemLocal.lista.map((e) => (
-                    <tr key={e.codApl} className="hover:bg-muted">
-                      <td className="py-1.5 pr-4 text-orange-500 font-medium">{e.codApl}</td>
-                      <td className="py-1.5 pr-4 font-mono text-muted-foreground text-[11px]">{e.tag}</td>
-                      <td className="py-1.5 text-foreground">{e.descricao}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <TabelaAtivos lista={data.criticoSemPlano.lista} />
         </Section>
 
-        {/* ── Seção 4: OS com tempo longo ──────────────────────────────── */}
         <Section
-          icon={AlertTriangle}
-          title={`OS com Reparo > 72h — ${data.osTempoLongo.total} ocorrência${data.osTempoLongo.total !== 1 ? "s" : ""}`}
-          subtitle="Tempos de reparo acima de 72h podem indicar erro de digitação nas datas de MAQPAR/MAQFUN, distorcendo o MTTR para cima."
-          level={levelLongas}
+          icon={MapPin}
+          title={`Equipamentos sem localização — ${data.ativoSemLocal.total} de ${data.ativoSemLocal.totalAtivos}`}
+          subtitle="Equipamentos, componentes e veículos ativos sem localização preenchida na ficha (nós do tipo Local não entram)."
+          level={lvlLocal}
         >
-          {data.osTempoLongo.lista.length === 0 ? (
-            <p className="text-xs text-success">Nenhuma OS com reparo acima de 72h. ✓</p>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground mb-3">
-                <strong className="text-foreground">Ação:</strong> Verificar cada OS abaixo no Engeman e corrigir as datas de MAQPAR/MAQFUN se forem inválidas.
-              </p>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="text-left py-1.5">Nº OS</th>
-                    <th className="text-left py-1.5">Equipamento</th>
-                    <th className="text-left py-1.5">TAG</th>
-                    <th className="text-left py-1.5">Início parada</th>
-                    <th className="text-left py-1.5">Retorno</th>
-                    <th className="text-right py-1.5">Horas</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data.osTempoLongo.lista.map((os) => (
-                    <tr key={os.codord} className="hover:bg-muted">
-                      <td className="py-1.5 font-mono font-semibold text-warning">{os.codord}</td>
-                      <td className="py-1.5 text-foreground">{os.equip}</td>
-                      <td className="py-1.5 font-mono text-muted-foreground text-[11px]">{os.tag}</td>
-                      <td className="py-1.5 text-muted-foreground">{os.maqpar}</td>
-                      <td className="py-1.5 text-muted-foreground">{os.maqfun}</td>
-                      <td className="py-1.5 text-right font-bold text-warning">{os.hhReparo}h</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
-          )}
+          <p className="text-xs text-muted-foreground mb-3">
+            <strong className="text-foreground">Ação:</strong> abrir o ativo em Manutenção › Ativos e preencher a localização.
+          </p>
+          <TabelaAtivos lista={data.ativoSemLocal.lista} />
         </Section>
 
         {/* ── Checklist ─────────────────────────────────────────────────── */}
@@ -410,12 +420,12 @@ export default function QualidadeDadosPage() {
           </div>
           <div className="space-y-2.5">
             {[
-              { label: "Vincular o equipamento (Aplicação) à OS",                    critical: true  },
-              { label: "Registrar a hora de parada da máquina (MAQPAR)",              critical: true  },
-              { label: "Registrar a hora de retorno da máquina (MAQFUN) ao fechar",   critical: true  },
-              { label: "Preencher Horas Executadas Reais (HOREXEREA) se não houver MAQPAR/MAQFUN", critical: false },
-              { label: "Fechar a OS após conclusão do serviço",                        critical: true  },
-              { label: "Verificar se MAQFUN > MAQPAR (retorno após parada)",           critical: false },
+              { label: "Vincular o ativo à OS",                                     critical: true  },
+              { label: "Registrar o início da parada da máquina",                    critical: true  },
+              { label: "Registrar o fim da parada ao liberar a máquina",             critical: true  },
+              { label: "Informar sintoma e causa no serviço executado",              critical: true  },
+              { label: "Encerrar o apontamento de mão de obra ao sair do serviço",   critical: false },
+              { label: "Encerrar a OS e validar a conclusão no PCM",                 critical: true  },
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-2.5 text-sm text-foreground">
                 <div className={cn(
@@ -436,8 +446,7 @@ export default function QualidadeDadosPage() {
         </div>
 
         <p className="text-xs text-muted-foreground text-right">
-          Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} ·{" "}
-          Fonte: Engeman CMMS
+          Atualizado em {new Date(data.generatedAt).toLocaleString("pt-BR")} · Fonte: Manutenção (ERP)
         </p>
       </div>
     </div>

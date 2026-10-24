@@ -662,8 +662,10 @@ export default function RequisicaoCreateForm() {
   // Data de hoje no fuso do USUÁRIO (toISOString seria UTC: depois das ~21h
   // no Brasil já viraria o dia seguinte e o formulário nasceria com data errada)
   const [data,           setData]           = useState(() => new Date().toLocaleDateString("sv-SE"));
-  const [os,             setOs]             = useState("");
-  const [centroCustoId,  setCentroCustoId]  = useState("");
+  // Aberta a partir da OS de manutenção (?ordemServicoId=&os=&centroCustoId=): já nasce vinculada.
+  const ordemServicoId = searchParams.get("ordemServicoId") ?? "";
+  const [os,             setOs]             = useState(searchParams.get("os") ?? "");
+  const [centroCustoId,  setCentroCustoId]  = useState(searchParams.get("centroCustoId") ?? "");
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [observacoes,    setObservacoes]    = useState("");
   const [rows,           setRows]           = useState<ItemRow[]>([emptyRow()]);
@@ -880,6 +882,7 @@ export default function RequisicaoCreateForm() {
           setorId:        setorId        || null,
           almoxarifeId:   almoxarifeId   || null,
           os:             os             || null,
+          ordemServicoId: ordemServicoId || null,
           centroCustoId:  centroCustoId  || null,
           naturezaFinanceiraId: naturezaFinanceiraId || null,
           data, observacoes: observacoes || null,

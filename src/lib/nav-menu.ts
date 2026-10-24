@@ -438,16 +438,31 @@ export const mainModules: Module[] = [
   },
   {
     id: "pcm",
-    label: "PCM",
+    label: "Manutenção",
     icon: Wrench,
     sections: [
       {
-        kind: "Manutenção" as SubSection["kind"],
+        kind: "Processos" as SubSection["kind"],
+        items: [
+          { href: "/pcm/solicitacoes",    label: "Solicitações",     icon: Inbox },
+          { href: "/pcm/os",              label: "Ordens de Serviço", icon: Wrench },
+          { href: "/pcm/quadro-os",       label: "Quadro de O.S.",   icon: Kanban },
+        ],
+      },
+      {
+        kind: "Cadastros" as SubSection["kind"],
         items: [
           { href: "/pcm/ativos",          label: "Ativos",           icon: Factory },
+          { href: "/pcm/planos/cadastro", label: "Planos de Manut.", icon: CalendarClock },
+          { href: "/pcm/configuracoes",   label: "Configurações",    icon: Settings2 },
+        ],
+      },
+      {
+        kind: "Relatórios" as SubSection["kind"],
+        items: [
           { href: "/pcm/ordens",          label: "Relatório de O.S.", icon: ClipboardList },
-          { href: "/pcm/quadro-os",       label: "Quadro de O.S.",   icon: ClipboardList },
-          { href: "/pcm/planos",          label: "Planos de Manut.", icon: CalendarClock },
+          { href: "/pcm/planos",          label: "Aderência dos planos", icon: CalendarCheck },
+          { href: "/pcm/qualidade",       label: "Qualidade do cadastro", icon: ShieldCheck },
         ],
       },
       {
@@ -455,7 +470,7 @@ export const mainModules: Module[] = [
         items: [
           { href: "/pcm/ativo-saude",            label: "MTBF / MTTR",       icon: Activity },
           { href: "/pcm/ativo-saude/fechamento", label: "Fechamento mensal", icon: ClipboardCheck },
-          { href: "/pcm/ativo-saude/configuracao", label: "Tipos de OS",     icon: Settings2 },
+          { href: "/pcm/ativo-saude/configuracao", label: "Falhas por tipo", icon: Settings2 },
         ],
       },
     ],

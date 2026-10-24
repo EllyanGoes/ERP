@@ -1,19 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
-import EscClose from "@/components/shared/EscClose";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import SelectMenu from "@/components/shared/SelectMenu";
 import { cn, formatDate } from "@/lib/utils";
 import { useRelatorioCache } from "@/lib/use-relatorio-cache";
-import { RefreshCw, AlertTriangle, Users, CalendarClock, Search, X, Wrench } from "lucide-react";
+import { RefreshCw, AlertTriangle, Users, CalendarClock, Search } from "lucide-react";
 import type { QuadroOsResponse, CardOS } from "@/app/api/pcm/quadro-os/route";
 
-const STATUS_META: Record<string, { label: string; chip: string }> = {
-  A: { label: "Aberta",    chip: "bg-info/10 text-info" },
-  E: { label: "Espera",    chip: "bg-warning/10 text-warning" },
-  P: { label: "Progresso", chip: "bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300" },
+// cor do chip por status nativo (o rótulo vem da API — STATUS_OS_LABEL)
+const STATUS_CHIP: Record<string, string> = {
+  ABERTA: "bg-info/10 text-info",
+  PLANEJADA: "bg-info/10 text-info",
+  EM_EXECUCAO: "bg-violet-50 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300",
+  PAUSADA: "bg-warning/10 text-warning",
+  AGUARDANDO_MATERIAL: "bg-warning/10 text-warning",
+  AGUARDANDO_TERCEIRO: "bg-warning/10 text-warning",
+  ENCERRADA: "bg-success/10 text-success",
+};
+const PRIORIDADE_CHIP: Record<string, string> = {
+  EMERGENCIA: "bg-danger text-white",
+  ALTA: "bg-danger/10 text-danger",
 };
 
 export default function QuadroOsPage() {
@@ -25,7 +35,6 @@ export default function QuadroOsPage() {
   const [setorFiltro, setSetorFiltro] = useState("");
   const [tipoFiltro, setTipoFiltro] = useState("");
   const [soAtrasadas, setSoAtrasadas] = useState(false);
-  const [detalhe, setDetalhe] = useState<CardOS | null>(null);
 
   const tipos = useMemo(() => {
     const set = new Set<string>();
@@ -56,7 +65,7 @@ export default function QuadroOsPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Quadro de O.S. por Setor"
-        subtitle="O.S. não finalizadas — cada coluna é um setor executante. Clique num card para ver os detalhes."
+        subtitle="O.S. não finalizadas — cada coluna é uma equipe executante. Clique num card para abrir a O.S."
         breadcrumbs={[{ label: "PCM" }, { label: "Quadro de O.S." }]}
       />
 
@@ -74,18 +83,16 @@ export default function QuadroOsPage() {
         <ComboboxWithCreate
           value={setorFiltro}
           onChange={(v) => setSetorFiltro(v)}
-          noneLabel="Todos os setores"
+          noneLabel="Todas as equipes"
           triggerClassName="h-9 rounded-lg max-w-[200px]"
           options={(data?.setores ?? []).map((s) => ({ value: s.setor, label: `${s.setor} (${s.total})` }))}
         />
-        <select
+        <SelectMenu
           value={tipoFiltro}
-          onChange={(e) => setTipoFiltro(e.target.value)}
-          className="rounded-lg border border-border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px]"
-        >
-          <option value="">Todos os tipos</option>
-          {tipos.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
-        </select>
+          onChange={setTipoFiltro}
+          triggerClassName="h-9 rounded-lg max-w-[200px]"
+          options={[{ value: "", label: "Todos os tipos" }, ...tipos.map((tp) => ({ value: tp, label: tp }))]}
+        />
         <button
           onClick={() => setSoAtrasadas((v) => !v)}
           className={cn(
@@ -113,7 +120,7 @@ export default function QuadroOsPage() {
       <div className="flex-1 min-h-0 px-8 pb-6">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground gap-2 text-sm">
-            <RefreshCw className="w-4 h-4 animate-spin" /> Carregando dados do Engeman…
+            <RefreshCw className="w-4 h-4 animate-spin" /> Carregando ordens de serviço…
           </div>
         ) : erro ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -138,89 +145,24 @@ export default function QuadroOsPage() {
                   </div>
                 </div>
                 <div className="px-2 pb-2 space-y-1.5 overflow-y-auto">
-                  {s.os.map((o) => <Card key={o.codOrd} os={o} onClick={() => setDetalhe(o)} />)}
+                  {s.os.map((o) => <Card key={o.id} os={o} />)}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* ── Popup de detalhe da O.S. ─────────────────────────────────────────── */}
-      {detalhe && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setDetalhe(null)}>
-          <EscClose onClose={() => setDetalhe(null)} />
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-mono text-sm font-bold text-foreground">O.S. {detalhe.numero}</span>
-                {detalhe.atrasada && (
-                  <span className="px-1.5 py-0.5 rounded bg-danger/10 text-danger text-[10px] font-semibold uppercase">Atrasada</span>
-                )}
-                <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase", (STATUS_META[detalhe.status] ?? STATUS_META.A).chip)}>
-                  {(STATUS_META[detalhe.status] ?? STATUS_META.A).label}
-                </span>
-              </div>
-              <button onClick={() => setDetalhe(null)} className="text-muted-foreground hover:text-muted-foreground shrink-0">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 text-sm">
-              <p className="text-foreground leading-relaxed">{detalhe.descricao}</p>
-
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-                <Info rotulo="Setor executante" valor={detalhe.setor} icone={<Wrench className="w-3 h-3" />} />
-                <Info rotulo="Ativo" valor={detalhe.ativo ?? "—"} />
-                <Info rotulo="Tipo de manutenção" valor={detalhe.tipo ?? "—"} />
-                <Info rotulo="Aberta em" valor={detalhe.dataEntrada ? formatDate(detalhe.dataEntrada) : "—"} />
-                <Info
-                  rotulo="Programada para"
-                  valor={detalhe.dataProgramada ? formatDate(detalhe.dataProgramada) : "—"}
-                  destaque={detalhe.atrasada}
-                  icone={<CalendarClock className="w-3 h-3" />}
-                />
-                <Info
-                  rotulo="Responsáveis"
-                  valor={detalhe.responsaveis.length ? detalhe.responsaveis.join(", ") : "sem responsável apontado"}
-                  icone={<Users className="w-3 h-3" />}
-                />
-              </div>
-
-              {(detalhe.ocorrencias.length > 0 || detalhe.causas.length > 0 || detalhe.servicos.length > 0) && (
-                <div className="border-t border-border pt-3 space-y-2 text-xs">
-                  {detalhe.ocorrencias.length > 0 && <Info rotulo="Ocorrência" valor={detalhe.ocorrencias.join("; ")} />}
-                  {detalhe.causas.length > 0 && <Info rotulo="Causa" valor={detalhe.causas.join("; ")} />}
-                  {detalhe.servicos.length > 0 && <Info rotulo="Serviço executado" valor={detalhe.servicos.join("; ")} />}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-function Info({ rotulo, valor, destaque, icone }: { rotulo: string; valor: string; destaque?: boolean; icone?: React.ReactNode }) {
+function Card({ os }: { os: CardOS }) {
   return (
-    <div>
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{rotulo}</p>
-      <p className={cn("flex items-center gap-1", destaque ? "text-danger font-medium" : "text-foreground")}>
-        {icone}
-        {valor}
-      </p>
-    </div>
-  );
-}
-
-function Card({ os, onClick }: { os: CardOS; onClick: () => void }) {
-  const meta = STATUS_META[os.status] ?? STATUS_META.A;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
+    <Link
+      href={`/pcm/os/${os.id}`}
+      title={[os.ocorrencias.join("; "), os.causas.join("; ")].filter(Boolean).join(" · ") || undefined}
       className={cn(
-        "w-full text-left rounded-lg bg-card shadow-sm border px-2.5 py-2 space-y-1 hover:shadow hover:border-blue-300 transition-all",
+        "block w-full text-left rounded-lg bg-card shadow-sm border px-2.5 py-2 space-y-1 hover:shadow hover:border-blue-300 transition-all",
         os.atrasada ? "border-red-300" : "border-border"
       )}
     >
@@ -231,8 +173,11 @@ function Card({ os, onClick }: { os: CardOS; onClick: () => void }) {
         {os.atrasada && (
           <span className="px-1 py-px rounded bg-danger/10 text-danger text-[9px] font-semibold uppercase">Atrasada</span>
         )}
-        {os.status !== "A" && (
-          <span className={cn("px-1 py-px rounded text-[9px] font-semibold uppercase", meta.chip)}>{meta.label}</span>
+        {os.status !== "ABERTA" && (
+          <span className={cn("px-1 py-px rounded text-[9px] font-semibold uppercase", STATUS_CHIP[os.status] ?? "bg-muted text-muted-foreground")}>{os.statusLabel}</span>
+        )}
+        {PRIORIDADE_CHIP[os.prioridade] && (
+          <span className={cn("px-1 py-px rounded text-[9px] font-semibold uppercase", PRIORIDADE_CHIP[os.prioridade])}>{os.prioridadeLabel}</span>
         )}
         {os.dataProgramada && (
           <span className={cn("inline-flex items-center gap-0.5 text-[10px] ml-auto", os.atrasada ? "text-danger font-medium" : "text-muted-foreground")}>
@@ -250,6 +195,6 @@ function Card({ os, onClick }: { os: CardOS; onClick: () => void }) {
           {os.responsaveis.join(", ")}
         </p>
       )}
-    </button>
+    </Link>
   );
 }

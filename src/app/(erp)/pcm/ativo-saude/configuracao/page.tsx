@@ -4,14 +4,24 @@ import { useCallback, useEffect, useState } from "react";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { RefreshCw, AlertTriangle, Save, Info, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { TipoManutencao } from "@/app/api/pcm/config/tipos-manutencao/route";
+
+const NATUREZA_LABEL: Record<string, string> = {
+  CORRETIVA: "Corretiva",
+  PREVENTIVA: "Preventiva",
+  PREDITIVA: "Preditiva",
+  INSPECAO: "Inspeção",
+  LUBRIFICACAO: "Lubrificação",
+  MELHORIA: "Melhoria",
+  OUTROS: "Outros",
+};
 
 export default function ConfigTiposPage() {
   useTabTitle("Tipos de OS");
 
   const [tipos, setTipos] = useState<TipoManutencao[]>([]);
-  const [sel, setSel] = useState<Set<number>>(new Set());
-  const [fonte, setFonte] = useState<"config" | "auto">("auto");
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -23,11 +33,6 @@ export default function ConfigTiposPage() {
     setOkMsg("");
     try {
       const res = await fetch("/api/pcm/config/tipos-manutencao");
-      if (res.status === 503) {
-        setErro("Engeman indisponível no momento. Tente novamente.");
-        setTipos([]);
-        return;
-      }
       if (!res.ok) {
         setErro("Não foi possível carregar os tipos de OS.");
         setTipos([]);
@@ -36,8 +41,7 @@ export default function ConfigTiposPage() {
       const j = await res.json();
       const lista: TipoManutencao[] = j.tipos ?? [];
       setTipos(lista);
-      setFonte(j.fonte ?? "auto");
-      setSel(new Set(lista.filter((t) => t.conta).map((t) => t.codTipMan)));
+      setSel(new Set(lista.filter((t) => t.conta).map((t) => t.id)));
     } catch {
       setErro("Erro de conexão ao carregar.");
       setTipos([]);
@@ -50,11 +54,11 @@ export default function ConfigTiposPage() {
     load();
   }, [load]);
 
-  function toggle(cod: number) {
+  function toggle(id: string) {
     setSel((prev) => {
       const n = new Set(prev);
-      if (n.has(cod)) n.delete(cod);
-      else n.add(cod);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
       return n;
     });
     setOkMsg("");
@@ -68,7 +72,7 @@ export default function ConfigTiposPage() {
       const res = await fetch("/api/pcm/config/tipos-manutencao", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codTipMans: Array.from(sel) }),
+        body: JSON.stringify({ ids: Array.from(sel) }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -76,7 +80,6 @@ export default function ConfigTiposPage() {
         return;
       }
       setOkMsg("Configuração salva. Vale para os próximos fechamentos.");
-      setFonte("config");
     } catch {
       setErro("Erro de conexão ao salvar.");
     } finally {
@@ -88,7 +91,7 @@ export default function ConfigTiposPage() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Tipos de OS"
-        subtitle="Escolha quais tipos de ordem de serviço do Engeman contam como falha / parada não planejada no MTBF/MTTR."
+        subtitle="Escolha quais tipos de ordem de serviço contam como falha / parada não planejada no MTBF/MTTR."
         breadcrumbs={[{ label: "PCM" }, { label: "Ativo Saúde" }, { label: "Tipos de OS" }]}
       />
 
@@ -99,8 +102,6 @@ export default function ConfigTiposPage() {
             Os tipos marcados <strong>contam como parada não planejada</strong> (corretivas);
             inspeção/preventiva ficam desmarcadas. Muda os <strong>próximos fechamentos</strong> —
             meses já fechados não são alterados.
-            {fonte === "auto" &&
-              " Hoje está em auto-detecção (tipos com “CORRETIV” no nome); ao salvar, passa a valer exatamente a sua seleção."}
           </span>
         </div>
 
@@ -122,7 +123,7 @@ export default function ConfigTiposPage() {
         ) : tipos.length === 0 ? (
           <div className="flex flex-col items-start gap-3 py-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <AlertTriangle className="w-4 h-4 text-amber-400" /> Nenhum tipo carregado.
+              <AlertTriangle className="w-4 h-4 text-amber-400" /> Nenhum tipo de OS cadastrado.
             </div>
             <button
               type="button"
@@ -137,17 +138,21 @@ export default function ConfigTiposPage() {
             <div className="rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
               {tipos.map((t) => (
                 <label
-                  key={t.codTipMan}
-                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted cursor-pointer"
+                  key={t.id}
+                  className={cn("flex items-center gap-3 px-4 py-2.5 hover:bg-muted cursor-pointer", !t.ativo && "opacity-60")}
                 >
                   <input
                     type="checkbox"
-                    checked={sel.has(t.codTipMan)}
-                    onChange={() => toggle(t.codTipMan)}
+                    checked={sel.has(t.id)}
+                    onChange={() => toggle(t.id)}
                     className="w-4 h-4 rounded border-border text-info focus:ring-blue-500"
                   />
-                  <span className="flex-1 text-sm text-foreground">{t.descricao}</span>
-                  <span className="text-[11px] text-muted-foreground font-mono">#{t.codTipMan}</span>
+                  <span className="flex-1 text-sm text-foreground">
+                    {t.descricao}
+                    {!t.ativo && <span className="ml-1.5 text-[11px] text-muted-foreground">(inativo)</span>}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">{NATUREZA_LABEL[t.natureza] ?? t.natureza}</span>
+                  <span className="text-[11px] text-muted-foreground font-mono w-10 text-right">{t.sigla}</span>
                 </label>
               ))}
             </div>

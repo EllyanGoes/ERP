@@ -1,7 +1,7 @@
 "use client";
 
 // Inventário de máquinas (NR-12): status de conformidade, proteções pendentes,
-// importação do Engeman e cadastro manual.
+// vínculo com os ativos da Manutenção e cadastro manual.
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
@@ -13,11 +13,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
-import { Loader2, Plus, Search, Download } from "lucide-react";
+import { Loader2, Plus, Search, Link2 } from "lucide-react";
 import { StatusMaquinaBadge, STATUS_MAQUINA, useLookups } from "@/components/sst/comum";
 
 type Maq = { id: string; nome: string; local: string | null; codApl: number | null; status: string; tarefaId: string | null; setor: { id: string; nome: string } | null; protecoes: { id: string; conforme: boolean }[] };
-type Ativo = { codApl: number; tag: string; descricao: string; caminho: string; jaCadastrada: boolean };
+type Ativo = { id: string; codApl: number; tag: string; descricao: string; caminho: string; jaCadastrada: boolean };
 
 export default function SstMaquinasPage() {
   useTabTitle("SST — Máquinas");
@@ -29,6 +29,9 @@ export default function SstMaquinasPage() {
   const [filtro, setFiltro] = usePersistedState<string>("sst:maquinas:status", "");
   async function load() { setLoading(true); const j = await fetch("/api/sst/maquinas").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
   useEffect(() => { load(); }, []);
+  // tag do ativo da Manutenção por codApl (coluna "Ativo")
+  const [tagPorCod, setTagPorCod] = useState<Record<number, string>>({});
+  useEffect(() => { fetch("/api/pcm/ativos/lista").then((r) => (r.ok ? r.json() : { data: [] })).then((j) => setTagPorCod(Object.fromEntries((j.data ?? []).map((a: { codApl: number; tag: string }) => [a.codApl, a.tag])))).catch(() => {}); }, []);
   const visiveis = useMemo(() => lista.filter((m) => !filtro || m.status === filtro).filter((m) => !busca || `${m.nome} ${m.local ?? ""} ${m.setor?.nome ?? ""}`.toLowerCase().includes(busca.toLowerCase())), [lista, filtro, busca]);
   const contagem = (s: string) => lista.filter((m) => m.status === s).length;
 
@@ -45,13 +48,13 @@ export default function SstMaquinasPage() {
     setOpen(false); router.push(`/sst/maquinas/${j.data.id}`);
   }
 
-  // importar do Engeman
+  // vincular ativos da Manutenção (cria a máquina já ligada ao ativo)
   const [imp, setImp] = useState(false); const [ativos, setAtivos] = useState<Ativo[] | null>(null); const [impErro, setImpErro] = useState(""); const [impSel, setImpSel] = useState<Record<number, boolean>>({}); const [impBusca, setImpBusca] = useState("");
   async function abrirImport() {
     setImp(true); setAtivos(null); setImpErro(""); setImpSel({});
-    const res = await fetch("/api/sst/maquinas/engeman").catch(() => null);
+    const res = await fetch("/api/sst/maquinas/ativos").catch(() => null);
     const j = await res?.json().catch(() => ({}));
-    if (!res?.ok) { setImpErro(j?.error || "Engeman indisponível."); setAtivos([]); return; }
+    if (!res?.ok) { setImpErro(j?.error || "Não foi possível carregar os ativos da Manutenção."); setAtivos([]); return; }
     setAtivos(j.data ?? []);
   }
   async function importar() {
@@ -67,7 +70,7 @@ export default function SstMaquinasPage() {
   return (
     <div>
       <PageHeader title="Máquinas e equipamentos" subtitle="Inventário NR-12 — status de proteção, apreciação de risco e evidências" breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "Máquinas" }]}
-        action={<div className="flex gap-2"><Button variant="outline" onClick={abrirImport} className="gap-1.5"><Download className="w-4 h-4" /> Importar do Engeman</Button><Button onClick={() => { setNome(""); setLocal(""); setSetorId(""); setFab(""); setAno(""); setErro(""); setOpen(true); }} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Nova máquina</Button></div>} />
+        action={<div className="flex gap-2"><Button variant="outline" onClick={abrirImport} className="gap-1.5"><Link2 className="w-4 h-4" /> Vincular ativos da Manutenção</Button><Button onClick={() => { setNome(""); setLocal(""); setSetorId(""); setFab(""); setAno(""); setErro(""); setOpen(true); }} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Nova máquina</Button></div>} />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setFiltro("")} className={cn("text-xs px-2.5 py-1 rounded-full border", !filtro ? "border-info bg-info/10 text-info" : "border-border text-muted-foreground hover:bg-muted")}>Todas ({lista.length})</button>
@@ -79,7 +82,7 @@ export default function SstMaquinasPage() {
         {loading ? <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : (
           <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="text-left px-4 py-2 font-semibold">Máquina</th><th className="text-left px-3 py-2 font-semibold">Local</th><th className="text-left px-3 py-2 font-semibold">Setor</th><th className="text-left px-3 py-2 font-semibold">Status</th><th className="text-left px-3 py-2 font-semibold">Proteções</th><th className="text-left px-3 py-2 font-semibold">Engeman</th><th className="text-left px-3 py-2 font-semibold">Tarefa</th></tr></thead>
+              <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="text-left px-4 py-2 font-semibold">Máquina</th><th className="text-left px-3 py-2 font-semibold">Local</th><th className="text-left px-3 py-2 font-semibold">Setor</th><th className="text-left px-3 py-2 font-semibold">Status</th><th className="text-left px-3 py-2 font-semibold">Proteções</th><th className="text-left px-3 py-2 font-semibold">Ativo (Manutenção)</th><th className="text-left px-3 py-2 font-semibold">Tarefa</th></tr></thead>
               <tbody>
                 {visiveis.map((m) => { const ok = m.protecoes.filter((p) => p.conforme).length; return (
                   <tr key={m.id} onClick={() => router.push(`/sst/maquinas/${m.id}`)} className="border-t border-border/60 hover:bg-muted/40 cursor-pointer">
@@ -88,11 +91,11 @@ export default function SstMaquinasPage() {
                     <td className="px-3 py-2 text-muted-foreground">{m.setor?.nome ?? "—"}</td>
                     <td className="px-3 py-2"><StatusMaquinaBadge s={m.status} /></td>
                     <td className="px-3 py-2 text-xs">{m.protecoes.length === 0 ? <span className="text-muted-foreground/60">—</span> : <span className={cn(ok === m.protecoes.length ? "text-success" : "text-danger font-medium")}>{ok}/{m.protecoes.length} conformes</span>}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{m.codApl ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground font-mono">{m.codApl ? tagPorCod[m.codApl] ?? `#${m.codApl}` : "—"}</td>
                     <td className="px-3 py-2 text-xs">{m.tarefaId ? <span className="text-info">vinculada</span> : <span className="text-muted-foreground/60">—</span>}</td>
                   </tr>
                 ); })}
-                {visiveis.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma máquina. Importe do Engeman ou cadastre à mão.</td></tr>}
+                {visiveis.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma máquina. Vincule ativos da Manutenção ou cadastre à mão.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -120,7 +123,7 @@ export default function SstMaquinasPage() {
 
       <Dialog open={imp} onOpenChange={setImp}>
         <DialogContent className="sm:max-w-3xl">
-          <DialogHeader><DialogTitle>Importar ativos do Engeman</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Vincular ativos da Manutenção</DialogTitle></DialogHeader>
           {ativos === null ? <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : (
             <div className="space-y-3">
               {impErro && <p className="text-sm text-danger">{impErro}</p>}
@@ -137,7 +140,7 @@ export default function SstMaquinasPage() {
               <p className="text-[11px] text-muted-foreground">{Object.values(impSel).filter(Boolean).length} selecionado(s). O caminho na árvore vira o &quot;local&quot;; ajuste depois na ficha.</p>
             </div>
           )}
-          <DialogFooter><Button variant="outline" onClick={() => setImp(false)}>Cancelar</Button><Button onClick={importar} disabled={saving || !ativos || Object.values(impSel).filter(Boolean).length === 0}>{saving ? "Importando…" : "Importar selecionados"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setImp(false)}>Cancelar</Button><Button onClick={importar} disabled={saving || !ativos || Object.values(impSel).filter(Boolean).length === 0}>{saving ? "Vinculando…" : "Vincular selecionados"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
