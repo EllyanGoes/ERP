@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
@@ -25,6 +25,8 @@ import {
   MapPin,
   Truck,
   Puzzle,
+  GripVertical,
+  Undo2,
 } from "lucide-react";
 import type { AtivoNode } from "@/app/api/pcm/ativos/route";
 
@@ -174,6 +176,34 @@ function RegimeSelector({
 // ── Linha da árvore ──────────────────────────────────────────────────────────
 const ICONE_TIPO: Record<string, typeof Cpu> = { LOCAL: MapPin, EQUIPAMENTO: Cpu, COMPONENTE: Puzzle, VEICULO: Truck };
 
+// ── Arrastar e soltar (mover o ativo para baixo de outro) ─────────────────────
+type DragCtxValue = {
+  arrastando: AtivoNode | null;
+  invalidos: Set<string>; // o próprio ativo arrastado e seus descendentes
+  alvo: string | null; // id do nó sob o cursor (ou "__raiz__")
+  iniciar: (n: AtivoNode) => void;
+  setAlvo: (id: string | null) => void;
+  soltar: (destino: AtivoNode | null) => void;
+  terminar: () => void;
+  abrir: (id: string) => void;
+};
+const DragCtx = createContext<DragCtxValue | null>(null);
+
+function idsDaSubarvore(n: AtivoNode): Set<string> {
+  const out = new Set<string>();
+  const walk = (x: AtivoNode) => { out.add(x.id); x.children.forEach(walk); };
+  walk(n);
+  return out;
+}
+function paiDe(nodes: AtivoNode[], id: string, pai: AtivoNode | null = null): AtivoNode | null | undefined {
+  for (const n of nodes) {
+    if (n.id === id) return pai;
+    const r = paiDe(n.children, id, n);
+    if (r !== undefined) return r;
+  }
+  return undefined;
+}
+
 function AtivoRow({
   node,
   depth,
@@ -201,18 +231,41 @@ function AtivoRow({
   const isOpen = forceOpen || expanded.has(node.id);
   const indent = 8 + depth * 18;
   const Icon = hasChildren && node.tipo !== "VEICULO" ? Layers : ICONE_TIPO[node.tipo] ?? Cpu;
+  const dnd = useContext(DragCtx);
+  const podeReceber = !!dnd?.arrastando && !dnd.invalidos.has(node.id) && dnd.arrastando.id !== node.id;
+  const sobre = podeReceber && dnd?.alvo === node.id;
+  // Parar sobre um grupo fechado por ~0,6 s abre o grupo (para soltar lá dentro).
+  const timerAbrir = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   return (
     <div>
       <div
+        draggable={!!dnd}
+        onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", node.id); dnd?.iniciar(node); }}
+        onDragEnd={() => dnd?.terminar()}
+        onDragOver={(e) => {
+          if (!podeReceber) return;
+          e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move";
+          if (dnd!.alvo !== node.id) {
+            dnd!.setAlvo(node.id);
+            if (timerAbrir.current) clearTimeout(timerAbrir.current);
+            if (hasChildren && !isOpen) timerAbrir.current = setTimeout(() => dnd!.abrir(node.id), 600);
+          }
+        }}
+        onDragLeave={() => { if (timerAbrir.current) clearTimeout(timerAbrir.current); }}
+        onDrop={(e) => { if (!podeReceber) return; e.preventDefault(); e.stopPropagation(); if (timerAbrir.current) clearTimeout(timerAbrir.current); dnd!.soltar(node); }}
         className={cn(
-          "flex items-center gap-2 pr-3 py-1.5 border-b border-border/40 hover:bg-muted cursor-pointer",
+          "group flex items-center gap-2 pr-3 py-1.5 border-b border-border/40 hover:bg-muted cursor-pointer",
           selecionado === node.codApl && "bg-info/10 hover:bg-info/15",
           !node.ativo && "opacity-60",
+          dnd?.arrastando?.id === node.id && "opacity-40",
+          sobre && "bg-info/15 ring-2 ring-inset ring-info",
         )}
         style={{ paddingLeft: indent }}
         onClick={() => onSelect(node)}
+        title={dnd ? "Arraste para mover para baixo de outro ativo" : undefined}
       >
+        <GripVertical className="w-3.5 h-3.5 -ml-1 shrink-0 text-muted-foreground/40 opacity-0 group-hover:opacity-100 cursor-grab" />
         {hasChildren ? (
           <button
             type="button"
@@ -391,6 +444,48 @@ export default function AtivosPage() {
     setExpanded(new Set());
   }
 
+  // Arrastar e soltar
+  const [arrastando, setArrastando] = useState<AtivoNode | null>(null);
+  const [alvo, setAlvo] = useState<string | null>(null);
+  const [movido, setMovido] = useState<{ node: AtivoNode; paiAnteriorId: string | null; texto: string } | null>(null);
+  const moverPara = useCallback(async (node: AtivoNode, paiId: string | null) => {
+    setErroSalvar("");
+    const res = await fetch(`/api/pcm/ativos/${node.codApl}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paiId }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      const j = await res?.json().catch(() => ({}));
+      setErroSalvar(j?.error || `Não foi possível mover "${node.tag}".`);
+      return false;
+    }
+    if (paiId) setExpanded((prev) => new Set(prev).add(paiId));
+    await load();
+    if (selecionado === node.codApl) setVersao((v) => v + 1);
+    return true;
+  }, [load, selecionado]);
+  const dnd = useMemo<DragCtxValue | null>(() => {
+    if (filtering) return null; // com busca/filtro a árvore está recortada — mover só na árvore completa
+    return {
+      arrastando, alvo, setAlvo,
+      invalidos: arrastando ? idsDaSubarvore(arrastando) : new Set(),
+      iniciar: (n) => { setArrastando(n); setMovido(null); },
+      terminar: () => { setArrastando(null); setAlvo(null); },
+      abrir: (id) => setExpanded((prev) => new Set(prev).add(id)),
+      soltar: async (destino) => {
+        const n = arrastando;
+        setArrastando(null); setAlvo(null);
+        if (!n) return;
+        const anterior = paiDe(tree, n.id) ?? null;
+        if ((anterior?.id ?? null) === (destino?.id ?? null)) return;
+        if (await moverPara(n, destino?.id ?? null)) {
+          setMovido({ node: n, paiAnteriorId: anterior?.id ?? null, texto: `${n.tag} movido para ${destino ? `${destino.tag} — ${destino.descricao}` : "a raiz"}.` });
+        }
+      },
+    };
+  }, [filtering, arrastando, alvo, tree, moverPara]);
+
   const onClassify = useCallback(
     async (node: AtivoNode, v: Crit | null) => {
       const anterior = node.criticidade;
@@ -538,6 +633,34 @@ export default function AtivosPage() {
             </p>
           </div>
         ) : (
+          <DragCtx.Provider value={dnd}>
+          {movido && (
+            <div className="mb-2 flex items-center gap-2 text-xs bg-info/10 border border-info/30 rounded-lg px-3 py-2">
+              <span className="flex-1">{movido.texto}</span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-info hover:underline"
+                onClick={async () => { const m = movido; setMovido(null); await moverPara(m.node, m.paiAnteriorId); }}
+              >
+                <Undo2 className="w-3.5 h-3.5" /> Desfazer
+              </button>
+            </div>
+          )}
+          {arrastando && (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setAlvo("__raiz__"); }}
+              onDrop={(e) => { e.preventDefault(); dnd?.soltar(null); }}
+              className={cn(
+                "mb-2 rounded-lg border-2 border-dashed px-3 py-2 text-xs text-center",
+                alvo === "__raiz__" ? "border-info bg-info/10 text-info" : "border-border text-muted-foreground",
+              )}
+            >
+              Solte aqui para deixar <b>{arrastando.tag}</b> na raiz (sem pai)
+            </div>
+          )}
+          {!dnd && !loading && filtering && (
+            <p className="mb-2 text-[11px] text-muted-foreground">Limpe a busca e o filtro para mover ativos arrastando.</p>
+          )}
           <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
             {visible.map((node) => (
               <AtivoRow
@@ -555,6 +678,7 @@ export default function AtivosPage() {
               />
             ))}
           </div>
+          </DragCtx.Provider>
         )}
       </div>
       {selecionado != null && (

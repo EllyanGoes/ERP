@@ -1052,7 +1052,7 @@ export default function RequisicaoCreateForm() {
 
               {/* O.S. (Requisição only) */}
               {tipo === "REQUISICAO" && (
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 md:col-span-2">
                   <Label>O.S. <span className="text-muted-foreground font-normal text-xs">(manutenção — para onde vai o material)</span></Label>
                   <ComboboxWithCreate
                     value={ordemServicoId}
