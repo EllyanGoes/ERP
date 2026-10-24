@@ -29,6 +29,7 @@ import {
   Megaphone, Target, Map as MapIcon,
   Receipt, Hash, Scale,
   Filter, UserPlus, Globe, LineChart,
+  QrCode,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { allModules } from "@/lib/nav-menu";
@@ -193,6 +194,7 @@ const ROTAS_MANUAIS: RouteEntry[] = [
   { href: "/pcm/quadro-os",                        label: "Quadro de O.S.",          group: "Manutenção",     section: "Processos",        icon: ClipboardList,  keywords: "quadro os equipe pendente kanban responsavel" },
   { href: "/pcm/planos/cadastro",                  label: "Planos de Manutenção",    group: "Manutenção",     section: "Cadastros",        icon: CalendarClock,  keywords: "planos manutencao preventiva checklist horímetro lubrificação inspeção pmp" },
   { href: "/pcm/planos",                           label: "Aderência dos planos",    group: "Manutenção",     section: "Relatórios",       icon: CalendarClock,  keywords: "planos manutencao preventiva execucao aderencia pmp" },
+  { href: "/pcm/ativos/etiquetas",                 label: "Etiquetas QR dos ativos", group: "Manutenção",     section: "Cadastros",        icon: QrCode,         keywords: "etiqueta qr code qrcode imprimir máquina ativo tag celular" },
   { href: "/pcm/configuracoes",                    label: "Configurações da Manutenção", group: "Manutenção", section: "Cadastros",        icon: Settings2,      keywords: "tipos os catálogo sintoma causa defeito equipe custo hora medidor horímetro importar engeman" },
 
   { href: "/pcp/centros-trabalho",                 label: "Centros de Trabalho",     group: "PCP",            section: "Estrutura",        icon: Boxes,          keywords: "pcp centro trabalho recurso forno secagem" },

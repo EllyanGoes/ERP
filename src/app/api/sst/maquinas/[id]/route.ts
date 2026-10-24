@@ -2,8 +2,13 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { resolverVinculoAtivo, ErroAtivo } from "@/lib/manutencao/ativo";
 
-const INCLUDE = { setor: { select: { id: true, nome: true } }, protecoes: { orderBy: { descricao: "asc" as const } } };
+const INCLUDE = {
+  setor: { select: { id: true, nome: true } },
+  protecoes: { orderBy: { descricao: "asc" as const } },
+  ativo: { select: { id: true, codApl: true, tag: true, nome: true } },
+};
 const STATUS = ["NAO_AVALIADA", "NAO_CONFORME", "EM_ADEQUACAO", "CONFORME", "INTERDITADA", "DESATIVADA"];
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -25,7 +30,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (b.nome !== undefined) { const n = String(b.nome).trim(); if (!n) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 }); data.nome = n; }
   for (const k of ["local", "fabricante", "observacoes"]) if (b[k] !== undefined) data[k] = b[k]?.trim() || null;
   if (b.setorId !== undefined) data.setorId = b.setorId || null;
-  if (b.codApl !== undefined) data.codApl = b.codApl ? Number(b.codApl) : null;
+  // Vínculo com a Manutenção: ativoId (FK) + codApl sincronizado do ativo.
+  try {
+    const vinculo = await resolverVinculoAtivo(b);
+    if (vinculo) { data.ativoId = vinculo.ativoId; data.codApl = vinculo.codApl; }
+  } catch (e) {
+    if (e instanceof ErroAtivo) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
+  }
   if (b.anoFabricacao !== undefined) data.anoFabricacao = b.anoFabricacao ? Number(b.anoFabricacao) : null;
   if (b.apreciacaoRiscoDocumentoId !== undefined) data.apreciacaoRiscoDocumentoId = b.apreciacaoRiscoDocumentoId || null;
   if (b.manualDocumentoId !== undefined) data.manualDocumentoId = b.manualDocumentoId || null;

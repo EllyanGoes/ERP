@@ -16,10 +16,11 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Trash2, ClipboardCheck, CheckCircle2, Circle, X } from "lucide-react";
 import { TIPOS_INSPECAO, TIPO_INSPECAO_LABEL, UploadAnexo, DocLink, fmtData, hojeISO, useLookups } from "@/components/sst/comum";
+import { AbrirSolicitacaoSst, SolicitacoesVinculadas, type SsVinculada } from "@/components/manutencao/SolicitacaoOrigemSst";
 
 type Item = { item: string; ok: boolean; obs?: string };
 type Acao = { id: string; descricao: string; prazo: string | null; concluidaEm: string | null; responsavel: { nome: string } | null };
-type Ins = { id: string; tipo: string; descricao: string; data: string; proxima: string | null; resultado: string; itens: Item[] | null; documentoId: string | null; observacoes: string | null; maquina: { id: string; nome: string } | null; responsavel: { nome: string } | null; acoes: Acao[] };
+type Ins = { id: string; tipo: string; descricao: string; data: string; proxima: string | null; resultado: string; itens: Item[] | null; documentoId: string | null; observacoes: string | null; maquina: { id: string; nome: string; ativoId: string | null } | null; responsavel: { nome: string } | null; acoes: Acao[]; solicitacoesManutencao: SsVinculada[] };
 const CHECKLISTS: Record<string, string[]> = {
   EXTINTOR: ["Lacre e pino intactos", "Manômetro na faixa verde", "Validade da carga/teste hidrostático", "Sinalização e acesso desobstruído", "Suporte/altura corretos"],
   MAQUINA: ["Proteções fixas no lugar", "Intertravamentos funcionando", "Parada de emergência testada", "Sinalização legível", "Área limpa e desobstruída"],
@@ -90,6 +91,13 @@ export default function SstInspecoesPage() {
                 </div>
                 {naoOk.length > 0 && <p className="text-xs text-danger mt-1">Itens não conformes: {naoOk.map((x) => x.item + (x.obs ? ` (${x.obs})` : "")).join("; ")}</p>}
                 {i.observacoes && <p className="text-xs text-muted-foreground mt-1">{i.observacoes}</p>}
+                {(i.maquina || i.resultado === "NAO_CONFORME" || i.solicitacoesManutencao.length > 0) && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <SolicitacoesVinculadas lista={i.solicitacoesManutencao} />
+                    <AbrirSolicitacaoSst origem="SST_INSPECAO" origemId={i.id} ativoId={i.maquina?.ativoId} vinculadas={i.solicitacoesManutencao} onCriada={load}
+                      descricaoInicial={[`Inspeção SST (${TIPO_INSPECAO_LABEL[i.tipo] ?? i.tipo}) de ${fmtData(i.data)}: ${i.descricao}${i.maquina ? ` — máquina ${i.maquina.nome}` : ""}.`, ...naoOk.map((x) => `• ${x.item}${x.obs ? `: ${x.obs}` : ""}`), i.observacoes ? `Obs.: ${i.observacoes}` : ""].filter(Boolean).join("\n")} />
+                  </div>
+                )}
                 {(i.acoes.length > 0 || i.resultado === "NAO_CONFORME") && (
                   <div className="mt-2 space-y-1">
                     {i.acoes.map((a) => <div key={a.id} className="flex items-center gap-2 text-xs"><button onClick={() => concluirAcao(a.id, !a.concluidaEm)} className={a.concluidaEm ? "text-success" : "text-muted-foreground/50"}>{a.concluidaEm ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}</button><span className={cn(a.concluidaEm ? "line-through text-muted-foreground" : "text-foreground")}>{a.descricao}</span><span className="text-muted-foreground">{a.responsavel?.nome ?? ""}{a.prazo ? ` · ${fmtData(a.prazo)}` : ""}</span></div>)}

@@ -122,15 +122,44 @@ export async function dadosDoAtivo(
 
 /**
  * Próximo codApl (global, não por empresa): continua a numeração do Engeman.
- * Considera também as tabelas que referenciam codApl para não herdar
- * criticidade/regime/fechamento de um código antigo.
+ * Considera também o FechamentoMtbf (codApl é a chave única dele) para um ativo
+ * novo não herdar o fechamento de um código antigo. Criticidade/regime agora
+ * moram no próprio ManutAtivo — AtivoCriticidade/AtivoRegime não são mais lidas.
  */
 export async function proximoCodApl(): Promise<number> {
-  const [a, c, r, f] = await Promise.all([
+  const [a, f] = await Promise.all([
     prismaSemEscopo.manutAtivo.aggregate({ _max: { codApl: true } }),
-    prismaSemEscopo.ativoCriticidade.aggregate({ _max: { codApl: true } }),
-    prismaSemEscopo.ativoRegime.aggregate({ _max: { codApl: true } }),
     prismaSemEscopo.fechamentoMtbf.aggregate({ _max: { codApl: true } }),
   ]);
-  return Math.max(0, a._max.codApl ?? 0, c._max.codApl ?? 0, r._max.codApl ?? 0, f._max.codApl ?? 0) + 1;
+  return Math.max(0, a._max.codApl ?? 0, f._max.codApl ?? 0) + 1;
+}
+
+export type VinculoAtivo = { ativoId: string | null; codApl: number | null };
+
+/**
+ * Resolve o vínculo de outro cadastro (máquina do SST, centro de trabalho do
+ * PCP) com um ativo da Manutenção. O vínculo é o `ativoId` (FK); o `codApl`
+ * vai junto, sincronizado do ativo, só por compatibilidade.
+ * Aceita `ativoId` (preferido) ou `codApl` (legado) no corpo. Retorna
+ * undefined quando o corpo não fala do vínculo; null/"" desfaz.
+ * O ativo precisa ser da empresa ativa (proxy escopado).
+ */
+export async function resolverVinculoAtivo(body: Record<string, unknown>): Promise<VinculoAtivo | undefined> {
+  if ("ativoId" in body) {
+    const ativoId = id(body.ativoId);
+    if (!ativoId) return { ativoId: null, codApl: null };
+    const a = await prisma.manutAtivo.findUnique({ where: { id: ativoId }, select: { id: true, codApl: true } });
+    if (!a) throw new ErroAtivo("Ativo da Manutenção não encontrado nesta empresa.", 404);
+    return { ativoId: a.id, codApl: a.codApl };
+  }
+  if ("codApl" in body) {
+    const raw = body.codApl;
+    if (raw === null || raw === undefined || raw === "") return { ativoId: null, codApl: null };
+    const codApl = Number(raw);
+    if (!Number.isInteger(codApl) || codApl <= 0) throw new ErroAtivo("Código do ativo inválido.");
+    const a = await prisma.manutAtivo.findUnique({ where: { codApl }, select: { id: true, codApl: true } });
+    if (!a) throw new ErroAtivo("Ativo da Manutenção não encontrado nesta empresa.", 404);
+    return { ativoId: a.id, codApl: a.codApl };
+  }
+  return undefined;
 }

@@ -442,20 +442,20 @@ export const mainModules: Module[] = [
     icon: Wrench,
     sections: [
       {
+        kind: "Cadastros" as SubSection["kind"],
+        items: [
+          { href: "/pcm/ativos",          label: "Ativos",           icon: Factory },
+          { href: "/pcm/planos/cadastro", label: "Planos de Manut.", icon: CalendarClock },
+          { href: "/pcm/configuracoes",   label: "Configurações",    icon: Settings2 },
+        ],
+      },
+      {
         kind: "Processos" as SubSection["kind"],
         items: [
           { href: "/pcm",                 label: "Painel",           icon: LayoutDashboard, exact: true },
           { href: "/pcm/solicitacoes",    label: "Solicitações",     icon: Inbox },
           { href: "/pcm/os",              label: "Ordens de Serviço", icon: Wrench },
           { href: "/pcm/quadro-os",       label: "Quadro de O.S.",   icon: Kanban },
-        ],
-      },
-      {
-        kind: "Cadastros" as SubSection["kind"],
-        items: [
-          { href: "/pcm/ativos",          label: "Ativos",           icon: Factory },
-          { href: "/pcm/planos/cadastro", label: "Planos de Manut.", icon: CalendarClock },
-          { href: "/pcm/configuracoes",   label: "Configurações",    icon: Settings2 },
         ],
       },
       {

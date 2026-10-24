@@ -1,14 +1,17 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { requireModulo } from "@/lib/permissions";
+import { requireModulo, temPermissao } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 import { criarOrdem, ErroOS, STATUS_OS_ABERTOS } from "@/lib/manutencao/ordem";
 
 const parseData = (v: unknown) => (typeof v === "string" && v ? new Date(v) : null);
 
-// GET /api/pcm/os?situacao=abertas|encerradas|concluidas|canceladas|todas&ativoId=&equipeId=&tipoId=&q=&de=&ate=
+// GET /api/pcm/os?situacao=abertas|encerradas|concluidas|canceladas|todas|quadro&ativoId=&equipeId=&tipoId=&q=&de=&ate=&minhas=1
 // Lista operacional das OS (a aba "Relatório de O.S." continua em /api/pcm/ordens).
+// situacao=quadro alimenta o kanban/calendário: todas as abertas + encerradas (a
+// validar) + concluídas nos últimos 30 dias. minhas=1 = OS em que o usuário logado
+// é o responsável ou tem apontamento (via Colaborador.usuarioId).
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
@@ -19,6 +22,19 @@ export async function GET(req: NextRequest) {
   else if (situacao === "encerradas") where.status = "ENCERRADA";
   else if (situacao === "concluidas") where.status = "CONCLUIDA";
   else if (situacao === "canceladas") where.status = "CANCELADA";
+  else if (situacao === "quadro") {
+    where.OR = [
+      { status: { in: STATUS_OS_ABERTOS } },
+      { status: "CONCLUIDA", concluidaEm: { gte: new Date(Date.now() - 30 * 86_400_000) } },
+    ];
+  }
+  const and: Prisma.ManutOrdemWhereInput[] = [];
+  if (sp.get("minhas") === "1") {
+    and.push({ OR: [
+      { responsavel: { usuarioId: auth.session.sub } },
+      { apontamentos: { some: { colaborador: { usuarioId: auth.session.sub } } } },
+    ] });
+  }
   if (sp.get("ativoId")) where.ativoId = sp.get("ativoId")!;
   if (sp.get("equipeId")) where.equipeId = sp.get("equipeId")!;
   if (sp.get("tipoId")) where.tipoId = sp.get("tipoId")!;
@@ -26,17 +42,18 @@ export async function GET(req: NextRequest) {
   if (de || ate) where.createdAt = { ...(de ? { gte: de } : {}), ...(ate ? { lte: new Date(ate!.getTime() + 86_399_999) } : {}) };
   const q = sp.get("q")?.trim();
   if (q) {
-    where.OR = [
+    and.push({ OR: [
       { numero: { contains: q, mode: "insensitive" } },
       { descricao: { contains: q, mode: "insensitive" } },
       { ativo: { nome: { contains: q, mode: "insensitive" } } },
       { ativo: { tag: { contains: q, mode: "insensitive" } } },
-    ];
+    ] });
   }
+  if (and.length) where.AND = and;
   const data = await prisma.manutOrdem.findMany({
     where,
     orderBy: [{ createdAt: "desc" }],
-    take: situacao === "abertas" || situacao === "encerradas" ? 1000 : 500,
+    take: situacao === "abertas" || situacao === "encerradas" || situacao === "quadro" ? 1000 : 500,
     select: {
       id: true, numero: true, status: true, prioridade: true, descricao: true, createdAt: true, programadaPara: true, prazo: true,
       paradaInicio: true, paradaFim: true, concluidaEm: true, encerradaEm: true, localTexto: true, planoId: true,
@@ -46,9 +63,16 @@ export async function GET(req: NextRequest) {
       equipe: { select: { id: true, nome: true } },
       responsavel: { select: { id: true, nome: true } },
       apontamentos: { where: { fim: null }, select: { nome: true } },
+      // Motivo da última pausa/espera — selo no cartão do quadro.
+      eventos: {
+        where: { tipo: { in: ["PAUSAR", "AGUARDAR_MATERIAL", "AGUARDAR_TERCEIRO"] } },
+        orderBy: { createdAt: "desc" }, take: 1, select: { detalhe: true },
+      },
     },
   });
-  return NextResponse.json({ data });
+  // O quadro usa para avisar, antes de chamar a API, que a transição é do PCM.
+  const podeValidar = await temPermissao(auth.session.sub, "pcm.validacao.editar");
+  return NextResponse.json({ data, podeValidar });
 }
 
 // POST — nova OS (emergência pode nascer sem SS). Body: ativoId, tipoId, descricao,

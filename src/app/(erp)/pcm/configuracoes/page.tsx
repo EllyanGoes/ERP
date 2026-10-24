@@ -22,6 +22,7 @@ const ABAS = [
   { id: "catalogo", label: "Catálogo de falhas" },
   { id: "equipes", label: "Equipes" },
   { id: "medidores", label: "Medidores" },
+  { id: "materiais", label: "Materiais → produtos" },
   { id: "importacao", label: "Importação Engeman" },
 ];
 const NATUREZAS = ["CORRETIVA", "PREVENTIVA", "PREDITIVA", "INSPECAO", "LUBRIFICACAO", "MELHORIA", "OUTROS"].map((v) => ({ value: v, label: v.charAt(0) + v.slice(1).toLowerCase().replace("inspecao", "inspeção").replace("lubrificacao", "lubrificação") }));
@@ -41,6 +42,7 @@ export default function ManutencaoConfigPage() {
         {aba === "catalogo" && <Catalogo />}
         {aba === "equipes" && <Equipes />}
         {aba === "medidores" && <Medidores />}
+        {aba === "materiais" && <Materiais />}
         {aba === "importacao" && <Importacao />}
       </div>
     </div>
@@ -232,6 +234,100 @@ function Medidores() {
           {lista.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum medidor cadastrado.</td></tr>}</tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// ── Materiais do Engeman → produtos do ERP ──────────────────────────────────
+type Sug = { id: string; codigo: string; descricao: string; nota: number };
+type MatLeg = {
+  codMat: number; tag: string | null; descricao: string; unidade: string | null; usos: number; situacao: string; confirmadoPor: string | null;
+  item: { id: string; codigo: string; descricao: string } | null; sugestoes: Sug[]; _count: { kits: number; pecas: number };
+};
+const FILTROS_MAT = [{ value: "PENDENTES", label: "Sem produto" }, { value: "LIGADOS", label: "Ligados" }, { value: "SEM_PRODUTO", label: "Sem equivalente" }, { value: "TODOS", label: "Todos" }];
+function Materiais() {
+  const { user } = useSession();
+  const [filtro, setFiltro] = usePersistedState<string>("pcm:config:mat", "PENDENTES");
+  const [lista, setLista] = useState<MatLeg[] | null>(null);
+  const [contagem, setContagem] = useState<{ situacao: string; _count: number }[]>([]);
+  const [busca, setBusca] = useState("");
+  const [itens, setItens] = useState<{ id: string; codigo: string; descricao: string }[]>([]);
+  const [msg, setMsg] = useState(""); const [rodando, setRodando] = useState(false);
+  const load = useCallback(async () => {
+    setLista(null);
+    const j = await fetch(`/api/pcm/materiais?situacao=${filtro}`).then((r) => r.json()).catch(() => ({}));
+    setLista(j.data ?? []); setContagem(j.contagem ?? []);
+  }, [filtro]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { fetch("/api/itens?limit=3000").then((r) => r.json()).then((j) => setItens(j.data ?? [])).catch(() => {}); }, []);
+  const visiveis = useMemo(() => (lista ?? []).filter((m) => !busca || `${m.descricao} ${m.item?.descricao ?? ""} ${m.item?.codigo ?? ""}`.toLowerCase().includes(busca.toLowerCase())), [lista, busca]);
+  const total = (sits: string[]) => contagem.filter((c) => sits.includes(c.situacao)).reduce((s, c) => s + c._count, 0);
+  async function ligar(codMat: number, body: Record<string, unknown>) {
+    const r = await api("/api/pcm/materiais", "POST", { codMat, ...body });
+    if (!r.ok) { setMsg(r.error!); return; }
+    setMsg(""); load();
+  }
+  async function confirmarTodas() {
+    const cods = visiveis.filter((m) => !m.item && m.sugestoes[0] && m.sugestoes[0].nota >= 0.75).map((m) => m.codMat);
+    if (!cods.length) return;
+    setRodando(true);
+    const r = await api<{ ligados: number }>("/api/pcm/materiais", "POST", { acao: "confirmarSugestoes", codMats: cods });
+    setRodando(false); setMsg(r.ok ? `${r.data!.ligados} material(is) ligado(s) pela sugestão.` : r.error!); load();
+  }
+  async function importar() {
+    setRodando(true); setMsg("Lendo o Engeman…");
+    const r = await api<{ materiais: number; exatos: number; sugeridos: number; semSugestao: number }>("/api/pcm/materiais", "POST", { acao: "importar", aplicar: true });
+    setRodando(false);
+    setMsg(r.ok ? `${r.data!.materiais} materiais: ${r.data!.exatos} ligados automaticamente (descrição idêntica), ${r.data!.sugeridos} com sugestão, ${r.data!.semSugestao} sem sugestão.` : r.error!);
+    load();
+  }
+  const fortes = visiveis.filter((m) => !m.item && m.sugestoes[0] && m.sugestoes[0].nota >= 0.75).length;
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground max-w-4xl">A Manutenção usa só o estoque do ERP. Ligue cada material que veio do Engeman ao produto equivalente: o histórico de material das OS, os kits dos planos e os sobressalentes dos ativos passam a apontar para o produto (e os kits viram itens da requisição).</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTROS_MAT.map((f) => <button key={f.value} onClick={() => setFiltro(f.value)} className={cn("text-xs px-2.5 py-1 rounded-full border", filtro === f.value ? "border-info bg-info/10 text-info" : "border-border text-muted-foreground hover:bg-muted")}>{f.label}{f.value === "PENDENTES" ? ` (${total(["PENDENTE", "SUGERIDO"])})` : f.value === "LIGADOS" ? ` (${total(["EXATO", "MANUAL"])})` : f.value === "SEM_PRODUTO" ? ` (${total(["SEM_PRODUTO"])})` : ""}</button>)}
+        <div className="relative"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar…" className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-card w-56" /></div>
+        <div className="ml-auto flex gap-2">
+          {filtro === "PENDENTES" && fortes > 0 && <Button size="sm" variant="outline" disabled={rodando} onClick={confirmarTodas}>Aceitar {fortes} sugestões fortes (≥ 75%)</Button>}
+          {user?.perfil === "ADMIN" && <Button size="sm" variant="outline" disabled={rodando} onClick={importar} className="gap-1"><Database className="w-3.5 h-3.5" /> Ler materiais do Engeman</Button>}
+        </div>
+      </div>
+      {msg && <p className="text-sm text-muted-foreground bg-muted/50 border border-border rounded-lg px-3 py-2">{msg}</p>}
+      {!lista ? <Carregando /> : (
+        <div className="bg-card border border-border rounded-xl overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="text-left px-4 py-2">Material (Engeman)</th><th className="text-right px-3 py-2">Usos</th><th className="text-left px-3 py-2 w-[46%]">Produto do ERP</th><th className="px-3 py-2" /></tr></thead>
+            <tbody>{visiveis.map((m) => (
+              <tr key={m.codMat} className="border-t border-border/60 align-top">
+                <td className="px-4 py-2">{m.descricao}<div className="text-[11px] text-muted-foreground">{m.tag ? `${m.tag} · ` : ""}{m.unidade ?? ""}{m._count.kits ? ` · em ${m._count.kits} plano(s)` : ""}{m._count.pecas ? ` · sobressalente de ${m._count.pecas} ativo(s)` : ""}</div></td>
+                <td className="px-3 py-2 text-right tabular-nums text-xs">{m.usos}</td>
+                <td className="px-3 py-2">
+                  {m.item ? (
+                    <div className="text-sm"><span className="text-xs text-muted-foreground">{m.item.codigo}</span> {m.item.descricao}<div className="text-[11px] text-muted-foreground">{m.situacao === "EXATO" ? "ligado automaticamente" : `ligado por ${m.confirmadoPor ?? "—"}`}</div></div>
+                  ) : m.situacao === "SEM_PRODUTO" ? <span className="text-xs text-muted-foreground">sem produto equivalente no ERP</span> : (
+                    <div className="space-y-1.5">
+                      {m.sugestoes.map((s) => (
+                        <button key={s.id} onClick={() => ligar(m.codMat, { itemId: s.id })} className="w-full text-left text-xs border border-border rounded-lg px-2 py-1 hover:bg-info/10 hover:border-info/40 flex items-center gap-2">
+                          <span className={cn("tabular-nums w-9 shrink-0", s.nota >= 0.75 ? "text-success font-medium" : "text-muted-foreground")}>{Math.round(s.nota * 100)}%</span>
+                          <span className="text-muted-foreground">{s.codigo}</span><span className="truncate">{s.descricao}</span>
+                        </button>
+                      ))}
+                      <ComboboxWithCreate value="" onChange={(v) => v && ligar(m.codMat, { itemId: v })} options={itens.map((i) => ({ value: i.id, label: `${i.codigo} — ${i.descricao}` }))} placeholder={m.sugestoes.length ? "Outro produto…" : "Escolher produto…"} menuMinWidth={420} />
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right whitespace-nowrap text-xs">
+                  {m.item || m.situacao === "SEM_PRODUTO"
+                    ? <button className="text-muted-foreground hover:underline" onClick={() => ligar(m.codMat, { desfazer: true })}>desfazer</button>
+                    : <button className="text-muted-foreground hover:underline" onClick={() => ligar(m.codMat, { semProduto: true })}>não tem no ERP</button>}
+                </td>
+              </tr>
+            ))}
+            {visiveis.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">{filtro === "PENDENTES" ? "Nenhum material pendente." : "Nada aqui."}{user?.perfil === "ADMIN" && (lista ?? []).length === 0 && filtro !== "LIGADOS" ? " Se ainda não leu do Engeman, use “Ler materiais do Engeman”." : ""}</td></tr>}</tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

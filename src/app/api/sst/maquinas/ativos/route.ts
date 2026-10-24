@@ -12,12 +12,12 @@ export async function GET() {
   if (!auth.ok) return auth.response;
   const [tree, maquinas] = await Promise.all([
     fetchAtivosTree(),
-    prisma.sstMaquina.findMany({ where: { codApl: { not: null } }, select: { codApl: true } }),
+    prisma.sstMaquina.findMany({ where: { ativoId: { not: null } }, select: { ativoId: true } }),
   ]);
-  const ja = new Set(maquinas.map((m) => m.codApl));
+  const ja = new Set(maquinas.map((m) => m.ativoId));
   const data = flattenTree(tree).map((a) => ({
     id: a.id, codApl: a.codApl, tag: a.tag, descricao: a.descricao, tipo: a.tipo, caminho: a.caminho,
-    jaCadastrada: ja.has(a.codApl),
+    jaCadastrada: ja.has(a.id),
   }));
   return NextResponse.json({ data });
 }

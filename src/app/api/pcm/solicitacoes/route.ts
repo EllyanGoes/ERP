@@ -3,9 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireSession } from "@/lib/auth";
 import { getUserModulos, hasModulo } from "@/lib/permissions";
-import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { proximoNumeroSS, PRIORIDADES } from "@/lib/manutencao/ordem";
-import { notificarUsuario } from "@/lib/notificacoes";
+import { prisma, EMPRESA_PADRAO_ID } from "@/lib/prisma";
+import { criarSolicitacao } from "@/lib/manutencao/solicitacao";
 
 // Solicitação de Serviço: QUALQUER usuário logado abre e acompanha as próprias;
 // quem tem o módulo PCM vê todas e faz a triagem.
@@ -45,28 +44,10 @@ export async function POST(req: NextRequest) {
     const a = await prisma.manutAtivo.findUnique({ where: { id: b.ativoId }, select: { id: true } });
     if (!a) return NextResponse.json({ error: "Equipamento não encontrado." }, { status: 404 });
   }
-  const ss = await prisma.manutSolicitacao.create({
-    data: {
-      empresaId, numero: await proximoNumeroSS(empresaId), ativoId: b.ativoId || null, localTexto: b.localTexto?.trim() || null,
-      descricao, ativoParado: !!b.ativoParado, paradoDesde: b.ativoParado ? (b.paradoDesde ? new Date(b.paradoDesde) : new Date()) : null,
-      prioridade: PRIORIDADES.includes(b.prioridade) ? b.prioridade : null,
-      solicitanteId: auth.session.sub, solicitanteNome: auth.session.nome,
-    },
-    include: { ativo: { select: { tag: true, nome: true } } },
+  const ss = await criarSolicitacao({
+    empresaId, ativoId: b.ativoId || null, localTexto: b.localTexto, descricao,
+    ativoParado: !!b.ativoParado, paradoDesde: b.paradoDesde ? new Date(b.paradoDesde) : null,
+    prioridade: b.prioridade, solicitanteId: auth.session.sub, solicitanteNome: auth.session.nome,
   });
-  // Avisa o PCM (módulo pcm); emergência/máquina parada vai com destaque no título.
-  const pcm = await prismaSemEscopo.usuario.findMany({
-    where: { ativo: true, id: { not: auth.session.sub }, permissoes: { some: { modulo: { startsWith: "pcm" } } }, empresas: { some: { empresaId } } },
-    select: { id: true },
-  });
-  const urgente = ss.ativoParado || ss.prioridade === "EMERGENCIA";
-  for (const u of pcm) {
-    await notificarUsuario({
-      usuarioId: u.id, tipo: "MANUT_SS_NOVA",
-      titulo: `${urgente ? "⚠ Máquina parada — " : ""}${ss.numero} de ${auth.session.nome}`,
-      mensagem: `${ss.ativo ? `${ss.ativo.tag} ${ss.ativo.nome}: ` : ss.localTexto ? `${ss.localTexto}: ` : ""}${descricao.slice(0, 160)}`,
-      link: "/pcm/solicitacoes",
-    });
-  }
   return NextResponse.json({ data: ss }, { status: 201 });
 }

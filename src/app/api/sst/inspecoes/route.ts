@@ -3,13 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
+import { solicitacoesPorOrigem } from "@/lib/manutencao/solicitacao";
 
-const INCLUDE = { maquina: { select: { id: true, nome: true } }, responsavel: { select: { id: true, nome: true } }, acoes: { orderBy: { createdAt: "asc" as const }, include: { responsavel: { select: { id: true, nome: true } } } } };
+const INCLUDE = { maquina: { select: { id: true, nome: true, ativoId: true } }, responsavel: { select: { id: true, nome: true } }, acoes: { orderBy: { createdAt: "asc" as const }, include: { responsavel: { select: { id: true, nome: true } } } } };
 
 export async function GET() {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
-  const data = await prisma.sstInspecao.findMany({ orderBy: { data: "desc" }, take: 500, include: INCLUDE });
+  const lista = await prisma.sstInspecao.findMany({ orderBy: { data: "desc" }, take: 500, include: INCLUDE });
+  // SS/OS da Manutenção abertas a partir de cada inspeção (origem SST_INSPECAO).
+  const ss = await solicitacoesPorOrigem("SST_INSPECAO", lista.map((i) => i.id));
+  const data = lista.map((i) => ({ ...i, solicitacoesManutencao: ss.get(i.id) ?? [] }));
   return NextResponse.json({ data });
 }
 

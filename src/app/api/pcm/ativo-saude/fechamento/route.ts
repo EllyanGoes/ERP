@@ -52,18 +52,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Parâmetros ano/mes inválidos" }, { status: 400 });
   }
 
-  // OS do mês (ManutOrdem) + dados de fechamento/regime/criticidade
-  const [agregados, salvos, regimes, criticidades] = await Promise.all([
+  // OS do mês (ManutOrdem) + fechamentos salvos. Regime e criticidade vêm do
+  // próprio ManutAtivo (fase 4), ligado ao fechamento pelo ativoId.
+  const [agregados, salvos] = await Promise.all([
     getAgregadoMensal(ano, mes),
     prisma.fechamentoMtbf.findMany({ where: { ano, mes } }),
-    prisma.ativoRegime.findMany({ select: { codApl: true, horasPorDia: true } }),
-    prisma.ativoCriticidade.findMany({ select: { codApl: true, criticidade: true } }),
   ]);
+  const ativoIds = Array.from(new Set([
+    ...agregados.map((a) => a.ativoId),
+    ...salvos.map((s) => s.ativoId).filter((id): id is string => !!id),
+  ]));
+  const ativos = ativoIds.length
+    ? await prisma.manutAtivo.findMany({
+        where: { id: { in: ativoIds } },
+        select: { id: true, codApl: true, criticidade: true, horasPorDia: true },
+      })
+    : [];
 
+  // A linha segue indexada pelo codApl (chave do fechamento e da tela);
+  // codApl é único no ManutAtivo, então é 1:1 com o ativoId.
   const aggMap = new Map<number, AgregadoMensalAtivo>(agregados.map((a) => [a.codApl, a]));
   const savedMap = new Map<number, FechamentoMtbf>(salvos.map((s) => [s.codApl, s]));
-  const regimeMap = new Map<number, number>(regimes.map((r) => [r.codApl, r.horasPorDia]));
-  const critMap = new Map<number, Criticidade>(criticidades.map((c) => [c.codApl, c.criticidade]));
+  const ativoMap = new Map<number, { criticidade: Criticidade | null; horasPorDia: number | null }>(
+    ativos.map((a) => [a.codApl, a]),
+  );
 
   const dias = diasNoMes(ano, mes);
 
@@ -76,7 +88,7 @@ export async function GET(req: NextRequest) {
   for (const codApl of Array.from(codAplSet)) {
     const agg = aggMap.get(codApl);
     const saved = savedMap.get(codApl);
-    const regime = regimeMap.get(codApl) ?? null;
+    const regime = ativoMap.get(codApl)?.horasPorDia ?? null;
 
     const osFalhas = agg?.numeroFalhas ?? 0;
     const osParada = agg?.horasParada ?? 0;
@@ -92,7 +104,7 @@ export async function GET(req: NextRequest) {
       codApl,
       tag: agg?.tag ?? saved?.tag ?? String(codApl),
       descricao: agg?.descricao ?? saved?.descricao ?? "",
-      criticidade: critMap.get(codApl) ?? null,
+      criticidade: ativoMap.get(codApl)?.criticidade ?? null,
       regimeHorasDia: regime,
       horasFuncionamento,
       horasParadaNaoPlanejada,
@@ -181,10 +193,15 @@ export async function PUT(req: NextRequest) {
     fechadoEm: fechado ? new Date() : null,
   };
 
+  // Liga o fechamento ao ativo (FK). codApl segue como snapshot/chave única;
+  // código histórico sem ativo cadastrado grava ativoId nulo.
+  const ativo = await prisma.manutAtivo.findUnique({ where: { codApl }, select: { id: true } });
+  const ativoId = ativo?.id ?? null;
+
   const registro = await prisma.fechamentoMtbf.upsert({
     where: { codApl_ano_mes: { codApl, ano, mes } },
-    create: { codApl, ano, mes, ...dados },
-    update: dados,
+    create: { codApl, ano, mes, ativoId, ...dados },
+    update: { ...dados, ativoId },
   });
 
   return NextResponse.json({

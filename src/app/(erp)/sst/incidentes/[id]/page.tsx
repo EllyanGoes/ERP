@@ -16,9 +16,10 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import { Loader2, Trash2, CheckCircle2, Circle, Plus, Save } from "lucide-react";
 import { TIPO_INCIDENTE, STATUS_INCIDENTE, UploadAnexo, DocLink, fmtData, useLookups } from "@/components/sst/comum";
+import { AbrirSolicitacaoSst, SolicitacoesVinculadas, type SsVinculada } from "@/components/manutencao/SolicitacaoOrigemSst";
 
 type Acao = { id: string; descricao: string; prazo: string | null; concluidaEm: string | null; responsavel: { id: string; nome: string } | null };
-type Inc = { id: string; numero: string; tipo: string; data: string; local: string | null; descricao: string; parteCorpo: string | null; agente: string | null; diasAfastamento: number | null; catNumero: string | null; catEmitidaEm: string | null; catDocumentoId: string | null; investigacao: string | null; status: string; evidencias: string[]; colaborador: { id: string; nome: string } | null; setor: { nome: string } | null; maquina: { id: string; nome: string } | null; acoes: Acao[] };
+type Inc = { id: string; numero: string; tipo: string; data: string; local: string | null; descricao: string; parteCorpo: string | null; agente: string | null; diasAfastamento: number | null; catNumero: string | null; catEmitidaEm: string | null; catDocumentoId: string | null; investigacao: string | null; status: string; evidencias: string[]; colaborador: { id: string; nome: string } | null; setor: { nome: string } | null; maquina: { id: string; nome: string; ativoId: string | null } | null; acoes: Acao[]; solicitacoesManutencao: SsVinculada[] };
 
 export default function SstIncidentePage() {
   const { id } = useParams<{ id: string }>();
@@ -76,6 +77,18 @@ export default function SstIncidentePage() {
               {i.maquina && <Link href={`/sst/maquinas/${i.maquina.id}`} className="text-xs text-info hover:underline">abrir ficha da máquina</Link>}
             </div>
           </section>
+          {/* Manutenção: máquina envolvida → SS para corrigir (origem SST_INCIDENTE) */}
+          {(i.maquina || i.solicitacoesManutencao.length > 0) && (
+            <section className="bg-card rounded-xl border border-border">
+              <div className="px-4 py-3 border-b border-border bg-muted"><h2 className="font-semibold text-sm text-foreground">Manutenção</h2></div>
+              <div className="p-4 space-y-2">
+                {i.solicitacoesManutencao.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma solicitação de manutenção aberta para esta ocorrência.</p>}
+                <SolicitacoesVinculadas lista={i.solicitacoesManutencao} />
+                <AbrirSolicitacaoSst origem="SST_INCIDENTE" origemId={i.id} ativoId={i.maquina?.ativoId} vinculadas={i.solicitacoesManutencao} onCriada={load}
+                  descricaoInicial={[`Ocorrência SST ${i.numero} (${TIPO_INCIDENTE[i.tipo]?.label ?? i.tipo}) de ${fmtData(i.data)}${i.maquina ? ` envolvendo a máquina ${i.maquina.nome}` : ""}${i.local ? ` — ${i.local}` : ""}.`, i.descricao, i.agente ? `Agente: ${i.agente}` : ""].filter(Boolean).join("\n")} />
+              </div>
+            </section>
+          )}
           <section className="bg-card rounded-xl border border-border">
             <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between"><h2 className="font-semibold text-sm text-foreground">Investigação (causas)</h2><Button size="sm" variant="outline" disabled={saving || inv === (i.investigacao ?? "")} onClick={() => patch({ investigacao: inv, ...(i.status === "ABERTO" ? { status: "EM_INVESTIGACAO" } : {}) })} className="gap-1.5"><Save className="w-3.5 h-3.5" /> Salvar</Button></div>
             <div className="p-4"><textarea value={inv} onChange={(e) => setInv(e.target.value)} rows={5} className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="5 porquês / árvore de causas: causa imediata, causas básicas, falhas de gestão…" /></div>

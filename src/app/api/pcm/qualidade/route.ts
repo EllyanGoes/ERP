@@ -90,7 +90,7 @@ async function calcular(dias: number): Promise<Omit<QualidadeResponse, "source" 
   const [
     totalOs, semAtivoTotal, semAtivoLista,
     corretivas, paradaAberta, apontamentos,
-    ativos, criticos,
+    ativos,
   ] = await Promise.all([
     prisma.manutOrdem.count({ where: noPeriodo }),
     prisma.manutOrdem.count({ where: { ...noPeriodo, ativoId: null } }),
@@ -127,12 +127,11 @@ async function calcular(dias: number): Promise<Omit<QualidadeResponse, "source" 
     prisma.manutAtivo.findMany({
       where: { ativo: true },
       select: {
-        id: true, codApl: true, tag: true, nome: true, tipo: true, localizacao: true,
+        id: true, codApl: true, tag: true, nome: true, tipo: true, localizacao: true, criticidade: true,
         planos: { where: { ativo: true, plano: { ativo: true } }, select: { id: true }, take: 1 },
       },
       orderBy: { tag: "asc" },
     }),
-    prisma.ativoCriticidade.findMany({ where: { criticidade: "A" }, select: { codApl: true } }),
   ]);
 
   // ── Corretivas concluídas sem sintoma/causa ──────────────────────────────
@@ -154,8 +153,7 @@ async function calcular(dias: number): Promise<Omit<QualidadeResponse, "source" 
   // LOCAL é nó agrupador: a própria árvore já diz onde ele está.
   const equipamentos = ativos.filter((a) => a.tipo !== "LOCAL");
   const semLocal = equipamentos.filter((a) => !a.localizacao);
-  const codCriticos = new Set(criticos.map((c) => c.codApl));
-  const ativosCriticos = ativos.filter((a) => codCriticos.has(a.codApl));
+  const ativosCriticos = ativos.filter((a) => a.criticidade === "A");
   const criticoSemPlano = ativosCriticos.filter((a) => a.planos.length === 0);
   const ref = (a: { codApl: number; tag: string; nome: string }): AtivoRef => ({ codApl: a.codApl, tag: a.tag, descricao: a.nome });
 

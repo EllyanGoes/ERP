@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
@@ -27,6 +28,7 @@ import {
   Puzzle,
   GripVertical,
   Undo2,
+  QrCode,
 } from "lucide-react";
 import type { AtivoNode } from "@/app/api/pcm/ativos/route";
 
@@ -537,9 +539,14 @@ export default function AtivosPage() {
         subtitle="Árvore de ativos da empresa. Cadastre, organize e classifique a criticidade (A, B ou C) de cada ativo."
         breadcrumbs={[{ label: "Manutenção" }, { label: "Ativos" }]}
         action={
-          <Button onClick={() => novoAtivo()} className="bg-blue-600 hover:bg-blue-700 gap-1.5">
-            <Plus className="w-4 h-4" /> Novo ativo
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" className="gap-1.5">
+              <Link href="/pcm/ativos/etiquetas"><QrCode className="w-4 h-4" /> Etiquetas QR</Link>
+            </Button>
+            <Button onClick={() => novoAtivo()} className="bg-blue-600 hover:bg-blue-700 gap-1.5">
+              <Plus className="w-4 h-4" /> Novo ativo
+            </Button>
+          </div>
         }
       />
 

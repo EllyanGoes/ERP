@@ -9,7 +9,7 @@ import { Prisma } from "@prisma/client";
 //   REGSERV.CODDEF  → ManutOrdemServico.sintomaId (CODCAU → causaId)
 //   TIPMANUT corretivo (pcm_tipos_corretivos) → ManutTipo.contaComoFalha
 //   SETEXE → ManutEquipe        ORDXFUN → ManutApontamento
-//   APLIC.CODAPL → ManutAtivo.codApl (chave de AtivoCriticidade/AtivoRegime/FechamentoMtbf)
+//   APLIC.CODAPL → ManutAtivo.codApl (código visível; FechamentoMtbf guarda como snapshot)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Data de referência da OS nos relatórios (equivale ao DATPRO do Engeman). */

@@ -247,13 +247,12 @@ export type NovaOrdem = {
  * marca o ativo como PARADO.
  */
 export async function criarOrdem(n: NovaOrdem, db: typeof prismaSemEscopo = prismaSemEscopo) {
-  const ativo = await db.manutAtivo.findUnique({ where: { id: n.ativoId }, select: { id: true, codApl: true, centroCustoId: true, empresaId: true } });
+  const ativo = await db.manutAtivo.findUnique({ where: { id: n.ativoId }, select: { id: true, centroCustoId: true, empresaId: true, criticidade: true } });
   if (!ativo) throw new ErroOS("Ativo não encontrado.", 404);
   if (ativo.empresaId !== n.empresaId) throw new ErroOS("O ativo é de outra empresa.");
   let prioridade = n.prioridade && PRIORIDADES.includes(n.prioridade as never) ? n.prioridade : null;
   if (!prioridade) {
-    const crit = await db.ativoCriticidade.findUnique({ where: { codApl: ativo.codApl }, select: { criticidade: true } });
-    prioridade = crit ? PRIORIDADE_POR_CRITICIDADE[crit.criticidade] : "MEDIA";
+    prioridade = ativo.criticidade ? PRIORIDADE_POR_CRITICIDADE[ativo.criticidade] : "MEDIA";
   }
   const numero = await proximoNumeroOS(n.empresaId);
   const ordem = await db.manutOrdem.create({

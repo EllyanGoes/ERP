@@ -2,9 +2,10 @@ import { prisma } from "@/lib/prisma";
 
 // ── Nó da árvore ────────────────────────────────────────────────────────────────
 // Árvore de ativos da Manutenção (ManutAtivo, hierarquia por paiId). Substitui a
-// leitura da tabela APLIC do Engeman. `codApl` segue sendo a chave numérica
-// estável (= antigo CODAPL) usada por AtivoCriticidade/AtivoRegime/FechamentoMtbf,
-// SstMaquina.codApl e CentroTrabalho.codApl.
+// leitura da tabela APLIC do Engeman. `codApl` segue sendo o código numérico
+// estável e visível (= antigo CODAPL, usado na URL /pcm/ativos?ativo=). Os
+// vínculos são por id: SstMaquina.ativoId, CentroTrabalho.ativoId e
+// FechamentoMtbf.ativoId; criticidade/regime moram no próprio ManutAtivo.
 // `taggru` é mantido por compatibilidade com quem usa o campo como chave de
 // expansão/React key: agora carrega o id do ManutAtivo (único).
 export interface TreeNode {

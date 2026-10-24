@@ -23,6 +23,9 @@ type Painel = {
   disponibilidadeA: { ativos: number; horasParada: number; falhas: number; percentual: number | null };
 };
 
+type Sobressalente = { id: string; ativo: { id: string; codApl: number; tag: string; nome: string }; item: { id: string; codigo: string; descricao: string }; saldo: number; estoqueMinimo: number };
+const fmtQtd = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+
 // Ordem categórica fixa (validada p/ CVD nos temas claro e escuro).
 const COR = { maoObra: "#3b82f6", material: "#0d9488", terceiros: "#d97706" };
 const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(0)}%`);
@@ -31,6 +34,10 @@ export default function PainelManutencaoPage() {
   useTabTitle("Manutenção");
   const [d, setD] = useState<Painel | null>(null);
   const [erro, setErro] = useState("");
+  const [sobressalentes, setSobressalentes] = useState<Sobressalente[] | null>(null);
+  useEffect(() => {
+    fetch("/api/pcm/sobressalentes").then((r) => r.json()).then((j) => setSobressalentes(j.data ?? [])).catch(() => setSobressalentes([]));
+  }, []);
   useEffect(() => {
     fetch("/api/pcm/painel").then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error); setD(j.data); }).catch((e) => setErro(e.message || "Erro ao carregar."));
   }, []);
@@ -103,6 +110,37 @@ export default function PainelManutencaoPage() {
                 <ul className="mt-2 space-y-0.5 text-xs">{d.backlog.equipes.slice(0, 6).map((e) => <li key={e.id} className="flex justify-between"><span>{e.nome}</span><span className="text-muted-foreground tabular-nums">{Math.round(e.horas)} h{e.semanas != null ? ` · ${e.semanas.toFixed(1).replace(".", ",")} sem.` : ""}</span></li>)}</ul>
               </div>
             </div>
+          </div>
+
+          {/* Sobressalentes abaixo do mínimo (saldo do estoque do ERP × mínimo do ativo) */}
+          <div className={cn("bg-card border rounded-xl p-4", sobressalentes?.length ? "border-warning/40" : "border-border")}>
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              {sobressalentes?.length ? <AlertTriangle className="w-4 h-4 text-warning" /> : null}
+              Sobressalentes abaixo do mínimo{sobressalentes?.length ? ` (${sobressalentes.length})` : ""}
+            </h3>
+            {sobressalentes == null ? <p className="text-xs text-muted-foreground mt-1">Carregando…</p>
+              : sobressalentes.length === 0 ? <p className="text-xs text-muted-foreground mt-1">Todas as peças com mínimo definido estão com saldo suficiente. O mínimo é definido por ativo, na lista de sobressalentes em <Link href="/pcm/ativos" className="text-info hover:underline">Ativos</Link>.</p>
+              : (
+                <table className="w-full text-sm mt-2">
+                  <thead>
+                    <tr className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      <th className="text-left font-medium pb-1">Ativo</th>
+                      <th className="text-left font-medium pb-1">Produto</th>
+                      <th className="text-right font-medium pb-1 w-24">Saldo</th>
+                      <th className="text-right font-medium pb-1 w-24">Mínimo</th>
+                    </tr>
+                  </thead>
+                  <tbody>{sobressalentes.slice(0, 30).map((p) => (
+                    <tr key={p.id} className="border-t border-border/60">
+                      <td className="py-1.5 pr-2 text-xs"><Link href={`/pcm/ativos?ativo=${p.ativo.codApl}`} className="hover:underline"><b>{p.ativo.tag}</b> {p.ativo.nome}</Link></td>
+                      <td className="py-1.5 pr-2 text-xs"><span className="font-mono text-muted-foreground">{p.item.codigo}</span> {p.item.descricao}</td>
+                      <td className="py-1.5 text-right tabular-nums text-danger font-medium">{fmtQtd(p.saldo)}</td>
+                      <td className="py-1.5 text-right tabular-nums text-muted-foreground">{fmtQtd(p.estoqueMinimo)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              )}
+            {sobressalentes && sobressalentes.length > 30 && <p className="text-[11px] text-muted-foreground mt-1">Mostrando os 30 mais críticos de {sobressalentes.length}.</p>}
           </div>
 
           {/* Custo mensal */}

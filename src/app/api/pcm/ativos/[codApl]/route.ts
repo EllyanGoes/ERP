@@ -6,10 +6,6 @@ import type { Criticidade } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { dadosDoAtivo, ErroAtivo } from "@/lib/manutencao/ativo";
 
-function trimOrNull(v: unknown): string | null {
-  return typeof v === "string" && v.trim() ? v.trim() : null;
-}
-
 function lerCodApl(raw: string): number | null {
   const codApl = Number(raw);
   return Number.isInteger(codApl) && codApl > 0 ? codApl : null;
@@ -36,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: { params: { codApl: str
   });
   if (!ativo) return NextResponse.json({ error: "Ativo não encontrado" }, { status: 404 });
 
-  const [ordens, planos, medidores, crit, regime, maquinasSst, centrosTrabalho] = await Promise.all([
+  const [ordens, planos, medidores, maquinasSst, centrosTrabalho] = await Promise.all([
     prisma.manutOrdem.findMany({
       where: { ativoId: ativo.id },
       orderBy: { createdAt: "desc" },
@@ -65,17 +61,15 @@ export async function GET(_req: NextRequest, { params }: { params: { codApl: str
         leituras: { orderBy: { data: "desc" }, take: 1, select: { data: true, valor: true } },
       },
     }),
-    prisma.ativoCriticidade.findUnique({ where: { codApl }, select: { criticidade: true } }),
-    prisma.ativoRegime.findUnique({ where: { codApl }, select: { horasPorDia: true } }),
-    prisma.sstMaquina.findMany({ where: { codApl }, select: { id: true, nome: true } }),
-    prisma.centroTrabalho.findMany({ where: { codApl }, select: { id: true, codigo: true, nome: true } }),
+    prisma.sstMaquina.findMany({ where: { ativoId: ativo.id }, select: { id: true, nome: true } }),
+    prisma.centroTrabalho.findMany({ where: { ativoId: ativo.id }, select: { id: true, codigo: true, nome: true } }),
   ]);
 
   return NextResponse.json({
     data: {
       ...ativo,
-      criticidade: crit?.criticidade ?? null,
-      regimeHorasDia: regime?.horasPorDia ?? null,
+      criticidade: ativo.criticidade,
+      regimeHorasDia: ativo.horasPorDia,
       ordens,
       planos,
       medidores: medidores.map((m) => ({ ...m, ultimaLeitura: m.leituras[0] ?? null, leituras: undefined })),
@@ -86,13 +80,14 @@ export async function GET(_req: NextRequest, { params }: { params: { codApl: str
 }
 
 // Altera o ativo (mapeado por codApl). Aceita qualquer combinação de:
-//   { criticidade: "A"|"B"|"C"|null, classificadoPor? }      (config local)
-//   { regimeHorasDia: number|null }   (horas de operação por dia; null = padrão 24h)
+//   { criticidade: "A"|"B"|"C"|null }   (gravada em ManutAtivo.criticidade)
+//   { regimeHorasDia: number|null }   (ManutAtivo.horasPorDia; null = padrão 24h)
 //   campos da ficha: { tag, nome, tipo, paiId, familiaId, localizacao, setorId,
 //     centroCustoId, imobilizadoId, fornecedorId, fabricante, modelo, numeroSerie,
 //     numeroPatrimonio, placa, anoFabricacao, dataAquisicao, garantiaAte,
 //     observacoes, ativo }
-// null/"" em criticidade/regime remove o respectivo registro.
+// null/"" em criticidade/regime limpa o campo. As tabelas antigas
+// AtivoCriticidade/AtivoRegime (por codApl) ficaram no banco sem uso.
 const CAMPOS_FICHA = [
   "tag", "nome", "tipo", "paiId", "familiaId", "localizacao", "setorId", "centroCustoId",
   "imobilizadoId", "fornecedorId", "fabricante", "modelo", "numeroSerie", "numeroPatrimonio",
@@ -129,22 +124,14 @@ export async function PATCH(
     }
   }
 
-  // ── Criticidade ───────────────────────────────────────────────────────────
+  // ── Criticidade e regime (campos do próprio ativo) ─────────────────────────
+  const config: { criticidade?: Criticidade | null; horasPorDia?: number | null } = {};
   if ("criticidade" in body) {
     const crit = body.criticidade;
     if (crit === null || crit === "") {
-      await prisma.ativoCriticidade.deleteMany({ where: { codApl } });
+      config.criticidade = null;
     } else if (crit === "A" || crit === "B" || crit === "C") {
-      const valor = crit as Criticidade;
-      const atual = await prisma.manutAtivo.findUnique({ where: { id: ativo.id }, select: { tag: true, nome: true } });
-      const tag = atual?.tag ?? null;
-      const descricao = atual?.nome ?? null;
-      const classificadoPor = trimOrNull(body.classificadoPor) ?? auth.session.nome ?? null;
-      await prisma.ativoCriticidade.upsert({
-        where: { codApl },
-        create: { codApl, criticidade: valor, tag, descricao, classificadoPor },
-        update: { criticidade: valor, tag, descricao, classificadoPor },
-      });
+      config.criticidade = crit;
     } else {
       return NextResponse.json(
         { error: "Criticidade inválida (use A, B, C ou null)" },
@@ -153,11 +140,10 @@ export async function PATCH(
     }
   }
 
-  // ── Regime de operação (horas/dia) ──────────────────────────────────────────
   if ("regimeHorasDia" in body) {
     const h = body.regimeHorasDia;
     if (h === null || h === "") {
-      await prisma.ativoRegime.deleteMany({ where: { codApl } });
+      config.horasPorDia = null;
     } else {
       const horas = Number(h);
       if (!Number.isFinite(horas) || horas <= 0 || horas > 24) {
@@ -166,25 +152,20 @@ export async function PATCH(
           { status: 400 },
         );
       }
-      await prisma.ativoRegime.upsert({
-        where: { codApl },
-        create: { codApl, horasPorDia: horas },
-        update: { horasPorDia: horas },
-      });
+      config.horasPorDia = horas;
     }
   }
 
   // Estado atual após as alterações.
-  const [crit, reg] = await Promise.all([
-    prisma.ativoCriticidade.findUnique({ where: { codApl }, select: { criticidade: true } }),
-    prisma.ativoRegime.findUnique({ where: { codApl }, select: { horasPorDia: true } }),
-  ]);
+  const atual = Object.keys(config).length
+    ? await prisma.manutAtivo.update({ where: { id: ativo.id }, data: config, select: { criticidade: true, horasPorDia: true } })
+    : await prisma.manutAtivo.findUnique({ where: { id: ativo.id }, select: { criticidade: true, horasPorDia: true } });
 
   return NextResponse.json({
     data: {
       codApl,
-      criticidade: crit?.criticidade ?? null,
-      regimeHorasDia: reg?.horasPorDia ?? null,
+      criticidade: atual?.criticidade ?? null,
+      regimeHorasDia: atual?.horasPorDia ?? null,
     },
   });
 }
@@ -209,9 +190,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { codApl: 
   if (!ativo) return NextResponse.json({ error: "Ativo não encontrado" }, { status: 404 });
 
   const [maquinas, centros, fechamentos] = await Promise.all([
-    prisma.sstMaquina.count({ where: { codApl } }),
-    prisma.centroTrabalho.count({ where: { codApl } }),
-    prisma.fechamentoMtbf.count({ where: { codApl } }),
+    prisma.sstMaquina.count({ where: { ativoId: ativo.id } }),
+    prisma.centroTrabalho.count({ where: { ativoId: ativo.id } }),
+    prisma.fechamentoMtbf.count({ where: { OR: [{ ativoId: ativo.id }, { codApl }] } }),
   ]);
   const c = ativo._count;
   const motivos = [
@@ -231,10 +212,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { codApl: 
     return NextResponse.json({ data: { inativado: true, motivos } });
   }
 
-  await prisma.$transaction([
-    prisma.ativoCriticidade.deleteMany({ where: { codApl } }),
-    prisma.ativoRegime.deleteMany({ where: { codApl } }),
-    prisma.manutAtivo.delete({ where: { id: ativo.id } }),
-  ]);
+  await prisma.manutAtivo.delete({ where: { id: ativo.id } });
   return NextResponse.json({ data: { excluido: true } });
 }

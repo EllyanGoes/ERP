@@ -9,21 +9,19 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   const auth = await requireSession();
   if (!auth.ok) return auth.response;
-  const [ativos, tipos, equipes, catalogo, colaboradores, criticidades] = await Promise.all([
+  const [ativos, tipos, equipes, catalogo, colaboradores] = await Promise.all([
     prisma.manutAtivo.findMany({
       where: { ativo: true },
-      select: { id: true, codApl: true, tag: true, nome: true, paiId: true, tipo: true, status: true, localizacao: true, centroCustoId: true },
+      select: { id: true, codApl: true, tag: true, nome: true, paiId: true, tipo: true, status: true, localizacao: true, centroCustoId: true, criticidade: true },
       orderBy: { tag: "asc" },
     }),
     prisma.manutTipo.findMany({ where: { ativo: true }, orderBy: [{ natureza: "asc" }, { nome: "asc" }] }),
     prisma.manutEquipe.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true, externa: true, membros: { select: { colaboradorId: true } } } }),
     prisma.manutCatalogo.findMany({ where: { ativo: true }, orderBy: { descricao: "asc" }, select: { id: true, tipo: true, descricao: true } }),
     prisma.colaborador.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
-    prisma.ativoCriticidade.findMany({ select: { codApl: true, criticidade: true } }),
   ]);
   // Caminho legível na árvore (Área › Equipamento) para a busca do combobox.
   const porId = new Map(ativos.map((a) => [a.id, a]));
-  const crit = new Map(criticidades.map((c) => [c.codApl, c.criticidade]));
   const caminho = (id: string | null): string[] => {
     const out: string[] = [];
     let cur = id ? porId.get(id) : undefined;
@@ -32,7 +30,7 @@ export async function GET() {
   };
   return NextResponse.json({
     data: {
-      ativos: ativos.map((a) => ({ ...a, criticidade: crit.get(a.codApl) ?? null, caminho: caminho(a.paiId).join(" › ") })),
+      ativos: ativos.map((a) => ({ ...a, caminho: caminho(a.paiId).join(" › ") })),
       tipos, equipes, colaboradores,
       sintomas: catalogo.filter((c) => c.tipo === "SINTOMA"),
       causas: catalogo.filter((c) => c.tipo === "CAUSA"),

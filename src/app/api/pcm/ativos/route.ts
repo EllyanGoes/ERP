@@ -40,15 +40,10 @@ export interface AtivosResponse {
   source: "db";
 }
 
-type Extra = { status: string; localizacao: string | null };
+type Extra = { status: string; localizacao: string | null; criticidade: Criticidade | null; horasPorDia: number | null };
 
-/** Injeta a config local (criticidade + regime, por codApl) e o estado em cada nó. */
-function montarArvore(
-  nodes: TreeNode[],
-  critMap: Map<number, Criticidade>,
-  regimeMap: Map<number, number>,
-  extraMap: Map<string, Extra>,
-): AtivoNode[] {
+/** Injeta a config (criticidade + regime, do próprio ManutAtivo) e o estado em cada nó. */
+function montarArvore(nodes: TreeNode[], extraMap: Map<string, Extra>): AtivoNode[] {
   return nodes.map((n) => ({
     id: n.id,
     codApl: n.codApl,
@@ -60,9 +55,9 @@ function montarArvore(
     status: extraMap.get(n.id)?.status ?? "OPERANDO",
     localizacao: extraMap.get(n.id)?.localizacao ?? null,
     isLeaf: n.isLeaf,
-    criticidade: critMap.get(n.codApl) ?? null,
-    regimeHorasDia: regimeMap.get(n.codApl) ?? null,
-    children: montarArvore(n.children, critMap, regimeMap, extraMap),
+    criticidade: extraMap.get(n.id)?.criticidade ?? null,
+    regimeHorasDia: extraMap.get(n.id)?.horasPorDia ?? null,
+    children: montarArvore(n.children, extraMap),
   }));
 }
 
@@ -88,17 +83,15 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const incluirInativos = req.nextUrl.searchParams.get("inativos") === "1";
-  const [tree, extras, classificacoes, regimes] = await Promise.all([
+  // Criticidade e regime moram no próprio ManutAtivo (fase 4) — as tabelas
+  // AtivoCriticidade/AtivoRegime ficaram no banco só como legado, sem uso.
+  const [tree, extras] = await Promise.all([
     fetchAtivosTree({ incluirInativos }),
-    prisma.manutAtivo.findMany({ select: { id: true, status: true, localizacao: true } }),
-    prisma.ativoCriticidade.findMany({ select: { codApl: true, criticidade: true } }),
-    prisma.ativoRegime.findMany({ select: { codApl: true, horasPorDia: true } }),
+    prisma.manutAtivo.findMany({ select: { id: true, status: true, localizacao: true, criticidade: true, horasPorDia: true } }),
   ]);
-  const critMap = new Map<number, Criticidade>(classificacoes.map((c) => [c.codApl, c.criticidade]));
-  const regimeMap = new Map<number, number>(regimes.map((r) => [r.codApl, r.horasPorDia]));
-  const extraMap = new Map<string, Extra>(extras.map((e) => [e.id, { status: e.status, localizacao: e.localizacao }]));
+  const extraMap = new Map<string, Extra>(extras.map((e) => [e.id, e]));
 
-  const arvore = montarArvore(tree, critMap, regimeMap, extraMap);
+  const arvore = montarArvore(tree, extraMap);
 
   return NextResponse.json({
     tree: arvore,

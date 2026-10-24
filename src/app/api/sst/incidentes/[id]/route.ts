@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
+import { solicitacoesPorOrigem } from "@/lib/manutencao/solicitacao";
 
 const INCLUDE = {
-  setor: { select: { id: true, nome: true } }, maquina: { select: { id: true, nome: true } }, colaborador: { select: { id: true, nome: true } },
+  setor: { select: { id: true, nome: true } }, maquina: { select: { id: true, nome: true, ativoId: true } }, colaborador: { select: { id: true, nome: true } },
   acoes: { orderBy: { createdAt: "asc" as const }, include: { responsavel: { select: { id: true, nome: true } } } },
 };
 const STATUS = ["ABERTO", "EM_INVESTIGACAO", "ACAO_DEFINIDA", "ENCERRADO"];
@@ -15,7 +16,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   if (!auth.ok) return auth.response;
   const i = await prisma.sstIncidente.findUnique({ where: { id: params.id }, include: INCLUDE });
   if (!i) return NextResponse.json({ error: "Incidente não encontrado" }, { status: 404 });
-  return NextResponse.json({ data: i });
+  // SS/OS da Manutenção abertas a partir desta ocorrência (origem SST_INCIDENTE).
+  const ss = await solicitacoesPorOrigem("SST_INCIDENTE", [i.id]);
+  return NextResponse.json({ data: { ...i, solicitacoesManutencao: ss.get(i.id) ?? [] } });
 }
 
 // PATCH — campos, investigação, CAT, status (ENCERRADO exige ações concluídas e CAT quando exigida), evidências.

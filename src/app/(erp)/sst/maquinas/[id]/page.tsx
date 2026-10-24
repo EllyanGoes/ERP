@@ -19,7 +19,7 @@ import { Loader2, Plus, Trash2, CheckCircle2, Circle, ExternalLink, Save } from 
 import { StatusMaquinaBadge, STATUS_MAQUINA, UploadAnexo, DocLink, fmtData, useLookups } from "@/components/sst/comum";
 
 type Prot = { id: string; descricao: string; tipo: string | null; conforme: boolean; evidenciaDocumentoId: string | null; verificadoEm: string | null; observacoes: string | null };
-type Maq = { id: string; nome: string; local: string | null; codApl: number | null; fabricante: string | null; anoFabricacao: number | null; status: string; apreciacaoRiscoDocumentoId: string | null; manualDocumentoId: string | null; tarefaId: string | null; observacoes: string | null; setor: { id: string; nome: string } | null; protecoes: Prot[]; tarefa: { id: string; titulo: string; concluidaEm: string | null; prazo: string | null; projetoId: string; projeto: { nome: string }; coluna: { nome: string } } | null };
+type Maq = { id: string; nome: string; local: string | null; ativo: { id: string; codApl: number; tag: string; nome: string } | null; fabricante: string | null; anoFabricacao: number | null; status: string; apreciacaoRiscoDocumentoId: string | null; manualDocumentoId: string | null; tarefaId: string | null; observacoes: string | null; setor: { id: string; nome: string } | null; protecoes: Prot[]; tarefa: { id: string; titulo: string; concluidaEm: string | null; prazo: string | null; projetoId: string; projeto: { nome: string }; coluna: { nome: string } } | null };
 const TIPOS_PROT = ["Proteção fixa", "Proteção móvel intertravada", "Dispositivo de parada de emergência", "Dispositivo de segurança (cortina/tapete/bimanual)", "Sinalização / rotulagem", "Aterramento / elétrica", "Outro"];
 const SUGESTOES = ["Enclausuramento de partes móveis (correias, polias, engrenagens)", "Botão de parada de emergência acessível", "Intertravamento das proteções móveis", "Sinalização de segurança e manual em português", "Dispositivo de partida/parada (não religa sozinho após queda de energia)"];
 
@@ -32,10 +32,9 @@ export default function SstMaquinaPage() {
   useTabTitle(m ? `NR-12 · ${m.nome}` : "Máquina");
   const load = useCallback(async () => { const j = await fetch(`/api/sst/maquinas/${id}`).then((r) => r.json()).catch(() => null); setM(j?.data ?? null); setLoading(false); }, [id]);
   useEffect(() => { load(); }, [load]);
-  // ativos da Manutenção (vínculo da máquina por codApl)
-  const [ativos, setAtivos] = useState<{ codApl: number; tag: string; descricao: string; caminho: string }[]>([]);
+  // ativos da Manutenção (vínculo da máquina pelo ativoId)
+  const [ativos, setAtivos] = useState<{ id: string; codApl: number; tag: string; descricao: string; caminho: string }[]>([]);
   useEffect(() => { fetch("/api/pcm/ativos/lista").then((r) => (r.ok ? r.json() : { data: [] })).then((j) => setAtivos(j.data ?? [])).catch(() => {}); }, []);
-  const ativoVinculado = m?.codApl ? ativos.find((a) => a.codApl === m.codApl) : undefined;
 
   const [erro, setErro] = useState(""); const [saving, setSaving] = useState(false);
   async function patch(data: Record<string, unknown>) {
@@ -47,9 +46,9 @@ export default function SstMaquinaPage() {
   }
   // edição dos dados
   const [edit, setEdit] = useState(false);
-  const [f, setF] = useState({ nome: "", local: "", setorId: "", fabricante: "", anoFabricacao: "", codApl: "", observacoes: "" });
-  function abrirEdit() { if (!m) return; setF({ nome: m.nome, local: m.local ?? "", setorId: m.setor?.id ?? "", fabricante: m.fabricante ?? "", anoFabricacao: m.anoFabricacao ? String(m.anoFabricacao) : "", codApl: m.codApl ? String(m.codApl) : "", observacoes: m.observacoes ?? "" }); setEdit(true); }
-  async function salvarEdit() { if (await patch({ ...f, setorId: f.setorId || null })) setEdit(false); }
+  const [f, setF] = useState({ nome: "", local: "", setorId: "", fabricante: "", anoFabricacao: "", ativoId: "", observacoes: "" });
+  function abrirEdit() { if (!m) return; setF({ nome: m.nome, local: m.local ?? "", setorId: m.setor?.id ?? "", fabricante: m.fabricante ?? "", anoFabricacao: m.anoFabricacao ? String(m.anoFabricacao) : "", ativoId: m.ativo?.id ?? "", observacoes: m.observacoes ?? "" }); setEdit(true); }
+  async function salvarEdit() { if (await patch({ ...f, setorId: f.setorId || null, ativoId: f.ativoId || null })) setEdit(false); }
 
   // proteções
   const [novaProt, setNovaProt] = useState(""); const [novoTipo, setNovoTipo] = useState("");
@@ -87,7 +86,7 @@ export default function SstMaquinaPage() {
 
   return (
     <div>
-      <PageHeader title={m.nome} subtitle={[m.local, m.setor?.nome, m.fabricante, m.anoFabricacao ? `fab. ${m.anoFabricacao}` : null, m.codApl ? `Ativo ${ativoVinculado?.tag ?? `#${m.codApl}`}` : null].filter(Boolean).join(" · ") || "—"}
+      <PageHeader title={m.nome} subtitle={[m.local, m.setor?.nome, m.fabricante, m.anoFabricacao ? `fab. ${m.anoFabricacao}` : null, m.ativo ? `Ativo ${m.ativo.tag || `#${m.ativo.codApl}`}` : null].filter(Boolean).join(" · ") || "—"}
         breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "Máquinas", href: "/sst/maquinas" }, { label: m.nome }]}
         action={<div className="flex items-center gap-2">
           <StatusMaquinaBadge s={m.status} />
@@ -178,7 +177,7 @@ export default function SstMaquinaPage() {
               <div><Label>Setor</Label><SelectMenu value={f.setorId} onChange={(v) => setF({ ...f, setorId: v })} options={[{ value: "", label: "—" }, ...lk.setores.map((s) => ({ value: s.id, label: s.nome }))]} /></div>
               <div><Label>Fabricante</Label><Input value={f.fabricante} onChange={(e) => setF({ ...f, fabricante: e.target.value })} /></div>
               <div><Label>Ano</Label><Input type="number" value={f.anoFabricacao} onChange={(e) => setF({ ...f, anoFabricacao: e.target.value })} /></div>
-              <div><Label>Ativo da Manutenção</Label><ComboboxWithCreate value={f.codApl} onChange={(v) => setF({ ...f, codApl: v })} placeholder="Selecionar ativo…" noneLabel="Sem vínculo" menuMinWidth={420} options={ativos.map((a) => ({ value: String(a.codApl), code: a.tag, label: a.caminho ? `${a.descricao} — ${a.caminho}` : a.descricao }))} /></div>
+              <div><Label>Ativo da Manutenção</Label><ComboboxWithCreate value={f.ativoId} onChange={(v) => setF({ ...f, ativoId: v })} placeholder="Selecionar ativo…" noneLabel="Sem vínculo" menuMinWidth={420} options={ativos.map((a) => ({ value: a.id, code: a.tag, label: a.caminho ? `${a.descricao} — ${a.caminho}` : a.descricao }))} /></div>
             </div>
             <div><Label>Observações</Label><Input value={f.observacoes} onChange={(e) => setF({ ...f, observacoes: e.target.value })} /></div>
           </div>

@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, Plus, Search, Link2 } from "lucide-react";
 import { StatusMaquinaBadge, STATUS_MAQUINA, useLookups } from "@/components/sst/comum";
 
-type Maq = { id: string; nome: string; local: string | null; codApl: number | null; status: string; tarefaId: string | null; setor: { id: string; nome: string } | null; protecoes: { id: string; conforme: boolean }[] };
+type Maq = { id: string; nome: string; local: string | null; ativo: { id: string; codApl: number; tag: string } | null; status: string; tarefaId: string | null; setor: { id: string; nome: string } | null; protecoes: { id: string; conforme: boolean }[] };
 type Ativo = { id: string; codApl: number; tag: string; descricao: string; caminho: string; jaCadastrada: boolean };
 
 export default function SstMaquinasPage() {
@@ -29,9 +29,6 @@ export default function SstMaquinasPage() {
   const [filtro, setFiltro] = usePersistedState<string>("sst:maquinas:status", "");
   async function load() { setLoading(true); const j = await fetch("/api/sst/maquinas").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
   useEffect(() => { load(); }, []);
-  // tag do ativo da Manutenção por codApl (coluna "Ativo")
-  const [tagPorCod, setTagPorCod] = useState<Record<number, string>>({});
-  useEffect(() => { fetch("/api/pcm/ativos/lista").then((r) => (r.ok ? r.json() : { data: [] })).then((j) => setTagPorCod(Object.fromEntries((j.data ?? []).map((a: { codApl: number; tag: string }) => [a.codApl, a.tag])))).catch(() => {}); }, []);
   const visiveis = useMemo(() => lista.filter((m) => !filtro || m.status === filtro).filter((m) => !busca || `${m.nome} ${m.local ?? ""} ${m.setor?.nome ?? ""}`.toLowerCase().includes(busca.toLowerCase())), [lista, filtro, busca]);
   const contagem = (s: string) => lista.filter((m) => m.status === s).length;
 
@@ -49,7 +46,7 @@ export default function SstMaquinasPage() {
   }
 
   // vincular ativos da Manutenção (cria a máquina já ligada ao ativo)
-  const [imp, setImp] = useState(false); const [ativos, setAtivos] = useState<Ativo[] | null>(null); const [impErro, setImpErro] = useState(""); const [impSel, setImpSel] = useState<Record<number, boolean>>({}); const [impBusca, setImpBusca] = useState("");
+  const [imp, setImp] = useState(false); const [ativos, setAtivos] = useState<Ativo[] | null>(null); const [impErro, setImpErro] = useState(""); const [impSel, setImpSel] = useState<Record<string, boolean>>({}); const [impBusca, setImpBusca] = useState("");
   async function abrirImport() {
     setImp(true); setAtivos(null); setImpErro(""); setImpSel({});
     const res = await fetch("/api/sst/maquinas/ativos").catch(() => null);
@@ -58,10 +55,10 @@ export default function SstMaquinasPage() {
     setAtivos(j.data ?? []);
   }
   async function importar() {
-    const sel = (ativos ?? []).filter((a) => impSel[a.codApl]);
+    const sel = (ativos ?? []).filter((a) => impSel[a.id]);
     if (sel.length === 0) return;
     setSaving(true);
-    const res = await fetch("/api/sst/maquinas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lote: sel.map((a) => ({ nome: a.descricao, local: a.caminho || null, codApl: a.codApl })) }) });
+    const res = await fetch("/api/sst/maquinas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lote: sel.map((a) => ({ nome: a.descricao, local: a.caminho || null, ativoId: a.id })) }) });
     const j = await res.json().catch(() => ({})); setSaving(false);
     if (!res.ok) { setImpErro(j.error || "Erro"); return; }
     setImp(false); load();
@@ -91,7 +88,7 @@ export default function SstMaquinasPage() {
                     <td className="px-3 py-2 text-muted-foreground">{m.setor?.nome ?? "—"}</td>
                     <td className="px-3 py-2"><StatusMaquinaBadge s={m.status} /></td>
                     <td className="px-3 py-2 text-xs">{m.protecoes.length === 0 ? <span className="text-muted-foreground/60">—</span> : <span className={cn(ok === m.protecoes.length ? "text-success" : "text-danger font-medium")}>{ok}/{m.protecoes.length} conformes</span>}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground font-mono">{m.codApl ? tagPorCod[m.codApl] ?? `#${m.codApl}` : "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground font-mono">{m.ativo ? m.ativo.tag || `#${m.ativo.codApl}` : "—"}</td>
                     <td className="px-3 py-2 text-xs">{m.tarefaId ? <span className="text-info">vinculada</span> : <span className="text-muted-foreground/60">—</span>}</td>
                   </tr>
                 ); })}
@@ -130,8 +127,8 @@ export default function SstMaquinasPage() {
               <input value={impBusca} onChange={(e) => setImpBusca(e.target.value)} placeholder="filtrar por descrição, tag ou caminho…" className="w-full text-sm border border-border rounded-lg px-3 py-1.5 bg-card" />
               <div className="max-h-80 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">
                 {ativos.filter((a) => !impBusca || `${a.descricao} ${a.tag} ${a.caminho}`.toLowerCase().includes(impBusca.toLowerCase())).slice(0, 400).map((a) => (
-                  <label key={a.codApl} className={cn("flex items-center gap-2 px-3 py-1.5 text-sm", a.jaCadastrada ? "opacity-50" : "cursor-pointer hover:bg-muted/40")}>
-                    <input type="checkbox" className="rounded" disabled={a.jaCadastrada} checked={!!impSel[a.codApl]} onChange={(e) => setImpSel({ ...impSel, [a.codApl]: e.target.checked })} />
+                  <label key={a.id} className={cn("flex items-center gap-2 px-3 py-1.5 text-sm", a.jaCadastrada ? "opacity-50" : "cursor-pointer hover:bg-muted/40")}>
+                    <input type="checkbox" className="rounded" disabled={a.jaCadastrada} checked={!!impSel[a.id]} onChange={(e) => setImpSel({ ...impSel, [a.id]: e.target.checked })} />
                     <span className="flex-1 text-foreground">{a.descricao} <span className="text-xs text-muted-foreground">{a.tag}</span></span>
                     <span className="text-[11px] text-muted-foreground truncate max-w-[40%]">{a.jaCadastrada ? "já no inventário" : a.caminho}</span>
                   </label>

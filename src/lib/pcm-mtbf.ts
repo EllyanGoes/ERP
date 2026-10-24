@@ -4,6 +4,7 @@ import { dataReferenciaOS, horasParada, wherePeriodoOS } from "@/lib/manutencao/
 
 // Agregado mensal de um ativo, a partir das OS nativas (ManutOrdem).
 export interface AgregadoMensalAtivo {
+  ativoId: string;
   codApl: number;
   tag: string;
   descricao: string;
@@ -69,11 +70,12 @@ export function calcMttr(horasParada: number, numeroFalhas: number): number | nu
  * NÃO usa horas apontadas (homem-hora, pode se sobrepor entre técnicos).
  * Sem carimbo de parada, a OS entra com 0h (e é sinalizada para revisão).
  * O mês é o da data de referência da OS (programadaPara, senão createdAt).
+ * `ativoIds` restringe a ativos específicos (ManutAtivo.id).
  */
 export async function getAgregadoMensal(
   ano: number,
   mes: number,
-  codApls?: number[],
+  ativoIds?: string[],
 ): Promise<AgregadoMensalAtivo[]> {
   const { inicio, fim } = janelaMesUTC(ano, mes);
   const ordens = await prisma.manutOrdem.findMany({
@@ -81,7 +83,7 @@ export async function getAgregadoMensal(
       AND: [
         WHERE_FALHA_MTBF,
         wherePeriodoOS(inicio, fim),
-        { ativo: codApls && codApls.length > 0 ? { codApl: { in: codApls } } : { isNot: null } },
+        ativoIds && ativoIds.length > 0 ? { ativoId: { in: ativoIds } } : { ativoId: { not: null } },
       ],
     },
     select: {
@@ -89,19 +91,20 @@ export async function getAgregadoMensal(
       createdAt: true,
       paradaInicio: true,
       paradaFim: true,
-      ativo: { select: { codApl: true, tag: true, nome: true } },
+      ativo: { select: { id: true, codApl: true, tag: true, nome: true } },
     },
   });
 
-  const porAtivo = new Map<number, AgregadoMensalAtivo>();
+  const porAtivo = new Map<string, AgregadoMensalAtivo>();
   for (const o of ordens) {
     if (!o.ativo) continue;
     // defesa extra: a data de referência precisa cair no mês
     const ref = dataReferenciaOS(o);
     if (ref < inicio || ref > fim) continue;
-    let acc = porAtivo.get(o.ativo.codApl);
+    let acc = porAtivo.get(o.ativo.id);
     if (!acc) {
       acc = {
+        ativoId: o.ativo.id,
         codApl: o.ativo.codApl,
         tag: o.ativo.tag || String(o.ativo.codApl),
         descricao: o.ativo.nome || "Sem descrição",
@@ -109,7 +112,7 @@ export async function getAgregadoMensal(
         horasParada: 0,
         falhasComCarimbo: 0,
       };
-      porAtivo.set(o.ativo.codApl, acc);
+      porAtivo.set(o.ativo.id, acc);
     }
     acc.numeroFalhas += 1;
     acc.horasParada += horasParada(o);

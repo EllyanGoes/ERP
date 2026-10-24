@@ -48,7 +48,7 @@ export async function painelManutencao(agora = new Date()) {
       where: { planoId: { not: null }, status: { not: "CANCELADA" }, programadaPara: { gte: inicioMes, lt: new Date(hoje.getTime() + DIA) } },
       select: { programadaPara: true, concluidaEm: true, status: true, planoAtivoId: true, plano: { select: { toleranciaPct: true } } },
     }),
-    prisma.ativoCriticidade.findMany({ where: { criticidade: "A" }, select: { codApl: true } }),
+    prisma.manutAtivo.findMany({ where: { criticidade: "A", ativo: true }, select: { id: true, horasPorDia: true } }),
   ]);
 
   // Aderência: concluída até o vencimento + tolerância (% do intervalo, mín. 1 dia).
@@ -100,13 +100,11 @@ export async function painelManutencao(agora = new Date()) {
 
   // Disponibilidade dos críticos A no mês corrente (até hoje).
   let disponibilidade: { ativos: number; horasParada: number; falhas: number; percentual: number | null } = { ativos: 0, horasParada: 0, falhas: 0, percentual: null };
-  const codA = criticos.map((c) => c.codApl);
-  if (codA.length) {
-    const ativosA = await prisma.manutAtivo.findMany({ where: { codApl: { in: codA }, ativo: true }, select: { codApl: true } });
-    const regimes = new Map((await prisma.ativoRegime.findMany({ where: { codApl: { in: codA } } })).map((r) => [r.codApl, r.horasPorDia]));
-    const ag = await getAgregadoMensal(agora.getFullYear(), agora.getMonth() + 1, ativosA.map((a) => a.codApl));
+  const ativosA = criticos;
+  if (ativosA.length) {
+    const ag = await getAgregadoMensal(agora.getFullYear(), agora.getMonth() + 1, ativosA.map((a) => a.id));
     const diasCorridos = Math.min(agora.getDate(), diasNoMes(agora.getFullYear(), agora.getMonth() + 1));
-    const funcionamento = ativosA.reduce((s, a) => s + diasCorridos * (regimes.get(a.codApl) ?? 24), 0);
+    const funcionamento = ativosA.reduce((s, a) => s + diasCorridos * (a.horasPorDia ?? 24), 0);
     const parada = ag.reduce((s, a) => s + a.horasParada, 0);
     disponibilidade = {
       ativos: ativosA.length, horasParada: parada, falhas: ag.reduce((s, a) => s + a.numeroFalhas, 0),

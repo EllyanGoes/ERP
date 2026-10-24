@@ -67,14 +67,14 @@ export async function GET(req: NextRequest) {
       ? (criticidadeParam as Criticidade)
       : null;
 
-  // Só meses FECHADOS entram no relatório oficial.
-  const [fechamentos, criticidades] = await Promise.all([
-    prisma.fechamentoMtbf.findMany({
-      where: { fechado: true, ...(codApl && codApl > 0 ? { codApl } : {}) },
-    }),
-    prisma.ativoCriticidade.findMany({ select: { codApl: true, criticidade: true } }),
-  ]);
-  const critMap = new Map<number, Criticidade>(criticidades.map((c) => [c.codApl, c.criticidade]));
+  // Só meses FECHADOS entram no relatório oficial. A criticidade vem do ativo
+  // ligado ao fechamento (FechamentoMtbf.ativoId → ManutAtivo.criticidade).
+  const fechamentos = await prisma.fechamentoMtbf.findMany({
+    where: { fechado: true, ...(codApl && codApl > 0 ? { codApl } : {}) },
+    include: { ativo: { select: { criticidade: true } } },
+  });
+  const critMap = new Map<number, Criticidade>();
+  for (const f of fechamentos) if (f.ativo?.criticidade) critMap.set(f.codApl, f.ativo.criticidade);
 
   // Filtra por intervalo de competências e por criticidade (se pedido).
   const linhas = fechamentos.filter((f) => {

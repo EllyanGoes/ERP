@@ -16,7 +16,9 @@ interface Centro {
   codigo: string;
   nome: string;
   tipo: Tipo | null;
-  codApl: number | null;
+  ativoId: string | null;
+  // Ativo da Manutenção (relação `ativoManut`: `ativo` já é o boolean do centro)
+  ativoManut: { id: string; codApl: number; tag: string; nome: string } | null;
   capacidadePadrao: string | number | null;
   unidadeCapacidade: string | null;
   ativo: boolean;
@@ -39,12 +41,12 @@ type Form = {
   codigo: string;
   nome: string;
   tipo: Tipo | "";
-  codApl: string;
+  ativoId: string;
   capacidadePadrao: string;
   unidadeCapacidade: string;
   ativo: boolean;
 };
-const vazio: Form = { codigo: "", nome: "", tipo: "", codApl: "", capacidadePadrao: "", unidadeCapacidade: "", ativo: true };
+const vazio: Form = { codigo: "", nome: "", tipo: "", ativoId: "", capacidadePadrao: "", unidadeCapacidade: "", ativo: true };
 
 const inputCls =
   "w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500";
@@ -74,21 +76,20 @@ export default function CentrosTrabalhoPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Ativos da Manutenção (forno/secador) — vínculo gravado por codApl.
-  const [ativos, setAtivos] = useState<{ codApl: number; tag: string; descricao: string; caminho: string }[]>([]);
+  // Ativos da Manutenção (forno/secador) — vínculo gravado pelo ativoId.
+  const [ativos, setAtivos] = useState<{ id: string; codApl: number; tag: string; descricao: string; caminho: string }[]>([]);
   useEffect(() => {
     fetch("/api/pcm/ativos/lista")
       .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((j) => setAtivos(j.data ?? []))
       .catch(() => {});
   }, []);
-  const tagPorCod = new Map(ativos.map((a) => [a.codApl, a.tag]));
 
   function abrirNovo() { setForm({ ...vazio }); }
   function abrirEdicao(c: Centro) {
     setForm({
       id: c.id, codigo: c.codigo, nome: c.nome, tipo: c.tipo ?? "",
-      codApl: c.codApl != null ? String(c.codApl) : "",
+      ativoId: c.ativoId ?? "",
       capacidadePadrao: c.capacidadePadrao != null ? String(c.capacidadePadrao) : "",
       unidadeCapacidade: c.unidadeCapacidade ?? "", ativo: c.ativo,
     });
@@ -103,7 +104,7 @@ export default function CentrosTrabalhoPage() {
       codigo: form.codigo.trim(),
       nome: form.nome.trim(),
       tipo: form.tipo || null,
-      codApl: form.codApl.trim() === "" ? null : Number(form.codApl),
+      ativoId: form.ativoId || null,
       capacidadePadrao: form.capacidadePadrao.trim() === "" ? null : Number(form.capacidadePadrao),
       unidadeCapacidade: form.unidadeCapacidade.trim() || null,
       ativo: form.ativo,
@@ -188,13 +189,13 @@ export default function CentrosTrabalhoPage() {
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-muted-foreground mb-1">Ativo da Manutenção</label>
                     <ComboboxWithCreate
-                      value={form.codApl}
-                      onChange={(v) => setForm({ ...form, codApl: v })}
+                      value={form.ativoId}
+                      onChange={(v) => setForm({ ...form, ativoId: v })}
                       placeholder="opcional"
                       noneLabel="Sem vínculo"
                       menuMinWidth={420}
                       options={ativos.map((a) => ({
-                        value: String(a.codApl),
+                        value: a.id,
                         code: a.tag,
                         label: a.caminho ? `${a.descricao} — ${a.caminho}` : a.descricao,
                       }))}
@@ -263,7 +264,7 @@ export default function CentrosTrabalhoPage() {
                     <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                       {c.capacidadePadrao != null ? `${c.capacidadePadrao} ${c.unidadeCapacidade ?? ""}`.trim() : "—"}
                     </td>
-                    <td className="px-4 py-2.5 text-center text-muted-foreground font-mono text-xs">{c.codApl != null ? tagPorCod.get(c.codApl) ?? `#${c.codApl}` : "—"}</td>
+                    <td className="px-4 py-2.5 text-center text-muted-foreground font-mono text-xs">{c.ativoManut ? c.ativoManut.tag || `#${c.ativoManut.codApl}` : "—"}</td>
                     <td className="px-4 py-2.5 text-center">
                       <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", c.ativo ? "bg-success/10 text-success" : "bg-muted text-muted-foreground")}>
                         {c.ativo ? "Sim" : "Não"}

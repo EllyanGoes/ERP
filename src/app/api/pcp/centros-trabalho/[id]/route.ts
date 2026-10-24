@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import type { Prisma, TipoCentroTrabalho } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { resolverVinculoAtivo, ErroAtivo } from "@/lib/manutencao/ativo";
+
+const INCLUDE = { ativoManut: { select: { id: true, codApl: true, tag: true, nome: true } } } as const;
 
 const TIPOS: TipoCentroTrabalho[] = [
   "PREPARACAO", "CONFORMACAO", "SECAGEM", "FORNO", "EMBALAGEM", "TRANSPORTE", "OUTRO",
@@ -21,7 +24,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   const auth = await requireModulo("pcp");
   if (!auth.ok) return auth.response;
 
-  const data = await prisma.centroTrabalho.findUnique({ where: { id: params.id } });
+  const data = await prisma.centroTrabalho.findUnique({ where: { id: params.id }, include: INCLUDE });
   if (!data) return NextResponse.json({ error: "Centro de trabalho não encontrado" }, { status: 404 });
   return NextResponse.json({ data });
 }
@@ -33,13 +36,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
 
-  const data: Prisma.CentroTrabalhoUpdateInput = {};
+  const data: Prisma.CentroTrabalhoUncheckedUpdateInput = {};
   if (typeof body.codigo === "string") data.codigo = body.codigo.trim();
   if (typeof body.nome === "string") data.nome = body.nome.trim();
   if ("tipo" in body) data.tipo = parseTipo(body.tipo);
-  if ("codApl" in body) {
-    const n = numOrNull(body.codApl);
-    data.codApl = n != null ? Math.trunc(n) : null;
+  // Vínculo com a Manutenção: ativoId (FK) + codApl sincronizado do ativo.
+  try {
+    const vinculo = await resolverVinculoAtivo(body);
+    if (vinculo) { data.ativoId = vinculo.ativoId; data.codApl = vinculo.codApl; }
+  } catch (e) {
+    if (e instanceof ErroAtivo) return NextResponse.json({ error: e.message }, { status: e.status });
+    throw e;
   }
   if ("capacidadePadrao" in body) data.capacidadePadrao = numOrNull(body.capacidadePadrao);
   if ("unidadeCapacidade" in body) {
@@ -51,7 +58,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ("ativo" in body) data.ativo = body.ativo !== false;
 
   try {
-    const updated = await prisma.centroTrabalho.update({ where: { id: params.id }, data });
+    const updated = await prisma.centroTrabalho.update({ where: { id: params.id }, data, include: INCLUDE });
     return NextResponse.json({ data: updated });
   } catch {
     return NextResponse.json({ error: "Não foi possível atualizar (código já existe?)." }, { status: 400 });

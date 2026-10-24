@@ -11,6 +11,7 @@ import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
 import { cn } from "@/lib/utils";
 import { Loader2, Pencil, Plus, Trash2, X, RotateCcw, ExternalLink } from "lucide-react";
 import { TIPO_ATIVO_LABEL, type AtivoFicha } from "./AtivoFormDialog";
+import AtivoPecas from "@/components/manutencao/AtivoPecas";
 
 type Detalhe = AtivoFicha & {
   criticidade: "A" | "B" | "C" | null;
@@ -285,6 +286,9 @@ export default function AtivoPainel({
           </ul>
         )}
       </Bloco>
+
+      {/* Sobressalentes (estoque do ERP × mínimo) */}
+      <AtivoPecas codApl={d.codApl} />
 
       {(d.maquinasSst.length > 0 || d.centrosTrabalho.length > 0) && (
         <Bloco titulo="Vínculos">

@@ -781,6 +781,29 @@ export default function RequisicaoCreateForm() {
     } catch { return []; }
   }, [itemUnidades]);
 
+  // Kit previsto da OS de manutenção (?kit=itemId:qtd,…): nasce com as linhas
+  // preenchidas, assim que o catálogo carrega. Itens que não existirem no
+  // almoxarifado escolhido são limpos pela regra acima.
+  const kitAplicado = useRef(false);
+  useEffect(() => {
+    const kit = searchParams.get("kit");
+    if (!kit || kitAplicado.current || itensCat.length === 0) return;
+    kitAplicado.current = true;
+    const linhas = kit.split(",").map((p) => p.split(":")).filter(([id]) => itensCat.some((i) => i.id === id));
+    if (!linhas.length) return;
+    const novas = linhas.map(([itemId, qtd]) => {
+      const it = itensCat.find((i) => i.id === itemId);
+      return { ...emptyRow(), itemId, quantidade: qtd || "1", naturezaFinanceiraId: it?.naturezaPadraoId || "" };
+    });
+    setRows(novas);
+    for (const r of novas) {
+      fetchUnidades(r.itemId).then((list) => {
+        const principal = list.find((u) => u.isPrincipal) ?? list[0];
+        if (principal) setRows((prev) => prev.map((x) => x._key === r._key ? { ...x, unidade: principal.sigla, unidadeId: principal.unidadeId } : x));
+      });
+    }
+  }, [itensCat, searchParams, fetchUnidades]);
+
   function handleItemSelect(key: string, itemId: string, _sigla: string) {
     // Zera a unidade ao trocar de produto; carrega as unidades do cadastro e
     // assume a principal por padrão (a conversão usa o fator de cada unidade).
