@@ -185,6 +185,8 @@ const ROTAS_MANUAIS: RouteEntry[] = [
   { href: "/admin/empresas",                       label: "Empresas do Grupo",       group: "Administração",  section: "Sistema",          icon: Building2,      keywords: "empresas grupo multiempresa cadastro cnpj" },
   { href: "/admin/consolidado",                    label: "Consolidado do Grupo",    group: "Administração",  section: "Sistema",          icon: Building2,      keywords: "consolidado grupo multiempresa empresas intragrupo" },
 
+  { href: "/pcm",                                  label: "Painel da Manutenção",    group: "Manutenção",     section: "Processos",        icon: Wrench,         keywords: "pcm manutenção painel dashboard parados backlog aderência disponibilidade custo" },
+  { href: "/pcm/relatorios",                       label: "Custos e falhas da Manutenção", group: "Manutenção", section: "Relatórios",   icon: ClipboardList,  keywords: "custo manutenção por ativo centro de custo pareto falhas sintoma causa horas executante produtividade" },
   { href: "/pcm/solicitacoes",                     label: "Solicitar manutenção",    group: "Manutenção",     section: "Processos",        icon: Inbox,          keywords: "solicitação serviço ss manutenção máquina parada quebrou defeito pedir conserto" },
   { href: "/pcm/os",                               label: "Ordens de Serviço",       group: "Manutenção",     section: "Processos",        icon: Wrench,         keywords: "pcm os ordem serviço manutenção corretiva preventiva apontamento" },
   { href: "/pcm/ordens",                           label: "Relatório de O.S.",       group: "Manutenção",     section: "Relatórios",       icon: ClipboardList,  keywords: "pcm ordens serviço OS manutenção relatório backlog" },

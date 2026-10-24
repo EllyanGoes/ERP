@@ -1,7 +1,8 @@
 # PRD — Módulo de Manutenção (PCM nativo, substituição do Engeman)
 
-> Status: APROVADO (24/out/2026) e fases 1–2 implementadas (local; deploy + importação em produção
-> pendentes). Decisões do dono no §11.
+> Status: APROVADO (24/out/2026). Fases 1–2 em produção com o histórico do Engeman importado
+> (24/out); fase 3 entregue (painel `/pcm`, relatórios `/pcm/relatorios`, OS na requisição) exceto
+> medidores alimentados pelo PCP. Decisões do dono no §11.
 > Decisão de partida: **o Engeman deixa de ser usado.** A manutenção passa a ser registrada e
 > planejada dentro do ERP; o Engeman vira só fonte de uma **importação única** do histórico.
 > Princípio central: **a OS é o fato da manutenção** — tudo (parada, mão de obra, peça, terceiro,
@@ -550,6 +551,13 @@ seguem max+1), por isso `AtivoCriticidade`/`AtivoRegime`/`FechamentoMtbf`/`SstMa
 `CentroTrabalho.codApl` seguiram funcionando sem refatoração — a troca por FK `ativoId` fica na fase 4.
 Serviços/falha ficam em `ManutOrdemServico` (linha a linha, como o REGSERV — uma OS pode ter mais de
 um modo de falha), não no cabeçalho.
+
+Medidores pelo PCP (fase 3) ficaram pendentes: as etapas apontadas das OPs não gravam o centro de
+trabalho (`ItemOrdemProducao.centroTrabalho` vazio em todas as 467 etapas em prod), então não há como
+atribuir produção/horas de forno a um ativo. Destrava quando o PCP passar a gravar o centro de trabalho.
+
+Requisição de material: o campo O.S. virou busca das OS em aberto (`/api/pcm/os/abertas`, leitura
+para pcm/compras/almoxarifado) — o material requisitado fica ligado à OS e entra no custo dela.
 
 Atenção: o almoxarifado ainda lança requisições no estoque próprio do Engeman (185 em out/2026,
 EPIs/insumos). Isso não é manutenção e não foi migrado — precisa de decisão à parte antes de desligar

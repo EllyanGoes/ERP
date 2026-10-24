@@ -444,6 +444,7 @@ export const mainModules: Module[] = [
       {
         kind: "Processos" as SubSection["kind"],
         items: [
+          { href: "/pcm",                 label: "Painel",           icon: LayoutDashboard, exact: true },
           { href: "/pcm/solicitacoes",    label: "Solicitações",     icon: Inbox },
           { href: "/pcm/os",              label: "Ordens de Serviço", icon: Wrench },
           { href: "/pcm/quadro-os",       label: "Quadro de O.S.",   icon: Kanban },
@@ -460,6 +461,7 @@ export const mainModules: Module[] = [
       {
         kind: "Relatórios" as SubSection["kind"],
         items: [
+          { href: "/pcm/relatorios",      label: "Custos e falhas",  icon: BarChart3 },
           { href: "/pcm/ordens",          label: "Relatório de O.S.", icon: ClipboardList },
           { href: "/pcm/planos",          label: "Aderência dos planos", icon: CalendarCheck },
           { href: "/pcm/qualidade",       label: "Qualidade do cadastro", icon: ShieldCheck },

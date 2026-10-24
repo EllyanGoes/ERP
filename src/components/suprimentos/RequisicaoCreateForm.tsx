@@ -45,6 +45,7 @@ type CentroCustoOpt  = { id: string; codigo: string; nome: string; fabril?: bool
 type TesOpt          = { id: string; codigo: string; nome: string; sentido: string; estocavel: boolean; compoeCusto: boolean; permiteCapitalizar: boolean; centroCustoSugeridoId: string | null; ativo: boolean };
 type ItemOpt         = { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null; fabril?: boolean; capitaliza?: boolean; categoriaEstoque?: string | null; compoeCusto?: boolean; naturezaPadraoId?: string | null };
 
+type OsAbertaOpt = { id: string; numero: string; descricao: string; centroCustoId: string | null; ativo: { tag: string; nome: string } | null; equipe: { nome: string } | null };
 type ItemRow = {
   _key:         string;
   itemId:       string;
@@ -662,9 +663,11 @@ export default function RequisicaoCreateForm() {
   // Data de hoje no fuso do USUÁRIO (toISOString seria UTC: depois das ~21h
   // no Brasil já viraria o dia seguinte e o formulário nasceria com data errada)
   const [data,           setData]           = useState(() => new Date().toLocaleDateString("sv-SE"));
-  // Aberta a partir da OS de manutenção (?ordemServicoId=&os=&centroCustoId=): já nasce vinculada.
-  const ordemServicoId = searchParams.get("ordemServicoId") ?? "";
+  // OS de manutenção para onde vai o material: escolhida na lista de OS abertas, ou
+  // já vem da própria OS (?ordemServicoId=&os=&centroCustoId=).
+  const [ordemServicoId, setOrdemServicoId] = useState(searchParams.get("ordemServicoId") ?? "");
   const [os,             setOs]             = useState(searchParams.get("os") ?? "");
+  const [osAbertas,      setOsAbertas]      = useState<OsAbertaOpt[]>([]);
   const [centroCustoId,  setCentroCustoId]  = useState(searchParams.get("centroCustoId") ?? "");
   const [naturezaFinanceiraId, setNaturezaFinanceiraId] = useState("");
   const [observacoes,    setObservacoes]    = useState("");
@@ -708,6 +711,8 @@ export default function RequisicaoCreateForm() {
       safeFetch("/api/suprimentos/produtos"),
       safeFetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1&requisitaveis=1"),
     ]);
+    const osData = await safeFetch("/api/pcm/os/abertas");
+    if (osData?.data) setOsAbertas(osData.data);
     const imData = await safeFetch("/api/contabilidade/imobilizado");
     if (imData != null) setImobilizados(Array.isArray(imData) ? imData : imData.data ?? []);
     const tData = await safeFetch("/api/suprimentos/tipos-operacao");
@@ -1048,8 +1053,29 @@ export default function RequisicaoCreateForm() {
               {/* O.S. (Requisição only) */}
               {tipo === "REQUISICAO" && (
                 <div className="space-y-1.5">
-                  <Label>O.S.</Label>
-                  <Input value={os} onChange={(e) => setOs(e.target.value)} placeholder="Ordem de serviço" />
+                  <Label>O.S. <span className="text-muted-foreground font-normal text-xs">(manutenção — para onde vai o material)</span></Label>
+                  <ComboboxWithCreate
+                    value={ordemServicoId}
+                    onChange={(v) => {
+                      const o = osAbertas.find((x) => x.id === v);
+                      setOrdemServicoId(v);
+                      setOs(o?.numero ?? "");
+                      // centro de custo da OS (herdado do ativo) preenche se ainda vazio
+                      if (o?.centroCustoId && !centroCustoId) setCentroCustoId(o.centroCustoId);
+                    }}
+                    allowNone
+                    noneLabel="Sem OS"
+                    placeholder={os && !ordemServicoId ? os : "Buscar OS aberta (nº, equipamento, serviço)…"}
+                    menuMinWidth={460}
+                    options={[
+                      ...(ordemServicoId && !osAbertas.some((x) => x.id === ordemServicoId) ? [{ value: ordemServicoId, label: os || "OS vinculada" }] : []),
+                      ...osAbertas.map((o) => ({
+                        value: o.id,
+                        label: `${o.numero} — ${o.ativo ? `${o.ativo.tag} ${o.ativo.nome}` : "sem ativo"} — ${o.descricao.slice(0, 60)}`,
+                        group: o.equipe?.nome ?? undefined,
+                      })),
+                    ]}
+                  />
                 </div>
               )}
             </div>
