@@ -3,7 +3,8 @@
 // Cautela de EPI — "Declaração de Recebimento de Equipamento de Proteção
 // Individual e Responsabilidade de Uso e Guarda" (padrão SOC usado pela
 // empresa): dados do funcionário, declaração (CLT 166/167, NR-06, NR-01),
-// assinatura e tabela dos EPIs com assinatura por item. A4 retrato; o
+// assinatura única e tabela dos EPIs (uma cautela = uma entrega numa data, então
+// a assinatura do termo cobre todos os itens relacionados). A4 retrato; o
 // escaneado volta pelo "Anexar termo assinado" da ficha.
 // Usada na página de impressão (/sst/epis/fichas/[id]) e no popup da ficha do
 // colaborador / da lista de fichas (emDialog: sem margem externa nem botão de
@@ -25,6 +26,8 @@ type Ficha = {
 };
 
 // Logo impressa no cabeçalho, por empresa (sem logo: caixa com o nome).
+// Quantidade de itens por extenso no termo (documento formal).
+const EXTENSO = ["", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "catorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove", "vinte"];
 const LOGOS: Record<string, string> = { emp_tramontin: "/logos/tramontin.png" };
 
 const faltandoDa = (c: Ficha["colaborador"]) => camposFaltandoCautela({ ...c, temFuncao: !!c.sstFuncoes[0] });
@@ -123,7 +126,7 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
 
       {/* Declaração */}
       <div style={{ marginTop: 10, textAlign: "justify", fontSize: 10 }}>
-        <p>Eu, <b>{f.colaborador.nome.toUpperCase()}</b>, declaro para todos os efeitos previstos na legislação, haver recebido gratuitamente, conforme descrito na C.L.T. nos artigos 166, 167 e demais artigos adstritos à matéria, na NR-06 e nos itens 1.4.2 e 1.5.5.1.2 da NR-01 — Disposições Gerais e Gerenciamento de Riscos Ocupacionais, após treinamento e orientação do uso adequado, aplicação, guarda, conservação, substituição e requisitos de higiene, ministrados pelo Serviço Especializado em Segurança e Medicina do Trabalho da empresa <b>{emp.razaoSocial.toUpperCase()}</b>{endereco ? `, situada em ${endereco}` : ""}, o(s) equipamento(s) de proteção individual abaixo descrito(s) e designado(s) como EPIs, os quais obrigo-me a usá-lo(s) sistematicamente em meu trabalho, mediante ainda os termos seguintes:</p>
+        <p>Eu, <b>{f.colaborador.nome.toUpperCase()}</b>, declaro para todos os efeitos previstos na legislação, haver recebido gratuitamente, conforme descrito na C.L.T. nos artigos 166, 167 e demais artigos adstritos à matéria, na NR-06 e nos itens 1.4.2 e 1.5.5.1.2 da NR-01 — Disposições Gerais e Gerenciamento de Riscos Ocupacionais, após treinamento e orientação do uso adequado, aplicação, guarda, conservação, substituição e requisitos de higiene, ministrados pelo Serviço Especializado em Segurança e Medicina do Trabalho da empresa <b>{emp.razaoSocial.toUpperCase()}</b>{endereco ? `, situada em ${endereco}` : ""}, o(s) <b>{f.itens.length}{EXTENSO[f.itens.length] ? ` (${EXTENSO[f.itens.length]})` : ""} item(ns)</b> de equipamento de proteção individual relacionado(s) na tabela “Informações dos EPIs” abaixo e designado(s) como EPIs — todos recebidos nesta data e cobertos por esta assinatura —, os quais obrigo-me a usá-lo(s) sistematicamente em meu trabalho, mediante ainda os termos seguintes:</p>
         <ol type="a" style={{ paddingLeft: 18, marginTop: 4 }}>
           <li>O EPI será usado unicamente para a finalidade a que se destina, e qualquer alteração que o torne parcial ou totalmente danificado será por mim comunicada à empresa;</li>
           <li>Declaro que me responsabilizo pela guarda e conservação dos EPIs que me foram confiados e que, na impossibilidade de seu uso, deverei comunicar à chefia imediatamente, para as providências que se fizerem necessárias, e os devolverei após o vencimento da duração estipulada;</li>
@@ -150,24 +153,23 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
             <th style={{ ...th, textAlign: "left" }}>EPI</th>
             <th style={{ ...th, width: "9%" }}>CA</th>
             <th style={{ ...th, width: "9%" }}>Tamanho</th>
-            <th style={{ ...th, width: "26%" }}>Assinatura</th>
             <th style={{ ...th, width: "7%" }}>Ativo</th>
           </tr>
         </thead>
         <tbody>
           {f.itens.map((it) => (
-            <tr key={it.id} style={{ height: 40 }}>
+            <tr key={it.id} style={{ height: 26 }}>
               <td style={{ ...td, textAlign: "center" }}>{fmtData(f.data)}</td>
               <td style={{ ...td, textAlign: "center" }}>{it.quantidade}</td>
               <td style={td}>{it.epi.nome.toUpperCase()}{it.tipo === "DEVOLUCAO" ? " (DEVOLUÇÃO)" : it.tipo === "TROCA" ? " (TROCA)" : ""}{it.motivo ? <span style={{ fontSize: 8.5, color: "#555" }}> — {it.motivo}</span> : null}</td>
               <td style={{ ...td, textAlign: "center" }}>{it.epi.ca ?? "—"}</td>
               <td style={{ ...td, textAlign: "center" }}>{it.tamanho || "N/A"}</td>
-              <td style={td}></td>
               <td style={{ ...td, textAlign: "center" }}>{it.tipo === "DEVOLUCAO" ? "Não" : "Sim"}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      <p style={{ fontSize: 9, marginTop: 4, textAlign: "right" }}>Fim da relação — <b>{f.itens.length} item(ns)</b>, todos cobertos pela assinatura acima.</p>
       {f.observacoes && <p style={{ fontSize: 9.5, marginTop: 6 }}><b>Observações:</b> {f.observacoes}</p>}
       <p style={{ fontSize: 8.5, marginTop: 10, color: "#555", display: "flex", justifyContent: "space-between" }}><span>{nomeEmpresa} · Cautela de EPI nº {numero}</span><span>gerada pelo ERP em {new Date().toLocaleDateString("pt-BR")}</span></p>
     </div>
