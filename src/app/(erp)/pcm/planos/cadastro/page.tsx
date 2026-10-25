@@ -4,6 +4,7 @@
 // vencimento de cada um. Edição (checklist, kit, gatilhos) em /pcm/planos/cadastro/[id].
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { descreverGatilho, fmtDia } from "@/lib/manutencao/gatilho";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
 import { Button } from "@/components/ui/button";
@@ -14,12 +15,13 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Search } from "lucide-react";
-import { api, fmtData, useManutLookups } from "@/components/manutencao/comum";
+import { api, useManutLookups } from "@/components/manutencao/comum";
 
 type Plano = {
   id: string; codigo: string; nome: string; ativo: boolean; tipo: { sigla: string; nome: string }; equipe: { nome: string } | null;
   _count: { tarefas: number; materiais: number };
-  ativos: { id: string; gatilho: string; intervaloDias: number | null; intervaloMedida: string | null; proximoVencimento: string | null; proximaMedida: string | null; ativo: boolean;
+  ativos: { id: string; gatilho: string; repeticao: string | null; intervaloDias: number | null; unidadeIntervalo: string; diasSemana: number[]; diaMes: number | null; inicio: string | null; horario: string | null;
+    intervaloMedida: string | null; proximoVencimento: string | null; proximaMedida: string | null; ativo: boolean;
     ativoRef: { tag: string; nome: string }; medidor: { unidade: string; acumulado: string } | null }[];
 };
 
@@ -68,11 +70,12 @@ export default function PlanosCadastroPage() {
                     <td className="px-3 py-2 text-xs text-muted-foreground">{p._count.tarefas} itens{p._count.materiais ? ` · kit ${p._count.materiais}` : ""}</td>
                     <td className="px-3 py-2 text-xs">
                       {p.ativos.length === 0 ? <span className="text-warning">sem ativo — não gera OS</span> : p.ativos.map((a) => {
-                        const vencido = a.gatilho === "CALENDARIO" && a.proximoVencimento && new Date(a.proximoVencimento) < hoje;
+                        const vencido = a.gatilho !== "MEDIDOR" && a.proximoVencimento && new Date(a.proximoVencimento) < hoje;
                         return <div key={a.id} className={cn(!a.ativo && "line-through opacity-60")}>
                           <span className="text-foreground">{a.ativoRef.tag}</span>{" "}
-                          {a.gatilho === "CALENDARIO" ? <span className={cn(vencido ? "text-danger" : "text-muted-foreground")}>a cada {a.intervaloDias} d · {fmtData(a.proximoVencimento)}</span>
-                            : <span className="text-muted-foreground">a cada {Number(a.intervaloMedida)} {a.medidor?.unidade ?? ""} · próx. {a.proximaMedida ? Number(a.proximaMedida) : "—"} (atual {a.medidor ? Number(a.medidor.acumulado) : "—"})</span>}
+                          <span className={cn(vencido ? "text-danger" : "text-muted-foreground")}>{descreverGatilho(a)}
+                            {a.gatilho !== "MEDIDOR" && ` · ${fmtDia(a.proximoVencimento)}`}
+                            {a.gatilho !== "CALENDARIO" && ` · próx. ${a.proximaMedida ? Number(a.proximaMedida) : "—"} (atual ${a.medidor ? Number(a.medidor.acumulado) : "—"})`}</span>
                         </div>;
                       })}
                     </td>
