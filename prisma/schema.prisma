@@ -6283,6 +6283,8 @@ model ManutOrdem {
   custoTerceiros     Decimal              @default(0) @db.Decimal(15, 2)
   canceladaEm        DateTime?
   motivoCancelamento String?
+  // Link público da OS (enviado por WhatsApp aos mecânicos): /os/<linkToken>, sem login
+  linkToken          String?              @unique
   codOrdLegado       Int?                 @unique // CODORD do Engeman
   criadoPor          String?
   atualizadoPor      String?

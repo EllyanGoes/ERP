@@ -6,12 +6,13 @@
 // transição inválida avisa e não move. Atualização otimista com reversão.
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Clock, MapPin, Timer, Wrench } from "lucide-react";
+import { Clock, MapPin, MessageCircle, Timer, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AvatarUsuario } from "@/components/projetos/comum";
+import EnviarOsWhatsappDialog from "./EnviarOsWhatsappDialog";
 import { DataHora, PrioridadeBadge, StatusOSBadge, api, fmtData, fmtDataHora } from "./comum";
 import {
   ACAO_LABEL, ACOES_COM_MOTIVO, ACOES_PCM_TELA, COLUNAS_OS, DESTINO_ACAO,
@@ -37,6 +38,8 @@ export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, o
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropCol, setDropCol] = useState<string | null>(null);
   const [pendente, setPendente] = useState<Pendente | null>(null);
+  // OS sendo enviada por WhatsApp (ícone no hover do cartão)
+  const [whatsId, setWhatsId] = useState<string | null>(null);
 
   const porColuna = (key: string) => {
     const col = COLUNAS_OS.find((c) => c.key === key)!;
@@ -115,13 +118,16 @@ export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, o
               <span className="ml-auto text-xs font-medium text-muted-foreground bg-card border border-border rounded-full px-2 tabular-nums">{lista.length}</span>
             </div>
             <div className="flex-1 min-h-[3rem] overflow-y-auto px-2 pb-2 space-y-2">
-              {lista.map((o) => <CartaoOS key={o.id} o={o} caminho={o.ativo ? caminhos?.get(o.ativo.id) : undefined} arrastando={dragId === o.id} onAbrir={onAbrir}
+              {lista.map((o) => <CartaoOS key={o.id} o={o} caminho={o.ativo ? caminhos?.get(o.ativo.id) : undefined} arrastando={dragId === o.id} onAbrir={onAbrir} onWhatsapp={setWhatsId}
                 onDragStart={() => setDragId(o.id)} onDragEnd={() => { setDragId(null); setDropCol(null); }} />)}
               {lista.length === 0 && <p className="text-xs text-muted-foreground/70 text-center py-4">Nenhuma OS</p>}
             </div>
           </div>
         );
       })}
+
+      {/* Fora do cartão: o portal do dialog borbulharia o clique para o onClick do cartão */}
+      <EnviarOsWhatsappDialog osId={whatsId} onFechar={() => setWhatsId(null)} />
 
       {/* Mini-diálogo da transição (motivo / fim da parada / programação) */}
       <Dialog open={!!pendente} onOpenChange={(v) => !v && setPendente(null)}>
@@ -165,8 +171,8 @@ export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, o
 const ordemPrioridade = (p: string) => ({ EMERGENCIA: 0, ALTA: 1, MEDIA: 2, BAIXA: 3 } as Record<string, number>)[p] ?? 4;
 
 // Cartão limpo (formato CMMS): título, caminho do ativo, prioridade, #número e avatar.
-function CartaoOS({ o, caminho, arrastando, onAbrir, onDragStart, onDragEnd }: {
-  o: OSResumo; caminho?: string; arrastando: boolean; onAbrir: (id: string) => void; onDragStart: () => void; onDragEnd: () => void;
+function CartaoOS({ o, caminho, arrastando, onAbrir, onWhatsapp, onDragStart, onDragEnd }: {
+  o: OSResumo; caminho?: string; arrastando: boolean; onAbrir: (id: string) => void; onWhatsapp: (id: string) => void; onDragStart: () => void; onDragEnd: () => void;
 }) {
   const atrasada = osAtrasada(o);
   const ref = o.prazo ?? o.programadaPara;
@@ -182,11 +188,18 @@ function CartaoOS({ o, caminho, arrastando, onAbrir, onDragStart, onDragEnd }: {
       onDragEnd={onDragEnd}
       onClick={() => onAbrir(o.id)}
       className={cn(
-        "relative bg-card rounded-lg border border-border px-3 py-2.5 shadow-sm cursor-pointer hover:border-info/60 transition-colors",
+        "group relative bg-card rounded-lg border border-border px-3 py-2.5 shadow-sm cursor-pointer hover:border-info/60 transition-colors",
         arrastando && "opacity-40",
         o.status === "CONCLUIDA" && "opacity-70",
       )}
     >
+      {o.status !== "CANCELADA" && (
+        <button type="button" draggable={false} title="Enviar por WhatsApp" aria-label={`Enviar ${o.numero} por WhatsApp`}
+          onClick={(e) => { e.stopPropagation(); onWhatsapp(o.id); }}
+          className="absolute top-1.5 right-1.5 p-1 rounded-md bg-card text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity">
+          <MessageCircle className="w-3.5 h-3.5" />
+        </button>
+      )}
       <p className="text-sm font-medium text-foreground leading-snug line-clamp-2" title={o.descricao}>{titulo}</p>
       <div className="mt-1 text-xs text-muted-foreground flex items-start gap-1 min-w-0">
         {o.ativo ? <Wrench className="w-3 h-3 mt-0.5 shrink-0" /> : <MapPin className="w-3 h-3 mt-0.5 shrink-0" />}

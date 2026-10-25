@@ -19,7 +19,8 @@ export async function GET() {
     prisma.manutEquipe.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true, externa: true, membros: { select: { colaboradorId: true } } } }),
     prisma.manutCatalogo.findMany({ where: { ativo: true }, orderBy: { descricao: "asc" }, select: { id: true, tipo: true, descricao: true } }),
     // usuarioId: sugere o responsável da OS a partir do membro da tarefa (Projetos).
-    prisma.colaborador.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true, usuarioId: true } }),
+    // telefone: envio da OS por WhatsApp aos mecânicos.
+    prisma.colaborador.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true, usuarioId: true, telefone: true } }),
   ]);
   // Caminho legível na árvore (Área › Equipamento) para a busca do combobox.
   const porId = new Map(ativos.map((a) => [a.id, a]));

@@ -24,8 +24,11 @@ const COOKIE_NAME = "erp_session";
 //                     token aleatório da URL (ManutAtivo.qrToken) é a chave
 //   /api/publico/*  → APIs dessa página: só leem/gravam pelo ativo do token,
 //                     sem custos/nomes, com limite de envios por ativo e por IP
+//   /os/*           → página PÚBLICA da OS enviada por WhatsApp aos mecânicos
+//                     (muitos sem login no ERP): só leitura, sem custos; o token
+//                     aleatório da URL (ManutOrdem.linkToken) é a chave
 // Qualquer OUTRA rota /api/* agora exige um JWT de sessão válido.
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t", "/api/projetos/agenda/ics", "/ativo", "/api/publico"];
+const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t", "/api/projetos/agenda/ics", "/ativo", "/os", "/api/publico"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));

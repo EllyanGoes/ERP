@@ -27,10 +27,11 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AvatarUsuario } from "@/components/projetos/comum";
+import EnviarOsWhatsappDialog from "@/components/manutencao/EnviarOsWhatsappDialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import {
-  AlertTriangle, CalendarClock, Check, CheckCircle2, ExternalLink, Info, Loader2, LockOpen, MoreVertical, Package, Pause, PauseCircle,
+  AlertTriangle, CalendarClock, Check, CheckCircle2, ExternalLink, Info, Loader2, LockOpen, MessageCircle, MoreVertical, Package, Pause, PauseCircle,
   Pencil, Play, PlayCircle, Plus, Printer, RotateCcw, Square, Timer, Trash2, Undo2, Wrench, X, XCircle,
 } from "lucide-react";
 import {
@@ -91,6 +92,7 @@ const EVENTO_LABEL: Record<string, string> = {
   CRIADA: "OS aberta", PLANEJAR: "Planejada", INICIAR: "Iniciada", PAUSAR: "Pausada", AGUARDAR_MATERIAL: "Aguardando material",
   AGUARDAR_TERCEIRO: "Aguardando terceiro", RETOMAR: "Retomada", ENCERRAR: "Execução encerrada", CONCLUIR: "Validada e concluída",
   DEVOLVER: "Devolvida para execução", REABRIR: "Reaberta", CANCELAR: "Cancelada", SS_ANEXADA: "Solicitação anexada",
+  ENVIADA_WHATSAPP: "Enviada por WhatsApp",
 };
 
 const STATUS_LABEL_CURTO: Record<string, string> = {
@@ -165,6 +167,8 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
   const [agora, setAgora] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setAgora(Date.now()), 30_000); return () => clearInterval(t); }, []);
   const [msg, setMsg] = useState("");
+  // Envio por WhatsApp (link público /os/<token> para os mecânicos)
+  const [whats, setWhats] = useState(false);
 
   // ── ações de status ──────────────────────────────────────────────────────
   // dlg.acoes > 1 = escolha (Em espera: pausa / material / terceiro).
@@ -372,6 +376,9 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
   const botoesCabecalho = (
     <div className="flex items-center gap-1.5">
       {!fechada && <Button size="sm" variant="outline" onClick={abrirEdit} className="gap-1"><Pencil className="w-3.5 h-3.5" /> Editar</Button>}
+      <Button size="sm" variant="outline" onClick={() => setWhats(true)} className="gap-1" title="Enviar o link da OS por WhatsApp (abre sem login)">
+        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Enviar
+      </Button>
       <button onClick={() => window.print()} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Imprimir" aria-label="Imprimir"><Printer className="w-4 h-4" /></button>
       <DropdownMenu>
         <DropdownMenuTrigger render={<button className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Mais ações" aria-label="Mais ações" />}>
@@ -813,6 +820,8 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
           </div>
         )}
       </div>
+
+      <EnviarOsWhatsappDialog osId={whats ? o.id : null} onFechar={() => setWhats(false)} colaboradores={lk.colaboradores} onEnviado={carregar} />
 
       {/* Dialog: ação de status (motivo / escolha da espera / fim da parada / programação) */}
       <Dialog open={!!dlg} onOpenChange={(v) => !v && setDlg(null)}>

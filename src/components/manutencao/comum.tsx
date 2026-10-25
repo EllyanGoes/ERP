@@ -16,7 +16,7 @@ export type ManutLookups = {
   ativos: AtivoLookup[];
   tipos: TipoLookup[];
   equipes: (Opcao & { externa: boolean; membros: { colaboradorId: string }[] })[];
-  colaboradores: (Opcao & { usuarioId?: string | null })[];
+  colaboradores: (Opcao & { usuarioId?: string | null; telefone?: string | null })[];
   sintomas: CatalogoLookup[];
   causas: CatalogoLookup[];
   servicos: CatalogoLookup[];
