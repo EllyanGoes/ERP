@@ -6254,6 +6254,8 @@ model ManutOrdem {
   tipoId             String
   planoId            String?
   planoAtivoId       String?
+  // OS de rota: as demais aplicações (ManutPlanoAtivo) atendidas por esta OS — ao concluir, todas avançam.
+  planoAtivosRota    String[]             @default([])
   // vencimento que originou a OS (data ISO ou leitura) — idempotência do gerador
   planoRef           String?
   equipeId           String?
@@ -6427,6 +6429,9 @@ model ManutPlano {
   toleranciaPct    Int                   @default(10)
   // true: próximo vencimento conta da execução real; false: da data teórica
   baseNaConclusao  Boolean               @default(true)
+  // Rota: planos com a mesma rota que vencem na mesma rodada viram UMA OS (ex.:
+  // "Lubrificação 3 dias" — o lubrificador faz todos os pontos numa ordem só).
+  rota             String?
   observacoes      String?
   ativo            Boolean               @default(true)
   legadoId         Int?                  @unique // CODPLA
@@ -6456,6 +6461,9 @@ model ManutPlanoTarefa {
   tipoResposta String               @default("OK_NOK")
   faixaMin     Decimal?             @db.Decimal(15, 3)
   faixaMax     Decimal?             @db.Decimal(15, 3)
+  // Revisão escalonada: entra a cada N execuções (1 = toda; 2 = a cada 2ª…). No
+  // medidor a execução nº = marco ÷ intervalo (ex.: 1000 h ÷ 250 h = 4ª).
+  multiplo     Int                  @default(1)
   plano        ManutPlano           @relation(fields: [planoId], references: [id], onDelete: Cascade)
   ativo        ManutAtivo?          @relation(fields: [ativoId], references: [id], onDelete: SetNull)
   servico      ManutCatalogo?       @relation(fields: [servicoId], references: [id], onDelete: SetNull)
@@ -6469,6 +6477,8 @@ model ManutPlanoMaterial {
   planoId    String
   itemId     String
   quantidade Decimal           @db.Decimal(15, 3)
+  // Kit geral escalonado (como ManutPlanoTarefa.multiplo); item de atividade segue a atividade.
+  multiplo   Int               @default(1)
   plano      ManutPlano        @relation(fields: [planoId], references: [id], onDelete: Cascade)
   item       Item              @relation(fields: [itemId], references: [id])
   tarefaId   String?

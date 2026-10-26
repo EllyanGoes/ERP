@@ -465,7 +465,6 @@ export const mainModules: Module[] = [
           { href: "/pcm/relatorios",      label: "Custos e falhas",  icon: BarChart3 },
           { href: "/pcm/indicadores",     label: "Indicadores",      icon: Activity },
           { href: "/pcm/planos",          label: "Aderência dos planos", icon: CalendarCheck },
-          { href: "/pcm/qualidade",       label: "Qualidade do cadastro", icon: ShieldCheck },
         ],
       },
     ],

@@ -49,7 +49,8 @@ export async function POST(req: NextRequest) {
     // Planos por medidor deste medidor: a próxima revisão precisa acompanhar a régua
     // do medidor, senão a 1ª leitura real (ex.: 8.000 h sobre um alvo de 250 h
     // contado do zero) faz todos os planos vencerem de uma vez.
-    //  • 1ª leitura: o plano passa a contar a partir dela (próxima = leitura + intervalo).
+    //  • 1ª leitura: próxima = o marco seguinte do intervalo (8.137 h, plano de 250 h → 8.250 h),
+    //    como as revisões do fabricante — e o marco diz qual revisão é (8.250 ÷ 250 = 33ª).
     //  • troca de medidor: mantém o que faltava (próxima = leitura + (próxima antiga − acumulado antigo)).
     const planos = primeira || b.trocaMedidor
       ? await prismaSemEscopo.manutPlanoAtivo.findMany({ where: { medidorId: med.id, intervaloMedida: { not: null } }, select: { id: true, intervaloMedida: true, proximaMedida: true } })
@@ -59,10 +60,13 @@ export async function POST(req: NextRequest) {
       prismaSemEscopo.manutLeitura.create({ data: { medidorId: med.id, data, valor, origem: b.trocaMedidor ? "troca de medidor" : "manual", criadoPor: auth.session.nome } }),
       prismaSemEscopo.manutMedidor.update({ where: { id: med.id }, data: { acumulado: valor } }),
       ...planos.map((pa) => {
-        const falta = !primeira && pa.proximaMedida != null ? Math.max(0, Number(pa.proximaMedida) - acumAntigo) : Number(pa.intervaloMedida);
+        const intervalo = Number(pa.intervaloMedida);
+        const proxima = primeira
+          ? (Math.floor(valor / intervalo) + 1) * intervalo
+          : valor + (pa.proximaMedida != null ? Math.max(0, Number(pa.proximaMedida) - acumAntigo) : intervalo);
         return prismaSemEscopo.manutPlanoAtivo.update({
           where: { id: pa.id },
-          data: { proximaMedida: valor + falta, ...(primeira ? { ultimaMedida: valor } : {}) },
+          data: { proximaMedida: proxima, ...(primeira ? { ultimaMedida: valor } : {}) },
         });
       }),
     ]);

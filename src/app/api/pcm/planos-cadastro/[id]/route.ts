@@ -8,6 +8,8 @@ import { preverAplicacao, ritmoMedio } from "@/lib/manutencao/gatilho";
 type Ctx = { params: Promise<{ id: string }> };
 
 const RESPOSTAS = ["NENHUMA", "OK_NOK", "NUMERO", "TEXTO"];
+/** "A cada N execuções" (revisão escalonada): 1 a 12. */
+const multiploValido = (v: unknown) => Math.min(12, Math.max(1, Math.round(Number(v)) || 1));
 
 export async function GET(_req: NextRequest, { params }: Ctx) {
   const auth = await requireModulo("pcm");
@@ -36,15 +38,18 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   // leituras), se já venceu/entrou na janela e a OS aberta deste plano×ativo, se houver.
   const abertas = p.ativos.length
     ? await prismaSemEscopo.manutOrdem.findMany({
-        where: { planoAtivoId: { in: p.ativos.map((a) => a.id) }, status: { notIn: ["CONCLUIDA", "CANCELADA"] } },
-        select: { id: true, numero: true, status: true, planoAtivoId: true }, orderBy: { createdAt: "desc" },
+        where: {
+          OR: [{ planoAtivoId: { in: p.ativos.map((a) => a.id) } }, { planoAtivosRota: { hasSome: p.ativos.map((a) => a.id) } }],
+          status: { notIn: ["CONCLUIDA", "CANCELADA"] },
+        },
+        select: { id: true, numero: true, status: true, planoAtivoId: true, planoAtivosRota: true }, orderBy: { createdAt: "desc" },
       })
     : [];
   const ativos = p.ativos.map((a) => {
     const { leituras, ...medidor } = a.medidor ?? { leituras: [] as { data: Date; valor: Prisma.Decimal }[] };
     const ritmoDia = ritmoMedio(leituras);
     const previsao = preverAplicacao(a, { antecedenciaDias: p.antecedenciaDias, ritmoDia });
-    return { ...a, medidor: a.medidor ? { ...medidor, ritmoDia } : null, previsao, osAberta: abertas.find((o) => o.planoAtivoId === a.id) ?? null };
+    return { ...a, medidor: a.medidor ? { ...medidor, ritmoDia } : null, previsao, osAberta: abertas.find((o) => o.planoAtivoId === a.id || o.planoAtivosRota.includes(a.id)) ?? null };
   });
   return NextResponse.json({ data: { ...p, ativos } });
 }
@@ -69,14 +74,15 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   for (const k of ["antecedenciaDias", "toleranciaPct"] as const) if (k in b && b[k] !== "" && b[k] != null) data[k] = Math.max(0, Math.round(Number(b[k])));
   for (const k of ["exigeParada", "baseNaConclusao", "ativo"] as const) if (k in b) data[k] = !!b[k];
   if ("observacoes" in b) data.observacoes = b.observacoes?.trim() || null;
+  if ("rota" in b) data.rota = typeof b.rota === "string" && b.rota.trim() ? b.rota.trim() : null;
   try {
     await prismaSemEscopo.$transaction(async (tx) => {
       await tx.manutPlano.update({ where: { id }, data });
       // Materiais a (re)criar: os de cada atividade (com tarefaId) + o kit geral. Um itemId só uma vez.
-      const mats: { itemId: string; quantidade: number; tarefaId: string | null }[] = [];
+      const mats: { itemId: string; quantidade: number; tarefaId: string | null; multiplo: number }[] = [];
       const addMat = (m: Record<string, unknown>, tarefaId: string | null) => {
         if (!m.itemId || !(Number(m.quantidade) > 0) || mats.some((x) => x.itemId === String(m.itemId))) return;
-        mats.push({ itemId: String(m.itemId), quantidade: Number(m.quantidade), tarefaId });
+        mats.push({ itemId: String(m.itemId), quantidade: Number(m.quantidade), tarefaId, multiplo: tarefaId ? 1 : multiploValido(m.multiplo) });
       };
       if (Array.isArray(b.tarefas)) {
         await tx.manutPlanoTarefa.deleteMany({ where: { planoId: id } });
@@ -90,6 +96,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
               faixaMin: t.faixaMin === "" || t.faixaMin == null ? null : Number(t.faixaMin),
               faixaMax: t.faixaMax === "" || t.faixaMax == null ? null : Number(t.faixaMax),
               servicoId: (t.servicoId as string) || null, ativoId: (t.ativoId as string) || null,
+              multiplo: multiploValido(t.multiplo),
             },
             select: { id: true },
           });

@@ -32,16 +32,18 @@ type Aplicacao = AplicacaoEdicao & {
 };
 type Plano = {
   id: string; codigo: string; nome: string; tipoId: string; equipeId: string | null; horasEstimadas: string | null; exigeParada: boolean;
-  antecedenciaDias: number; toleranciaPct: number; observacoes: string | null; ativo: boolean;
+  antecedenciaDias: number; toleranciaPct: number; observacoes: string | null; ativo: boolean; rota: string | null;
   tipo: { sigla: string; nome: string }; equipe: { id: string; nome: string } | null;
-  tarefas: { id: string; descricao: string; tipoResposta: string; faixaMin: string | null; faixaMax: string | null; servicoId: string | null; ativoId: string | null }[];
+  tarefas: { id: string; descricao: string; tipoResposta: string; faixaMin: string | null; faixaMax: string | null; servicoId: string | null; ativoId: string | null; multiplo: number }[];
   // tarefaId: item que pertence a uma atividade do checklist (null = kit geral)
-  materiais: { itemId: string; quantidade: string; tarefaId: string | null; item: { codigo: string; descricao: string } }[];
+  materiais: { itemId: string; quantidade: string; tarefaId: string | null; multiplo: number; item: { codigo: string; descricao: string } }[];
   ativos: Aplicacao[];
   ordens: { id: string; numero: string; status: string; createdAt: string; programadaPara: string | null; concluidaEm: string | null; ativo: { tag: string } | null }[];
 };
-type Mat = { itemId: string; quantidade: string; rotulo: string };
-type Tarefa = { descricao: string; tipoResposta: string; faixaMin: string; faixaMax: string; servicoId: string; ativoId: string; materiais: Mat[] };
+type Mat = { itemId: string; quantidade: string; rotulo: string; multiplo: number };
+type Tarefa = { descricao: string; tipoResposta: string; faixaMin: string; faixaMax: string; servicoId: string; ativoId: string; multiplo: number; materiais: Mat[] };
+/** "A cada N execuções" — revisão escalonada (250/500/750/1000 h num plano só). */
+const MULTIPLOS = [1, 2, 3, 4, 6, 8, 12];
 
 const RESPOSTAS = [{ value: "OK_NOK", label: "OK / NOK" }, { value: "NUMERO", label: "Medição (número)" }, { value: "TEXTO", label: "Texto" }, { value: "NENHUMA", label: "Título / sem resposta" }];
 const ABAS = ["ativos", "checklist", "kit", "historico"] as const;
@@ -68,9 +70,9 @@ export default function PlanoEdicaoPage() {
     if (!d) { setMsg(j.error || "Plano não encontrado."); return; }
     setP(d);
     setCab({ codigo: d.codigo, nome: d.nome, tipoId: d.tipoId, equipeId: d.equipeId ?? "", horasEstimadas: d.horasEstimadas ?? "", exigeParada: d.exigeParada,
-      antecedenciaDias: String(d.antecedenciaDias), toleranciaPct: String(d.toleranciaPct), observacoes: d.observacoes ?? "", ativo: d.ativo });
-    const mat = (m: Plano["materiais"][number]): Mat => ({ itemId: m.itemId, quantidade: String(Number(m.quantidade)), rotulo: `${m.item.codigo} — ${m.item.descricao}` });
-    setTarefas(d.tarefas.map((t) => ({ descricao: t.descricao, tipoResposta: t.tipoResposta, faixaMin: t.faixaMin ?? "", faixaMax: t.faixaMax ?? "", servicoId: t.servicoId ?? "", ativoId: t.ativoId ?? "",
+      antecedenciaDias: String(d.antecedenciaDias), toleranciaPct: String(d.toleranciaPct), observacoes: d.observacoes ?? "", ativo: d.ativo, rota: d.rota ?? "" });
+    const mat = (m: Plano["materiais"][number]): Mat => ({ itemId: m.itemId, quantidade: String(Number(m.quantidade)), rotulo: `${m.item.codigo} — ${m.item.descricao}`, multiplo: m.multiplo ?? 1 });
+    setTarefas(d.tarefas.map((t) => ({ descricao: t.descricao, tipoResposta: t.tipoResposta, faixaMin: t.faixaMin ?? "", faixaMax: t.faixaMax ?? "", servicoId: t.servicoId ?? "", ativoId: t.ativoId ?? "", multiplo: t.multiplo ?? 1,
       materiais: d.materiais.filter((m) => m.tarefaId === t.id).map(mat) })));
     setMats(d.materiais.filter((m) => !m.tarefaId).map(mat));
   }, [id]);
@@ -123,9 +125,19 @@ export default function PlanoEdicaoPage() {
   const addItem = (lista: Mat[], v: string): Mat[] | null => {
     const it = itens.find((x) => x.id === v);
     if (!it || itensUsados.has(v)) return null;
-    return [...lista, { itemId: v, quantidade: "1", rotulo: `${it.codigo} — ${it.descricao}` }];
+    return [...lista, { itemId: v, quantidade: "1", rotulo: `${it.codigo} — ${it.descricao}`, multiplo: 1 }];
   };
   const setTarefa = (i: number, patch: Partial<Tarefa>) => setTarefas((cur) => cur.map((t, k) => (k === i ? { ...t, ...patch } : t)));
+  // Rótulo do escalonamento a partir da 1ª aplicação: no medidor vira "a cada 500 h"; senão "a cada 2ª execução".
+  const opcoesMultiplo = useMemo(() => {
+    const apl = p?.ativos.find((a) => a.ativo && a.intervaloMedida) ?? null;
+    const base = apl?.intervaloMedida ? Number(apl.intervaloMedida) : 0;
+    const un = apl?.medidor?.unidade ?? "h";
+    return MULTIPLOS.map((m) => ({
+      value: String(m),
+      label: m === 1 ? "Toda execução" : base ? `A cada ${(base * m).toLocaleString("pt-BR")} ${un}` : `A cada ${m}ª execução`,
+    }));
+  }, [p]);
 
   if (!p) return msg ? <div className="p-8 text-sm text-danger">{msg}</div> : <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
 
@@ -144,6 +156,7 @@ export default function PlanoEdicaoPage() {
     cab.horasEstimadas ? `${fmtNum(String(cab.horasEstimadas), 1)} h estimadas` : null,
     `OS ${regras.antecedenciaDias} dias antes`, `tolerância ${regras.toleranciaPct}%`,
     cab.exigeParada ? "exige parada" : null,
+    cab.rota ? `rota ${cab.rota}` : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -175,6 +188,8 @@ export default function PlanoEdicaoPage() {
               <p className="md:col-span-2 text-[11px] text-muted-foreground pt-5">Quando a próxima execução é agendada (sempre / só após concluir) e o prazo da OS ficam na aplicação de cada ativo.</p>
               <label className="flex items-center gap-2 text-sm pt-5"><input type="checkbox" className="rounded" checked={!!cab.exigeParada} onChange={(e) => setCab({ ...cab, exigeParada: e.target.checked })} /> Exige parar o ativo</label>
               <label className="flex items-center gap-2 text-sm pt-5"><input type="checkbox" className="rounded" checked={!!cab.ativo} onChange={(e) => setCab({ ...cab, ativo: e.target.checked })} /> Plano ativo</label>
+              <div className="md:col-span-2"><Label>Rota</Label><Input value={String(cab.rota ?? "")} onChange={(e) => setCab({ ...cab, rota: e.target.value })} placeholder="Ex.: Lubrificação 3 dias" /></div>
+              <p className="md:col-span-2 text-[11px] text-muted-foreground pt-5">Planos com a mesma rota que vencem juntos saem numa OS só, com as atividades agrupadas por ativo. Deixe vazio para OS própria.</p>
               <div className="md:col-span-4"><Label>Observações</Label><Textarea rows={2} value={String(cab.observacoes ?? "")} onChange={(e) => setCab({ ...cab, observacoes: e.target.value })} /></div>
               <p className="md:col-span-4 text-[11px] text-muted-foreground">As mudanças aqui, no checklist e no kit entram com “Salvar plano”. A aplicação aos ativos salva na hora, pelo próprio dialog.</p>
             </div>
@@ -247,7 +262,7 @@ export default function PlanoEdicaoPage() {
         {/* Checklist */}
         {aba === "checklist" && (
           <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2"><h3 className="text-sm font-semibold">Checklist ({tarefas.length})</h3><Button size="sm" variant="outline" className="gap-1" onClick={() => setTarefas([...tarefas, { descricao: "", tipoResposta: "OK_NOK", faixaMin: "", faixaMax: "", servicoId: "", ativoId: "", materiais: [] }])}><Plus className="w-3.5 h-3.5" /> Item</Button></div>
+            <div className="flex items-center justify-between mb-2"><h3 className="text-sm font-semibold">Checklist ({tarefas.length})</h3><Button size="sm" variant="outline" className="gap-1" onClick={() => setTarefas([...tarefas, { descricao: "", tipoResposta: "OK_NOK", faixaMin: "", faixaMax: "", servicoId: "", ativoId: "", multiplo: 1, materiais: [] }])}><Plus className="w-3.5 h-3.5" /> Item</Button></div>
             <div className="space-y-1.5">
               {tarefas.map((t, i) => (
                 <div key={i} className="flex flex-wrap items-center gap-2">
@@ -258,6 +273,7 @@ export default function PlanoEdicaoPage() {
                     <Input className="h-8 w-20 text-xs" placeholder="mín" value={t.faixaMin} onChange={(e) => { const n = [...tarefas]; n[i] = { ...t, faixaMin: e.target.value }; setTarefas(n); }} />
                     <Input className="h-8 w-20 text-xs" placeholder="máx" value={t.faixaMax} onChange={(e) => { const n = [...tarefas]; n[i] = { ...t, faixaMax: e.target.value }; setTarefas(n); }} />
                   </>}
+                  <SelectMenu value={String(t.multiplo)} onChange={(v) => setTarefa(i, { multiplo: Number(v) })} options={opcoesMultiplo} triggerClassName={cn("h-8 text-xs w-40", t.multiplo > 1 && "text-info")} />
                   <button onClick={() => mover(i, -1)} className="text-muted-foreground hover:text-foreground"><ArrowUp className="w-3.5 h-3.5" /></button>
                   <button onClick={() => mover(i, 1)} className="text-muted-foreground hover:text-foreground"><ArrowDown className="w-3.5 h-3.5" /></button>
                   <button onClick={() => setTarefas(tarefas.filter((_, k) => k !== i))} className="text-muted-foreground hover:text-danger"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -278,7 +294,7 @@ export default function PlanoEdicaoPage() {
                 </div>
               ))}
               {tarefas.length === 0 && <p className="text-xs text-muted-foreground">Sem checklist — a OS gerada vem só com a descrição do plano.</p>}
-              <p className="text-[11px] text-muted-foreground pt-1">O checklist vira as linhas da OS gerada. Entra com “Salvar plano”.</p>
+              <p className="text-[11px] text-muted-foreground pt-1">O checklist vira as linhas da OS gerada. Atividade “a cada 500 h / 1000 h…” só entra nessas revisões (no horímetro, a revisão é o marco: 1000 h = 4ª de 250 h) — um plano só por máquina. Entra com “Salvar plano”.</p>
             </div>
           </div>
         )}
@@ -300,6 +316,7 @@ export default function PlanoEdicaoPage() {
               {mats.map((m, i) => (
                 <div key={m.itemId} className="flex items-center gap-2 text-sm">
                   <span className="flex-1">{m.rotulo}</span>
+                  <SelectMenu value={String(m.multiplo)} onChange={(v) => { const n = [...mats]; n[i] = { ...m, multiplo: Number(v) }; setMats(n); }} options={opcoesMultiplo} triggerClassName={cn("h-8 text-xs w-40", m.multiplo > 1 && "text-info")} />
                   <Input className="h-8 w-24 text-xs" inputMode="decimal" value={m.quantidade} onChange={(e) => { const n = [...mats]; n[i] = { ...m, quantidade: e.target.value }; setMats(n); }} />
                   <button onClick={() => setMats(mats.filter((_, k) => k !== i))} className="text-muted-foreground hover:text-danger"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>

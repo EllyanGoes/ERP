@@ -180,7 +180,7 @@ function QuadroOS() {
   }
 
   // ── Preventivas: prévia do que vai ser gerado, escolhe e gera ─────────────
-  type Previa = { planoAtivoId: string; plano: string; planoCodigo: string; ativo: string; gatilho: string; vencimento: string | null; medida: { alvo: number; atual: number; unidade: string } | null; atrasada: boolean; checklist: number; kit: number; bloqueio: string | null; osAberta: { id: string; numero: string } | null };
+  type Previa = { planoAtivoId: string; plano: string; planoCodigo: string; ativo: string; gatilho: string; vencimento: string | null; medida: { alvo: number; atual: number; unidade: string } | null; atrasada: boolean; checklist: number; kit: number; rota?: string | null; bloqueio: string | null; osAberta: { id: string; numero: string } | null };
   const [previa, setPrevia] = useState<Previa[] | null>(null);
   const [selPrev, setSelPrev] = useState<Set<string>>(new Set());
   const [gerando, setGerando] = useState(false); const [msgGerar, setMsgGerar] = useState("");
@@ -346,7 +346,7 @@ function QuadroOS() {
                       {p.gatilho === "CALENDARIO" ? fmtData(p.vencimento) : `${p.medida?.atual} / ${p.medida?.alvo} ${p.medida?.unidade}`}{p.atrasada && " · atrasada"}
                     </td>
                     <td className="py-1.5 text-xs text-muted-foreground">
-                      {p.bloqueio ? <>{p.bloqueio}{p.osAberta && <> — <button type="button" onClick={() => { const id = p.osAberta!.id; setPrevia(null); abrirOS(id); }} className="text-info hover:underline">{p.osAberta.numero}</button></>}</> : `${p.checklist} itens de checklist${p.kit ? ` · kit ${p.kit}` : ""}`}
+                      {p.bloqueio ? <>{p.bloqueio}{p.osAberta && <> — <button type="button" onClick={() => { const id = p.osAberta!.id; setPrevia(null); abrirOS(id); }} className="text-info hover:underline">{p.osAberta.numero}</button></>}</> : `${p.checklist} itens de checklist${p.kit ? ` · kit ${p.kit}` : ""}${p.rota ? ` · rota ${p.rota} (sai numa OS só com os pontos da rota)` : ""}`}
                     </td>
                   </tr>
                 ))}</tbody>

@@ -22,18 +22,21 @@ export async function GET() {
   });
   // OS do plano ainda em aberto, por ativo: o vencimento só avança quando a OS é
   // concluída — sem isso a lista mostra "atrasado" para o que já está em execução.
+  // Por aplicação: a OS própria ou a OS da rota que a inclui (planoAtivosRota).
+  const paIds = data.flatMap((p) => p.ativos.map((a) => a.id));
   const abertas = await prisma.manutOrdem.findMany({
-    where: { planoId: { in: data.map((p) => p.id) }, status: { in: STATUS_OS_ABERTOS } },
+    where: { OR: [{ planoAtivoId: { in: paIds } }, { planoAtivosRota: { hasSome: paIds } }], status: { in: STATUS_OS_ABERTOS } },
     orderBy: { createdAt: "desc" },
-    select: { id: true, numero: true, status: true, planoId: true, ativoId: true },
+    select: { id: true, numero: true, status: true, planoAtivoId: true, planoAtivosRota: true },
   });
   const osAberta = new Map<string, { id: string; numero: string; status: string }>();
   for (const o of abertas) {
-    const k = `${o.planoId}|${o.ativoId}`;
-    if (!osAberta.has(k)) osAberta.set(k, { id: o.id, numero: o.numero, status: o.status });
+    for (const k of [o.planoAtivoId, ...o.planoAtivosRota]) {
+      if (k && !osAberta.has(k)) osAberta.set(k, { id: o.id, numero: o.numero, status: o.status });
+    }
   }
   return NextResponse.json({
-    data: data.map((p) => ({ ...p, ativos: p.ativos.map((pa) => ({ ...pa, osAberta: osAberta.get(`${p.id}|${pa.ativoId}`) ?? null })) })),
+    data: data.map((p) => ({ ...p, ativos: p.ativos.map((pa) => ({ ...pa, osAberta: osAberta.get(pa.id) ?? null })) })),
   });
 }
 

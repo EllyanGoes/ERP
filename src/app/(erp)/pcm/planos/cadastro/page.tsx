@@ -19,7 +19,7 @@ import { STATUS_OS, api, useManutLookups } from "@/components/manutencao/comum";
 import Link from "next/link";
 
 type Plano = {
-  id: string; codigo: string; nome: string; ativo: boolean; tipo: { sigla: string; nome: string }; equipe: { nome: string } | null;
+  id: string; codigo: string; nome: string; ativo: boolean; rota: string | null; tipo: { sigla: string; nome: string }; equipe: { nome: string } | null;
   _count: { tarefas: number; materiais: number };
   ativos: { id: string; gatilho: string; repeticao: string | null; intervaloDias: number | null; unidadeIntervalo: string; diasSemana: number[]; diaMes: number | null; inicio: string | null; horario: string | null;
     intervaloMedida: string | null; proximoVencimento: string | null; proximaMedida: string | null; ativo: boolean;
@@ -66,7 +66,8 @@ export default function PlanosCadastroPage() {
               <tbody>
                 {visiveis.map((p) => (
                   <tr key={p.id} onClick={() => router.push(`/pcm/planos/cadastro/${p.id}`)} className={cn("border-t border-border/60 hover:bg-muted/40 cursor-pointer align-top", !p.ativo && "opacity-50")}>
-                    <td className="px-4 py-2"><span className="text-xs text-muted-foreground">{p.codigo}</span> <span className="text-foreground">{p.nome}</span>{!p.ativo && <span className="ml-1 text-[10px]">(inativo)</span>}</td>
+                    <td className="px-4 py-2"><span className="text-xs text-muted-foreground">{p.codigo}</span> <span className="text-foreground">{p.nome}</span>{!p.ativo && <span className="ml-1 text-[10px]">(inativo)</span>}
+                      {p.rota && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full border border-info/30 bg-info/10 text-info whitespace-nowrap">rota {p.rota}</span>}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground" title={p.tipo.nome}>{p.tipo.sigla}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{p.equipe?.nome ?? "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{p._count.tarefas} itens{p._count.materiais ? ` · kit ${p._count.materiais}` : ""}</td>

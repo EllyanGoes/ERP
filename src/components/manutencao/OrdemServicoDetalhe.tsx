@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import DatePicker from "@/components/shared/DatePicker";
+import TimePicker from "@/components/shared/TimePicker";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -35,7 +37,7 @@ import {
   Pencil, Play, PlayCircle, Plus, Printer, RotateCcw, Square, Timer, Trash2, Undo2, Wrench, X, XCircle,
 } from "lucide-react";
 import {
-  AtivoCombobox, DataHora, OPCOES_PRIORIDADE, PrioridadeBadge, StatusOSBadge, api, brl, fmtData, fmtDataHora, fmtHoras, useManutLookups,
+  AtivoCombobox, DataHora, OPCOES_PRIORIDADE, juntarDataHora, PrioridadeBadge, StatusOSBadge, api, brl, fmtData, fmtDataHora, fmtHoras, useManutLookups,
 } from "@/components/manutencao/comum";
 import {
   COR_STATUS_BARRA, GRUPO_DO_STATUS, fmtDuracao, segmentosStatus, situacaoReserva,
@@ -143,6 +145,35 @@ type Props = {
   /** Chamado depois de qualquer alteração (o quadro de fora recarrega). */
   onMudou?: () => void;
 };
+
+type ManualHoras = {
+  modo: "periodo" | "dias"; colaboradorId: string; inicio: string; fim: string; observacao: string;
+  de: string; ate: string; entrada: string; saida: string; almoco: string; sabado: boolean; domingo: boolean;
+};
+const MANUAL_VAZIO: ManualHoras = { modo: "periodo", colaboradorId: "", inicio: "", fim: "", observacao: "", de: "", ate: "", entrada: "07:00", saida: "17:00", almoco: "1", sabado: false, domingo: false };
+const minutos = (hhmm: string) => { const [h, m] = (hhmm || "0:0").split(":").map(Number); return h * 60 + (m || 0); };
+const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+/** Jornada de vários dias → turnos (ISO, hora local): manhã até 12:00 e tarde após o almoço. */
+function periodosDaJornada(m: ManualHoras): { inicio: string; fim: string }[] {
+  if (!m.de || !m.ate || m.ate < m.de) return [];
+  const ent = minutos(m.entrada), sai = minutos(m.saida), alm = Math.max(0, Math.round((Number(m.almoco.replace(",", ".")) || 0) * 60));
+  if (sai <= ent) return [];
+  const out: { inicio: string; fim: string }[] = [];
+  const dia = new Date(`${m.de}T12:00:00`), fim = new Date(`${m.ate}T12:00:00`);
+  for (let n = 0; dia <= fim && n < 62; dia.setDate(dia.getDate() + 1), n++) {
+    const dow = dia.getDay();
+    if ((dow === 6 && !m.sabado) || (dow === 0 && !m.domingo)) continue;
+    const d = `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, "0")}-${String(dia.getDate()).padStart(2, "0")}`;
+    const meio = 12 * 60;
+    if (alm > 0 && ent < meio && sai > meio + alm) {
+      out.push({ inicio: juntarDataHora(d, m.entrada), fim: juntarDataHora(d, hhmm(meio)) });
+      out.push({ inicio: juntarDataHora(d, hhmm(meio + alm)), fim: juntarDataHora(d, m.saida) });
+    } else {
+      out.push({ inicio: juntarDataHora(d, m.entrada), fim: juntarDataHora(d, m.saida) });
+    }
+  }
+  return out;
+}
 
 type AbaId = "geral" | "atividades" | "apontamentos" | "itens" | "custos" | "historico";
 
@@ -255,7 +286,18 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
 
   // ── apontamentos ─────────────────────────────────────────────────────────
   const [quem, setQuem] = useState("");
-  const [manual, setManual] = useState<{ colaboradorId: string; inicio: string; fim: string; observacao: string } | null>(null);
+  // Lançar horas: um período (início/fim) ou vários dias (de/até + jornada) — este
+  // vira um apontamento por dia (manhã e tarde separadas pelo intervalo do almoço).
+  const [manual, setManual] = useState<ManualHoras | null>(null);
+  const periodosManual = useMemo(() => (manual?.modo === "dias" ? periodosDaJornada(manual) : []), [manual]);
+  const horasManual = periodosManual.reduce((t, p) => t + (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 3_600_000, 0);
+  async function lancarManual() {
+    if (!manual) return;
+    const body = manual.modo === "dias"
+      ? { acao: "periodos", colaboradorId: manual.colaboradorId, periodos: periodosManual, observacao: manual.observacao }
+      : { acao: "manual", colaboradorId: manual.colaboradorId, inicio: manual.inicio, fim: manual.fim, observacao: manual.observacao };
+    if (await apontar(body)) setManual(null);
+  }
   async function apontar(body: Record<string, unknown>) {
     const r = await api(`/api/pcm/os/${id}/apontamentos`, "POST", body);
     if (!r.ok) { setMsg(r.error!); setErroAcao(r.error!); return false; }
@@ -699,7 +741,7 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
             <div className="flex flex-wrap items-center gap-2">
               <div className="w-56"><ComboboxWithCreate value={quem} onChange={setQuem} options={lk.colaboradores.map((c) => ({ value: c.id, label: c.nome }))} placeholder="Quem vai executar…" /></div>
               <Button size="sm" disabled={!quem} onClick={async () => { if (await apontar({ acao: "iniciar", colaboradorId: quem })) setQuem(""); }} className="gap-1"><Play className="w-3.5 h-3.5" /> Iniciar</Button>
-              <Button size="sm" variant="outline" onClick={() => { setErroAcao(""); setManual({ colaboradorId: quem, inicio: "", fim: "", observacao: "" }); }}>Lançar horas</Button>
+              <Button size="sm" variant="outline" onClick={() => { setErroAcao(""); setManual({ ...MANUAL_VAZIO, colaboradorId: quem }); }}>Lançar horas</Button>
             </div>
           )}>
             {o.apontamentos.length === 0 ? <Vazio t="Nenhum apontamento." /> : (
@@ -957,12 +999,38 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
           <DialogHeader><DialogTitle>Lançar horas</DialogTitle></DialogHeader>
           {manual && <div className="space-y-3">
             <div><Label>Executante</Label><ComboboxWithCreate value={manual.colaboradorId} onChange={(v) => setManual({ ...manual, colaboradorId: v })} options={lk.colaboradores.map((c) => ({ value: c.id, label: c.nome }))} placeholder="Escolha…" /></div>
-            <div><Label>Início</Label><DataHora value={manual.inicio} onChange={(v) => setManual({ ...manual, inicio: v })} /></div>
-            <div><Label>Fim</Label><DataHora value={manual.fim} onChange={(v) => setManual({ ...manual, fim: v })} /></div>
+            <div className="inline-flex rounded-lg border border-border p-0.5 text-xs">
+              {([["periodo", "Um período"], ["dias", "Vários dias"]] as const).map(([v, l]) => (
+                <button key={v} type="button" onClick={() => setManual({ ...manual, modo: v })} className={cn("px-3 py-1 rounded-md", manual.modo === v ? "bg-info/15 text-info font-medium" : "text-muted-foreground hover:text-foreground")}>{l}</button>
+              ))}
+            </div>
+            {manual.modo === "periodo" ? (<>
+              <div><Label>Início</Label><DataHora value={manual.inicio} onChange={(v) => setManual({ ...manual, inicio: v })} /></div>
+              <div><Label>Fim</Label><DataHora value={manual.fim} onChange={(v) => setManual({ ...manual, fim: v })} /></div>
+            </>) : (<>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>De</Label><DatePicker value={manual.de} onChange={(v) => setManual({ ...manual, de: v ?? "" })} /></div>
+                <div><Label>Até</Label><DatePicker value={manual.ate} onChange={(v) => setManual({ ...manual, ate: v ?? "" })} /></div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Entrada</Label><TimePicker value={manual.entrada} onChange={(v) => setManual({ ...manual, entrada: v })} /></div>
+                <div><Label>Saída</Label><TimePicker value={manual.saida} onChange={(v) => setManual({ ...manual, saida: v })} /></div>
+                <div><Label>Almoço (h)</Label><Input inputMode="decimal" value={manual.almoco} onChange={(e) => setManual({ ...manual, almoco: e.target.value })} /></div>
+              </div>
+              <div className="flex gap-4 text-sm">
+                <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={manual.sabado} onChange={(e) => setManual({ ...manual, sabado: e.target.checked })} /> Sábado</label>
+                <label className="flex items-center gap-2"><input type="checkbox" className="rounded" checked={manual.domingo} onChange={(e) => setManual({ ...manual, domingo: e.target.checked })} /> Domingo</label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {periodosManual.length
+                  ? `${new Set(periodosManual.map((p) => new Date(p.inicio).toDateString())).size} dia(s) · ${fmtHoras(horasManual)} no total — um apontamento por turno, almoço descontado (12:00).`
+                  : "Escolha o período e a jornada."}
+              </p>
+            </>)}
             <div><Label>Observação</Label><Input value={manual.observacao} onChange={(e) => setManual({ ...manual, observacao: e.target.value })} /></div>
             {erroAcao && <p className="text-sm text-danger">{erroAcao}</p>}
           </div>}
-          <DialogFooter><Button variant="outline" onClick={() => setManual(null)}>Cancelar</Button><Button onClick={async () => { if (manual && await apontar({ acao: "manual", ...manual })) setManual(null); }}>Lançar</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setManual(null)}>Cancelar</Button><Button onClick={lancarManual} disabled={manual?.modo === "dias" && !periodosManual.length}>Lançar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

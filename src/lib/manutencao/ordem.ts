@@ -221,7 +221,12 @@ export async function transicionarOrdem(
   await db.manutOrdem.update({ where: { id: ordemId }, data });
   await db.manutOrdemEvento.create({ data: { ordemId, tipo: acao.toUpperCase(), detalhe: motivo, usuario: opts.usuario } });
 
-  if (acao === "concluir" && o.planoAtivoId) await atualizarVencimentoPlano(o.planoAtivoId, agora, o.leituraMedidor, db);
+  if (acao === "concluir") {
+    // OS de rota atende várias aplicações: todas avançam juntas (ficam alinhadas).
+    for (const paId of [o.planoAtivoId, ...o.planoAtivosRota].filter((x): x is string => !!x)) {
+      await atualizarVencimentoPlano(paId, agora, paId === o.planoAtivoId ? o.leituraMedidor : null, db);
+    }
+  }
   if (acao === "concluir" || acao === "reabrir" || acao === "cancelar") await recalcularCustoOrdem(ordemId, db);
   await recomputarStatusAtivo(o.ativoId, db);
   return DESTINO[acao];
@@ -243,6 +248,8 @@ export type NovaOrdem = {
   planoId?: string | null;
   planoAtivoId?: string | null;
   planoRef?: string | null;
+  /** OS de rota: as demais aplicações atendidas (além de planoAtivoId). */
+  planoAtivosRota?: string[];
   /** Tarefa do módulo Projetos que originou a OS (reforma, melhoria…). */
   tarefaId?: string | null;
   status?: StatusOS;
@@ -272,6 +279,7 @@ export async function criarOrdem(n: NovaOrdem, db: typeof prismaSemEscopo = pris
       horasEstimadas: n.horasEstimadas ?? null, exigeParada: !!n.exigeParada,
       paradaInicio: n.paradaInicio ?? null, centroCustoId: ativo.centroCustoId,
       planoId: n.planoId ?? null, planoAtivoId: n.planoAtivoId ?? null, planoRef: n.planoRef ?? null,
+      planoAtivosRota: n.planoAtivosRota ?? [],
       tarefaId: n.tarefaId ?? null,
       status: n.status ?? "ABERTA", criadoPor: n.usuario,
     },
