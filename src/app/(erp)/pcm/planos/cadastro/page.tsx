@@ -15,14 +15,16 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import { Loader2, Plus, Search } from "lucide-react";
-import { api, useManutLookups } from "@/components/manutencao/comum";
+import { STATUS_OS, api, useManutLookups } from "@/components/manutencao/comum";
+import Link from "next/link";
 
 type Plano = {
   id: string; codigo: string; nome: string; ativo: boolean; tipo: { sigla: string; nome: string }; equipe: { nome: string } | null;
   _count: { tarefas: number; materiais: number };
   ativos: { id: string; gatilho: string; repeticao: string | null; intervaloDias: number | null; unidadeIntervalo: string; diasSemana: number[]; diaMes: number | null; inicio: string | null; horario: string | null;
     intervaloMedida: string | null; proximoVencimento: string | null; proximaMedida: string | null; ativo: boolean;
-    ativoRef: { tag: string; nome: string }; medidor: { unidade: string; acumulado: string } | null }[];
+    ativoRef: { tag: string; nome: string; ativo: boolean }; medidor: { unidade: string; acumulado: string } | null;
+    osAberta: { id: string; numero: string; status: string } | null }[];
 };
 
 export default function PlanosCadastroPage() {
@@ -70,12 +72,19 @@ export default function PlanosCadastroPage() {
                     <td className="px-3 py-2 text-xs text-muted-foreground">{p._count.tarefas} itens{p._count.materiais ? ` · kit ${p._count.materiais}` : ""}</td>
                     <td className="px-3 py-2 text-xs">
                       {p.ativos.length === 0 ? <span className="text-warning">sem ativo — não gera OS</span> : p.ativos.map((a) => {
-                        const vencido = a.gatilho !== "MEDIDOR" && a.proximoVencimento && new Date(a.proximoVencimento) < hoje;
-                        return <div key={a.id} className={cn(!a.ativo && "line-through opacity-60")}>
+                        // Com OS aberta o vencimento antigo não é atraso "sem ação": mostra a OS.
+                        const vencido = !a.osAberta && a.gatilho !== "MEDIDOR" && a.proximoVencimento && new Date(a.proximoVencimento) < hoje;
+                        const semLeitura = a.gatilho !== "CALENDARIO" && (!a.medidor || Number(a.medidor.acumulado) === 0);
+                        return <div key={a.id} className={cn((!a.ativo || !a.ativoRef.ativo) && "line-through opacity-60")}>
                           <span className="text-foreground">{a.ativoRef.tag}</span>{" "}
                           <span className={cn(vencido ? "text-danger" : "text-muted-foreground")}>{descreverGatilho(a)}
-                            {a.gatilho !== "MEDIDOR" && ` · ${fmtDia(a.proximoVencimento)}`}
-                            {a.gatilho !== "CALENDARIO" && ` · próx. ${a.proximaMedida ? Number(a.proximaMedida) : "—"} (atual ${a.medidor ? Number(a.medidor.acumulado) : "—"})`}</span>
+                            {a.gatilho !== "MEDIDOR" && !a.osAberta && ` · ${fmtDia(a.proximoVencimento)}`}
+                            {a.gatilho !== "CALENDARIO" && !semLeitura && ` · próx. ${a.proximaMedida ? Number(a.proximaMedida) : "—"} (atual ${Number(a.medidor!.acumulado)})`}</span>
+                          {a.osAberta && (
+                            <Link href={`/pcm/os?os=${a.osAberta.id}`} onClick={(e) => e.stopPropagation()} className="ml-1 text-info hover:underline">· {a.osAberta.numero} {(STATUS_OS[a.osAberta.status]?.label ?? a.osAberta.status).toLowerCase()}</Link>
+                          )}
+                          {semLeitura && <span className="ml-1 text-warning">· sem leitura do medidor</span>}
+                          {!a.ativoRef.ativo && <span className="ml-1 text-[10px]">(ativo inativo)</span>}
                         </div>;
                       })}
                     </td>

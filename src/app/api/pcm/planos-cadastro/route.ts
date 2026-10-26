@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, EMPRESA_PADRAO_ID } from "@/lib/prisma";
+import { STATUS_OS_ABERTOS } from "@/lib/manutencao/ordem";
 
 // GET /api/pcm/planos-cadastro — planos da empresa com as aplicações (ativo × gatilho × próximo vencimento).
 export async function GET() {
@@ -14,12 +15,26 @@ export async function GET() {
       equipe: { select: { nome: true } },
       _count: { select: { tarefas: true, materiais: true } },
       ativos: {
-        include: { ativoRef: { select: { id: true, tag: true, nome: true } }, medidor: { select: { nome: true, unidade: true, acumulado: true } } },
+        include: { ativoRef: { select: { id: true, tag: true, nome: true, ativo: true } }, medidor: { select: { nome: true, unidade: true, acumulado: true } } },
         orderBy: { proximoVencimento: "asc" },
       },
     },
   });
-  return NextResponse.json({ data });
+  // OS do plano ainda em aberto, por ativo: o vencimento só avança quando a OS é
+  // concluída — sem isso a lista mostra "atrasado" para o que já está em execução.
+  const abertas = await prisma.manutOrdem.findMany({
+    where: { planoId: { in: data.map((p) => p.id) }, status: { in: STATUS_OS_ABERTOS } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, numero: true, status: true, planoId: true, ativoId: true },
+  });
+  const osAberta = new Map<string, { id: string; numero: string; status: string }>();
+  for (const o of abertas) {
+    const k = `${o.planoId}|${o.ativoId}`;
+    if (!osAberta.has(k)) osAberta.set(k, { id: o.id, numero: o.numero, status: o.status });
+  }
+  return NextResponse.json({
+    data: data.map((p) => ({ ...p, ativos: p.ativos.map((pa) => ({ ...pa, osAberta: osAberta.get(`${p.id}|${pa.ativoId}`) ?? null })) })),
+  });
 }
 
 // POST { codigo?, nome, tipoId, equipeId?, horasEstimadas?, exigeParada?, antecedenciaDias?, toleranciaPct?, baseNaConclusao?, observacoes? }

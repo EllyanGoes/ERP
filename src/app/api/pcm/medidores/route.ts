@@ -45,11 +45,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Leitura menor que a atual (${Number(med.acumulado)} ${med.unidade}). Se o medidor foi trocado, marque "troca de medidor".` }, { status: 422 });
     }
     const data = b.data ? new Date(b.data) : new Date();
+    const primeira = (await prismaSemEscopo.manutLeitura.count({ where: { medidorId: med.id } })) === 0;
+    // Planos por medidor deste medidor: a próxima revisão precisa acompanhar a régua
+    // do medidor, senão a 1ª leitura real (ex.: 8.000 h sobre um alvo de 250 h
+    // contado do zero) faz todos os planos vencerem de uma vez.
+    //  • 1ª leitura: o plano passa a contar a partir dela (próxima = leitura + intervalo).
+    //  • troca de medidor: mantém o que faltava (próxima = leitura + (próxima antiga − acumulado antigo)).
+    const planos = primeira || b.trocaMedidor
+      ? await prismaSemEscopo.manutPlanoAtivo.findMany({ where: { medidorId: med.id, intervaloMedida: { not: null } }, select: { id: true, intervaloMedida: true, proximaMedida: true } })
+      : [];
+    const acumAntigo = Number(med.acumulado);
     await prismaSemEscopo.$transaction([
       prismaSemEscopo.manutLeitura.create({ data: { medidorId: med.id, data, valor, origem: b.trocaMedidor ? "troca de medidor" : "manual", criadoPor: auth.session.nome } }),
       prismaSemEscopo.manutMedidor.update({ where: { id: med.id }, data: { acumulado: valor } }),
+      ...planos.map((pa) => {
+        const falta = !primeira && pa.proximaMedida != null ? Math.max(0, Number(pa.proximaMedida) - acumAntigo) : Number(pa.intervaloMedida);
+        return prismaSemEscopo.manutPlanoAtivo.update({
+          where: { id: pa.id },
+          data: { proximaMedida: valor + falta, ...(primeira ? { ultimaMedida: valor } : {}) },
+        });
+      }),
     ]);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, planosRecalculados: planos.length });
   }
   return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
 }
