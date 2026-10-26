@@ -10,13 +10,14 @@ import AnexosSection from "@/components/shared/AnexosSection";
 import {
   Loader2, X, Trash2, Archive, CheckSquare, Square, Plus, Send,
   Circle, CheckCircle2, Copy, Link as LinkIcon, Check,
-  MoreHorizontal, AlignLeft, Paperclip, MessageSquare, UserPlus, GripVertical, Wrench, ExternalLink,
+  MoreHorizontal, AlignLeft, Paperclip, MessageSquare, UserPlus, GripVertical, Wrench, ExternalLink, Link2, Unlink,
 } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "@/lib/session-context";
 import { AvatarUsuario, EtiquetaChip } from "./comum";
 import SelectMenu from "@/components/shared/SelectMenu";
 import CriarOsDaTarefaDialog from "@/components/manutencao/CriarOsDaTarefaDialog";
+import VincularOsTarefaDialog from "@/components/manutencao/VincularOsTarefaDialog";
 import { StatusOSBadge, brl } from "@/components/manutencao/comum";
 import { MembrosPopover, DatasPopover, EtiquetasPopover } from "./popovers";
 import { ProjetoBoardDTO, PRIORIDADES, instantePrazo } from "./tipos";
@@ -119,7 +120,7 @@ const ATIVIDADE_LABEL: Record<string, string> = {
   ATRIBUIU: "alterou o responsável", COMENTOU: "comentou", PRAZO: "alterou o prazo",
   ARQUIVOU: "arquivou", DESARQUIVOU: "desarquivou", EXCLUIU: "excluiu",
   CHECK_CONCLUIU: "concluiu o item", CHECK_REABRIU: "desmarcou o item",
-  OS_CRIADA: "abriu a ordem de serviço",
+  OS_CRIADA: "abriu a ordem de serviço", OS_VINCULADA: "ligou a ordem de serviço", OS_DESVINCULADA: "desligou a ordem de serviço",
 };
 
 export default function TarefaCardDialog({
@@ -136,6 +137,8 @@ export default function TarefaCardDialog({
   // Manutenção: quem tem o módulo pcm cria OS da tarefa; os demais só veem as ligadas.
   const podeCriarOS = canAccess("pcm");
   const [showCriarOS, setShowCriarOS] = useState(false);
+  const [showVincularOS, setShowVincularOS] = useState(false);
+  const [desvinculando, setDesvinculando] = useState<string | null>(null);
   const [card, setCard] = useState<CardDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -174,6 +177,14 @@ export default function TarefaCardDialog({
     }
   }, [tarefaId]);
   useEffect(() => { load(); }, [load]);
+
+  async function desvincularOS(ordemId: string) {
+    setDesvinculando(ordemId);
+    const res = await fetch(`/api/projetos/tarefas/${tarefaId}/ordem-servico?ordemId=${ordemId}`, { method: "DELETE" }).catch(() => null);
+    setDesvinculando(null);
+    if (!res?.ok) { const j = await res?.json().catch(() => ({})); alert(j?.error || "Não foi possível desligar a OS."); return; }
+    await load(); onMudou();
+  }
 
   // Atalhos de teclado do cartão (estilo Trello): M abre membros, D abre datas.
   // Ignorados enquanto o foco está num campo de texto ou com modificador.
@@ -766,11 +777,14 @@ export default function TarefaCardDialog({
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-sm font-semibold text-foreground flex items-center gap-2"><Wrench className="w-4 h-4 text-muted-foreground" /> Manutenção</p>
                 {podeCriarOS && podeEditar && (
-                  <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => setShowCriarOS(true)}><Plus className="w-3.5 h-3.5" /> Criar ordem de serviço</Button>
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => setShowVincularOS(true)}><Link2 className="w-3.5 h-3.5" /> Vincular existente</Button>
+                    <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" onClick={() => setShowCriarOS(true)}><Plus className="w-3.5 h-3.5" /> Criar ordem de serviço</Button>
+                  </div>
                 )}
               </div>
               {card.ordensManutencao.length === 0 ? (
-                <p className="text-xs text-muted-foreground pl-6">Nenhuma OS ligada. Crie uma para planejar o serviço e os materiais necessários.</p>
+                <p className="text-xs text-muted-foreground pl-6">Nenhuma OS ligada. Crie uma para planejar o serviço e os materiais, ou vincule uma OS que já existe.</p>
               ) : (
                 <div className="space-y-1.5">
                   {card.ordensManutencao.map((os) => (
@@ -789,6 +803,16 @@ export default function TarefaCardDialog({
                         </div>
                       </div>
                       <ExternalLink className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                      {podeCriarOS && podeEditar && (
+                        <button
+                          type="button" title="Desligar a OS desta tarefa (a OS continua na Manutenção)"
+                          disabled={desvinculando === os.id}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); desvincularOS(os.id); }}
+                          className="text-muted-foreground hover:text-danger opacity-0 group-hover:opacity-100 shrink-0"
+                        >
+                          {desvinculando === os.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlink className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
                     </Link>
                   ))}
                 </div>
@@ -876,6 +900,13 @@ export default function TarefaCardDialog({
         </div>
       </div>
 
+      {showVincularOS && (
+        <VincularOsTarefaDialog
+          tarefa={{ id: card.id, titulo: card.titulo }}
+          onFechar={() => setShowVincularOS(false)}
+          onVinculada={async () => { setShowVincularOS(false); await load(); onMudou(); }}
+        />
+      )}
       {showCriarOS && (
         <CriarOsDaTarefaDialog
           tarefa={{ id: card.id, titulo: card.titulo, descricao: card.descricao, prioridade: card.prioridade, dataInicio: card.dataInicio, prazo: card.prazo, membros: card.membros }}

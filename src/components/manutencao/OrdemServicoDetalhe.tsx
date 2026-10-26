@@ -92,7 +92,7 @@ const EVENTO_LABEL: Record<string, string> = {
   CRIADA: "OS aberta", PLANEJAR: "Planejada", INICIAR: "Iniciada", PAUSAR: "Pausada", AGUARDAR_MATERIAL: "Aguardando material",
   AGUARDAR_TERCEIRO: "Aguardando terceiro", RETOMAR: "Retomada", ENCERRAR: "Execução encerrada", CONCLUIR: "Validada e concluída",
   DEVOLVER: "Devolvida para execução", REABRIR: "Reaberta", CANCELAR: "Cancelada", SS_ANEXADA: "Solicitação anexada",
-  ENVIADA_WHATSAPP: "Enviada por WhatsApp",
+  ENVIADA_WHATSAPP: "Enviada por WhatsApp", TAREFA_VINCULADA: "Ligada à tarefa", TAREFA_DESVINCULADA: "Desligada da tarefa",
 };
 
 const STATUS_LABEL_CURTO: Record<string, string> = {
@@ -379,7 +379,7 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
       <Button size="sm" variant="outline" onClick={() => setWhats(true)} className="gap-1" title="Enviar o link da OS por WhatsApp (abre sem login)">
         <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Enviar
       </Button>
-      <button onClick={() => window.print()} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Imprimir" aria-label="Imprimir"><Printer className="w-4 h-4" /></button>
+      <button onClick={() => window.open(`/pcm/os/${o.id}/imprimir?auto=1`, "_blank")} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Imprimir (A4)" aria-label="Imprimir"><Printer className="w-4 h-4" /></button>
       <DropdownMenu>
         <DropdownMenuTrigger render={<button className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Mais ações" aria-label="Mais ações" />}>
           <MoreVertical className="w-4 h-4" />
@@ -394,7 +394,7 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
           {menuAcoes.length === 0 && <DropdownMenuItem disabled>Sem ações de PCM para este status</DropdownMenuItem>}
           <DropdownMenuSeparator />
           {modo === "overlay" && <DropdownMenuItem onClick={() => window.location.assign(`/pcm/os/${o.id}`)}><ExternalLink className="w-4 h-4" /> Abrir em página</DropdownMenuItem>}
-          <DropdownMenuItem onClick={() => window.print()}><Printer className="w-4 h-4" /> Imprimir</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => window.open(`/pcm/os/${o.id}/imprimir?auto=1`, "_blank")}><Printer className="w-4 h-4" /> Imprimir (A4)</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       {modo === "overlay" && <Link href={`/pcm/os/${o.id}`} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Abrir em página"><ExternalLink className="w-4 h-4" /></Link>}

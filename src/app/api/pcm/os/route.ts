@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     take: situacao === "abertas" || situacao === "encerradas" || situacao === "quadro" ? 1000 : 500,
     select: {
       id: true, numero: true, status: true, prioridade: true, descricao: true, createdAt: true, programadaPara: true, prazo: true,
-      paradaInicio: true, paradaFim: true, concluidaEm: true, encerradaEm: true, localTexto: true, planoId: true,
+      paradaInicio: true, paradaFim: true, concluidaEm: true, encerradaEm: true, localTexto: true, planoId: true, tarefaId: true,
       custoMaoObra: true, custoMaterial: true, custoTerceiros: true,
       ativo: { select: { id: true, tag: true, nome: true } },
       tipo: { select: { id: true, sigla: true, nome: true, natureza: true } },
