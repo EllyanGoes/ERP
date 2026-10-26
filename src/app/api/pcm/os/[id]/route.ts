@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 import { requireModulo, temPermissao } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { acoesPermitidas, pendenciasEncerramento, recomputarStatusAtivo, PRIORIDADES } from "@/lib/manutencao/ordem";
+import { salvarNaLixeira } from "@/lib/lixeira";
+import { registrarAtividade } from "@/lib/projetos";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -92,4 +94,55 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (atual.ativoId && atual.ativoId !== o.ativoId) await recomputarStatusAtivo(atual.ativoId, prismaSemEscopo);
   }
   return NextResponse.json({ data: o });
+}
+
+// DELETE { motivo } — exclui a OS (lançada em duplicidade, aberta por engano…).
+// Só o PCM (pcm.validacao.editar) e com motivo. Snapshot completo vai para a
+// lixeira (o motivo fica na descrição). A SS volta para a fila (ABERTA); a tarefa
+// do Projetos registra a exclusão. Com requisição de material ativa é recusada —
+// o material saiu do estoque por essa OS: cancele a requisição ou cancele a OS.
+export async function DELETE(req: NextRequest, { params }: Ctx) {
+  const auth = await requireModulo("pcm");
+  if (!auth.ok) return auth.response;
+  if (!(await temPermissao(auth.session.sub, "pcm.validacao.editar"))) {
+    return NextResponse.json({ error: "Só o PCM pode excluir uma OS." }, { status: 403 });
+  }
+  const { id } = await params;
+  const b = await req.json().catch(() => ({}));
+  const motivo = String(b.motivo ?? "").trim();
+  if (motivo.length < 5) return NextResponse.json({ error: "Informe o motivo da exclusão." }, { status: 400 });
+  const o = await prisma.manutOrdem.findUnique({
+    where: { id },
+    include: {
+      servicos: true, materiais: true, apontamentos: true, terceiros: true, eventos: true,
+      solicitacoes: { select: { id: true, numero: true } },
+      requisicoes: { select: { id: true, numero: true, status: true } },
+      tarefa: { select: { id: true, projetoId: true } },
+      ativo: { select: { tag: true, nome: true } },
+    },
+  });
+  if (!o) return NextResponse.json({ error: "OS não encontrada." }, { status: 404 });
+  const reqAtivas = o.requisicoes.filter((r) => r.status !== "CANCELADA");
+  if (reqAtivas.length) {
+    return NextResponse.json({
+      error: `${o.numero} tem requisição de material (${reqAtivas.map((r) => r.numero).join(", ")}). Cancele a requisição antes, ou cancele a OS em vez de excluir.`,
+    }, { status: 409 });
+  }
+  await prismaSemEscopo.$transaction(async (tx) => {
+    await salvarNaLixeira(tx, {
+      empresaId: o.empresaId, tipo: "ORDEM_MANUTENCAO", origemId: o.id, numero: o.numero,
+      descricao: `${o.ativo ? `${o.ativo.tag} ${o.ativo.nome} · ` : ""}${o.descricao.slice(0, 200)} — motivo: ${motivo}`,
+      snapshot: { ...o, motivoExclusao: motivo }, apagadoPor: auth.session.nome,
+    });
+    if (o.solicitacoes.length) {
+      await tx.manutSolicitacao.updateMany({ where: { ordemId: o.id }, data: { status: "ABERTA", ordemId: null } });
+    }
+    await tx.manutOrdem.delete({ where: { id: o.id } });
+  });
+  await recomputarStatusAtivo(o.ativoId);
+  if (o.tarefa) {
+    await registrarAtividade({ projetoId: o.tarefa.projetoId, tarefaId: o.tarefa.id, autorId: auth.session.sub, tipo: "OS_EXCLUIDA", detalhe: { numero: o.numero, motivo } })
+      .catch((e) => console.error("[DELETE /api/pcm/os] atividade da tarefa falhou:", e));
+  }
+  return NextResponse.json({ ok: true });
 }

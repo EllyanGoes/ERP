@@ -169,6 +169,19 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
   const [msg, setMsg] = useState("");
   // Envio por WhatsApp (link público /os/<token> para os mecânicos)
   const [whats, setWhats] = useState(false);
+  // Exclusão (só PCM, com motivo): a OS sai do sistema e o snapshot vai para a lixeira.
+  const [excluir, setExcluir] = useState(false);
+  const [motivoExclusao, setMotivoExclusao] = useState("");
+  const [excluindo, setExcluindo] = useState(false); const [erroExclusao, setErroExclusao] = useState("");
+  async function confirmarExclusao() {
+    setExcluindo(true); setErroExclusao("");
+    const r = await api(`/api/pcm/os/${id}`, "DELETE", { motivo: motivoExclusao });
+    setExcluindo(false);
+    if (!r.ok) { setErroExclusao(r.error!); return; }
+    setExcluir(false);
+    onMudouRef.current?.();
+    if (modo === "overlay" && onFechar) onFechar(); else window.location.assign("/pcm/os");
+  }
 
   // ── ações de status ──────────────────────────────────────────────────────
   // dlg.acoes > 1 = escolha (Em espera: pausa / material / terceiro).
@@ -395,6 +408,10 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
           <DropdownMenuSeparator />
           {modo === "overlay" && <DropdownMenuItem onClick={() => window.location.assign(`/pcm/os/${o.id}`)}><ExternalLink className="w-4 h-4" /> Abrir em página</DropdownMenuItem>}
           <DropdownMenuItem onClick={() => window.open(`/pcm/os/${o.id}/imprimir?auto=1`, "_blank")}><Printer className="w-4 h-4" /> Imprimir (A4)</DropdownMenuItem>
+          {o.podeValidar && (<>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => { setMotivoExclusao(""); setErroExclusao(""); setExcluir(true); }}><Trash2 className="w-4 h-4" /> Excluir OS</DropdownMenuItem>
+          </>)}
         </DropdownMenuContent>
       </DropdownMenu>
       {modo === "overlay" && <Link href={`/pcm/os/${o.id}`} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted" title="Abrir em página"><ExternalLink className="w-4 h-4" /></Link>}
@@ -822,6 +839,31 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
       </div>
 
       <EnviarOsWhatsappDialog osId={whats ? o.id : null} onFechar={() => setWhats(false)} colaboradores={lk.colaboradores} onEnviado={carregar} />
+
+      {/* Dialog: excluir OS (motivo obrigatório) */}
+      <Dialog open={excluir} onOpenChange={(v) => !v && !excluindo && setExcluir(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Excluir {o.numero}?</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              A OS sai do quadro e dos indicadores. Uma cópia completa fica na lixeira (Administração › Lixeira) com o motivo.
+              {o.solicitacoes.length > 0 && " A solicitação vinculada volta para a fila."}
+              {" "}Se o serviço só não vai mais acontecer, prefira <b>Cancelar OS</b>: ela continua no histórico.
+            </p>
+            <div>
+              <Label>Motivo da exclusão <span className="text-danger">*</span></Label>
+              <Textarea rows={3} autoFocus value={motivoExclusao} onChange={(e) => setMotivoExclusao(e.target.value)} placeholder="Ex.: OS duplicada da OS-2580; aberta no ativo errado…" />
+            </div>
+            {erroExclusao && <p className="text-sm text-danger">{erroExclusao}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExcluir(false)} disabled={excluindo}>Voltar</Button>
+            <Button variant="destructive" onClick={confirmarExclusao} disabled={excluindo || motivoExclusao.trim().length < 5} className="gap-1">
+              {excluindo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Excluir OS
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: ação de status (motivo / escolha da espera / fim da parada / programação) */}
       <Dialog open={!!dlg} onOpenChange={(v) => !v && setDlg(null)}>

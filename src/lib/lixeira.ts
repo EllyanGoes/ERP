@@ -21,7 +21,9 @@ export type TipoLixeira =
   // Contratos (docs/contratos-prd.md)
   | "CONTRATO"
   // Histórico funcional do colaborador
-  | "EVENTO_COLABORADOR";
+  | "EVENTO_COLABORADOR"
+  // Manutenção: OS excluída (motivo na descrição)
+  | "ORDEM_MANUTENCAO";
 
 type Db = Pick<Prisma.TransactionClient, "lixeira">;
 

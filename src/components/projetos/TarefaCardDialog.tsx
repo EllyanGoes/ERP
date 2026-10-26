@@ -120,7 +120,7 @@ const ATIVIDADE_LABEL: Record<string, string> = {
   ATRIBUIU: "alterou o responsável", COMENTOU: "comentou", PRAZO: "alterou o prazo",
   ARQUIVOU: "arquivou", DESARQUIVOU: "desarquivou", EXCLUIU: "excluiu",
   CHECK_CONCLUIU: "concluiu o item", CHECK_REABRIU: "desmarcou o item",
-  OS_CRIADA: "abriu a ordem de serviço", OS_VINCULADA: "ligou a ordem de serviço", OS_DESVINCULADA: "desligou a ordem de serviço",
+  OS_CRIADA: "abriu a ordem de serviço", OS_VINCULADA: "ligou a ordem de serviço", OS_DESVINCULADA: "desligou a ordem de serviço", OS_EXCLUIDA: "excluiu a ordem de serviço",
 };
 
 export default function TarefaCardDialog({
