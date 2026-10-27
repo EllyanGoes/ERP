@@ -14,7 +14,7 @@ import { Semaforo, SeloAfastado, fmtData, type Pendencia } from "@/components/ss
 type Linha = {
   id: string; nome: string; ativo: boolean; setor: string | null;
   funcao: { id: string; nome: string; desde: string } | null;
-  semaforo: "OK" | "ATENCAO" | "CRITICO"; afastamento: { desde: string; ate: string | null; motivo: string | null } | null; pendencias: Pendencia[]; nEpi: number; nAso: number; nTreino: number;
+  semaforo: "OK" | "ATENCAO" | "CRITICO"; afastamento: { desde: string; ate: string | null; motivo: string | null } | null; pendencias: Pendencia[]; nEpi: number; nAso: number; nTreino: number; nEpiAviso: number; nAsoAviso: number; nTreinoAviso: number;
 };
 
 export default function SstColaboradoresPage() {
@@ -112,9 +112,9 @@ export default function SstColaboradoresPage() {
                     <td className="px-3 py-2 text-muted-foreground">{l.setor ?? "—"}</td>
                     <td className="px-3 py-2">{l.funcao ? <>{agrupar === "funcao" ? null : <>{l.funcao.nome} </>}<span className="text-xs text-muted-foreground">desde {fmtData(l.funcao.desde)}</span></> : <span className="text-muted-foreground/60">—</span>}</td>
                     <td className="px-3 py-2">{l.afastamento ? <SeloAfastado a={l.afastamento} /> : <Semaforo s={l.semaforo} />}</td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", l.nEpi > 0 ? "text-danger font-medium" : "text-muted-foreground")}>{l.nEpi}</td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", l.nAso > 0 ? "text-danger font-medium" : "text-muted-foreground")}>{l.nAso}</td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", l.nTreino > 0 ? "text-danger font-medium" : "text-muted-foreground")}>{l.nTreino}</td>
+                    <Contagem n={l.nEpi} aviso={l.nEpiAviso} />
+                    <Contagem n={l.nAso} aviso={l.nAsoAviso} />
+                    <Contagem n={l.nTreino} aviso={l.nTreinoAviso} />
                   </tr>
                   ))}
                   </Fragment>
@@ -126,5 +126,15 @@ export default function SstColaboradoresPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Problemas em vermelho; o que vence em breve (atenção) ao lado, em amarelo. */
+function Contagem({ n, aviso }: { n: number; aviso: number }) {
+  return (
+    <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+      <span className={n > 0 ? "text-danger font-medium" : "text-muted-foreground"}>{n}</span>
+      {aviso > 0 && <span className="ml-1 text-xs text-warning" title={`${aviso} a vencer em breve / atenção`}>+{aviso}</span>}
+    </td>
   );
 }

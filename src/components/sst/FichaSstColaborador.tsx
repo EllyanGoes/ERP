@@ -249,12 +249,15 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                   {f.episStatus.map((s) => {
                     const v = s.entregaVigente;
                     const vencido = v?.vencimentoUso ? new Date(v.vencimentoUso).getTime() < Date.now() : false;
+                    // Mesma janela da pendência "EPI a trocar em breve" (30 dias) — a lista conta como atenção.
+                    const diasTroca = v?.vencimentoUso && !vencido ? Math.ceil((new Date(v.vencimentoUso).getTime() - Date.now()) / 86_400_000) : null;
+                    const trocaEmBreve = diasTroca != null && diasTroca <= 30;
                     return (
                       <tr key={s.epi.id} className="border-t border-border/60">
                         <td className="px-4 py-2 text-foreground">{s.epi.nome}{s.epi.ca ? <span className="text-xs text-muted-foreground"> · CA {s.epi.ca}</span> : null}{!s.obrigatorio && <span className="text-xs text-muted-foreground"> (opcional)</span>}</td>
-                        <td className="px-3 py-2">{!v ? <span className="text-xs font-medium text-danger">não entregue</span> : vencido ? <span className="text-xs font-medium text-danger">vencido</span> : <span className="text-xs font-medium text-success">em uso</span>}</td>
+                        <td className="px-3 py-2">{!v ? <span className="text-xs font-medium text-danger">não entregue</span> : vencido ? <span className="text-xs font-medium text-danger">vencido</span> : trocaEmBreve ? <span className="text-xs font-medium text-warning">troca em {diasTroca} dia(s)</span> : <span className="text-xs font-medium text-success">em uso</span>}</td>
                         <td className="px-3 py-2 text-muted-foreground">{v ? fmtData(v.data) : "—"}</td>
-                        <td className={cn("px-3 py-2", vencido ? "text-danger" : "text-muted-foreground")}>{v?.vencimentoUso ? fmtData(v.vencimentoUso) : "—"}</td>
+                        <td className={cn("px-3 py-2", vencido ? "text-danger" : trocaEmBreve ? "text-warning" : "text-muted-foreground")}>{v?.vencimentoUso ? fmtData(v.vencimentoUso) : "—"}</td>
                         <td className="px-3 py-2 text-right"><button onClick={() => abrirEntrega(s.epi.id)} className="text-xs text-info hover:underline">{v ? "Trocar" : "Entregar"}</button></td>
                       </tr>
                     );
