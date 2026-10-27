@@ -9,7 +9,10 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useCachedData } from "@/lib/use-cached-data";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useSession } from "@/lib/session-context";
 import { Semaforo, SeloAfastado, fmtData, type Pendencia } from "@/components/sst/comum";
 
 type Linha = {
@@ -32,6 +35,19 @@ export default function SstColaboradoresPage() {
   const [agrupar, setAgrupar] = usePersistedState<"" | "funcao" | "setor">("sst:colaboradores:agrupar", "");
   const [fechadosLista, setFechadosLista] = usePersistedState<string[]>("sst:colaboradores:fechados", []);
   const fechados = useMemo(() => new Set(fechadosLista), [fechadosLista]);
+  // Relatórios em Excel (matriz colaborador × item, no formato da planilha do PCMSO).
+  const { user } = useSession();
+  const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? "";
+  const [baixando, setBaixando] = useState<"" | "epi" | "exames">("");
+  async function baixar(tipo: "epi" | "exames") {
+    setBaixando(tipo);
+    try {
+      const { exportarPlanilhaMatriz } = await import("@/components/sst/planilhaMatriz");
+      await exportarPlanilhaMatriz(tipo, empresaNome);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao gerar o relatório.");
+    } finally { setBaixando(""); }
+  }
 
   // ?funcao=<id> (vindo da tabela de funções) restringe a lista àquela função.
   const funcaoId = sp.get("funcao") ?? "";
@@ -61,7 +77,18 @@ export default function SstColaboradoresPage() {
 
   return (
     <div>
-      <PageHeader title="Colaboradores" subtitle="Situação de EPI, ASO e função por pessoa" breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "Colaboradores" }]} />
+      <PageHeader title="Colaboradores" subtitle="Situação de EPI, ASO e função por pessoa" breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "Colaboradores" }]}
+        action={
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="outline" className="gap-1.5" disabled={!!baixando} />}>
+              {baixando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Relatórios
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-64">
+              <DropdownMenuItem onClick={() => baixar("epi")}><FileSpreadsheet className="w-4 h-4" /> EPIs a entregar (Excel)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => baixar("exames")}><FileSpreadsheet className="w-4 h-4" /> Exames a realizar (Excel)</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        } />
       <div className="px-8 pb-8 space-y-4">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
