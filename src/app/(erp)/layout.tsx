@@ -1,6 +1,7 @@
 import Sidebar from "@/components/layout/Sidebar";
 import TabBar from "@/components/layout/TabBar";
 import ScrollRestorer from "@/components/layout/ScrollRestorer";
+import FetchCache from "@/components/layout/FetchCache";
 import CommandPalette from "@/components/layout/CommandPalette";
 import HelpPanel from "@/components/layout/HelpPanel";
 import EnterFieldNavigation from "@/components/layout/EnterFieldNavigation";
@@ -42,6 +43,7 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
             <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
               <TabBar />
               <ScrollRestorer />
+              <FetchCache />
               <main id="erp-main" className="flex-1 min-h-0 overflow-y-auto [&>*]:min-w-0">
                 {children}
               </main>
