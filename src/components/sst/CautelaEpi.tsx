@@ -153,7 +153,6 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
             <th style={{ ...th, textAlign: "left" }}>EPI</th>
             <th style={{ ...th, width: "9%" }}>CA</th>
             <th style={{ ...th, width: "9%" }}>Tamanho</th>
-            <th style={{ ...th, width: "7%" }}>Ativo</th>
           </tr>
         </thead>
         <tbody>
@@ -164,7 +163,6 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
               <td style={td}>{it.epi.nome.toUpperCase()}{it.tipo === "DEVOLUCAO" ? " (DEVOLUÇÃO)" : it.tipo === "TROCA" ? " (TROCA)" : ""}{it.motivo ? <span style={{ fontSize: 8.5, color: "#555" }}> — {it.motivo}</span> : null}</td>
               <td style={{ ...td, textAlign: "center" }}>{it.epi.ca ?? "—"}</td>
               <td style={{ ...td, textAlign: "center" }}>{it.tamanho || "N/A"}</td>
-              <td style={{ ...td, textAlign: "center" }}>{it.tipo === "DEVOLUCAO" ? "Não" : "Sim"}</td>
             </tr>
           ))}
         </tbody>
