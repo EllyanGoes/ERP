@@ -7,6 +7,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { useCachedData } from "@/lib/use-cached-data";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
 import { Semaforo, SeloAfastado, fmtData, type Pendencia } from "@/components/sst/comum";
@@ -21,20 +22,20 @@ export default function SstColaboradoresPage() {
   useTabTitle("SST — Colaboradores");
   const router = useRouter();
   const sp = useSearchParams();
-  const [linhas, setLinhas] = useState<Linha[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Cache entre navegações: voltar da ficha mostra a lista na hora (e a rolagem
+  // volta ao lugar); a atualização roda em segundo plano.
+  const { data, loading } = useCachedData<Linha[]>("sst:colaboradores", () => fetch("/api/sst/colaboradores").then((r) => r.json()).then((j) => j.data ?? []));
+  const linhas = useMemo(() => data ?? [], [data]);
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = usePersistedState<string>("sst:colaboradores:semaforo", sp.get("semaforo") ?? "");
   const [somenteAtivos, setSomenteAtivos] = usePersistedState<boolean>("sst:colaboradores:ativos", true);
   const [agrupar, setAgrupar] = usePersistedState<"" | "funcao" | "setor">("sst:colaboradores:agrupar", "");
-  const [fechados, setFechados] = useState<Set<string>>(new Set());
+  const [fechadosLista, setFechadosLista] = usePersistedState<string[]>("sst:colaboradores:fechados", []);
+  const fechados = useMemo(() => new Set(fechadosLista), [fechadosLista]);
 
   // ?funcao=<id> (vindo da tabela de funções) restringe a lista àquela função.
   const funcaoId = sp.get("funcao") ?? "";
   useEffect(() => { const s = sp.get("semaforo"); if (s) setFiltro(s); }, [sp]); // eslint-disable-line
-  useEffect(() => {
-    fetch("/api/sst/colaboradores").then((r) => r.json()).then((j) => setLinhas(j.data ?? [])).finally(() => setLoading(false));
-  }, []);
 
   const visiveis = useMemo(() => linhas
     .filter((l) => !somenteAtivos || l.ativo)
@@ -56,7 +57,7 @@ export default function SstColaboradoresPage() {
       .sort(([a], [b]) => (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b))
       .map(([chave, itens]) => ({ chave, titulo: chave || (agrupar === "funcao" ? "Sem função SST" : "Sem setor"), itens, pendentes: itens.filter((l) => l.semaforo === "CRITICO" && !l.afastamento).length }));
   }, [visiveis, agrupar]);
-  const alternarGrupo = (k: string) => setFechados((cur) => { const n = new Set(cur); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const alternarGrupo = (k: string) => setFechadosLista(fechados.has(k) ? fechadosLista.filter((x) => x !== k) : [...fechadosLista, k]);
 
   return (
     <div>
