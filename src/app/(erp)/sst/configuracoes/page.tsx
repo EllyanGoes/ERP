@@ -46,7 +46,6 @@ export default function SstConfigPage() {
   const [rTreinos, setRTreinos] = useState<string[]>([]);
   const [rColabs, setRColabs] = useState<string[]>([]);
   const [colabs, setColabs] = useState<ColabOpt[]>([]);
-  const [addTreino, setAddTreino] = useState("");
   const [loading, setLoading] = useState(true);
   // Só a 1ª carga mostra o spinner: recarregar depois de salvar/excluir troca os
   // dados por trás, sem desmontar a lista (a rolagem fica onde estava).
@@ -60,7 +59,6 @@ export default function SstConfigPage() {
   const [nome, setNome] = useState(""); const [ghe, setGhe] = useState(""); const [gheNovo, setGheNovo] = useState(false); const [aplicarNoGhe, setAplicarNoGhe] = useState(false); const [cbo, setCbo] = useState(""); const [grau, setGrau] = useState("");
   const [rEpis, setREpis] = useState<{ epiId: string; obrigatorio: boolean; quantidade: number }[]>([]);
   const [rExames, setRExames] = useState<{ exameTipoId: string; periodicidadeMeses: number }[]>([]);
-  const [addEpi, setAddEpi] = useState(""); const [addExame, setAddExame] = useState("");
   const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
   const [copiarDe, setCopiarDe] = useState("");
   const [copiarModo, setCopiarModo] = useState<"somar" | "substituir">("somar");
@@ -93,9 +91,9 @@ export default function SstConfigPage() {
     setEditId(f?.id ?? null); setNome(f ? cargoDe(f.nome) : ""); setGhe(f?.ghe ?? ""); setGheNovo(false); setAplicarNoGhe(false); setCbo(f?.cbo ?? ""); setGrau(f?.grauRisco ? String(f.grauRisco) : "");
     setREpis(f?.requisitosEpi.map((r) => ({ epiId: r.epiId, obrigatorio: r.obrigatorio, quantidade: r.quantidade })) ?? []);
     setRExames(f?.requisitosExame.map((r) => ({ exameTipoId: r.exameTipoId, periodicidadeMeses: r.periodicidadeMeses })) ?? []);
-    setRTreinos(f?.requisitosTreinamento.map((r) => r.treinamentoTipoId) ?? []); setAddTreino("");
+    setRTreinos(f?.requisitosTreinamento.map((r) => r.treinamentoTipoId) ?? []);
     setRColabs(f?.colaboradores.map((v) => v.colaborador.id) ?? []);
-    setAddEpi(""); setAddExame(""); setErro(""); setOpen(true);
+    setErro(""); setOpen(true);
   }
   async function salvar() {
     if (!nome.trim()) { setErro("Informe o nome da função."); return; }
@@ -217,7 +215,7 @@ export default function SstConfigPage() {
                     ))}
                   </div>
                 )}
-                <SelectMenu value={copiarDe} onChange={(id) => copiarRequisitos(id, editId ? copiarModo : "substituir")} className="w-72" placeholder="Escolher função…"
+                <ComboboxWithCreate value={copiarDe} onChange={(id) => { if (id) copiarRequisitos(id, editId ? copiarModo : "substituir"); }} allowNone={false} className="w-72" placeholder="Escolher função…" menuMinWidth={320}
                   options={funcoes.filter((x) => x.id !== editId).sort((x, y) => x.nome.localeCompare(y.nome)).map((x) => ({ value: x.id, label: x.nome }))} />
               </div>
             )}
@@ -236,8 +234,8 @@ export default function SstConfigPage() {
             <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
               <Coluna titulo="EPIs exigidos" n={rEpis.length}
                 rodape={<div className="flex gap-2">
-                  <SelectMenu value={addEpi} onChange={setAddEpi} placeholder="Adicionar EPI…" className="flex-1 min-w-0" options={epis.filter((e) => e.ativo && !rEpis.some((r) => r.epiId === e.id)).map((e) => ({ value: e.id, label: e.ca ? `${e.nome} · CA ${e.ca}` : e.nome }))} />
-                  <Button size="sm" variant="outline" disabled={!addEpi} onClick={() => { setREpis([...rEpis, { epiId: addEpi, obrigatorio: true, quantidade: 1 }]); setAddEpi(""); }}><Plus className="w-4 h-4" /></Button>
+                  <ComboboxWithCreate value="" onChange={(v) => { if (v && !rEpis.some((r) => r.epiId === v)) setREpis([...rEpis, { epiId: v, obrigatorio: true, quantidade: 1 }]); }} allowNone={false} placeholder="Adicionar EPI…" className="flex-1 min-w-0" menuMinWidth={340}
+                    options={epis.filter((e) => e.ativo && !rEpis.some((r) => r.epiId === e.id)).map((e) => ({ value: e.id, label: e.ca ? `${e.nome} · CA ${e.ca}` : e.nome }))} />
                 </div>}>
                 {rEpis.length === 0 && <p className="text-xs text-muted-foreground italic">Nenhum EPI.</p>}
                 {rEpis.map((r, i) => { const e = epis.find((x) => x.id === r.epiId); return (
@@ -251,8 +249,8 @@ export default function SstConfigPage() {
               </Coluna>
               <Coluna titulo="Exames e periodicidade" n={rExames.length}
                 rodape={<><div className="flex gap-2">
-                  <SelectMenu value={addExame} onChange={setAddExame} placeholder="Adicionar exame…" className="flex-1 min-w-0" options={tipos.filter((t) => t.ativo && !t.clinico && !rExames.some((r) => r.exameTipoId === t.id)).map((t) => ({ value: t.id, label: t.nome }))} />
-                  <Button size="sm" variant="outline" disabled={!addExame} onClick={() => { const t = tipos.find((x) => x.id === addExame); setRExames([...rExames, { exameTipoId: addExame, periodicidadeMeses: t?.periodicidadeMeses ?? 12 }]); setAddExame(""); }}><Plus className="w-4 h-4" /></Button>
+                  <ComboboxWithCreate value="" onChange={(v) => { const t = tipos.find((x) => x.id === v); if (t && !rExames.some((r) => r.exameTipoId === v)) setRExames([...rExames, { exameTipoId: v, periodicidadeMeses: t.periodicidadeMeses ?? 12 }]); }} allowNone={false} placeholder="Adicionar exame…" className="flex-1 min-w-0" menuMinWidth={340}
+                    options={tipos.filter((t) => t.ativo && !t.clinico && !rExames.some((r) => r.exameTipoId === t.id)).map((t) => ({ value: t.id, label: t.nome }))} />
                 </div><p className="text-[11px] text-muted-foreground mt-1">A menor periodicidade vira a validade padrão do ASO periódico.</p></>}>
                 {rExames.length === 0 && <p className="text-xs text-muted-foreground italic">Só ASO clínico (12 meses).</p>}
                 {rExames.map((r, i) => { const t = tipos.find((x) => x.id === r.exameTipoId); return (
@@ -265,8 +263,8 @@ export default function SstConfigPage() {
               </Coluna>
               <Coluna titulo="Treinamentos obrigatórios" n={rTreinos.length}
                 rodape={<div className="flex gap-2">
-                  <SelectMenu value={addTreino} onChange={setAddTreino} placeholder="Adicionar treinamento…" className="flex-1 min-w-0" options={treinos.filter((t) => t.ativo && !rTreinos.includes(t.id)).map((t) => ({ value: t.id, label: t.norma ? `${t.nome} (${t.norma})` : t.nome }))} />
-                  <Button size="sm" variant="outline" disabled={!addTreino} onClick={() => { setRTreinos([...rTreinos, addTreino]); setAddTreino(""); }}><Plus className="w-4 h-4" /></Button>
+                  <ComboboxWithCreate value="" onChange={(v) => { if (v && !rTreinos.includes(v)) setRTreinos([...rTreinos, v]); }} allowNone={false} placeholder="Adicionar treinamento…" className="flex-1 min-w-0" menuMinWidth={340}
+                    options={treinos.filter((t) => t.ativo && !rTreinos.includes(t.id)).map((t) => ({ value: t.id, label: t.norma ? `${t.nome} (${t.norma})` : t.nome }))} />
                 </div>}>
                 {rTreinos.length === 0 && <p className="text-xs text-muted-foreground italic">Nenhum treinamento.</p>}
                 {rTreinos.map((tid) => <div key={tid} className="rounded-md border border-border/60 px-2 py-1.5 flex items-start gap-1.5"><span className="flex-1 text-sm text-foreground leading-snug">{treinos.find((t) => t.id === tid)?.nome ?? tid}</span><button onClick={() => setRTreinos(rTreinos.filter((x) => x !== tid))} className="text-muted-foreground hover:text-danger mt-0.5"><X className="w-3.5 h-3.5" /></button></div>)}
