@@ -45,6 +45,9 @@ export default function SstConfigPage() {
   const [treinos, setTreinos] = useState<TreinTipo[]>([]);
   const [rTreinos, setRTreinos] = useState<string[]>([]);
   const [rColabs, setRColabs] = useState<string[]>([]);
+  // Desligados (inativos) ainda vinculados: não aparecem na coluna, mas seguem no
+  // save — esconder não pode tirar a função do histórico deles.
+  const [rColabsInativos, setRColabsInativos] = useState<string[]>([]);
   const [colabs, setColabs] = useState<ColabOpt[]>([]);
   const [loading, setLoading] = useState(true);
   // Só a 1ª carga mostra o spinner: recarregar depois de salvar/excluir troca os
@@ -92,13 +95,14 @@ export default function SstConfigPage() {
     setREpis(f?.requisitosEpi.map((r) => ({ epiId: r.epiId, obrigatorio: r.obrigatorio, quantidade: r.quantidade })) ?? []);
     setRExames(f?.requisitosExame.map((r) => ({ exameTipoId: r.exameTipoId, periodicidadeMeses: r.periodicidadeMeses })) ?? []);
     setRTreinos(f?.requisitosTreinamento.map((r) => r.treinamentoTipoId) ?? []);
-    setRColabs(f?.colaboradores.map((v) => v.colaborador.id) ?? []);
+    setRColabs(f?.colaboradores.filter((v) => v.colaborador.ativo).map((v) => v.colaborador.id) ?? []);
+    setRColabsInativos(f?.colaboradores.filter((v) => !v.colaborador.ativo).map((v) => v.colaborador.id) ?? []);
     setErro(""); setOpen(true);
   }
   async function salvar() {
     if (!nome.trim()) { setErro("Informe o nome da função."); return; }
     setSaving(true); setErro("");
-    const res = await fetch(editId ? `/api/sst/funcoes/${editId}` : "/api/sst/funcoes", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cargo: nome, ghe: ghe || null, cbo: cbo || null, grauRisco: grau || null, epis: rEpis, exames: rExames, treinamentos: rTreinos.map((treinamentoTipoId) => ({ treinamentoTipoId })), colaboradores: rColabs, aplicarNoGhe: !!editId && aplicarNoGhe }) });
+    const res = await fetch(editId ? `/api/sst/funcoes/${editId}` : "/api/sst/funcoes", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cargo: nome, ghe: ghe || null, cbo: cbo || null, grauRisco: grau || null, epis: rEpis, exames: rExames, treinamentos: rTreinos.map((treinamentoTipoId) => ({ treinamentoTipoId })), colaboradores: [...rColabs, ...rColabsInativos], aplicarNoGhe: !!editId && aplicarNoGhe }) });
     const j = await res.json().catch(() => ({})); setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
     if (j.aplicadas) setAviso(`Requisitos aplicados também a ${j.aplicadas} outra(s) função(ões) do ${ghe}.`);

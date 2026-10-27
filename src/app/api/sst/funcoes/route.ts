@@ -9,7 +9,7 @@ const INCLUDE = {
   requisitosEpi: { include: { epi: { select: { id: true, nome: true, ca: true } } } },
   requisitosExame: { include: { exameTipo: { select: { id: true, nome: true } } } },
   requisitosTreinamento: { include: { treinamentoTipo: { select: { id: true, nome: true, validadeMeses: true } } } },
-  _count: { select: { colaboradores: { where: { fim: null } } } },
+  _count: { select: { colaboradores: { where: { fim: null, colaborador: { ativo: true } } } } },
   colaboradores: { where: { fim: null }, select: { colaborador: { select: { id: true, nome: true, ativo: true } } } },
 };
 
