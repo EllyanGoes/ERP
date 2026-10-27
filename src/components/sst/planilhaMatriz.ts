@@ -9,11 +9,12 @@ type Estado = "OK" | "VENCIDO" | "FALTA" | "EXTRA" | "NA";
 type Coluna = { id: string; nome: string; sub: string | null; preco: number; saldo?: number; emPedido?: number; pedidos?: string[]; base?: boolean };
 type LinhaM = {
   nome: string; matricula: string | null; setor: string | null; funcao: string; ghe: string | null;
-  info: { ultimaEntrega?: string | null; ultimoAso?: string | null; fazerEm?: string | null; diasAso?: number | null };
+  info: { ultimaEntrega?: string | null; ultimoAso?: string | null; fazerEm?: string | null; diasAso?: number | null; ultimo?: string | null };
   celulas: Record<string, { estado: Estado; data: string | null }>;
 };
-type FuncaoM = { ghe: string | null; nome: string; n: number; exigidos: Record<string, number> };
-export type DadosMatriz = { tipo: "epi" | "exames"; geradoEm: string; colunas: Coluna[]; linhas: LinhaM[]; funcoes: FuncaoM[]; fora: { semFuncao: number; afastados: number } };
+type FuncaoM = { ghe: string | null; nome: string; n: number; exigidos: Record<string, number | string> };
+export type TipoMatriz = "epi" | "exames" | "treinamentos";
+export type DadosMatriz = { tipo: TipoMatriz; geradoEm: string; colunas: Coluna[]; linhas: LinhaM[]; funcoes: FuncaoM[]; fora: { semFuncao: number; afastados: number } };
 
 type Cel = { v?: string | number; t?: "s" | "n"; f?: string; s?: Record<string, unknown> };
 type Ws = Record<string, unknown>;
@@ -36,14 +37,18 @@ const sTitulo = { font: { bold: true, sz: 15, color: { rgb: TITULO } } };
 const sNota = { font: { italic: true, sz: 9, color: { rgb: "FF595959" } }, alignment: { wrapText: true, vertical: "top" } };
 const sTotal = { font: { bold: true }, fill: { fgColor: { rgb: "FFF2F2F2" } }, border: borda };
 
-export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome: string) {
+export async function exportarPlanilhaMatriz(tipo: TipoMatriz, empresaNome: string) {
   const mod = await import("xlsx-js-style");
   const XLSX = ((mod as unknown as { default?: typeof mod }).default ?? mod) as typeof mod;
   const res = await fetch(`/api/sst/relatorios/matriz?tipo=${tipo}`, { cache: "no-store" });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || !j.data) throw new Error(j.error || "Erro ao gerar o relatório.");
   const D: DadosMatriz = j.data;
-  const epi = D.tipo === "epi";
+  const epi = D.tipo === "epi", tr = D.tipo === "treinamentos";
+  // Treinamento não tem preço: a "moeda" da planilha é a carga horária (h).
+  const VAL = tr ? 'General" h"' : MOEDA;
+  const TITULO_REL = epi ? "EPIs a entregar" : tr ? "Treinamentos a realizar" : "Exames a realizar";
+  const lblValor = tr ? "Horas" : "Custo";
   const hoje = new Date(D.geradoEm).toLocaleDateString("pt-BR");
   const enc = (r: number, c: number) => XLSX.utils.encode_cell({ r, c });
   const col = (c: number) => XLSX.utils.encode_col(c);
@@ -52,9 +57,9 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
   };
   const ref = (ws: Ws, rows: number, cols: number) => { ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows - 1, c: cols - 1 } }); };
 
-  const nomeAba = epi ? "EPIs a entregar" : "Exames a realizar";
+  const nomeAba = TITULO_REL;
   const q = `'${nomeAba}'`;
-  const itemTxt = epi ? "EPI" : "Exame";
+  const itemTxt = epi ? "EPI" : tr ? "Treinamento" : "Exame";
 
   // ── Aba 2: matriz ──────────────────────────────────────────────────────────
   const fixos: { titulo: string; w: number; val: (l: LinhaM) => string; s?: (l: LinhaM) => Record<string, unknown> | undefined }[] = [
@@ -62,8 +67,8 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
     { titulo: "Matrícula", w: 9, val: (l) => l.matricula ?? "—" },
     { titulo: "Setor", w: 16, val: (l) => l.setor ?? "" },
     { titulo: "Função", w: 28, val: (l) => l.funcao },
-    ...(epi
-      ? [{ titulo: "Última entrega", w: 11, val: (l: LinhaM) => d4(l.info.ultimaEntrega) || "nunca" }]
+    ...(epi || tr
+      ? [epi ? { titulo: "Última entrega", w: 11, val: (l: LinhaM) => d4(l.info.ultimaEntrega) || "nunca" } : { titulo: "Último treinamento", w: 12, val: (l: LinhaM) => d4(l.info.ultimo) || "nunca" }]
       : [
           { titulo: "Último ASO", w: 11, val: (l: LinhaM) => d4(l.info.ultimoAso) || "—" },
           {
@@ -83,7 +88,7 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
 
   // Ordem: exames pelo "fazer em" (já primeiro); EPI pelo nome.
   const linhas = [...D.linhas].sort((a, b) => {
-    if (!epi) {
+    if (!epi && !tr) {
       const ka = a.info.fazerEm === "JÁ" ? "0" : a.info.fazerEm ?? "9", kb = b.info.fazerEm === "JÁ" ? "0" : b.info.fazerEm ?? "9";
       if (ka !== kb) return ka < kb ? -1 : 1;
     }
@@ -92,25 +97,29 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
   const nL = linhas.length;
   const rUlt = R0 + nL - 1;
   const ws: Ws = {};
-  put(ws, 0, 0, { v: `${epi ? "EPIs a entregar" : "Exames a realizar"} — ${empresaNome} (situação em ${hoje})`, s: sTitulo });
+  put(ws, 0, 0, { v: `${TITULO_REL} — ${empresaNome} (situação em ${hoje})`, s: sTitulo });
   put(ws, 1, 0, {
-    v: epi
+    v: tr
+      ? "Verde ✓ = feito e válido (data do treinamento) · Vermelho X = nunca feito · Laranja V = reciclagem vencida (data do vencimento) · Azul + = feito, mas a função NÃO exige (não entra em 'Faltam') · Cinza — = a função não exige. Horas = carga horária dos treinamentos que faltam (linha 3)."
+      : epi
       ? "Verde ✓ = entregue e em uso (data da entrega) · Vermelho X = falta entregar · Laranja V = troca vencida (data da troca prevista) · Azul + = entregue, mas a função NÃO exige (não entra em 'Faltam' nem no custo) · Cinza — = a função não exige. Custo = EPIs que faltam ou a trocar × custo médio do estoque (linha 3)."
       : "Verde ✓ = feito e válido (data do último) · Vermelho X = nunca feito · Laranja V = vencido, refazer (data do último) · Azul + = feito, mas a função NÃO exige (não entra em 'Faltam' nem no custo) · Cinza — = a função não exige. Custo = exames que faltam + exame clínico do periódico. Preço na linha 3.",
     s: sNota,
   });
-  const chips: [Estado, string][] = epi
+  const chips: [Estado, string][] = tr
+    ? [["OK", "✓ feito"], ["FALTA", "X falta"], ["VENCIDO", "V reciclar"], ["EXTRA", "+ s/ exigência"], ["NA", "— não exigido"]]
+    : epi
     ? [["OK", "✓ entregue"], ["FALTA", "X falta"], ["VENCIDO", "V trocar"], ["EXTRA", "+ s/ exigência"], ["NA", "— não exigido"]]
     : [["OK", "✓ feito"], ["FALTA", "X falta"], ["VENCIDO", "V vencido"], ["EXTRA", "+ feito, não exigido"], ["NA", "— não exigido"]];
   // Legenda na linha 3: um chip por coluna fixa (EPI tem uma coluna a menos — o "—" vai junto do "+").
   if (chips.length > nF - 1) { const [, t1] = chips[chips.length - 2], [, t2] = chips[chips.length - 1]; chips.splice(chips.length - 2, 2, ["EXTRA", `${t1} · ${t2}`]); }
   chips.forEach(([e, t], i) => { if (i < nF - 1) put(ws, 2, i, { v: t, s: { font: { bold: true, color: { rgb: COR[e].font } }, fill: { fgColor: { rgb: COR[e].fill } }, alignment: { horizontal: "center" }, border: borda } }); });
-  put(ws, 2, c0 - 1, { v: "preço →", s: { alignment: { horizontal: "right" }, font: { italic: true, color: { rgb: "FF595959" } } } });
-  cols.forEach((c, i) => put(ws, 2, c0 + i, { v: c.preco, s: { numFmt: MOEDA, alignment: { horizontal: "center" }, font: { sz: 9 } } }));
+  put(ws, 2, c0 - 1, { v: tr ? "carga (h) →" : "preço →", s: { alignment: { horizontal: "right" }, font: { italic: true, color: { rgb: "FF595959" } } } });
+  cols.forEach((c, i) => put(ws, 2, c0 + i, { v: c.preco, s: { numFmt: VAL, alignment: { horizontal: "center" }, font: { sz: 9 } } }));
   fixos.forEach((f, i) => put(ws, 3, i, { v: f.titulo, s: sCab }));
   cols.forEach((c, i) => put(ws, 3, c0 + i, { v: c.sub ? `${c.nome}\n${c.sub}` : c.nome, s: sCab }));
   put(ws, 3, cFalt, { v: "Faltam", s: sCab });
-  put(ws, 3, cCusto, { v: "Custo", s: sCab });
+  put(ws, 3, cCusto, { v: lblValor, s: sCab });
 
   const marca = (e: Estado, data: string | null) => (e === "OK" ? `✓ ${d2(data)}` : e === "VENCIDO" ? `V ${d2(data)}` : e === "EXTRA" ? `+ ${d2(data)}` : e === "FALTA" ? "X" : "—");
   const faltaCel = (e: Estado) => e === "FALTA" || e === "VENCIDO";
@@ -135,7 +144,7 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
     const faixaCusto = `${col(ini)}${r + 1}:${col(cN)}${r + 1}`, faixaPreco = `${col(ini)}$3:${col(cN)}$3`;
     const fCusto = ini > cN ? (baseIdx >= 0 ? `IF(${col(cFalt)}${r + 1}>0,$${col(c0)}$3,0)` : "0")
       : `SUMPRODUCT(((${faixaCusto}="X")+(LEFT(${faixaCusto},1)="V"))*${faixaPreco})${baseIdx >= 0 ? `+IF(${col(cFalt)}${r + 1}>0,$${col(c0)}$3,0)` : ""}`;
-    put(ws, r, cCusto, { v: custo, f: fCusto, s: { border: borda, numFmt: MOEDA } });
+    put(ws, r, cCusto, { v: custo, f: fCusto, s: { border: borda, numFmt: VAL } });
   });
   // Totais por coluna
   const rT = rUlt + 1;
@@ -151,13 +160,13 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
     cols.forEach((c, i) => { const a = `${col(c0 + i)}${R0 + 1}:${col(c0 + i)}${rUlt + 1}`; put(ws, r, c0 + i, { v: t.val(c), f: nL ? t.fn(a) : undefined, s: { ...sTotal, alignment: { horizontal: "center" } } }); });
   });
   put(ws, rT, cFalt, { v: somaFalt, f: nL ? `SUM(${col(cFalt)}${R0 + 1}:${col(cFalt)}${rUlt + 1})` : undefined, s: { ...sTotal, alignment: { horizontal: "center" } } });
-  put(ws, rT, cCusto, { v: somaCusto, f: nL ? `SUM(${col(cCusto)}${R0 + 1}:${col(cCusto)}${rUlt + 1})` : undefined, s: { ...sTotal, numFmt: MOEDA } });
+  put(ws, rT, cCusto, { v: somaCusto, f: nL ? `SUM(${col(cCusto)}${R0 + 1}:${col(cCusto)}${rUlt + 1})` : undefined, s: { ...sTotal, numFmt: VAL } });
   put(ws, rT, 1, { v: `${nL} colab.`, s: sTotal });
   const rCusto = rT + tot.length;
-  put(ws, rCusto, 0, { v: "Custo dos que faltam", s: sTotal });
+  put(ws, rCusto, 0, { v: tr ? "Horas dos que faltam" : "Custo dos que faltam", s: sTotal });
   for (let i = 1; i < nF; i++) put(ws, rCusto, i, { v: "", s: sTotal });
-  cols.forEach((c, i) => put(ws, rCusto, c0 + i, { v: tot[0].val(c) * c.preco, f: `${col(c0 + i)}${rT + 1}*${col(c0 + i)}3`, s: { ...sTotal, numFmt: MOEDA } }));
-  put(ws, rCusto, cCusto, { v: cols.reduce((s, c) => s + tot[0].val(c) * c.preco, 0), f: `SUM(${col(c0)}${rCusto + 1}:${col(cN)}${rCusto + 1})`, s: { ...sTotal, numFmt: MOEDA } });
+  cols.forEach((c, i) => put(ws, rCusto, c0 + i, { v: tot[0].val(c) * c.preco, f: `${col(c0 + i)}${rT + 1}*${col(c0 + i)}3`, s: { ...sTotal, numFmt: VAL } }));
+  put(ws, rCusto, cCusto, { v: cols.reduce((s, c) => s + tot[0].val(c) * c.preco, 0), f: `SUM(${col(c0)}${rCusto + 1}:${col(cN)}${rCusto + 1})`, s: { ...sTotal, numFmt: VAL } });
   ref(ws, rCusto + 1, cCusto + 1);
   ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: cCusto } }, { s: { r: 1, c: 0 }, e: { r: 1, c: cCusto } }];
   ws["!cols"] = [...fixos.map((f) => ({ wch: f.w })), ...cols.map(() => ({ wch: 12 })), { wch: 7 }, { wch: 12 }];
@@ -167,18 +176,18 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
   // ── Aba 1: resumo ──────────────────────────────────────────────────────────
   const wr: Ws = {};
   let r = 0;
-  put(wr, r++, 0, { v: `${epi ? "EPIs a entregar" : "Exames a realizar"} — resumo`, s: sTitulo });
-  put(wr, r++, 0, { v: `${empresaNome}. Situação em ${hoje}. Detalhe por colaborador na aba '${nomeAba}'; ${epi ? "kit" : "exames"} por função na aba 'Por função'.`, s: sNota });
+  put(wr, r++, 0, { v: `${TITULO_REL} — resumo`, s: sTitulo });
+  put(wr, r++, 0, { v: `${empresaNome}. Situação em ${hoje}. Detalhe por colaborador na aba '${nomeAba}'; ${epi ? "kit" : tr ? "treinamentos" : "exames"} por função na aba 'Por função'.`, s: sNota });
   r++;
   put(wr, r++, 1, { v: "Total", s: sCab });
   const resumoTotais: [string, number, string, Record<string, unknown>?][] = [
-    [epi ? "Colaboradores (com EPI a entregar ou trocar)" : "Colaboradores (com algo a fazer)", linhas.filter((_, k) => custoLinha[k] > 0 || Object.values(linhas[k].celulas).some((c) => faltaCel(c.estado))).length, `COUNTIF(${q}!${col(cFalt)}${R0 + 1}:${col(cFalt)}${Math.max(R0 + 1, rUlt + 1)},">0")`],
-    [epi ? "EPIs que faltam ou a trocar" : "Exames que faltam (incl. exame clínico)", somaFalt, `${q}!${col(cFalt)}${rT + 1}`],
-    ["Custo", somaCusto, `${q}!${col(cCusto)}${rT + 1}`, { numFmt: MOEDA }],
+    [epi ? "Colaboradores (com EPI a entregar ou trocar)" : tr ? "Colaboradores (com treinamento a fazer)" : "Colaboradores (com algo a fazer)", linhas.filter((_, k) => custoLinha[k] > 0 || Object.values(linhas[k].celulas).some((c) => faltaCel(c.estado))).length, `COUNTIF(${q}!${col(cFalt)}${R0 + 1}:${col(cFalt)}${Math.max(R0 + 1, rUlt + 1)},">0")`],
+    [epi ? "EPIs que faltam ou a trocar" : tr ? "Treinamentos que faltam ou a reciclar" : "Exames que faltam (incl. exame clínico)", somaFalt, `${q}!${col(cFalt)}${rT + 1}`],
+    [tr ? "Horas de treinamento" : "Custo", somaCusto, `${q}!${col(cCusto)}${rT + 1}`, { numFmt: VAL }],
   ];
   for (const [rot, v, f, s] of resumoTotais) { put(wr, r, 0, { v: rot, s: { border: borda } }); put(wr, r, 1, { v, f, s: { border: borda, font: { bold: true }, ...(s ?? {}) } }); r++; }
   r++;
-  const cabItens = epi ? [itemTxt, "CA", "Custo unit.", "Faltam (X + V)", "Custo", "Não exigidos (+)", "Em estoque", "Em pedido (PC aberto)", "Comprar", "Pedidos"] : [itemTxt, "Preço", "Faltam (X + V)", "Custo", "Feitos não exigidos (+)"];
+  const cabItens = epi ? [itemTxt, "CA", "Custo unit.", "Faltam (X + V)", "Custo", "Não exigidos (+)", "Em estoque", "Em pedido (PC aberto)", "Comprar", "Pedidos"] : [itemTxt, tr ? "Carga (h)" : "Preço", "Faltam (X + V)", lblValor, "Feitos não exigidos (+)"];
   cabItens.forEach((t, i) => put(wr, r, i, { v: t, s: sCab }));
   const rIni = ++r;
   cols.forEach((c, i) => {
@@ -188,9 +197,9 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
       const comprar = Math.max(0, falt - (c.saldo ?? 0) - (c.emPedido ?? 0));
       put(wr, r, 0, { v: c.nome, s: { border: borda } });
       put(wr, r, 1, { v: (c.sub ?? "").replace(/^CA /, ""), s: { border: borda, alignment: { horizontal: "center" } } });
-      put(wr, r, 2, { v: c.preco, s: { border: borda, numFmt: MOEDA } });
+      put(wr, r, 2, { v: c.preco, s: { border: borda, numFmt: VAL } });
       put(wr, r, 3, { v: falt, f: `${q}!${cc}${rT + 1}`, s: { border: borda, alignment: { horizontal: "center" }, font: { bold: falt > 0, color: { rgb: falt > 0 ? "FF9C0006" : "FF000000" } } } });
-      put(wr, r, 4, { v: falt * c.preco, f: `C${r + 1}*D${r + 1}`, s: { border: borda, numFmt: MOEDA } });
+      put(wr, r, 4, { v: falt * c.preco, f: `C${r + 1}*D${r + 1}`, s: { border: borda, numFmt: VAL } });
       put(wr, r, 5, { v: extra, f: `${q}!${cc}${rT + 3}`, s: { border: borda, alignment: { horizontal: "center" } } });
       put(wr, r, 6, { v: c.saldo ?? 0, s: { border: borda, alignment: { horizontal: "center" } } });
       put(wr, r, 7, { v: c.emPedido ?? 0, s: { border: borda, alignment: { horizontal: "center" } } });
@@ -198,9 +207,9 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
       put(wr, r, 9, { v: (c.pedidos ?? []).join(", "), s: { border: borda, font: { sz: 9, color: { rgb: "FF595959" } } } });
     } else {
       put(wr, r, 0, { v: c.nome, s: { border: borda } });
-      put(wr, r, 1, { v: c.preco, s: { border: borda, numFmt: MOEDA } });
+      put(wr, r, 1, { v: c.preco, s: { border: borda, numFmt: VAL } });
       put(wr, r, 2, { v: falt, f: `${q}!${cc}${rT + 1}`, s: { border: borda, alignment: { horizontal: "center" } } });
-      put(wr, r, 3, { v: falt * c.preco, f: `B${r + 1}*C${r + 1}`, s: { border: borda, numFmt: MOEDA } });
+      put(wr, r, 3, { v: falt * c.preco, f: `B${r + 1}*C${r + 1}`, s: { border: borda, numFmt: VAL } });
       put(wr, r, 4, { v: extra, f: `${q}!${cc}${rT + 3}`, s: { border: borda, alignment: { horizontal: "center" } } });
     }
     r++;
@@ -210,7 +219,7 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
   if (epi) {
     put(wr, r, 1, { v: "", s: sTotal }); put(wr, r, 2, { v: "", s: sTotal });
     put(wr, r, 3, { v: somaFalt, f: `SUM(D${rIni + 1}:D${rFim + 1})`, s: { ...sTotal, alignment: { horizontal: "center" } } });
-    put(wr, r, 4, { v: cols.reduce((s, c) => s + tot[0].val(c) * c.preco, 0), f: `SUM(E${rIni + 1}:E${rFim + 1})`, s: { ...sTotal, numFmt: MOEDA } });
+    put(wr, r, 4, { v: cols.reduce((s, c) => s + tot[0].val(c) * c.preco, 0), f: `SUM(E${rIni + 1}:E${rFim + 1})`, s: { ...sTotal, numFmt: VAL } });
     put(wr, r, 5, { v: cols.reduce((s, c) => s + tot[2].val(c), 0), f: `SUM(F${rIni + 1}:F${rFim + 1})`, s: { ...sTotal, alignment: { horizontal: "center" } } });
     put(wr, r, 6, { v: "", s: sTotal }); put(wr, r, 7, { v: "", s: sTotal });
     put(wr, r, 8, { v: cols.reduce((s, c) => s + Math.max(0, tot[0].val(c) - (c.saldo ?? 0) - (c.emPedido ?? 0)), 0), f: `SUM(I${rIni + 1}:I${rFim + 1})`, s: { ...sTotal, alignment: { horizontal: "center" } } });
@@ -218,7 +227,7 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
   } else {
     put(wr, r, 1, { v: "", s: sTotal });
     put(wr, r, 2, { v: somaFalt, f: `SUM(C${rIni + 1}:C${rFim + 1})`, s: { ...sTotal, alignment: { horizontal: "center" } } });
-    put(wr, r, 3, { v: cols.reduce((s, c) => s + tot[0].val(c) * c.preco, 0), f: `SUM(D${rIni + 1}:D${rFim + 1})`, s: { ...sTotal, numFmt: MOEDA } });
+    put(wr, r, 3, { v: cols.reduce((s, c) => s + tot[0].val(c) * c.preco, 0), f: `SUM(D${rIni + 1}:D${rFim + 1})`, s: { ...sTotal, numFmt: VAL } });
     put(wr, r, 4, { v: cols.reduce((s, c) => s + tot[2].val(c), 0), f: `SUM(E${rIni + 1}:E${rFim + 1})`, s: { ...sTotal, alignment: { horizontal: "center" } } });
   }
   r += 2;
@@ -228,27 +237,34 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
     const itens = Object.values(l.celulas).filter((c) => faltaCel(c.estado)).length;
     if (!itens) return;
     let chave: string, ordem: string;
-    if (epi) { chave = l.setor ?? "Sem setor"; ordem = chave; }
+    if (epi || tr) { chave = l.setor ?? "Sem setor"; ordem = chave; }
     else if (l.info.fazerEm === "JÁ") { chave = "Já (ASO vencido ou sem ASO)"; ordem = "0"; }
     else { const d = new Date(l.info.fazerEm ?? ""); chave = isNaN(+d) ? "Sem data" : `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`; ordem = isNaN(+d) ? "9" : `1${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}`; }
     const g = grupos.get(chave) ?? { n: 0, itens: 0, custo: 0, ordem };
     g.n++; g.itens += itens; g.custo += custoLinha[k];
     grupos.set(chave, g);
   });
-  [epi ? "Setor" : "Quando fazer (próximo periódico)", "Colaboradores", epi ? "EPIs" : "Exames", "Custo"].forEach((t, i) => put(wr, r, i, { v: t, s: sCab }));
+  [epi || tr ? "Setor" : "Quando fazer (próximo periódico)", "Colaboradores", epi ? "EPIs" : tr ? "Treinamentos" : "Exames", lblValor].forEach((t, i) => put(wr, r, i, { v: t, s: sCab }));
   r++;
   const gIni = r;
   for (const [k, g] of Array.from(grupos).sort((a, b) => a[1].ordem.localeCompare(b[1].ordem, "pt-BR"))) {
     put(wr, r, 0, { v: k, s: { border: borda } }); put(wr, r, 1, { v: g.n, s: { border: borda, alignment: { horizontal: "center" } } });
-    put(wr, r, 2, { v: g.itens, s: { border: borda, alignment: { horizontal: "center" } } }); put(wr, r, 3, { v: g.custo, s: { border: borda, numFmt: MOEDA } });
+    put(wr, r, 2, { v: g.itens, s: { border: borda, alignment: { horizontal: "center" } } }); put(wr, r, 3, { v: g.custo, s: { border: borda, numFmt: VAL } });
     r++;
   }
   put(wr, r, 0, { v: "Total", s: sTotal });
   put(wr, r, 1, { v: Array.from(grupos.values()).reduce((s, g) => s + g.n, 0), f: r > gIni ? `SUM(B${gIni + 1}:B${r})` : undefined, s: { ...sTotal, alignment: { horizontal: "center" } } });
   put(wr, r, 2, { v: Array.from(grupos.values()).reduce((s, g) => s + g.itens, 0), f: r > gIni ? `SUM(C${gIni + 1}:C${r})` : undefined, s: { ...sTotal, alignment: { horizontal: "center" } } });
-  put(wr, r, 3, { v: Array.from(grupos.values()).reduce((s, g) => s + g.custo, 0), f: r > gIni ? `SUM(D${gIni + 1}:D${r})` : undefined, s: { ...sTotal, numFmt: MOEDA } });
+  put(wr, r, 3, { v: Array.from(grupos.values()).reduce((s, g) => s + g.custo, 0), f: r > gIni ? `SUM(D${gIni + 1}:D${r})` : undefined, s: { ...sTotal, numFmt: VAL } });
   r += 2;
-  const notas = epi
+  const notas = tr
+    ? [
+        "• Entram os colaboradores ativos com função SST. Não entram afastados/em benefício" + (D.fora.afastados ? ` (${D.fora.afastados})` : "") + ", desligados e quem está sem função" + (D.fora.semFuncao ? ` (${D.fora.semFuncao})` : "") + ".",
+        "• 'Faltam' = treinamento exigido sem participação aprovada (X) + reciclagem vencida (V). Só conta participação APROVADA.",
+        "• Horas = carga horária do cadastro do treinamento (SST › Configurações). Use para planejar turmas: o resumo mostra quantas pessoas precisam de cada treinamento.",
+        "• Azul (+) = treinamento feito que a função não exige: fica registrado, mas não conta como feito do exigido.",
+      ]
+    : epi
     ? [
         "• Entram os colaboradores ativos com função SST. Não entram afastados/em benefício" + (D.fora.afastados ? ` (${D.fora.afastados})` : "") + ", desligados e quem está sem função" + (D.fora.semFuncao ? ` (${D.fora.semFuncao})` : "") + ".",
         "• 'Faltam' = EPI exigido nunca entregue (X) + entregue com a troca prevista vencida (V). EPI entregue e dentro do prazo não é pendência.",
@@ -271,11 +287,11 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
   // ── Aba 3: por função ──────────────────────────────────────────────────────
   const wf: Ws = {};
   const fx = 3; // GHE, Função, Colab.
-  put(wf, 0, 0, { v: epi ? "EPIs exigidos por função e custo do kit" : "Exames exigidos por função e custo do ASO completo", s: sTitulo });
-  put(wf, 1, 0, { v: epi ? "Célula = quantidade exigida por colaborador. Custo do kit = soma dos EPIs exigidos × custo unitário (linha 3); × colab. = para todos da função." : "Célula = periodicidade exigida (meses). Custo do ASO completo = exame clínico + exames exigidos. Custo anual = cada exame proporcional à periodicidade (24 meses conta metade por ano).", s: sNota });
-  put(wf, 2, fx - 1, { v: "preço →", s: { alignment: { horizontal: "right" }, font: { italic: true, color: { rgb: "FF595959" } } } });
-  cols.forEach((c, i) => put(wf, 2, fx + i, { v: c.preco, s: { numFmt: MOEDA, alignment: { horizontal: "center" }, font: { sz: 9 } } }));
-  const cabF = ["GHE", "Função", "Colab.", ...cols.map((c) => (c.sub ? `${c.nome}\n${c.sub}` : c.nome)), epi ? "Custo do kit (por colab.)" : "Custo ASO completo (por colab.)", ...(epi ? [] : ["Custo anual por colab."]), epi ? "Kit × colab." : "ASO completo × colab.", ...(epi ? [] : ["Custo anual previsto"])];
+  put(wf, 0, 0, { v: tr ? "Treinamentos exigidos por função e carga horária" : epi ? "EPIs exigidos por função e custo do kit" : "Exames exigidos por função e custo do ASO completo", s: sTitulo });
+  put(wf, 1, 0, { v: tr ? "Célula = validade da reciclagem (meses); 'único' = sem reciclagem. Carga horária = soma das horas dos treinamentos exigidos (linha 3); × colab. = para todos da função." : epi ? "Célula = quantidade exigida por colaborador. Custo do kit = soma dos EPIs exigidos × custo unitário (linha 3); × colab. = para todos da função." : "Célula = periodicidade exigida (meses). Custo do ASO completo = exame clínico + exames exigidos. Custo anual = cada exame proporcional à periodicidade (24 meses conta metade por ano).", s: sNota });
+  put(wf, 2, fx - 1, { v: tr ? "carga (h) →" : "preço →", s: { alignment: { horizontal: "right" }, font: { italic: true, color: { rgb: "FF595959" } } } });
+  cols.forEach((c, i) => put(wf, 2, fx + i, { v: c.preco, s: { numFmt: VAL, alignment: { horizontal: "center" }, font: { sz: 9 } } }));
+  const cabF = ["GHE", "Função", "Colab.", ...cols.map((c) => (c.sub ? `${c.nome}\n${c.sub}` : c.nome)), tr ? "Carga horária (por colab.)" : epi ? "Custo do kit (por colab.)" : "Custo ASO completo (por colab.)", ...(epi || tr ? [] : ["Custo anual por colab."]), tr ? "Horas × colab." : epi ? "Kit × colab." : "ASO completo × colab.", ...(epi || tr ? [] : ["Custo anual previsto"])];
   cabF.forEach((t, i) => put(wf, 3, i, { v: t, s: sCab }));
   const fs = [...D.funcoes].sort((a, b) => (a.ghe ?? "~").localeCompare(b.ghe ?? "~", "pt-BR", { numeric: true }) || a.nome.localeCompare(b.nome, "pt-BR"));
   const cK = fx + cols.length;
@@ -285,29 +301,29 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
     let kit = 0, anual = 0;
     cols.forEach((c, i) => {
       const x = f.exigidos[c.id];
-      if (x != null) { kit += epi ? x * c.preco : c.preco; anual += epi ? 0 : (c.preco * 12) / x; }
+      if (x != null) { kit += epi ? Number(x) * c.preco : c.preco; anual += epi || tr || typeof x !== "number" ? 0 : (c.preco * 12) / x; }
       put(wf, rr, fx + i, { v: x ?? "—", s: { border: borda, alignment: { horizontal: "center" }, ...(x == null ? { font: { color: { rgb: "FFBFBFBF" } }, fill: { fgColor: { rgb: "FFF2F2F2" } } } : {}) } });
     });
     const faixa = `${col(fx)}${rr + 1}:${col(fx + cols.length - 1)}${rr + 1}`, precos = `${col(fx)}$3:${col(fx + cols.length - 1)}$3`;
     // Quantidade exigida é 1 em todas as funções hoje; a fórmula soma o preço dos exigidos.
-    const fKit = `SUMPRODUCT(ISNUMBER(${faixa})*${precos})`;
-    put(wf, rr, cK, { v: kit, f: cols.length ? fKit : undefined, s: { border: borda, numFmt: MOEDA } });
-    if (epi) {
-      put(wf, rr, cK + 1, { v: kit * f.n, f: `${col(cK)}${rr + 1}*C${rr + 1}`, s: { border: borda, numFmt: MOEDA } });
+    const fKit = `SUMPRODUCT((${faixa}<>"—")*${precos})`;
+    put(wf, rr, cK, { v: kit, f: cols.length ? fKit : undefined, s: { border: borda, numFmt: VAL } });
+    if (epi || tr) {
+      put(wf, rr, cK + 1, { v: kit * f.n, f: `${col(cK)}${rr + 1}*C${rr + 1}`, s: { border: borda, numFmt: VAL } });
     } else {
-      put(wf, rr, cK + 1, { v: anual, s: { border: borda, numFmt: MOEDA } });
-      put(wf, rr, cK + 2, { v: kit * f.n, f: `${col(cK)}${rr + 1}*C${rr + 1}`, s: { border: borda, numFmt: MOEDA } });
-      put(wf, rr, cK + 3, { v: anual * f.n, f: `${col(cK + 1)}${rr + 1}*C${rr + 1}`, s: { border: borda, numFmt: MOEDA } });
+      put(wf, rr, cK + 1, { v: anual, s: { border: borda, numFmt: VAL } });
+      put(wf, rr, cK + 2, { v: kit * f.n, f: `${col(cK)}${rr + 1}*C${rr + 1}`, s: { border: borda, numFmt: VAL } });
+      put(wf, rr, cK + 3, { v: anual * f.n, f: `${col(cK + 1)}${rr + 1}*C${rr + 1}`, s: { border: borda, numFmt: VAL } });
     }
   });
   const rTf = 4 + fs.length;
   put(wf, rTf, 0, { v: "", s: sTotal }); put(wf, rTf, 1, { v: "TOTAL", s: sTotal });
   put(wf, rTf, 2, { v: fs.reduce((s, f) => s + f.n, 0), f: fs.length ? `SUM(C5:C${rTf})` : undefined, s: { ...sTotal, alignment: { horizontal: "center" } } });
   for (let i = fx; i < cK + 1; i++) put(wf, rTf, i, { v: "", s: sTotal });
-  const ultF = epi ? cK + 1 : cK + 3;
+  const ultF = epi || tr ? cK + 1 : cK + 3;
   for (let i = cK + 1; i <= ultF; i++) {
-    if (!epi && i === cK + 1) { put(wf, rTf, i, { v: "", s: sTotal }); continue; }
-    put(wf, rTf, i, { v: 0, f: fs.length ? `SUM(${col(i)}5:${col(i)}${rTf})` : undefined, s: { ...sTotal, numFmt: MOEDA } });
+    if (!epi && !tr && i === cK + 1) { put(wf, rTf, i, { v: "", s: sTotal }); continue; }
+    put(wf, rTf, i, { v: 0, f: fs.length ? `SUM(${col(i)}5:${col(i)}${rTf})` : undefined, s: { ...sTotal, numFmt: VAL } });
   }
   ref(wf, rTf + 1, ultF + 1);
   wf["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: ultF } }, { s: { r: 1, c: 0 }, e: { r: 1, c: ultF } }];
@@ -318,5 +334,5 @@ export async function exportarPlanilhaMatriz(tipo: "epi" | "exames", empresaNome
   XLSX.utils.book_append_sheet(wb, wr as never, "Resumo");
   XLSX.utils.book_append_sheet(wb, ws as never, nomeAba);
   XLSX.utils.book_append_sheet(wb, wf as never, "Por função");
-  XLSX.writeFile(wb, `${epi ? "EPIs a entregar" : "Exames a realizar"} - ${hoje.replace(/\//g, "-")}.xlsx`);
+  XLSX.writeFile(wb, `${TITULO_REL} - ${hoje.replace(/\//g, "-")}.xlsx`);
 }

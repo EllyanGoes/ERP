@@ -5,7 +5,7 @@ import { EMPRESA_PADRAO_ID, prismaSemEscopo } from "@/lib/prisma";
 import { afastamentoAtual, asoVigente, colaboradoresDaEmpresa, epiVigente, type ColaboradorSst } from "@/lib/sst";
 import { custosComFallback } from "@/lib/custo-empresa";
 
-// GET /api/sst/relatorios/matriz?tipo=epi|exames — dados da planilha em matriz
+// GET /api/sst/relatorios/matriz?tipo=epi|exames|treinamentos — dados da planilha em matriz
 // (colaborador × EPI / exame) no formato da "Exames a realizar — PCMSO":
 //   OK ✓ (feito/entregue, data) · VENCIDO V (precisa refazer/trocar) · FALTA X
 //   (nunca) · EXTRA + (feito/entregue sem a função exigir) · NA — (não exigido).
@@ -20,7 +20,8 @@ const somaMeses = (d: Date, m: number) => { const x = new Date(d); x.setMonth(x.
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
-  const tipo = req.nextUrl.searchParams.get("tipo") === "exames" ? "exames" : "epi";
+  const qTipo = req.nextUrl.searchParams.get("tipo");
+  const tipo = qTipo === "exames" || qTipo === "treinamentos" ? qTipo : "epi";
   const empresaId = auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID;
   const hoje = new Date();
 
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
       id: true, nome: true, ghe: true,
       requisitosEpi: { select: { epiId: true, quantidade: true, obrigatorio: true } },
       requisitosExame: { select: { exameTipoId: true, periodicidadeMeses: true } },
+      requisitosTreinamento: { select: { treinamentoTipoId: true } },
     },
   });
   const nPorFuncao = new Map<string, number>();
@@ -102,6 +104,40 @@ export async function GET(req: NextRequest) {
       exigidos: Object.fromEntries(f.requisitosEpi.filter((r) => r.obrigatorio).map((r) => [r.epiId, r.quantidade])),
     }));
     return NextResponse.json({ data: { tipo, geradoEm: hoje.toISOString(), colunas, linhas, funcoes, fora } });
+  }
+
+  // ── Treinamentos (NR-10/12/35…): participação aprovada; V = reciclagem vencida ──
+  if (tipo === "treinamentos") {
+    const tiposT = await prismaSemEscopo.sstTreinamentoTipo.findMany({ where: { empresaId }, select: { id: true, nome: true, norma: true, cargaHoraria: true, validadeMeses: true } });
+    const tPorId = new Map(tiposT.map((t) => [t.id, t]));
+    const usos = new Map<string, number>();
+    const linhas = incluidos.map((c) => {
+      const aprov = c.sstTreinamentos.filter((p) => p.aprovado).sort((a, b) => b.treinamento.data.getTime() - a.treinamento.data.getTime());
+      const ultimoDe = (id: string) => aprov.find((p) => p.treinamento.tipoId === id) ?? null;
+      const exig = c.sstFuncoes[0].funcao.requisitosTreinamento.map((r) => r.treinamentoTipo.id);
+      const celulas: Record<string, Celula> = {};
+      for (const id of exig) {
+        usos.set(id, (usos.get(id) ?? 0) + 1);
+        const u = ultimoDe(id);
+        celulas[id] = !u ? { estado: "FALTA", data: null }
+          : u.validade && u.validade.getTime() < hoje.getTime() ? { estado: "VENCIDO", data: u.validade.toISOString() }
+          : { estado: "OK", data: u.treinamento.data.toISOString() };
+      }
+      for (const p of aprov) {
+        const id = p.treinamento.tipoId;
+        if (celulas[id] || !tPorId.has(id)) continue;
+        celulas[id] = { estado: "EXTRA", data: p.treinamento.data.toISOString() };
+        if (!usos.has(id)) usos.set(id, 0);
+      }
+      return { ...base(c), info: { ultimo: aprov[0] ? aprov[0].treinamento.data.toISOString() : null }, celulas };
+    });
+    const ids = Array.from(usos.keys()).sort((a, b) => (usos.get(b)! - usos.get(a)!) || tPorId.get(a)!.nome.localeCompare(tPorId.get(b)!.nome, "pt-BR"));
+    const colunas = ids.map((id) => { const t = tPorId.get(id)!; return { id, nome: t.nome, sub: t.norma ?? null, preco: t.cargaHoraria ?? 0 }; });
+    const funcoes = funcoesRaw.filter((f) => nPorFuncao.has(f.id)).map((f) => ({
+      ghe: f.ghe, nome: f.nome.split(" — ")[0], n: nPorFuncao.get(f.id)!,
+      exigidos: Object.fromEntries(f.requisitosTreinamento.map((r) => [r.treinamentoTipoId, tPorId.get(r.treinamentoTipoId)?.validadeMeses ?? "único"])),
+    }));
+    return NextResponse.json({ data: { tipo, medida: "h", geradoEm: hoje.toISOString(), colunas, linhas, funcoes, fora } });
   }
 
   // ── Exames ──────────────────────────────────────────────────────────────────

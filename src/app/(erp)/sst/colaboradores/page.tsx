@@ -38,8 +38,8 @@ export default function SstColaboradoresPage() {
   // Relatórios em Excel (matriz colaborador × item, no formato da planilha do PCMSO).
   const { user } = useSession();
   const empresaNome = user?.empresas?.find((e) => e.id === user.activeEmpresaId)?.nome ?? "";
-  const [baixando, setBaixando] = useState<"" | "epi" | "exames">("");
-  async function baixar(tipo: "epi" | "exames") {
+  const [baixando, setBaixando] = useState<"" | "epi" | "exames" | "treinamentos">("");
+  async function baixar(tipo: "epi" | "exames" | "treinamentos") {
     setBaixando(tipo);
     try {
       const { exportarPlanilhaMatriz } = await import("@/components/sst/planilhaMatriz");
@@ -86,6 +86,7 @@ export default function SstColaboradoresPage() {
             <DropdownMenuContent align="end" className="min-w-64">
               <DropdownMenuItem onClick={() => baixar("epi")}><FileSpreadsheet className="w-4 h-4" /> EPIs a entregar (Excel)</DropdownMenuItem>
               <DropdownMenuItem onClick={() => baixar("exames")}><FileSpreadsheet className="w-4 h-4" /> Exames a realizar (Excel)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => baixar("treinamentos")}><FileSpreadsheet className="w-4 h-4" /> Treinamentos a realizar (Excel)</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         } />
