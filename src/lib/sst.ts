@@ -161,8 +161,9 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
     }
     if (v.vencimentoUso) {
       const d = diasAte(v.vencimentoUso, hoje);
+      // Entregue e dentro do prazo não é pendência (decisão do dono, 27/10): só o
+      // vencido conta. A ficha mostra "troca em N dias" como informação.
       if (d < 0) out.push({ ...base, tipo: "EPI_VENCIDO", severidade: "ALTA", titulo: `EPI vencido: ${r.epi.nome}`, detalhe: `Troca prevista há ${-d} dia(s)`, referenciaId: r.epi.id, vence: v.vencimentoUso });
-      else if (d <= JANELA_AVISO_DIAS) out.push({ ...base, tipo: "EPI_VENCE_EM_BREVE", severidade: "MEDIA", titulo: `EPI a trocar em ${d} dia(s): ${r.epi.nome}`, referenciaId: r.epi.id, vence: v.vencimentoUso });
     }
     if (r.epi.caValidade && r.epi.caValidade.getTime() < hoje.getTime()) {
       out.push({ ...base, tipo: "EPI_CA_VENCIDO", severidade: "ALTA", titulo: `CA vencido: ${r.epi.nome}${r.epi.ca ? ` (CA ${r.epi.ca})` : ""}`, referenciaId: r.epi.id, vence: r.epi.caValidade, link: `/sst/epis` });
