@@ -40,7 +40,6 @@ export default function SstEpisPage() {
   useEffect(() => { if (new URLSearchParams(window.location.search).get("aba") === "fichas") setAba("fichas"); }, []);
   const [soPendentes, setSoPendentes] = useState(false);
   async function load() {
-    setLoading(true);
     const [j, jf] = await Promise.all([fetch("/api/sst/epis").then((r) => r.json()), fetch("/api/sst/entregas/fichas").then((r) => r.json())]);
     setEpis(j.data ?? []); setFichas(jf.data ?? []); setLoading(false);
   }

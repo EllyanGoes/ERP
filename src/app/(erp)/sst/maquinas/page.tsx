@@ -27,7 +27,7 @@ export default function SstMaquinasPage() {
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = usePersistedState<string>("sst:maquinas:status", "");
-  async function load() { setLoading(true); const j = await fetch("/api/sst/maquinas").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
+  async function load() { const j = await fetch("/api/sst/maquinas").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
   useEffect(() => { load(); }, []);
   const visiveis = useMemo(() => lista.filter((m) => !filtro || m.status === filtro).filter((m) => !busca || `${m.nome} ${m.local ?? ""} ${m.setor?.nome ?? ""}`.toLowerCase().includes(busca.toLowerCase())), [lista, filtro, busca]);
   const contagem = (s: string) => lista.filter((m) => m.status === s).length;

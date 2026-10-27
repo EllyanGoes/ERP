@@ -44,7 +44,6 @@ export default function SstSaudePage() {
   const [busca, setBusca] = usePersistedState("sst:saude:busca", "");
   const [agrupar, setAgrupar] = usePersistedState("sst:saude:agrupar", "colaborador");
   async function load() {
-    setLoading(true);
     const [c, t] = await Promise.all([fetch("/api/sst/colaboradores").then((r) => r.json()), fetch("/api/sst/exames-tipos").then((r) => r.json())]);
     setColabs(c.data ?? []); setTipos(t.data ?? []); setLoading(false);
   }

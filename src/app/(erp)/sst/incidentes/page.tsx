@@ -26,7 +26,7 @@ export default function SstIncidentesPage() {
   const [colabs, setColabs] = useState<Colab[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
-  async function load() { setLoading(true); const j = await fetch("/api/sst/incidentes").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
+  async function load() { const j = await fetch("/api/sst/incidentes").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
   useEffect(() => { load(); fetch("/api/sst/colaboradores").then((r) => r.json()).then((j) => setColabs(j.data ?? [])); }, []);
   const visiveis = useMemo(() => lista.filter((i) => !filtro || (filtro === "ABERTOS" ? i.status !== "ENCERRADO" : i.status === filtro)), [lista, filtro]);
   const ano = new Date().getFullYear();

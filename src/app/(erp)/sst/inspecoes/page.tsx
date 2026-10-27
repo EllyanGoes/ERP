@@ -36,7 +36,7 @@ export default function SstInspecoesPage() {
   const [lista, setLista] = useState<Ins[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("");
-  async function load() { setLoading(true); const j = await fetch("/api/sst/inspecoes").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
+  async function load() { const j = await fetch("/api/sst/inspecoes").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
   useEffect(() => { load(); }, []);
   const visiveis = useMemo(() => lista.filter((i) => !filtro || i.tipo === filtro), [lista, filtro]);
 

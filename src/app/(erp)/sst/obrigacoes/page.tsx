@@ -31,7 +31,7 @@ export default function SstObrigacoesPage() {
   const [lista, setLista] = useState<Obrig[]>([]);
   const [loading, setLoading] = useState(true);
   const lk = useLookups();
-  async function load() { setLoading(true); const j = await fetch("/api/sst/obrigacoes").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
+  async function load() { const j = await fetch("/api/sst/obrigacoes").then((r) => r.json()); setLista(j.data ?? []); setLoading(false); }
   useEffect(() => { load(); }, []);
 
   const [open, setOpen] = useState(false); const [editId, setEditId] = useState<string | null>(null);

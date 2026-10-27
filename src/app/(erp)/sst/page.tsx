@@ -42,7 +42,6 @@ export default function SstPainelPage() {
   const [grupo, setGrupo] = useState<string | null>(null);
 
   async function load() {
-    setLoading(true);
     const j = await fetch("/api/sst/painel").then((r) => r.json()).catch(() => null);
     setP(j?.data ?? null);
     setLoading(false);

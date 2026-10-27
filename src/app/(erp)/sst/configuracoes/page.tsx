@@ -48,8 +48,9 @@ export default function SstConfigPage() {
   const [colabs, setColabs] = useState<ColabOpt[]>([]);
   const [addTreino, setAddTreino] = useState("");
   const [loading, setLoading] = useState(true);
+  // Só a 1ª carga mostra o spinner: recarregar depois de salvar/excluir troca os
+  // dados por trás, sem desmontar a lista (a rolagem fica onde estava).
   async function load() {
-    setLoading(true);
     const [f, e, t, tr, c] = await Promise.all([fetch("/api/sst/funcoes").then((r) => r.json()), fetch("/api/sst/epis").then((r) => r.json()), fetch("/api/sst/exames-tipos").then((r) => r.json()), fetch("/api/sst/treinamentos-tipos").then((r) => r.json()), fetch("/api/sst/colaboradores").then((r) => r.json())]);
     setFuncoes(f.data ?? []); setEpis(e.data ?? []); setTipos(t.data ?? []); setTreinos(tr.data ?? []); setColabs(c.data ?? []); setLoading(false);
   }

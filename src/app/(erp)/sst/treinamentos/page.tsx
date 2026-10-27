@@ -31,7 +31,6 @@ export default function SstTreinamentosPage() {
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState<"turmas" | "pendencias" | "tipos">("turmas");
   async function load() {
-    setLoading(true);
     const [t, u, c] = await Promise.all([fetch("/api/sst/treinamentos-tipos").then((r) => r.json()), fetch("/api/sst/treinamentos").then((r) => r.json()), fetch("/api/sst/colaboradores").then((r) => r.json())]);
     setTipos(t.data ?? []); setTurmas(u.data ?? []); setColabs(c.data ?? []); setLoading(false);
   }
