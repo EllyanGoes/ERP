@@ -55,12 +55,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-// DELETE — só sem colaboradores vinculados (histórico incluso); senão, inative.
+// DELETE — sem nenhum vínculo: exclui. Só histórico (desligados / vínculos encerrados):
+// ARQUIVA (ativo=false) para não perder o histórico. Com colaborador ativo: recusa.
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
-  const n = await prismaSemEscopo.sstColaboradorFuncao.count({ where: { funcaoId: params.id } });
-  if (n > 0) return NextResponse.json({ error: `A função tem ${n} vínculo(s) de colaborador. Inative em vez de excluir.` }, { status: 400 });
+  const funcao = await prisma.sstFuncao.findUnique({ where: { id: params.id }, select: { id: true } });
+  if (!funcao) return NextResponse.json({ error: "Função não encontrada" }, { status: 404 });
+  const ativos = await prismaSemEscopo.sstColaboradorFuncao.count({ where: { funcaoId: params.id, fim: null, colaborador: { ativo: true } } });
+  if (ativos > 0) return NextResponse.json({ error: `${ativos} colaborador(es) ativo(s) estão nesta função — mude a função deles antes.` }, { status: 400 });
+  const historico = await prismaSemEscopo.sstColaboradorFuncao.count({ where: { funcaoId: params.id } });
+  if (historico > 0) {
+    await prisma.sstFuncao.update({ where: { id: params.id }, data: { ativo: false } });
+    return NextResponse.json({ ok: true, arquivada: true });
+  }
   await prisma.sstFuncao.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }

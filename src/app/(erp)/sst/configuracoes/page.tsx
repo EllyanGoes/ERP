@@ -152,7 +152,7 @@ export default function SstConfigPage() {
           <SelectMenu value={fEpi} onChange={setFEpi} className="w-56" triggerClassName="h-8 text-xs" options={[{ value: "", label: "EPI exigido: todos" }, ...epis.map((e) => ({ value: e.id, label: e.nome }))]} />
           <SelectMenu value={fExame} onChange={setFExame} className="w-56" triggerClassName="h-8 text-xs" options={[{ value: "", label: "Exame exigido: todos" }, ...tipos.map((t) => ({ value: t.id, label: t.nome }))]} />
           <SelectMenu value={fTreino} onChange={setFTreino} className="w-56" triggerClassName="h-8 text-xs" options={[{ value: "", label: "Treinamento: todos" }, ...treinos.map((t) => ({ value: t.id, label: t.nome }))]} />
-          <SelectMenu value={fAtivo} onChange={setFAtivo} className="w-32" triggerClassName="h-8 text-xs" options={[{ value: "ativas", label: "Ativas" }, { value: "inativas", label: "Inativas" }, { value: "todas", label: "Todas" }]} />
+          <SelectMenu value={fAtivo} onChange={setFAtivo} className="w-32" triggerClassName="h-8 text-xs" options={[{ value: "ativas", label: "Ativas" }, { value: "inativas", label: "Arquivadas" }, { value: "todas", label: "Todas" }]} />
           {(busca || fGhe || fEpi || fExame || fTreino || fAtivo !== "ativas") && <button onClick={() => { setBusca(""); setFGhe(""); setFEpi(""); setFExame(""); setFTreino(""); setFAtivo("ativas"); }} className="text-xs text-muted-foreground hover:text-foreground">limpar</button>}
           <span className="ml-auto text-xs text-muted-foreground">{filtradas.length} de {funcoes.length} função(ões)</span>
         </div>
@@ -187,7 +187,7 @@ export default function SstConfigPage() {
                         <AcoesLinha acoes={[
                           { label: "Editar", icon: <Pencil className="w-4 h-4 mr-2" />, onClick: () => abrir(f) },
                           { label: "Duplicar", icon: <Copy className="w-4 h-4 mr-2" />, onClick: () => duplicar(f) },
-                          { label: f.ativo ? "Inativar" : "Ativar", icon: <Power className="w-4 h-4 mr-2" />, onClick: () => alternarAtivo(f) },
+                          { label: f.ativo ? "Arquivar" : "Desarquivar", icon: <Power className="w-4 h-4 mr-2" />, onClick: () => alternarAtivo(f) },
                           { label: "Excluir", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDel(f), danger: true, separadorAntes: true },
                         ]} />
                       </td>
@@ -303,7 +303,7 @@ export default function SstConfigPage() {
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button><Button onClick={salvar} disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
-      <ConfirmDialog open={!!del} onOpenChange={(o) => !o && setDel(null)} title="Excluir função?" description={`${del?.nome ?? ""} — só é possível sem colaboradores vinculados.`} onConfirm={excluir} loading={saving} confirmLabel="Excluir" />
+      <ConfirmDialog open={!!del} onOpenChange={(o) => !o && setDel(null)} title="Excluir função?" description={`${del?.nome ?? ""} — sem histórico de colaboradores, é excluída; com histórico (só desligados), é arquivada para não perder o registro.`} onConfirm={excluir} loading={saving} confirmLabel="Excluir" />
     </div>
   );
 }
