@@ -7,6 +7,16 @@ export const SEP_GHE = " — ";
 export const cargoDe = (nome: string) => nome.split(SEP_GHE)[0].trim();
 export const nomeFuncao = (cargo: string, ghe: string | null | undefined) => (ghe?.trim() ? `${cargo.trim()}${SEP_GHE}${ghe.trim()}` : cargo.trim());
 
+/** Chave p/ achar duplicata: "ENCARREGADO DE PRODUÇÃO" = "Encarregado de produção" (caixa e acento). */
+const chaveFuncao = (nome: string) => nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/** Outra função da empresa com o mesmo cargo+GHE (ignorando caixa/acento) — ou null. */
+export async function funcaoDuplicada(db: Pick<Prisma.TransactionClient, "sstFuncao">, empresaId: string, nome: string, excetoId?: string) {
+  const chave = chaveFuncao(nome);
+  const todas = await db.sstFuncao.findMany({ where: { empresaId, ...(excetoId ? { id: { not: excetoId } } : {}) }, select: { id: true, nome: true } });
+  return todas.find((f) => chaveFuncao(f.nome) === chave) ?? null;
+}
+
 type Req = { epis?: unknown; exames?: unknown; treinamentos?: unknown };
 
 /** Substitui os requisitos (EPIs/exames/treinamentos enviados) de uma função. */

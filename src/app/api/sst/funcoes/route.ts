@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { cargoDe, nomeFuncao, sincronizarColaboradores } from "@/lib/sst-funcao";
+import { cargoDe, funcaoDuplicada, nomeFuncao, sincronizarColaboradores } from "@/lib/sst-funcao";
 import { prismaSemEscopo } from "@/lib/prisma";
 
 const INCLUDE = {
@@ -40,10 +40,13 @@ export async function POST(req: NextRequest) {
   const ghe = String(b.ghe ?? (b.cargo === undefined ? String(b.nome ?? "").split(" — ")[1] ?? "" : "")).trim() || null;
   const nome = nomeFuncao(cargo, ghe);
   const { epis, exames } = lerRequisitos(b);
+  const empresaId = auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  const dup = await funcaoDuplicada(prisma, empresaId, nome);
+  if (dup) return NextResponse.json({ error: `Já existe a função “${dup.nome}”. Edite-a em vez de criar outra.` }, { status: 409 });
   try {
     const funcao = await prisma.sstFuncao.create({
       data: {
-        empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID,
+        empresaId,
         nome, ghe, cbo: b.cbo?.trim() || null, grauRisco: b.grauRisco ? Number(b.grauRisco) : null,
         requisitosEpi: { create: epis.map((e) => ({ epiId: e.epiId, obrigatorio: e.obrigatorio !== false, quantidade: Math.max(1, Number(e.quantidade) || 1) })) },
         requisitosExame: { create: exames.map((e) => ({ exameTipoId: e.exameTipoId, periodicidadeMeses: Number(e.periodicidadeMeses) })) },

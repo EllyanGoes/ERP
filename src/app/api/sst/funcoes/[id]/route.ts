@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
-import { cargoDe, gravarRequisitos, nomeFuncao, sincronizarColaboradores } from "@/lib/sst-funcao";
+import { cargoDe, funcaoDuplicada, gravarRequisitos, nomeFuncao, sincronizarColaboradores } from "@/lib/sst-funcao";
 
 const INCLUDE = {
   requisitosEpi: { include: { epi: { select: { id: true, nome: true, ca: true } } } },
@@ -28,6 +28,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!cargo) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
     const ghe = b.ghe !== undefined ? (String(b.ghe ?? "").trim() || null) : atual.ghe;
     data.nome = nomeFuncao(cargo, ghe); data.ghe = ghe;
+    const dup = await funcaoDuplicada(prisma, atual.empresaId, String(data.nome), atual.id);
+    if (dup) return NextResponse.json({ error: `Já existe a função “${dup.nome}”.` }, { status: 409 });
   }
   if (b.cbo !== undefined) data.cbo = b.cbo?.trim() || null;
   if (b.grauRisco !== undefined) data.grauRisco = b.grauRisco ? Number(b.grauRisco) : null;
