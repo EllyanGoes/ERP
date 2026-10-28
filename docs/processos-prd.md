@@ -1,6 +1,6 @@
 # PRD — Módulo de Processos Externos (jurídicos e administrativos)
 
-> Status: proposta (28/10/2026). Implementação pendente de aprovação do dono.
+> Status: **aprovado pelo dono em 28/10/2026** (decisões na §9). Fase 1 em implementação.
 > Princípio central: **processo é algo que anda FORA da empresa** (num órgão, num tribunal, num
 > cartório) **e que a empresa precisa acompanhar sem perder prazo**. O módulo não substitui o
 > sistema do órgão nem o advogado: é a ficha única do processo, com a linha do tempo, os prazos
@@ -218,20 +218,15 @@ Módulo `processos`: `painel.ver`, `processos.ver`, `processos.editar`, `process
 | **3 — Externo** | Link do processo para advogado/despachante registrar andamento e anexar (token, como a OS pública), sem acesso ao resto do ERP. Relatório para a contabilidade (provisões por risco — CPC 25). | ~2 dias |
 | **4 — Captura automática** | Consulta automática onde houver API pública (DataJud/CNJ para judiciais); para portais sem API (SICARF), lembrete periódico "conferir o portal" em vez de raspagem. | sob demanda |
 
-## 9. Decisões abertas (para o dono)
+## 9. Decisões do dono (28/10/2026)
 
-1. **Processos em nome de pessoa física** (Fazenda Luciana está no seu CPF): ficam no módulo da
-   empresa com `interessadoTipo = PESSOA`, marcados confidenciais? Ou numa "empresa" separada
-   (patrimônio pessoal), como a Carteira B3 do módulo Investimentos? **Recomendo:** mesma
-   estrutura, confidencial por padrão quando o interessado é pessoa física.
-2. **Credenciais de portal no ERP** (criptografadas, com log de quem viu) ou só um campo "onde
-   está a senha" apontando para o gerenciador de senhas da empresa? **Recomendo** guardar no ERP
-   criptografado — hoje a alternativa real é PDF com senha aberta.
-3. **Valor em discussão e risco de perda** entram na v1? Servem para a contabilidade provisionar
-   (CPC 25). Recomendo campo na v1, relatório na fase 3.
-4. **Quem cadastra**: só administrativo/diretoria, ou qualquer usuário pode abrir e o
-   administrativo assume? Recomendo só quem tem `processos.editar`.
-5. **Alertas**: sino + Telegram, ou também e-mail? Recomendo sino + Telegram (já existentes).
+1. **Pessoa física** (ex.: Fazenda Luciana no CPF do dono): fica no módulo, com
+   `interessadoTipo = PESSOA` e **confidencial por padrão**.
+2. **Credenciais de portal**: cofre **criptografado no ERP** (AES-256-GCM, chave em env), ver/copiar
+   só com permissão e com log. O PDF do SICARF com senha aberta sai do GED após a migração (fase 2).
+3. **Valor em discussão e risco de perda**: campos **já na v1**; relatório CPC 25 na fase 3.
+4. **Quem cadastra/edita**: só quem tem `processos.editar`; quem não tem o módulo não o vê.
+5. Alertas: sino + Telegram (padrão dos outros módulos).
 
 ## 10. Fora de escopo
 
