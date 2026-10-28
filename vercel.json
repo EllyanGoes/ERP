@@ -57,6 +57,10 @@
       "schedule": "45 10 * * 1-5"
     },
     {
+      "path": "/api/cron/processos-prazos",
+      "schedule": "50 10 * * 1-5"
+    },
+    {
       "path": "/api/cron/manutencao-preventivas",
       "schedule": "0 9 * * *"
     }

@@ -80,6 +80,8 @@ const MODELOS_ESCOPADOS = new Set<string>([
   "Contrato",
   // Manutenção — docs/manutencao-prd.md (catálogos são do grupo; filhos de OS/plano escopam via pai)
   "ManutAtivo", "ManutSolicitacao", "ManutOrdem", "ManutPlano",
+  // Processos externos — docs/processos-prd.md (andamentos/prazos/partes escopam via pai)
+  "Processo",
 ])
 
 // Mapas montados uma vez a partir do dmmf:

@@ -258,6 +258,16 @@ export const MODULOS: ModuloDef[] = [
     ],
   },
   {
+    key: "processos",
+    label: "Processos externos",
+    group: "Documentos",
+    recursos: [
+      { key: "painel",         label: "Painel de processos",           acoes: ["ver"] },
+      { key: "lista",          label: "Processos (cadastro e andamentos)", acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "confidenciais",  label: "Ver processos confidenciais",   acoes: ["ver"] },
+    ],
+  },
+  {
     key: "documentos",
     label: "Documentos",
     group: "Documentos",

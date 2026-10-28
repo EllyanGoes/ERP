@@ -13,7 +13,7 @@ import DocumentoCreateDrawer from "./DocumentoCreateDrawer";
 export default function DocumentosDaEntidade({
   tipo, id,
 }: {
-  tipo: "fornecedor" | "cliente" | "colaborador" | "imobilizado" | "contrato";
+  tipo: "fornecedor" | "cliente" | "colaborador" | "imobilizado" | "contrato" | "processo";
   id: string;
 }) {
   const router = useRouter();

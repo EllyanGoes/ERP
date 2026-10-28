@@ -14,6 +14,7 @@ import {
   FileBarChart2,
   FileText,
   FileSignature,
+  Gavel,
   Building2,
   Truck,
   ClipboardList,
@@ -432,6 +433,20 @@ export const mainModules: Module[] = [
         items: [
           { href: "/contratos", label: "Painel", icon: LayoutDashboard, exact: true },
           { href: "/contratos/lista", label: "Contratos", icon: FileSignature },
+        ],
+      },
+    ],
+  },
+  {
+    id: "processos",
+    label: "Processos",
+    icon: Gavel,
+    sections: [
+      {
+        kind: "Geral",
+        items: [
+          { href: "/processos", label: "Painel", icon: LayoutDashboard, exact: true },
+          { href: "/processos/lista", label: "Processos", icon: Gavel },
         ],
       },
     ],

@@ -51,6 +51,7 @@ const TIPO_LABEL: Record<string, string> = {
   CONTRATO: "Contrato",
   EVENTO_COLABORADOR: "Evento do colaborador",
   ORDEM_MANUTENCAO: "OS de manutenção",
+  PROCESSO: "Processo externo",
 };
 
 const TIPOS = Object.keys(TIPO_LABEL);

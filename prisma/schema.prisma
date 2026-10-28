@@ -1786,6 +1786,7 @@ model Empresa {
   lancamentosMetrica            LancamentoManualMetrica[]
   empresaDrive                  EmpresaDrive?
   contratos                     Contrato[]
+  processos                     Processo[]
   sstInstrutores                SstInstrutor[]
   sstClinicas                   SstClinica[]
   sstAgendamentoLotes           SstAgendamentoLote[]
@@ -2931,6 +2932,7 @@ model Usuario {
   investOperacoes          InvestOperacao[]
   investProventos          InvestProvento[]
   documentosResp           Documento[]           @relation("DocumentoResponsavel")
+  processosResp            Processo[]            @relation("ProcessoResponsavel")
   documentosAcesso         DocumentoAcesso[]
   documentosLog            DocumentoLog[]
   contratosResponsavel     Contrato[]            @relation("ContratoResponsavel")
@@ -5009,12 +5011,17 @@ model Documento {
   contratoId String?
   contrato   Contrato? @relation(fields: [contratoId], references: [id])
 
+  // Processo externo (jurídico/administrativo) a que o documento pertence.
+  processoId String?
+  processo   Processo? @relation(fields: [processoId], references: [id])
+
   @@index([empresaId, categoriaId])
   @@index([validade])
   @@index([fornecedorId])
   @@index([clienteId])
   @@index([colaboradorId])
   @@index([imobilizadoId])
+  @@index([processoId])
 }
 
 model DocumentoVersao {
@@ -6609,4 +6616,107 @@ model ManutAtivoPecaLegado {
   material   ManutMaterialLegado @relation(fields: [codMat], references: [codMat])
 
   @@unique([ativoId, codMat])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Processos externos (docs/processos-prd.md): jurídicos, administrativos,
+// fundiários, ambientais e fiscais acompanhados fora da empresa — linha do tempo
+// (andamentos), prazos com alerta, partes e documentos do GED.
+// Tipos/situações como String (constantes em src/lib/processos.ts).
+// ─────────────────────────────────────────────────────────────────────────────
+model Processo {
+  id                     String              @id @default(cuid())
+  empresaId              String
+  codigo                 String // PRC-0001
+  titulo                 String
+  tipo                   String // FUNDIARIO | AMBIENTAL | ADMINISTRATIVO | FISCAL | JUDICIAL | TRABALHISTA | OUTRO
+  orgao                  String
+  esfera                 String? // MUNICIPAL | ESTADUAL | FEDERAL | JUDICIAL
+  numero                 String?
+  numerosExtras          Json? // [{ rotulo, valor }]
+  portalUrl              String?
+  polo                   String? // AUTOR | REU | INTERESSADO | REQUERENTE
+  interessadoTipo        String              @default("EMPRESA") // EMPRESA | PESSOA
+  interessadoNome        String?
+  assunto                String?
+  situacao               String              @default("EM_ANDAMENTO")
+  fase                   String?
+  abertoEm               DateTime?
+  encerradoEm            DateTime?
+  responsavelId          String?
+  advogado               String?
+  valorCausa             Decimal?            @db.Decimal(15, 2)
+  riscoPerda             String? // PROVAVEL | POSSIVEL | REMOTA (CPC 25)
+  confidencial           Boolean             @default(false)
+  imovel                 String?
+  imobilizadoId          String?
+  colaboradorId          String?
+  fornecedorId           String?
+  clienteId              String?
+  contratoId             String?
+  tags                   String[]            @default([])
+  observacoes            String?
+  diasSemAndamentoAlerta Int                 @default(60)
+  criadoPor              String?
+  atualizadoPor          String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  empresa                Empresa             @relation(fields: [empresaId], references: [id])
+  responsavel            Usuario?            @relation("ProcessoResponsavel", fields: [responsavelId], references: [id])
+  andamentos             ProcessoAndamento[]
+  prazos                 ProcessoPrazo[]
+  partes                 ProcessoParte[]
+  documentos             Documento[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, situacao])
+}
+
+model ProcessoAndamento {
+  id          String   @id @default(cuid())
+  processoId  String
+  data        DateTime
+  tipo        String // PROTOCOLO | MOVIMENTACAO | EXIGENCIA | MANIFESTACAO | DECISAO | AUDIENCIA | VISTORIA | PAGAMENTO | OUTRO
+  descricao   String
+  documentoId String?
+  origem      String   @default("MANUAL")
+  usuario     String?
+  createdAt   DateTime @default(now())
+  processo    Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@index([processoId, data])
+}
+
+model ProcessoPrazo {
+  id            String    @id @default(cuid())
+  processoId    String
+  descricao     String
+  vence         DateTime
+  avisoDias     Int       @default(5)
+  responsavelId String?
+  status        String    @default("PENDENTE") // PENDENTE | CUMPRIDO | DISPENSADO
+  cumpridoEm    DateTime?
+  andamentoId   String?
+  motivo        String?
+  criadoPor     String?
+  createdAt     DateTime  @default(now())
+  processo      Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@index([processoId, status])
+  @@index([status, vence])
+}
+
+model ProcessoParte {
+  id            String   @id @default(cuid())
+  processoId    String
+  papel         String // ORGAO | AUTOR | REU | ADVOGADO | PERITO | DESPACHANTE | TECNICO | OUTRO
+  nome          String
+  documento     String?
+  contato       String?
+  fornecedorId  String?
+  clienteId     String?
+  colaboradorId String?
+  processo      Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@index([processoId])
 }
