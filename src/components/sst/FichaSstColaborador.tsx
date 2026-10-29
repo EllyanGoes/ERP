@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText, Pencil } from "lucide-react";
+import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText, Pencil, Paperclip } from "lucide-react";
 import { Semaforo, SeloAfastado, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
@@ -28,11 +28,12 @@ type Ficha = {
   setor: { nome: string } | null;
   sstFuncoes: { id: string; inicio: string; fim: string | null; funcao: { id: string; nome: string; requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[] } }[];
   sstTreinamentos: { validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; treinamento: { id: string; tipoId: string; data: string; instrutor: string | null; cargaHoraria: number | null; tipo: { nome: string; norma: string | null } } }[];
-  sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null; historico?: boolean } | null }[];
+  sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null; historico?: boolean; fechadaEm?: string | null } | null }[];
   sstExames: { id: string; exameTipoId: string; data: string; resultado: string | null; observacao: string | null; documentoId: string | null; asoId: string | null; exameTipo: { nome: string }; aso: { tipo: string; data: string } | null }[];
   sstAsos: { id: string; tipo: string; data: string; validade: string | null; resultado: string; restricoes: string | null; medico: string | null; crm: string | null; medicoId: string | null; documentoId: string | null; exames: { exameTipoId: string; data: string; resultado: string | null; exameTipo: { nome: string } }[] }[];
   pendencias: Pendencia[];
-  episStatus: { epi: { id: string; nome: string; vidaUtilDias: number | null; ca: string | null }; obrigatorio: boolean; quantidade: number; entregaVigente: { data: string; vencimentoUso: string | null } | null }[];
+  fichaAberta: { id: string; numero: number; data: string; _count: { itens: number } } | null;
+  episStatus: { epi: { id: string; nome: string; vidaUtilDias: number | null; ca: string | null; descartavel?: boolean }; obrigatorio: boolean; quantidade: number; entregaVigente: { data: string; vencimentoUso: string | null } | null }[];
 };
 type Funcao = { id: string; nome: string; ativo: boolean };
 type Epi = { id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean };
@@ -90,6 +91,13 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   const [dlgEpi, setDlgEpi] = useState(false);
   const [epiInicial, setEpiInicial] = useState<string | null>(null);
   function abrirEntrega(epiId = "") { setEpiInicial(epiId || null); setDlgEpi(true); }
+  // Ficha de histórico aberta: fechar (com ou sem o papel assinado já anexado).
+  const [dlgFechar, setDlgFechar] = useState(false);
+  async function fecharFicha(documentoId: string | null) {
+    if (!f?.fichaAberta) return;
+    await fetch(`/api/sst/entregas/fichas/${f.fichaAberta.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(documentoId ? { documentoId } : { fechar: true }) });
+    setDlgFechar(false); load();
+  }
 
   // ── ASO ──
   const [dlgAso, setDlgAso] = useState(false);
@@ -252,6 +260,16 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                     // Mesma janela da pendência "EPI a trocar em breve" (30 dias) — a lista conta como atenção.
                     const diasTroca = v?.vencimentoUso && !vencido ? Math.ceil((new Date(v.vencimentoUso).getTime() - Date.now()) / 86_400_000) : null;
                     const trocaEmBreve = diasTroca != null && diasTroca <= 30;
+                    // Descartável: retirada recorrente, sem troca prevista.
+                    if (s.epi.descartavel) return (
+                      <tr key={s.epi.id} className="border-t border-border/60">
+                        <td className="px-4 py-2 text-foreground">{s.epi.nome}{s.epi.ca ? <span className="text-xs text-muted-foreground"> · CA {s.epi.ca}</span> : null}{!s.obrigatorio && <span className="text-xs text-muted-foreground"> (opcional)</span>}</td>
+                        <td className="px-3 py-2">{v ? <span className="text-xs font-medium text-success">retirado</span> : <span className="text-xs font-medium text-danger">não entregue</span>}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{v ? fmtData(v.data) : "—"}</td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground italic">consumo frequente</td>
+                        <td className="px-3 py-2 text-right"><button onClick={() => abrirEntrega(s.epi.id)} className="text-xs text-info hover:underline">Entregar</button></td>
+                      </tr>
+                    );
                     return (
                       <tr key={s.epi.id} className="border-t border-border/60">
                         <td className="px-4 py-2 text-foreground">{s.epi.nome}{s.epi.ca ? <span className="text-xs text-muted-foreground"> · CA {s.epi.ca}</span> : null}{!s.obrigatorio && <span className="text-xs text-muted-foreground"> (opcional)</span>}</td>
@@ -268,6 +286,16 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                   </Card>
                   <Card icon={<HardHat className="w-4 h-4" />} titulo={`Entregas de EPI${nEntregas ? ` · ${nEntregas}` : ""}`}
                     acao={<Button size="sm" onClick={() => abrirEntrega()} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Entrega</Button>}>
+              {f.fichaAberta && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 border-b border-border bg-info/5 text-sm">
+                  <FileText className="w-4 h-4 text-info shrink-0" />
+                  <span className="text-foreground"><b>Ficha de histórico nº {String(f.fichaAberta.numero).padStart(4, "0")}</b> <span className="text-muted-foreground">· aberta desde {fmtData(f.fichaAberta.data)} · {f.fichaAberta._count.itens} linha(s)</span></span>
+                  <span className="ml-auto flex items-center gap-3">
+                    <button onClick={() => setCautelaAberta(f.fichaAberta!.id)} className="inline-flex items-center gap-1 text-xs text-info hover:underline"><Printer className="w-3.5 h-3.5" /> Imprimir</button>
+                    <button onClick={() => setDlgFechar(true)} className="inline-flex items-center gap-1 text-xs text-info hover:underline"><Paperclip className="w-3.5 h-3.5" /> Fechar e anexar papel</button>
+                  </span>
+                </div>
+              )}
               {f.sstEpiEntregas.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (() => {
                 // Uma linha por cautela (termo avulso); ficha de histórico, lote e
                 // avulsas ficam uma por linha (cada uma tem a própria data).
@@ -281,7 +309,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 return (
                   <div className="overflow-x-auto"><table className="w-full text-sm">
                     <thead className="text-xs text-muted-foreground bg-muted/50"><tr>
-                      <th className="text-left px-4 py-1.5 font-semibold">Data</th><th className="text-left px-3 py-1.5 font-semibold">Cautela</th><th className="text-left px-3 py-1.5 font-semibold">EPIs</th><th className="text-left px-3 py-1.5 font-semibold">Termo</th><th className="px-2 py-1.5"></th>
+                      <th className="text-left px-4 py-1.5 font-semibold">Data</th><th className="text-left px-3 py-1.5 font-semibold">Ficha</th><th className="text-left px-3 py-1.5 font-semibold">EPIs</th><th className="text-left px-3 py-1.5 font-semibold">Termo</th><th className="px-2 py-1.5"></th>
                     </tr></thead>
                     <tbody>
                       {grupos.map((g) => {
@@ -291,7 +319,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                             <td className="px-4 py-2 text-muted-foreground whitespace-nowrap">{fmtData(g.data)}</td>
                             <td className="px-3 py-2 whitespace-nowrap">
                               {g.ficha
-                                ? <button onClick={() => setCautelaAberta(g.ficha!.id)} className="inline-flex items-center gap-1 text-xs font-medium text-info hover:underline"><FileText className="w-3.5 h-3.5" /> nº {String(g.ficha.numero).padStart(4, "0")}</button>
+                                ? <button onClick={() => setCautelaAberta(g.ficha!.id)} className="inline-flex items-center gap-1 text-xs font-medium text-info hover:underline"><FileText className="w-3.5 h-3.5" /> nº {String(g.ficha.numero).padStart(4, "0")}<span className="font-normal text-muted-foreground">· {g.ficha.historico ? "histórico" : "termo"}</span></button>
                                 : <span className="text-xs text-muted-foreground/70">{g.itens[0].movimentacaoEstoqueId ? "lote/avulsa · estoque" : "lote/avulsa"}</span>}
                             </td>
                             <td className="px-3 py-2">
@@ -311,7 +339,9 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                                 })}
                               </ul>
                             </td>
-                            <td className="px-3 py-2"><DocLink id={termo} label="assinado" /></td>
+                            <td className="px-3 py-2">{!termo && g.ficha?.historico
+                              ? (g.ficha.fechadaEm ? <span className="text-xs text-warning">aguardando arquivo</span> : <span className="text-xs text-info">ficha aberta</span>)
+                              : <DocLink id={termo} label="assinado" />}</td>
                             <td className="px-2 py-2 text-right"><AcoesLinha acoes={g.ficha?.historico ? [
                               { label: "Ver / imprimir ficha", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(g.ficha!.id) },
                               { label: "Excluir entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: g.itens[0].id }), danger: true, separadorAntes: true },
@@ -567,6 +597,17 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
 
       {/* Popup da cautela (imprime na mesma aba) */}
       <CautelaEpiDialog fichaId={cautelaAberta} onClose={() => { setCautelaAberta(null); load(); }} />
+      <Dialog open={dlgFechar} onOpenChange={setDlgFechar}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Fechar ficha de histórico nº {f.fichaAberta ? String(f.fichaAberta.numero).padStart(4, "0") : ""}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Confira antes: o papel deve ter as {f.fichaAberta?._count.itens ?? 0} linha(s) lançadas no sistema, cada uma assinada. Anexe o escaneado (vai para o GED) — a próxima entrega abre uma ficha nova.</p>
+          {f.fichaAberta && <UploadAnexo tipo="termo-epi" titulo={`Ficha de EPI nº ${String(f.fichaAberta.numero).padStart(4, "0")} — ${f.nome}`} colaboradorId={f.id} value={null} onChange={(d) => { if (d) fecharFicha(d); }} label="Enviar papel assinado (PDF/foto) e fechar" />}
+          <DialogFooter className="items-center">
+            <button type="button" onClick={() => fecharFicha(null)} className="mr-auto text-xs text-muted-foreground hover:text-foreground hover:underline" title="O papel encheu mas ainda não foi escaneado — anexe depois na aba Fichas (EPIs)">Só fechar (anexo depois)</button>
+            <Button variant="outline" onClick={() => setDlgFechar(false)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)} title={excluir?.tipo === "entrega" ? "Excluir entrega de EPI?" : excluir?.tipo === "ficha" ? "Excluir cautela?" : excluir?.tipo === "exame" ? "Excluir exame?" : "Excluir ASO?"} description={excluir?.tipo === "aso" ? "O registro vai para a lixeira. Os exames lançados com ele continuam registrados." : excluir?.tipo === "exame"  ? "O registro vai para a lixeira." : excluir?.tipo === "ficha" ? "Todas as entregas da cautela são excluídas e as saídas de estoque estornadas. Vai para a lixeira." : "A saída de estoque (se houve) é estornada. O registro vai para a lixeira."} onConfirm={confirmarExclusao} loading={salvando} confirmLabel="Excluir" />
     </div>
   );

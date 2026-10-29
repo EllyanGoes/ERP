@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prismaSemEscopo } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
 import { COLABORADOR_SST_SELECT, afastamentoAtual, pendenciasColaborador, epiVigente, type ColaboradorSst } from "@/lib/sst";
 
 // GET /api/sst/colaboradores/[id] — ficha SST completa.
@@ -13,8 +13,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     select: {
       ...COLABORADOR_SST_SELECT,
       cargo: true, dataAdmissao: true, matricula: true, cpf: true, rg: true, setor: { select: { id: true, nome: true } },
-      sstFuncoes: { orderBy: { inicio: "desc" }, select: { id: true, inicio: true, fim: true, funcao: { select: { id: true, nome: true, requisitosEpi: { select: { obrigatorio: true, quantidade: true, epi: { select: { id: true, nome: true, vidaUtilDias: true, caValidade: true, ca: true } } } }, requisitosExame: { select: { periodicidadeMeses: true, exameTipo: { select: { id: true, nome: true } } } }, requisitosTreinamento: { select: { treinamentoTipo: { select: { id: true, nome: true, validadeMeses: true } } } } } } } },
-      sstEpiEntregas: { orderBy: { data: "desc" }, select: { id: true, epiId: true, tipo: true, data: true, vencimentoUso: true, quantidade: true, tamanho: true, motivo: true, documentoId: true, movimentacaoEstoqueId: true, epi: { select: { nome: true, ca: true } }, ficha: { select: { id: true, numero: true, documentoId: true, historico: true } } } },
+      sstFuncoes: { orderBy: { inicio: "desc" }, select: { id: true, inicio: true, fim: true, funcao: { select: { id: true, nome: true, requisitosEpi: { select: { obrigatorio: true, quantidade: true, epi: { select: { id: true, nome: true, vidaUtilDias: true, caValidade: true, ca: true, descartavel: true } } } }, requisitosExame: { select: { periodicidadeMeses: true, exameTipo: { select: { id: true, nome: true } } } }, requisitosTreinamento: { select: { treinamentoTipo: { select: { id: true, nome: true, validadeMeses: true } } } } } } } },
+      sstEpiEntregas: { orderBy: { data: "desc" }, select: { id: true, epiId: true, tipo: true, data: true, vencimentoUso: true, quantidade: true, tamanho: true, motivo: true, documentoId: true, movimentacaoEstoqueId: true, epi: { select: { nome: true, ca: true } }, ficha: { select: { id: true, numero: true, documentoId: true, historico: true, fechadaEm: true } } } },
       sstTreinamentos: { select: { validade: true, aprovado: true, certificadoDocumentoId: true, treinamento: { select: { id: true, tipoId: true, data: true, instrutor: true, cargaHoraria: true, tipo: { select: { nome: true, norma: true } } } } }, orderBy: { treinamento: { data: "desc" } } },
       sstExames: { orderBy: { data: "desc" }, select: { id: true, exameTipoId: true, data: true, resultado: true, observacao: true, documentoId: true, asoId: true, exameTipo: { select: { nome: true } }, aso: { select: { tipo: true, data: true } } } },
       sstAsos: { orderBy: { data: "desc" }, select: { id: true, tipo: true, data: true, validade: true, resultado: true, restricoes: true, medico: true, crm: true, medicoId: true, documentoId: true, exames: { select: { exameTipoId: true, data: true, resultado: true, exameTipo: { select: { nome: true } } } } } },
@@ -29,7 +29,9 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
     const v = epiVigente(comoSst.sstEpiEntregas, r.epi.id);
     return { epi: r.epi, obrigatorio: r.obrigatorio, quantidade: r.quantidade, entregaVigente: v };
   }) : [];
-  return NextResponse.json({ data: { ...c, pendencias, episStatus, afastamento: afastamentoAtual(comoSst) } });
+  // Ficha de histórico em uso (faixa no card de entregas: imprimir / fechar).
+  const fichaAberta = await prisma.sstEpiFicha.findFirst({ where: { colaboradorId: c.id, historico: true, fechadaEm: null }, select: { id: true, numero: true, data: true, _count: { select: { itens: true } } } });
+  return NextResponse.json({ data: { ...c, pendencias, episStatus, fichaAberta, afastamento: afastamentoAtual(comoSst) } });
 }
 
 // PATCH /api/sst/colaboradores/[id] — informações complementares de cadastro que
