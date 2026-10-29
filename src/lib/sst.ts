@@ -56,7 +56,7 @@ export type ColaboradorSst = {
     inicio: Date; fim: Date | null;
     funcao: {
       id: string; nome: string;
-      requisitosEpi: { obrigatorio: boolean; quantidade: number; epi: { id: string; nome: string; vidaUtilDias: number | null; caValidade: Date | null; ca: string | null } }[];
+      requisitosEpi: { obrigatorio: boolean; quantidade: number; epi: { id: string; nome: string; vidaUtilDias: number | null; caValidade: Date | null; ca: string | null; descartavel: boolean } }[];
       requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[];
       requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[];
     };
@@ -83,7 +83,7 @@ export const COLABORADOR_SST_SELECT = {
       funcao: {
         select: {
           id: true, nome: true,
-          requisitosEpi: { select: { obrigatorio: true, quantidade: true, epi: { select: { id: true, nome: true, vidaUtilDias: true, caValidade: true, ca: true } } } },
+          requisitosEpi: { select: { obrigatorio: true, quantidade: true, epi: { select: { id: true, nome: true, vidaUtilDias: true, caValidade: true, ca: true, descartavel: true } } } },
           requisitosExame: { select: { periodicidadeMeses: true, exameTipo: { select: { id: true, nome: true } } } },
           requisitosTreinamento: { select: { treinamentoTipo: { select: { id: true, nome: true, validadeMeses: true } } } },
         },
@@ -162,7 +162,8 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
       out.push({ ...base, tipo: "EPI_NAO_ENTREGUE", severidade: "ALTA", titulo: `EPI não entregue: ${r.epi.nome}`, referenciaId: r.epi.id });
       continue;
     }
-    if (v.vencimentoUso) {
+    // Descartável não vence: é consumo frequente (troca prevista não se aplica).
+    if (v.vencimentoUso && !r.epi.descartavel) {
       const d = diasAte(v.vencimentoUso, hoje);
       // Entregue e dentro do prazo não é pendência (decisão do dono, 27/10): só o
       // vencido conta. A ficha mostra "troca em N dias" como informação.

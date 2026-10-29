@@ -66,7 +66,8 @@ export async function registrarEntregaEpi(tx: Tx, p: {
   const itemId = variante?.itemId ?? null;
   // Descartável sai sempre do estoque — "não baixar" foi o erro de out/2026.
   if (p.epi.descartavel && p.tipo !== "DEVOLUCAO" && itemId && !p.localEstoqueId) throw new Error(`"${p.epi.nome}" é descartável: escolha o local de onde baixar do estoque.`);
-  const vencimentoUso = p.tipo !== "DEVOLUCAO" && p.epi.vidaUtilDias ? new Date(p.data.getTime() + p.epi.vidaUtilDias * 86_400_000) : null;
+  // Descartável não tem troca prevista: é consumo, retira quando acaba.
+  const vencimentoUso = p.tipo !== "DEVOLUCAO" && !p.epi.descartavel && p.epi.vidaUtilDias ? new Date(p.data.getTime() + p.epi.vidaUtilDias * 86_400_000) : null;
   let movimentacaoEstoqueId: string | null = null;
   if (p.tipo !== "DEVOLUCAO" && itemId && p.localEstoqueId) {
     const estoque = await tx.estoqueItem.findFirst({
