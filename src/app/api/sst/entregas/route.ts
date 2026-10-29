@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
-import { EPI_ENTREGA_SELECT, TIPOS_ENTREGA, entregaDentroDoPrazo, estornarEstoqueEntrega, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
+import { EPI_ENTREGA_SELECT, TIPOS_ENTREGA, entregaDentroDoPrazo, estornarEstoqueEntrega, fichaHistoricoAberta, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
 
 const INCLUDE = {
   epi: { select: { id: true, nome: true, ca: true, vidaUtilDias: true, itemId: true } },
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
 // Com localEstoqueId e EPI ligado a item do almoxarifado: dá SAÍDA de estoque
 // (hard block sem saldo, como no resto do sistema). Retirada antes do fim da
 // vida útil exige motivo (422 { precisaMotivo: [{ colaboradorId, ate }] }).
+// Cada linha entra na ficha de histórico aberta do colaborador (assinada à mão).
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
@@ -64,9 +65,10 @@ export async function POST(req: NextRequest) {
       }
       const out = [];
       for (const colaboradorId of ids) {
+        const ficha = await fichaHistoricoAberta(tx, { empresaId, colaboradorId, data, criadoPor: auth.session.nome });
         out.push(await registrarEntregaEpi(tx, {
           empresaId, colaboradorId, epi, tipo, quantidade, data, motivo,
-          localEstoqueId: b.localEstoqueId || null, documentoId: b.documentoId || null, fichaId: null, criadoPor: auth.session.nome,
+          localEstoqueId: b.localEstoqueId || null, documentoId: b.documentoId || null, fichaId: ficha.id, criadoPor: auth.session.nome,
           // Lote: tamanho por pessoa (tamanhos[colaboradorId]) ou um só p/ todos.
           tamanho: (b.tamanhos && typeof b.tamanhos === "object" ? b.tamanhos[colaboradorId] : null) ?? b.tamanho ?? null,
         }));

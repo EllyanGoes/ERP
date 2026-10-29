@@ -5241,6 +5241,9 @@ model SstEpi {
   vidaUtilDias  Int?
   fabricante    String?
   ativo         Boolean         @default(true)
+  // Descartável / consumo frequente (máscara, luva, plug): sem regra de prazo e
+  // baixa de estoque obrigatória na entrega.
+  descartavel   Boolean         @default(false)
   criadoPor     String?
   atualizadoPor String?
   createdAt     DateTime        @default(now())
@@ -5301,8 +5304,12 @@ model SstEpiEntrega {
   @@index([fichaId])
 }
 
-// Ficha de entrega por colaborador: agrupa as linhas entregues de uma vez,
-// gera o termo p/ assinatura e recebe o termo assinado (documentoId no GED).
+// Ficha de EPI por colaborador, em dois modos:
+//  • termo avulso (historico=false): agrupa as linhas entregues de uma vez, gera
+//    o termo p/ assinatura e recebe o termo assinado (documentoId no GED);
+//  • histórico (historico=true): UMA ficha aberta por colaborador acumula as
+//    entregas de dias diferentes; o papel é assinado linha a linha e, ao fechar
+//    (fechadaEm), o escaneado é arquivado e a próxima ficha abre sozinha.
 model SstEpiFicha {
   id            String          @id @default(cuid())
   empresaId     String
@@ -5312,6 +5319,8 @@ model SstEpiFicha {
   observacoes   String?
   documentoId   String?
   assinadaEm    DateTime?
+  historico     Boolean         @default(false)
+  fechadaEm     DateTime?
   criadoPor     String?
   atualizadoPor String?
   createdAt     DateTime        @default(now())

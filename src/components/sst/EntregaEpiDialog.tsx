@@ -1,9 +1,13 @@
 "use client";
 
 // Nova entrega de EPI em dois modos:
-//  • Para um colaborador — vários EPIs de uma vez, vira FICHA (termo p/ assinar,
-//    depois o escaneado é anexado e arquivado no GED).
-//  • Em lote — um EPI para vários colaboradores (campanha de troca).
+//  • Para um colaborador — vários EPIs de uma vez. Padrão: as linhas entram na
+//    FICHA DE HISTÓRICO aberta dele (o papel é assinado à mão linha a linha e
+//    arquivado ao fechar a ficha). Opção "termo avulso": gera a cautela dessa
+//    entrega na hora (termo p/ assinar, depois o escaneado vai p/ o GED).
+//  • Em lote — um EPI para vários colaboradores (cada um ganha a linha na ficha
+//    de histórico dele).
+// EPI descartável: baixa de estoque obrigatória (local padrão = Almoxarifado).
 // Regra de prazo: EPI retirado antes do fim da vida útil exige motivo; a tela
 // avisa antes e o servidor confere de novo (422 precisaMotivo).
 // Ficha só sai com o cadastro que a cautela imprime completo (CPF, matrícula,
@@ -29,6 +33,8 @@ import { camposFaltandoCautela } from "@/lib/sst-cadastro";
 
 export type EpiOpt = {
   id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean;
+  /** Consumo frequente: sem regra de prazo, baixa de estoque obrigatória. */
+  descartavel?: boolean;
   /** Tamanhos (um item de estoque cada). Com 2+ a entrega exige escolher o tamanho. */
   itens?: { itemId: string; tamanho: string | null; saldo?: number }[];
   /** Saldo próprio somado em todos os locais (null = sem item de estoque). */
@@ -50,7 +56,9 @@ function saldoLinha(e: EpiOpt, tamanho: string): { valor: number; rotulo: string
   return null;
 }
 export type ColabOpt = { id: string; nome: string; ativo: boolean; afastamento?: unknown | null; funcao: { nome: string } | null };
-type FichaCriada = { id: string; numero: number; colaborador: { id: string; nome: string }; itens: { id: string }[] };
+type FichaCriada = { id: string; numero: number; historico: boolean; colaborador: { id: string; nome: string }; itens: { id: string }[] };
+/** Local padrão da baixa: o Almoxarifado (de onde saem os EPIs). */
+const localAlmox = (lk: Lookups) => lk.locais.find((l) => /^almoxarifado$/i.test(l.nome.trim()))?.id ?? "";
 
 type Linha = { sel: boolean; qtd: string; tipo: string; motivo: string; local: string; tamanho: string };
 type DetalheColab = {
@@ -85,6 +93,8 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
   const [localPadrao, setLocalPadrao] = useState("");
   const [obs, setObs] = useState("");
   const [ficha, setFicha] = useState<FichaCriada | null>(null);
+  const [fichaNova, setFichaNova] = useState(false);
+  const [avulsa, setAvulsa] = useState(false);
   const [docAssinado, setDocAssinado] = useState<string | null>(null);
   const [cautela, setCautela] = useState<string | null>(null);
   const [aba, setAba] = useState<"selecao" | "historico">("selecao");
@@ -102,7 +112,8 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
 
   useEffect(() => {
     if (!open) return;
-    setErro(""); setFicha(null); setDocAssinado(null); setObs(""); setData(hojeISO()); setAba("selecao");
+    setErro(""); setFicha(null); setDocAssinado(null); setObs(""); setData(hojeISO()); setAba("selecao"); setAvulsa(false);
+    setLocalPadrao(localAlmox(lk)); setLLocal(localAlmox(lk));
     setColabId(colaboradorFixo?.id ?? ""); setDetalhe(null); setLinhas({});
     setLEpiId(""); setLSel({}); setLMotivo(""); setLPrecisa([]); setLTam({});
     if (colaboradorFixo) setModo("colaborador");
@@ -111,6 +122,13 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
     // do preenchimento — a lista de EPIs "sumia".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, colaboradorFixo?.id]);
+
+  // Lookups chegam depois da 1ª abertura: completa o local padrão sem atropelar escolha feita.
+  useEffect(() => {
+    if (!open || !lk.locais.length) return;
+    setLocalPadrao((v) => v || localAlmox(lk)); setLLocal((v) => v || localAlmox(lk));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lk.locais.length]);
 
   // Recarrega a cada abertura (não só quando o colaborador muda): reabrir para o
   // mesmo colaborador — sempre o caso na ficha dele — limpava as linhas no
@@ -170,16 +188,18 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
     if (semMotivo.length > 0) { setErro("Há EPI retirado antes do prazo: informe o motivo nas linhas destacadas."); return; }
     const semTamanho = selecionadas.filter(([id, l]) => l.tipo !== "DEVOLUCAO" && grade(episAtivos.find((e) => e.id === id)).length > 1 && !l.tamanho);
     if (semTamanho.length > 0) { setErro("Escolha o tamanho dos EPIs destacados."); return; }
+    const descSemBaixa = selecionadas.filter(([id, l]) => { const e = episAtivos.find((x) => x.id === id); return !!e?.descartavel && temEstoque(e) && l.tipo !== "DEVOLUCAO" && !(l.local || localPadrao); });
+    if (descSemBaixa.length > 0) { setErro("EPI descartável sai sempre do estoque: escolha o local de baixa."); return; }
     setSaving(true); setErro("");
     const itens = selecionadas.map(([epiId, l]) => {
       const epi = episAtivos.find((e) => e.id === epiId)!;
       return { epiId, quantidade: Number(l.qtd) || 1, tipo: l.tipo, motivo: l.motivo || null, tamanho: l.tamanho || null, localEstoqueId: temEstoque(epi) ? (l.local || localPadrao || null) : null };
     });
-    const res = await fetch("/api/sst/entregas/fichas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorId: colabId, data, observacoes: obs || null, itens }) });
+    const res = await fetch("/api/sst/entregas/fichas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorId: colabId, data, observacoes: avulsa ? obs || null : null, avulsa, itens }) });
     const j = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro ao registrar"); return; }
-    setFicha(j.data); onSaved();
+    setFicha(j.data); setFichaNova(!!j.nova); onSaved();
   }
   async function anexarAssinado(documentoId: string | null) {
     setDocAssinado(documentoId);
@@ -203,6 +223,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
     const ids = Object.entries(lSel).filter(([, v]) => v).map(([k]) => k);
     if (!lEpiId || ids.length === 0) { setErro("Escolha o EPI e ao menos um colaborador."); return; }
     if (grade(epiLote).length > 1 && ids.some((id) => !lTam[id])) { setErro("Escolha o tamanho de cada colaborador selecionado."); return; }
+    if (epiLote?.descartavel && temEstoque(epiLote) && !lLocal) { setErro("EPI descartável sai sempre do estoque: escolha o local de baixa."); return; }
     setSaving(true); setErro("");
     const tamanhos = Object.fromEntries(ids.map((id) => [id, lTam[id] || null]));
     const res = await fetch("/api/sst/entregas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ colaboradorIds: ids, epiId: lEpiId, tipo: lTipo, quantidade: 1, data, localEstoqueId: lLocal || null, motivo: lMotivo || null, tamanhos }) });
@@ -220,7 +241,30 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
       <DialogContent className={cn("max-h-[92vh] overflow-y-auto", ficha ? "sm:max-w-4xl" : "sm:max-w-7xl")}>
         <DialogHeader><DialogTitle>{ficha ? `Ficha de EPI nº ${String(ficha.numero).padStart(4, "0")}` : "Nova entrega de EPI"}</DialogTitle></DialogHeader>
 
-        {ficha ? (
+        {ficha?.historico ? (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg border border-success/30 bg-success/5 p-3">
+              <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-foreground">Registrado na ficha de histórico de {ficha.colaborador.nome} — {selecionadas.length} item(ns) hoje, {ficha.itens.length} na ficha.</p>
+                <p className="text-muted-foreground mt-0.5">Escreva as linhas no papel da ficha e colha a assinatura do colaborador em cada uma. Quando o papel encher (ou no fim do mês), feche a ficha e arquive o escaneado na aba Fichas.</p>
+              </div>
+            </div>
+            {fichaNova && (
+              <div className="flex items-start gap-3 rounded-lg border border-info/30 bg-info/5 p-3 text-sm">
+                <Printer className="w-5 h-5 text-info shrink-0 mt-0.5" />
+                <div><p className="font-medium text-foreground">Ficha nova aberta para este colaborador.</p>
+                  <p className="text-muted-foreground mt-0.5">Imprima o papel em branco, colha a assinatura do termo no topo e anote as linhas de hoje.</p>
+                  <button type="button" onClick={() => setCautela(ficha.id)} className="mt-1.5 inline-flex items-center gap-1.5 text-info hover:underline"><Printer className="w-4 h-4" /> Imprimir ficha</button>
+                </div>
+              </div>
+            )}
+            <DialogFooter className="items-center">
+              {!fichaNova && <button type="button" onClick={() => setCautela(ficha.id)} className="mr-auto inline-flex items-center gap-1.5 text-sm text-info hover:underline"><Printer className="w-4 h-4" /> Ver / reimprimir a ficha</button>}
+              <Button onClick={() => onOpenChange(false)}>Concluir</Button>
+            </DialogFooter>
+          </div>
+        ) : ficha ? (
           <div className="space-y-4">
             <div className="flex items-start gap-3 rounded-lg border border-success/30 bg-success/5 p-3">
               <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
@@ -279,7 +323,12 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                         <p className="text-[11px] text-muted-foreground mt-1">Local padrão; cada EPI pode baixar de outro local na lista.</p>
                       </div>
                     )}
-                    <div><Label>Observações da ficha</Label><Textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional — aparece no termo impresso" rows={3} /></div>
+                    <label className="flex items-start gap-2 rounded-lg border border-border p-2.5 text-sm cursor-pointer hover:bg-muted/40">
+                      <input type="checkbox" className="rounded mt-0.5" checked={avulsa} onChange={(e) => setAvulsa(e.target.checked)} />
+                      <span><span className="font-medium text-foreground">Imprimir termo avulso na hora</span>
+                        <span className="block text-[11px] text-muted-foreground leading-snug">Gera uma cautela só desta entrega para assinar agora (ex.: cinto, itens caros). Desmarcado, as linhas entram na ficha de histórico do colaborador, assinadas à mão.</span></span>
+                    </label>
+                    {avulsa && <div><Label>Observações do termo</Label><Textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Opcional — aparece no termo impresso" rows={3} /></div>}
                     {cadastro && <AvisoCadastroIncompleto faltando={faltando} onCompletar={() => setCadastroAberto(true)} bloqueia="a entrega só pode ser registrada com o cadastro completo" />}
                     {cadastro && <CadastroComplementarDialog open={cadastroAberto} onOpenChange={setCadastroAberto} colaborador={cadastro} onSaved={recarregarCadastro} />}
                   </div>
@@ -314,12 +363,12 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                             <div className="flex items-center gap-3">
                               <input type="checkbox" className="rounded" checked={l.sel} onChange={(ev) => setLinha(e.id, { sel: ev.target.checked })} />
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm text-foreground truncate">{e.nome}{e.ca ? <span className="text-xs text-muted-foreground"> · CA {e.ca}</span> : null}</p>
+                                <p className="text-sm text-foreground truncate">{e.nome}{e.ca ? <span className="text-xs text-muted-foreground"> · CA {e.ca}</span> : null}{e.descartavel && <span className="ml-1.5 text-[10px] px-1 rounded border border-border text-muted-foreground align-middle">descartável</span>}</p>
                                 <p className="text-[11px] text-muted-foreground">
                                   {req ? <span className="text-info font-medium">exigido pela função{!req.obrigatorio && " (opcional)"}</span> : "não exigido pela função"}
                                   {" · "}
                                   {!vig ? "nunca entregue" : vencido ? <span className="text-danger">vencido em {fmtData(vig.vencimentoUso)}</span> : vig.vencimentoUso ? `em uso até ${fmtData(vig.vencimentoUso)}` : `entregue em ${fmtData(vig.data)}`}
-                                  {e.vidaUtilDias ? ` · vida útil ${e.vidaUtilDias} d` : " · sem prazo definido"}
+                                  {e.descartavel ? " · consumo frequente, sem prazo" : e.vidaUtilDias ? ` · vida útil ${e.vidaUtilDias} d` : " · sem prazo definido"}
                                 </p>
                               </div>
                               <div className={cn("shrink-0 text-right leading-tight w-[110px]", saldo == null ? "text-muted-foreground" : saldo.valor <= 0 || semSaldo ? "text-danger" : "text-foreground")}
@@ -336,7 +385,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                                 </div>
                                 <div className="w-[104px]">{grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[104px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}</div>
                                 <Input type="number" min={1} value={l.qtd} onChange={(ev) => setLinha(e.id, { qtd: ev.target.value })} className="h-8 w-14 text-xs text-center" title="Quantidade" tabIndex={l.sel ? 0 : -1} />
-                                <div className="w-[140px]">{temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[140px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}</div>
+                                <div className="w-[140px]">{temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[140px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : e.descartavel ? "— escolha —" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}</div>
                               </div>
                             </div>
                             {ate && (
@@ -356,7 +405,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                   </div>
                 </div>
                 {erro && <p className="text-sm text-danger">{erro}</p>}
-                <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button onClick={salvarFicha} disabled={saving || !colabId || !cadastro || faltando.length > 0}>{saving ? "Registrando…" : `Registrar e gerar termo${nomeColab ? ` — ${nomeColab.split(" ")[0]}` : ""}`}</Button></DialogFooter>
+                <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button onClick={salvarFicha} disabled={saving || !colabId || !cadastro || faltando.length > 0}>{saving ? "Registrando…" : `${avulsa ? "Registrar e gerar termo" : "Registrar na ficha"}${nomeColab ? ` — ${nomeColab.split(" ")[0]}` : ""}`}</Button></DialogFooter>
               </>
             ) : (
               <>
@@ -366,7 +415,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Tipo</Label><SelectMenu value={lTipo} onChange={setLTipo} options={Object.entries(TIPO_ENTREGA).filter(([k]) => k !== "DEVOLUCAO").map(([value, label]) => ({ value, label }))} /></div>
-                  {epiLote && temEstoque(epiLote) && <div><Label>Baixar do estoque (local)</Label><SelectMenu value={lLocal} onChange={setLLocal} options={[{ value: "", label: "— Não baixar —" }, ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} /></div>}
+                  {epiLote && temEstoque(epiLote) && <div><Label>Baixar do estoque (local)</Label><SelectMenu value={lLocal} onChange={setLLocal} options={[...(epiLote.descartavel ? [] : [{ value: "", label: "— Não baixar —" }]), ...lk.locais.map((l) => ({ value: l.id, label: l.nome }))]} /></div>}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1"><Label>Colaboradores ({Object.values(lSel).filter(Boolean).length} selecionados)</Label>
@@ -392,7 +441,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                   </div>
                 </div>
                 {lPrecisa.length > 0 && <div><Label className="text-warning">Motivo da troca antecipada</Label><Input value={lMotivo} onChange={(e) => setLMotivo(e.target.value)} placeholder="Ex.: campanha de troca, lote com defeito…" className="border-warning" /></div>}
-                <p className="text-xs text-muted-foreground">Entrega em lote não gera ficha individual — o termo assinado pode ser anexado depois, na ficha de cada colaborador.</p>
+                <p className="text-xs text-muted-foreground">Cada colaborador ganha a linha na ficha de histórico dele — escreva no papel e colha a assinatura na linha.</p>
                 {erro && <p className="text-sm text-danger">{erro}</p>}
                 <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button onClick={salvarLote} disabled={saving}>{saving ? "Registrando…" : "Registrar entregas"}</Button></DialogFooter>
               </>

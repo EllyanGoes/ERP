@@ -15,6 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (b.vidaUtilDias !== undefined) data.vidaUtilDias = b.vidaUtilDias ? Number(b.vidaUtilDias) : null;
   if (b.fabricante !== undefined) data.fabricante = b.fabricante?.trim() || null;
   if (b.ativo !== undefined) data.ativo = !!b.ativo;
+  if (b.descartavel !== undefined) data.descartavel = !!b.descartavel;
   const epi = await prisma.sstEpi.update({ where: { id: params.id }, data });
   // itens: [{ itemId, tamanho }] — grade de tamanhos; itemId sozinho = item único (legado).
   if (Array.isArray(b.itens) || b.itemId !== undefined) {

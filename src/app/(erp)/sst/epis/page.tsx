@@ -1,6 +1,7 @@
 "use client";
 
-// Cadastro de EPIs (CA, validade, vida útil, tamanhos ↔ itens de estoque) + entrega em lote.
+// Cadastro de EPIs (CA, validade, vida útil, descartável, tamanhos ↔ itens de
+// estoque) + entregas e fichas (termo avulso ou ficha de histórico aberta/fechada).
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import DatePicker from "@/components/shared/DatePicker";
@@ -13,20 +14,22 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power, X } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power, X, Lock, LockOpen } from "lucide-react";
 import { fmtData, useLookups, UploadAnexo, DocLink, AcoesLinha } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
 
 type ItemRef = { id: string; codigo: string; descricao: string; unidadeMedida: string };
 type Epi = {
-  id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean;
+  id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean; descartavel: boolean;
   item: ItemRef | null; itens: { itemId: string; tamanho: string | null; saldo: number; item: ItemRef }[]; saldoEstoque: number | null; _count: { entregas: number; requisitos: number };
 };
 type LinhaTamanho = { key: number; tamanho: string; itemId: string };
+/** Falta arquivar o papel — a ficha de histórico aberta ainda está em uso, não conta. */
+const semPapel = (f: FichaRow) => !f.documentoId && !(f.historico && !f.fechadaEm);
 const fmtQtd = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 type Colab = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null };
-type FichaRow = { id: string; numero: number; data: string; documentoId: string | null; assinadaEm: string | null; colaborador: { id: string; nome: string }; itens: { id: string; quantidade: number; epi: { nome: string } }[] };
+type FichaRow = { id: string; numero: number; data: string; documentoId: string | null; assinadaEm: string | null; historico: boolean; fechadaEm: string | null; colaborador: { id: string; nome: string }; itens: { id: string; quantidade: number; epi: { nome: string } }[] };
 
 export default function SstEpisPage() {
   useTabTitle("SST — EPIs");
@@ -46,6 +49,12 @@ export default function SstEpisPage() {
   useEffect(() => { load(); fetch("/api/sst/colaboradores").then((r) => r.json()).then((j) => setColabs(j.data ?? [])); }, []);
   const [anexarFicha, setAnexarFicha] = useState<FichaRow | null>(null);
   const [delFicha, setDelFicha] = useState<FichaRow | null>(null);
+  async function patchFicha(f: FichaRow, body: Record<string, unknown>) {
+    const res = await fetch(`/api/sst/entregas/fichas/${f.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) alert(j.error || "Erro");
+    load();
+  }
   async function anexarAssinada(documentoId: string | null) {
     if (!anexarFicha) return;
     await fetch(`/api/sst/entregas/fichas/${anexarFicha.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentoId }) });
@@ -56,11 +65,11 @@ export default function SstEpisPage() {
   // form
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [nome, setNome] = useState(""); const [ca, setCa] = useState(""); const [caValidade, setCaValidade] = useState(""); const [vida, setVida] = useState(""); const [fab, setFab] = useState("");
+  const [nome, setNome] = useState(""); const [ca, setCa] = useState(""); const [caValidade, setCaValidade] = useState(""); const [vida, setVida] = useState(""); const [fab, setFab] = useState(""); const [descartavel, setDescartavel] = useState(false);
   const [tamanhos, setTamanhos] = useState<LinhaTamanho[]>([]);
   const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
   function abrir(e?: Epi) {
-    setEditId(e?.id ?? null); setNome(e?.nome ?? ""); setCa(e?.ca ?? ""); setCaValidade(e?.caValidade ? e.caValidade.slice(0, 10) : ""); setVida(e?.vidaUtilDias ? String(e.vidaUtilDias) : ""); setFab(e?.fabricante ?? "");
+    setEditId(e?.id ?? null); setNome(e?.nome ?? ""); setCa(e?.ca ?? ""); setCaValidade(e?.caValidade ? e.caValidade.slice(0, 10) : ""); setVida(e?.vidaUtilDias ? String(e.vidaUtilDias) : ""); setFab(e?.fabricante ?? ""); setDescartavel(!!e?.descartavel);
     const base = e?.itens.length ? e.itens.map((i, k) => ({ key: k, tamanho: i.tamanho ?? "", itemId: i.itemId })) : [{ key: 0, tamanho: "", itemId: "" }];
     setTamanhos(base); setErro(""); setOpen(true);
   }
@@ -69,7 +78,7 @@ export default function SstEpisPage() {
     const preenchidas = tamanhos.filter((t) => t.itemId);
     if (preenchidas.length > 1 && preenchidas.some((t) => !t.tamanho.trim())) { setErro("Com mais de um item, informe o tamanho de cada um."); return; }
     setSaving(true); setErro("");
-    const res = await fetch(editId ? `/api/sst/epis/${editId}` : "/api/sst/epis", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, ca: ca || null, caValidade: caValidade || null, vidaUtilDias: vida || null, fabricante: fab || null, itens: tamanhos.filter((t) => t.itemId).map((t) => ({ itemId: t.itemId, tamanho: t.tamanho || null })) }) });
+    const res = await fetch(editId ? `/api/sst/epis/${editId}` : "/api/sst/epis", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, ca: ca || null, caValidade: caValidade || null, vidaUtilDias: vida || null, fabricante: fab || null, descartavel, itens: tamanhos.filter((t) => t.itemId).map((t) => ({ itemId: t.itemId, tamanho: t.tamanho || null })) }) });
     const j = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
@@ -88,29 +97,33 @@ export default function SstEpisPage() {
         action={<div className="flex gap-2"><Button variant="outline" onClick={() => setEntrega(true)} className="gap-1.5"><HardHat className="w-4 h-4" /> Nova entrega</Button><Button onClick={() => abrir()} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Novo EPI</Button></div>} />
       <div className="px-8 pb-8">
         <div className="flex items-center gap-1 mb-4 border-b border-border">
-          {([["epis", "Cadastro de EPIs"], ["fichas", `Fichas de entrega${fichas.filter((f) => !f.documentoId).length ? ` · ${fichas.filter((f) => !f.documentoId).length} sem termo` : ""}`]] as const).map(([k, label]) => (
+          {([["epis", "Cadastro de EPIs"], ["fichas", `Fichas de entrega${fichas.filter(semPapel).length ? ` · ${fichas.filter(semPapel).length} sem papel assinado` : ""}`]] as const).map(([k, label]) => (
             <button key={k} onClick={() => setAba(k)} className={cn("px-3 py-2 text-sm -mb-px border-b-2", aba === k ? "border-info text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>{label}</button>
           ))}
-          {aba === "fichas" && <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer"><input type="checkbox" className="rounded" checked={soPendentes} onChange={(e) => setSoPendentes(e.target.checked)} /> só sem termo assinado</label>}
+          {aba === "fichas" && <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer"><input type="checkbox" className="rounded" checked={soPendentes} onChange={(e) => setSoPendentes(e.target.checked)} /> só sem papel assinado</label>}
         </div>
         {loading ? <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : aba === "fichas" ? (
           <div className="bg-card rounded-xl border border-border overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted text-xs text-muted-foreground"><tr>
-                <th className="text-left px-4 py-2 font-semibold">Ficha</th><th className="text-left px-3 py-2 font-semibold">Data</th><th className="text-left px-3 py-2 font-semibold">Colaborador</th><th className="text-left px-3 py-2 font-semibold">Itens</th><th className="text-left px-3 py-2 font-semibold">Termo assinado</th><th className="px-3 py-2"></th>
+                <th className="text-left px-4 py-2 font-semibold">Ficha</th><th className="text-left px-3 py-2 font-semibold">Data</th><th className="text-left px-3 py-2 font-semibold">Colaborador</th><th className="text-left px-3 py-2 font-semibold">Itens</th><th className="text-left px-3 py-2 font-semibold">Papel assinado</th><th className="px-3 py-2"></th>
               </tr></thead>
               <tbody>
-                {fichas.filter((f) => !soPendentes || !f.documentoId).map((f) => (
+                {fichas.filter((f) => !soPendentes || semPapel(f)).map((f) => (
                   <tr key={f.id} className="border-t border-border/60">
-                    <td className="px-4 py-2 tabular-nums text-foreground">nº {String(f.numero).padStart(4, "0")}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{fmtData(f.data)}</td>
+                    <td className="px-4 py-2 tabular-nums text-foreground whitespace-nowrap">nº {String(f.numero).padStart(4, "0")}<span className="block text-[11px] text-muted-foreground">{f.historico ? "histórico" : "termo avulso"}</span></td>
+                    <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{f.historico ? <>{fmtData(f.data)}<span className="block text-[11px]">{f.fechadaEm ? `até ${fmtData(f.fechadaEm)}` : "em aberto"}</span></> : fmtData(f.data)}</td>
                     <td className="px-3 py-2"><Link href={`/sst/colaboradores/${f.colaborador.id}`} className="text-foreground hover:text-info">{f.colaborador.nome}</Link></td>
                     <td className="px-3 py-2 text-muted-foreground text-xs">{f.itens.map((i) => `${i.quantidade}× ${i.epi.nome}`).join(", ")}</td>
-                    <td className="px-3 py-2">{f.documentoId ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-success font-medium">arquivado {fmtData(f.assinadaEm)}</span><DocLink id={f.documentoId} label="ver" /></span> : <span className="text-xs font-medium text-warning">aguardando assinatura</span>}</td>
+                    <td className="px-3 py-2">{f.documentoId ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-success font-medium">arquivado {fmtData(f.assinadaEm)}</span><DocLink id={f.documentoId} label="ver" /></span>
+                      : f.historico && !f.fechadaEm ? <span className="text-xs text-info">em uso · {f.itens.length} linha(s)</span>
+                      : <span className="text-xs font-medium text-warning">aguardando {f.historico ? "arquivo" : "assinatura"}</span>}</td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       <AcoesLinha acoes={[
-                        { label: "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautela(f.id) },
-                        ...(!f.documentoId ? [{ label: "Anexar termo assinado", icon: <Paperclip className="w-4 h-4 mr-2" />, onClick: () => setAnexarFicha(f) }] : []),
+                        { label: f.historico ? "Imprimir ficha" : "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautela(f.id) },
+                        ...(f.historico && !f.fechadaEm ? [{ label: "Fechar ficha (papel cheio / fim do mês)", icon: <Lock className="w-4 h-4 mr-2" />, onClick: () => patchFicha(f, { fechar: true }) }] : []),
+                        ...(!f.documentoId ? [{ label: f.historico ? (f.fechadaEm ? "Anexar papel assinado" : "Fechar e anexar papel assinado") : "Anexar termo assinado", icon: <Paperclip className="w-4 h-4 mr-2" />, onClick: () => setAnexarFicha(f) }] : []),
+                        ...(f.historico && f.fechadaEm ? [{ label: "Reabrir ficha", icon: <LockOpen className="w-4 h-4 mr-2" />, onClick: () => patchFicha(f, { reabrir: true }) }] : []),
                         { label: "Desfazer ficha", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setDelFicha(f), danger: true, separadorAntes: true },
                       ]} />
                     </td>
@@ -131,7 +144,7 @@ export default function SstEpisPage() {
                   const caVencido = e.caValidade ? new Date(e.caValidade).getTime() < Date.now() : false;
                   return (
                     <tr key={e.id} className={cn("border-t border-border/60", !e.ativo && "opacity-50")}>
-                      <td className="px-4 py-2 text-foreground">{e.nome}{e.fabricante ? <span className="text-xs text-muted-foreground"> · {e.fabricante}</span> : null}</td>
+                      <td className="px-4 py-2 text-foreground">{e.nome}{e.fabricante ? <span className="text-xs text-muted-foreground"> · {e.fabricante}</span> : null}{e.descartavel && <span className="ml-1.5 text-[10px] px-1 rounded border border-border text-muted-foreground">descartável</span>}</td>
                       <td className="px-3 py-2 text-muted-foreground">{e.ca ?? "—"}</td>
                       <td className={cn("px-3 py-2", caVencido ? "text-danger font-medium" : "text-muted-foreground")}>{fmtData(e.caValidade)}{caVencido && " (vencido)"}</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">{e.vidaUtilDias ? `${e.vidaUtilDias} d` : "—"}</td>
@@ -182,6 +195,11 @@ export default function SstEpisPage() {
               <div><Label>Vida útil (dias)</Label><Input type="number" min={1} value={vida} onChange={(e) => setVida(e.target.value)} placeholder="troca a cada" /></div>
             </div>
             <div><Label>Fabricante</Label><Input value={fab} onChange={(e) => setFab(e.target.value)} /></div>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input type="checkbox" className="rounded mt-0.5" checked={descartavel} onChange={(e) => setDescartavel(e.target.checked)} />
+              <span><span className="font-medium text-foreground">Descartável / consumo frequente</span>
+                <span className="block text-[11px] text-muted-foreground">Máscara, luva, protetor plug… Sem regra de prazo (retirar de novo não pede motivo) e a entrega sempre baixa do estoque.</span></span>
+            </label>
             <div>
               <div className="flex items-center justify-between"><Label>Itens do almoxarifado por tamanho (opcional)</Label>
                 <button type="button" onClick={() => setTamanhos((l) => [...l, { key: Date.now(), tamanho: "", itemId: "" }])} className="text-xs text-info hover:underline inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Tamanho</button>
@@ -210,8 +228,9 @@ export default function SstEpisPage() {
 
       <Dialog open={!!anexarFicha} onOpenChange={(o) => !o && setAnexarFicha(null)}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Arquivar termo assinado — ficha nº {anexarFicha ? String(anexarFicha.numero).padStart(4, "0") : ""}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">{anexarFicha?.colaborador.nome} · {fmtData(anexarFicha?.data)}. O arquivo vai para o GED (categoria SST — Termo de EPI) e fica ligado a cada item da ficha.</p>
+          <DialogHeader><DialogTitle>Arquivar {anexarFicha?.historico ? "papel" : "termo"} assinado — ficha nº {anexarFicha ? String(anexarFicha.numero).padStart(4, "0") : ""}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{anexarFicha?.colaborador.nome} · {fmtData(anexarFicha?.data)}. O arquivo vai para o GED (categoria SST — Termo de EPI) e fica ligado a cada item da ficha.{anexarFicha?.historico && !anexarFicha.fechadaEm && " A ficha é fechada e a próxima entrega abre uma nova."}</p>
+          {anexarFicha?.historico && <p className="text-xs text-muted-foreground">Confira antes: o papel deve ter as {anexarFicha.itens.length} linha(s) lançadas no sistema, cada uma assinada.</p>}
           {anexarFicha && <UploadAnexo tipo="termo-epi" titulo={`Ficha de EPI nº ${String(anexarFicha.numero).padStart(4, "0")} — ${anexarFicha.colaborador.nome}`} colaboradorId={anexarFicha.colaborador.id} value={null} onChange={anexarAssinada} label="Enviar termo assinado (PDF/foto)" />}
           <DialogFooter><Button variant="outline" onClick={() => setAnexarFicha(null)}>Cancelar</Button></DialogFooter>
         </DialogContent>

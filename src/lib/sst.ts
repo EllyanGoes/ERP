@@ -5,6 +5,9 @@
 // daqui — não há regra de conformidade na UI.
 import { prismaSemEscopo } from "@/lib/prisma";
 
+/** Ficha de histórico de EPI: fechada todo mês (papel arquivado). */
+export const FICHA_HISTORICO_DIAS = 30;
+
 export type SeveridadeSst = "CRITICA" | "ALTA" | "MEDIA" | "BAIXA";
 export type TipoPendenciaSst =
   | "SEM_FUNCAO"
@@ -60,7 +63,7 @@ export type ColaboradorSst = {
   }[];
   sstTreinamentos: { validade: Date | null; aprovado: boolean; treinamento: { tipoId: string; data: Date } }[];
   sstEpiEntregas: { epiId: string; tipo: "ENTREGA" | "TROCA" | "DEVOLUCAO"; data: Date; vencimentoUso: Date | null; quantidade: number }[];
-  sstEpiFichas: { id: string; numero: number; data: Date }[];
+  sstEpiFichas: { id: string; numero: number; data: Date; historico: boolean; fechadaEm: Date | null }[];
   sstAsos: { id: string; tipo: string; data: Date; validade: Date | null; resultado: string; exames: { exameTipoId: string; data: Date }[] }[];
   /** Exames realizados — com ou sem ASO (fonte do "último exame"). */
   sstExames: { exameTipoId: string; data: Date }[];
@@ -89,7 +92,7 @@ export const COLABORADOR_SST_SELECT = {
   },
   sstTreinamentos: { select: { validade: true, aprovado: true, treinamento: { select: { tipoId: true, data: true } } } },
   sstEpiEntregas: { orderBy: { data: "desc" as const }, select: { epiId: true, tipo: true, data: true, vencimentoUso: true, quantidade: true } },
-  sstEpiFichas: { where: { documentoId: null }, select: { id: true, numero: true, data: true } },
+  sstEpiFichas: { where: { documentoId: null }, select: { id: true, numero: true, data: true, historico: true, fechadaEm: true } },
   sstAsos: { orderBy: { data: "desc" as const }, select: { id: true, tipo: true, data: true, validade: true, resultado: true, exames: { select: { exameTipoId: true, data: true } } } },
   sstExames: { orderBy: { data: "desc" as const }, select: { exameTipoId: true, data: true } },
   eventos: { where: { tipo: "AFASTAMENTO" as const }, orderBy: { data: "desc" as const }, select: { tipo: true, data: true, dataFim: true, motivo: true } },
@@ -170,10 +173,18 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
     }
   }
 
-  // Fichas de EPI sem o termo assinado arquivado (carência de 5 dias p/ colher a assinatura)
+  // Fichas de EPI sem o papel assinado arquivado. Termo avulso: carência de 5
+  // dias p/ colher a assinatura. Histórico: aberta é normal até FICHA_HISTORICO_DIAS
+  // (fecha todo mês p/ o papel não ficar solto); fechada tem os mesmos 5 dias.
   for (const fi of c.sstEpiFichas ?? []) {
-    const d = -diasAte(fi.data, hoje);
-    if (d >= 5) out.push({ ...base, tipo: "FICHA_EPI_SEM_ASSINATURA", severidade: "MEDIA", titulo: `Ficha de EPI nº ${String(fi.numero).padStart(4, "0")} sem termo assinado`, detalhe: `Entregue há ${d} dia(s) — anexe o termo assinado`, referenciaId: fi.id, link: `/sst/epis?aba=fichas` });
+    const nFicha = String(fi.numero).padStart(4, "0");
+    if (fi.historico && !fi.fechadaEm) {
+      const d = -diasAte(fi.data, hoje);
+      if (d >= FICHA_HISTORICO_DIAS) out.push({ ...base, tipo: "FICHA_EPI_SEM_ASSINATURA", severidade: "MEDIA", titulo: `Ficha de EPI nº ${nFicha} aberta há ${d} dias`, detalhe: "Feche a ficha e arquive o papel assinado", referenciaId: fi.id, link: `/sst/epis?aba=fichas` });
+      continue;
+    }
+    const d = -diasAte(fi.fechadaEm ?? fi.data, hoje);
+    if (d >= 5) out.push({ ...base, tipo: "FICHA_EPI_SEM_ASSINATURA", severidade: "MEDIA", titulo: `Ficha de EPI nº ${nFicha} sem ${fi.historico ? "papel" : "termo"} assinado`, detalhe: `${fi.historico ? "Fechada" : "Entregue"} há ${d} dia(s) — anexe o ${fi.historico ? "papel" : "termo"} assinado`, referenciaId: fi.id, link: `/sst/epis?aba=fichas` });
   }
 
   // ASO

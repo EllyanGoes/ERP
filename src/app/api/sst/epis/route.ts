@@ -29,7 +29,7 @@ export async function GET() {
   return NextResponse.json({ data });
 }
 
-// POST /api/sst/epis { nome, ca?, caValidade?, vidaUtilDias?, fabricante?, itens?: [{ itemId, tamanho }] | itemId? }
+// POST /api/sst/epis { nome, ca?, caValidade?, vidaUtilDias?, fabricante?, descartavel?, itens?: [{ itemId, tamanho }] | itemId? }
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("sst");
   if (!auth.ok) return auth.response;
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID,
       nome, ca: b.ca?.trim() || null, caValidade: b.caValidade ? new Date(b.caValidade) : null,
       vidaUtilDias: b.vidaUtilDias ? Number(b.vidaUtilDias) : null, fabricante: b.fabricante?.trim() || null,
+      descartavel: !!b.descartavel,
     },
   });
   const linhas = Array.isArray(b.itens) ? b.itens : b.itemId ? [{ itemId: b.itemId }] : [];

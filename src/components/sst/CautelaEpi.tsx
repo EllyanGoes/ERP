@@ -11,6 +11,10 @@
 // imprimir próprio — o CautelaEpiDialog imprime na mesma aba).
 // Barra de cima (não imprime): data da entrega e aviso de cadastro incompleto;
 // com cadastro incompleto a impressão fica bloqueada até completar.
+// Ficha de HISTÓRICO (historico=true): mesmo cabeçalho e declaração, mas a
+// tabela tem a coluna de assinatura — cada retirada é escrita e assinada à mão
+// na linha. Sai em branco (padrão) ou com os lançamentos já feitos (conferência
+// / reimpressão).
 import { useCallback, useEffect, useState } from "react";
 import { fmtData } from "@/components/sst/comum";
 import DatePicker from "@/components/shared/DatePicker";
@@ -19,16 +23,18 @@ import { camposFaltandoCautela } from "@/lib/sst-cadastro";
 import { Loader2 } from "lucide-react";
 
 type Ficha = {
-  id: string; numero: number; data: string; observacoes: string | null; documentoId: string | null;
+  id: string; numero: number; data: string; observacoes: string | null; documentoId: string | null; historico: boolean; fechadaEm: string | null;
   empresa: { id: string; razaoSocial: string; nomeFantasia: string | null; cnpj: string; telefone: string | null; logradouro: string | null; numero: string | null; bairro: string | null; cidade: string | null; estado: string | null };
-  colaborador: { id: string; nome: string; cpf: string | null; rg: string | null; matricula: string | null; cargo: string | null; dataAdmissao: string | null; setor: { id: string; nome: string } | null; sstFuncoes: { funcao: { nome: string } }[] };
-  itens: { id: string; tipo: string; quantidade: number; tamanho: string | null; motivo: string | null; vencimentoUso: string | null; epi: { nome: string; ca: string | null; vidaUtilDias: number | null } }[];
+  colaborador: { id: string; nome: string; cpf: string | null; rg: string | null; matricula: string | null; cargo: string | null; dataAdmissao: string | null; setor: { id: string; nome: string } | null; sstFuncoes: { funcao: { nome: string; requisitosEpi?: { epi: { nome: string; ca: string | null } }[] } }[] };
+  itens: { id: string; data: string; tipo: string; quantidade: number; tamanho: string | null; motivo: string | null; vencimentoUso: string | null; epi: { nome: string; ca: string | null; vidaUtilDias: number | null } }[];
 };
 
 // Logo impressa no cabeçalho, por empresa (sem logo: caixa com o nome).
 // Quantidade de itens por extenso no termo (documento formal).
 const EXTENSO = ["", "um", "dois", "três", "quatro", "cinco", "seis", "sete", "oito", "nove", "dez", "onze", "doze", "treze", "catorze", "quinze", "dezesseis", "dezessete", "dezoito", "dezenove", "vinte"];
 const LOGOS: Record<string, string> = { emp_tramontin: "/logos/tramontin.png" };
+/** Linhas da ficha de histórico impressa (as já lançadas + em branco p/ completar). */
+const LINHAS_HISTORICO = 30;
 
 const faltandoDa = (c: Ficha["colaborador"]) => camposFaltandoCautela({ ...c, temFuncao: !!c.sstFuncoes[0] });
 
@@ -47,6 +53,7 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
   const [salvandoData, setSalvandoData] = useState(false);
   const [erroData, setErroData] = useState("");
   const [cadastroAberto, setCadastroAberto] = useState(false);
+  const [preencher, setPreencher] = useState(false);
   if (!f) return <div className="p-8 text-sm text-muted-foreground">Carregando…</div>;
 
   async function mudarData(iso: string) {
@@ -77,12 +84,19 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
       {!emDialog && <style>{`@media print { @page { size: A4 portrait; margin: 9mm; } }`}</style>}
       <div className="no-print mb-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
+          {f.historico ? (
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={preencher} onChange={(e) => setPreencher(e.target.checked)} />
+              Preencher com as {f.itens.length} entrega(s) lançada(s) <span className="text-xs text-gray-500">(desmarcado: linhas em branco p/ escrever à mão)</span>
+            </label>
+          ) : (
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-600">Data da entrega</span>
             <div className="w-40"><DatePicker value={f.data.slice(0, 10)} onChange={mudarData} /></div>
             {salvandoData && <Loader2 className="w-4 h-4 animate-spin text-gray-500" />}
             {erroData && <span className="text-xs text-red-600">{erroData}</span>}
           </div>
+          )}
           {!emDialog && <button onClick={() => window.print()} disabled={faltando.length > 0} title={faltando.length > 0 ? "Complete o cadastro antes de imprimir" : undefined} className="border border-gray-400 rounded px-3 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed">Imprimir / Salvar PDF</button>}
         </div>
         <AvisoCadastroIncompleto faltando={faltando} onCompletar={() => setCadastroAberto(true)} bloqueia="complete para imprimir" />
@@ -102,13 +116,13 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
           </div>
         )}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.25, textTransform: "uppercase", letterSpacing: 0.3 }}>Declaração de Recebimento de Equipamento de Proteção Individual e Responsabilidade de Uso e Guarda</div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.25, textTransform: "uppercase", letterSpacing: 0.3 }}>{f.historico ? "Ficha de Controle de Entrega de EPI e Responsabilidade de Uso e Guarda" : "Declaração de Recebimento de Equipamento de Proteção Individual e Responsabilidade de Uso e Guarda"}</div>
           <div style={{ marginTop: 6 }}>
             <div style={{ fontWeight: 700, fontSize: 11.5 }}>{emp.razaoSocial.toUpperCase()}</div>
             <div style={{ fontSize: 10 }}>CNPJ: {fmtCnpj(emp.cnpj)}{endereco ? ` · ${endereco}` : ""}</div>
           </div>
         </div>
-        <div style={{ textAlign: "right", fontSize: 9.5, color: "#444", whiteSpace: "nowrap" }}>Cautela nº <b style={{ color: "#000" }}>{numero}</b><br />{fmtData(f.data)}</div>
+        <div style={{ textAlign: "right", fontSize: 9.5, color: "#444", whiteSpace: "nowrap" }}>{f.historico ? "Ficha" : "Cautela"} nº <b style={{ color: "#000" }}>{numero}</b><br />{f.historico ? `aberta em ${fmtData(f.data)}` : fmtData(f.data)}</div>
       </div>
 
       {/* Informações do funcionário */}
@@ -126,7 +140,9 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
 
       {/* Declaração */}
       <div style={{ marginTop: 10, textAlign: "justify", fontSize: 10 }}>
-        <p>Eu, <b>{f.colaborador.nome.toUpperCase()}</b>, declaro para todos os efeitos previstos na legislação, haver recebido gratuitamente, conforme descrito na C.L.T. nos artigos 166, 167 e demais artigos adstritos à matéria, na NR-06 e nos itens 1.4.2 e 1.5.5.1.2 da NR-01 — Disposições Gerais e Gerenciamento de Riscos Ocupacionais, após treinamento e orientação do uso adequado, aplicação, guarda, conservação, substituição e requisitos de higiene, ministrados pelo Serviço Especializado em Segurança e Medicina do Trabalho da empresa <b>{emp.razaoSocial.toUpperCase()}</b>{endereco ? `, situada em ${endereco}` : ""}, o(s) <b>{f.itens.length}{EXTENSO[f.itens.length] ? ` (${EXTENSO[f.itens.length]})` : ""} item(ns)</b> de equipamento de proteção individual relacionado(s) na tabela “Informações dos EPIs” abaixo e designado(s) como EPIs — todos recebidos nesta data e cobertos por esta assinatura —, os quais obrigo-me a usá-lo(s) sistematicamente em meu trabalho, mediante ainda os termos seguintes:</p>
+        <p>Eu, <b>{f.colaborador.nome.toUpperCase()}</b>, declaro para todos os efeitos previstos na legislação, haver recebido gratuitamente, conforme descrito na C.L.T. nos artigos 166, 167 e demais artigos adstritos à matéria, na NR-06 e nos itens 1.4.2 e 1.5.5.1.2 da NR-01 — Disposições Gerais e Gerenciamento de Riscos Ocupacionais, após treinamento e orientação do uso adequado, aplicação, guarda, conservação, substituição e requisitos de higiene, ministrados pelo Serviço Especializado em Segurança e Medicina do Trabalho da empresa <b>{emp.razaoSocial.toUpperCase()}</b>{endereco ? `, situada em ${endereco}` : ""}, {f.historico
+          ? <>os equipamentos de proteção individual registrados na tabela “Registro de entregas” abaixo — cada recebimento confirmado por minha assinatura na respectiva linha, na data nela indicada —,</>
+          : <>o(s) <b>{f.itens.length}{EXTENSO[f.itens.length] ? ` (${EXTENSO[f.itens.length]})` : ""} item(ns)</b> de equipamento de proteção individual relacionado(s) na tabela “Informações dos EPIs” abaixo e designado(s) como EPIs — todos recebidos nesta data e cobertos por esta assinatura —,</>} os quais obrigo-me a usá-lo(s) sistematicamente em meu trabalho, mediante ainda os termos seguintes:</p>
         <ol type="a" style={{ paddingLeft: 18, marginTop: 4 }}>
           <li>O EPI será usado unicamente para a finalidade a que se destina, e qualquer alteração que o torne parcial ou totalmente danificado será por mim comunicada à empresa;</li>
           <li>Declaro que me responsabilizo pela guarda e conservação dos EPIs que me foram confiados e que, na impossibilidade de seu uso, deverei comunicar à chefia imediatamente, para as providências que se fizerem necessárias, e os devolverei após o vencimento da duração estipulada;</li>
@@ -143,6 +159,43 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
         <div style={{ width: "46%", textAlign: "center", borderTop: "1px solid #000", paddingTop: 3, fontSize: 10 }}>{f.colaborador.nome.toUpperCase()}</div>
       </div>
 
+      {f.historico ? (() => {
+        const lancadas = preencher ? f.itens : [];
+        const brancas = Math.max(LINHAS_HISTORICO - lancadas.length, 5);
+        const daFuncao = f.colaborador.sstFuncoes[0]?.funcao.requisitosEpi ?? [];
+        return <>
+          {daFuncao.length > 0 && <p style={{ fontSize: 9, marginTop: 12 }}><b>EPIs da função:</b> {daFuncao.map((r) => `${r.epi.nome}${r.epi.ca ? ` (CA ${r.epi.ca})` : ""}`).join(" · ")}</p>}
+          <div style={{ fontWeight: 700, fontSize: 11, margin: "10px 0 4px", borderBottom: "1px solid #000", paddingBottom: 2 }}>Registro de entregas</div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, width: "12%" }}>Data</th>
+                <th style={{ ...th, width: "6%" }}>Qtd.</th>
+                <th style={{ ...th, textAlign: "left" }}>EPI</th>
+                <th style={{ ...th, width: "9%" }}>CA</th>
+                <th style={{ ...th, width: "7%" }}>Tam.</th>
+                <th style={{ ...th, width: "30%" }}>Assinatura do colaborador</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lancadas.map((it) => (
+                <tr key={it.id} style={{ height: 26 }}>
+                  <td style={{ ...td, textAlign: "center" }}>{fmtData(it.data)}</td>
+                  <td style={{ ...td, textAlign: "center" }}>{it.quantidade}</td>
+                  <td style={td}>{it.epi.nome.toUpperCase()}{it.tipo === "DEVOLUCAO" ? " (DEVOLUÇÃO)" : it.tipo === "TROCA" ? " (TROCA)" : ""}{it.motivo ? <span style={{ fontSize: 8.5, color: "#555" }}> — {it.motivo}</span> : null}</td>
+                  <td style={{ ...td, textAlign: "center" }}>{it.epi.ca ?? "—"}</td>
+                  <td style={{ ...td, textAlign: "center" }}>{it.tamanho || ""}</td>
+                  <td style={td}></td>
+                </tr>
+              ))}
+              {Array.from({ length: brancas }, (_, k) => (
+                <tr key={`b${k}`} style={{ height: 26 }}>{Array.from({ length: 6 }, (_, c) => <td key={c} style={td}></td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ fontSize: 9, marginTop: 4 }}>Troca antes do prazo de uso: anotar o motivo na linha (dano, perda, extravio…).</p>
+        </>;
+      })() : <>
       {/* Informações dos EPIs */}
       <div style={{ fontWeight: 700, fontSize: 11, margin: "14px 0 4px", borderBottom: "1px solid #000", paddingBottom: 2 }}>Informações dos EPIs</div>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -168,8 +221,9 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
         </tbody>
       </table>
       <p style={{ fontSize: 9, marginTop: 4, textAlign: "right" }}>Fim da relação — <b>{f.itens.length} item(ns)</b>, todos cobertos pela assinatura acima.</p>
+      </>}
       {f.observacoes && <p style={{ fontSize: 9.5, marginTop: 6 }}><b>Observações:</b> {f.observacoes}</p>}
-      <p style={{ fontSize: 8.5, marginTop: 10, color: "#555", display: "flex", justifyContent: "space-between" }}><span>{nomeEmpresa} · Cautela de EPI nº {numero}</span><span>gerada pelo ERP em {new Date().toLocaleDateString("pt-BR")}</span></p>
+      <p style={{ fontSize: 8.5, marginTop: 10, color: "#555", display: "flex", justifyContent: "space-between" }}><span>{nomeEmpresa} · {f.historico ? "Ficha" : "Cautela"} de EPI nº {numero}</span><span>gerada pelo ERP em {new Date().toLocaleDateString("pt-BR")}</span></p>
     </div>
   );
 }

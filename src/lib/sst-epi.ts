@@ -1,18 +1,19 @@
 // Entrega de EPI — regra compartilhada entre a entrega avulsa/lote e a ficha
-// por colaborador: saída de estoque opcional (hard block sem saldo) e o
-// controle de prazo (vida útil) que exige motivo p/ nova retirada antecipada.
+// por colaborador: saída de estoque opcional (hard block sem saldo; obrigatória
+// p/ EPI descartável), o controle de prazo (vida útil) que exige motivo p/ nova
+// retirada antecipada (descartável fica de fora) e a ficha de histórico aberta.
 import type { Prisma } from "@prisma/client";
 
 type Tx = Prisma.TransactionClient;
 
 export type EpiBasico = {
-  id: string; nome: string; vidaUtilDias: number | null; itemId: string | null; item: { descricao: string } | null;
+  id: string; nome: string; vidaUtilDias: number | null; itemId: string | null; item: { descricao: string } | null; descartavel?: boolean;
   itens?: { itemId: string; tamanho: string | null; item: { descricao: string } }[];
 };
 
 /** Select do EPI usado pelas rotas de entrega (inclui os tamanhos). */
 export const EPI_ENTREGA_SELECT = {
-  id: true, nome: true, vidaUtilDias: true, itemId: true, item: { select: { descricao: true } },
+  id: true, nome: true, vidaUtilDias: true, itemId: true, descartavel: true, item: { select: { descricao: true } },
   itens: { orderBy: [{ ordem: "asc" as const }, { tamanho: "asc" as const }], select: { itemId: true, tamanho: true, item: { select: { descricao: true } } } },
 };
 
@@ -38,9 +39,11 @@ export type TipoEntrega = (typeof TIPOS_ENTREGA)[number];
 /**
  * Retirada antecipada: há entrega/troca vigente desse EPI cujo vencimento de
  * uso (data + vida útil) ainda não chegou. Devolve a entrega que "segura" o
- * prazo ou null quando a retirada é livre.
+ * prazo ou null quando a retirada é livre. Descartável não tem prazo.
  */
 export async function entregaDentroDoPrazo(tx: Tx, colaboradorId: string, epiId: string, data: Date) {
+  const epi = await tx.sstEpi.findUnique({ where: { id: epiId }, select: { descartavel: true } });
+  if (epi?.descartavel) return null;
   const ultima = await tx.sstEpiEntrega.findFirst({
     where: { colaboradorId, epiId },
     orderBy: { data: "desc" },
@@ -61,6 +64,8 @@ export async function registrarEntregaEpi(tx: Tx, p: {
   // Vários tamanhos e nenhum escolhido: só é problema quando há baixa de estoque.
   if (!variante && p.tipo !== "DEVOLUCAO" && p.localEstoqueId) throw new Error(`Escolha o tamanho de "${p.epi.nome}" para baixar do estoque.`);
   const itemId = variante?.itemId ?? null;
+  // Descartável sai sempre do estoque — "não baixar" foi o erro de out/2026.
+  if (p.epi.descartavel && p.tipo !== "DEVOLUCAO" && itemId && !p.localEstoqueId) throw new Error(`"${p.epi.nome}" é descartável: escolha o local de onde baixar do estoque.`);
   const vencimentoUso = p.tipo !== "DEVOLUCAO" && p.epi.vidaUtilDias ? new Date(p.data.getTime() + p.epi.vidaUtilDias * 86_400_000) : null;
   let movimentacaoEstoqueId: string | null = null;
   if (p.tipo !== "DEVOLUCAO" && itemId && p.localEstoqueId) {
@@ -121,9 +126,21 @@ export async function estornarEstoqueEntrega(tx: Tx, movimentacaoEstoqueId: stri
 
 /** Include da ficha (lista, detalhe e impressão). */
 export const FICHA_INCLUDE = {
-  colaborador: { select: { id: true, nome: true, cpf: true, rg: true, matricula: true, cargo: true, dataAdmissao: true, setor: { select: { id: true, nome: true } }, sstFuncoes: { where: { fim: null }, take: 1, select: { funcao: { select: { nome: true } } } } } },
-  itens: { orderBy: { createdAt: "asc" as const }, include: { epi: { select: { id: true, nome: true, ca: true, vidaUtilDias: true } } } },
+  colaborador: { select: { id: true, nome: true, cpf: true, rg: true, matricula: true, cargo: true, dataAdmissao: true, setor: { select: { id: true, nome: true } }, sstFuncoes: { where: { fim: null }, take: 1, select: { funcao: { select: { nome: true, requisitosEpi: { select: { epi: { select: { nome: true, ca: true } } } } } } } } } },
+  itens: { orderBy: [{ data: "asc" as const }, { createdAt: "asc" as const }], include: { epi: { select: { id: true, nome: true, ca: true, vidaUtilDias: true } } } },
 };
+
+/**
+ * Ficha de histórico aberta do colaborador (cria a próxima quando não há).
+ * Uma só por colaborador — índice único parcial no banco como backstop.
+ */
+export async function fichaHistoricoAberta(tx: Tx, p: { empresaId: string; colaboradorId: string; data: Date; criadoPor: string }) {
+  const aberta = await tx.sstEpiFicha.findFirst({ where: { colaboradorId: p.colaboradorId, historico: true, fechadaEm: null }, select: { id: true, numero: true } });
+  if (aberta) return { ...aberta, nova: false };
+  const numero = await proximoNumeroFicha(tx, p.empresaId);
+  const f = await tx.sstEpiFicha.create({ data: { empresaId: p.empresaId, numero, colaboradorId: p.colaboradorId, data: p.data, historico: true, criadoPor: p.criadoPor }, select: { id: true, numero: true } });
+  return { ...f, nova: true };
+}
 
 /** Próximo número da ficha na empresa. */
 export async function proximoNumeroFicha(tx: Tx, empresaId: string) {

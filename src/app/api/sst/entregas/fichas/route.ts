@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { EPI_ENTREGA_SELECT, FICHA_INCLUDE, TIPOS_ENTREGA, entregaDentroDoPrazo, proximoNumeroFicha, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
+import { EPI_ENTREGA_SELECT, FICHA_INCLUDE, TIPOS_ENTREGA, entregaDentroDoPrazo, fichaHistoricoAberta, proximoNumeroFicha, registrarEntregaEpi, type TipoEntrega } from "@/lib/sst-epi";
 import { camposFaltandoCautela } from "@/lib/sst-cadastro";
 
 // GET /api/sst/entregas/fichas?colaboradorId=&pendentes=1 — fichas (mais recentes primeiro)
@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const colaboradorId = sp.get("colaboradorId");
   const pendentes = sp.get("pendentes") === "1";
   const data = await prisma.sstEpiFicha.findMany({
+    // Pendente = sem papel assinado arquivado (inclui a ficha de histórico aberta).
     where: { ...(colaboradorId ? { colaboradorId } : {}), ...(pendentes ? { documentoId: null } : {}) },
     orderBy: { numero: "desc" },
     take: 300,
@@ -22,7 +23,10 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/sst/entregas/fichas — entrega de vários EPIs p/ UM colaborador.
-// { colaboradorId, data, observacoes?, itens: [{ epiId, quantidade, tipo, motivo?, localEstoqueId?, tamanho?, itemId? }] }
+// { colaboradorId, data, observacoes?, avulsa?, itens: [{ epiId, quantidade, tipo, motivo?, localEstoqueId?, tamanho?, itemId? }] }
+// Padrão: as linhas entram na ficha de HISTÓRICO aberta do colaborador (assinadas
+// à mão linha a linha; a ficha abre sozinha se não houver). avulsa=true gera a
+// cautela/termo avulso dessa entrega, como antes. Resposta: { data: ficha, nova }.
 // Item retirado antes do fim da vida útil sem motivo → 422 { precisaMotivo: [{ epiId, ate }] }.
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("sst");
@@ -53,11 +57,17 @@ export async function POST(req: NextRequest) {
       }
       if (precisaMotivo.length > 0) throw Object.assign(new Error("PRAZO"), { precisaMotivo });
 
-      const numero = await proximoNumeroFicha(tx, empresaId);
-      const f = await tx.sstEpiFicha.create({
-        data: { empresaId, numero, colaboradorId: b.colaboradorId, data, observacoes: b.observacoes?.trim() || null, criadoPor: auth.session.nome },
-        select: { id: true },
-      });
+      let f: { id: string; nova: boolean };
+      if (b.avulsa) {
+        const numero = await proximoNumeroFicha(tx, empresaId);
+        const c = await tx.sstEpiFicha.create({
+          data: { empresaId, numero, colaboradorId: b.colaboradorId, data, observacoes: b.observacoes?.trim() || null, criadoPor: auth.session.nome },
+          select: { id: true },
+        });
+        f = { id: c.id, nova: true };
+      } else {
+        f = await fichaHistoricoAberta(tx, { empresaId, colaboradorId: b.colaboradorId, data, criadoPor: auth.session.nome });
+      }
       for (const i of itensIn) {
         const tipo = (TIPOS_ENTREGA as readonly string[]).includes(i.tipo ?? "") ? (i.tipo as TipoEntrega) : "ENTREGA";
         await registrarEntregaEpi(tx, {
@@ -66,9 +76,9 @@ export async function POST(req: NextRequest) {
           tamanho: i.tamanho ?? null, itemId: i.itemId ?? null,
         });
       }
-      return tx.sstEpiFicha.findUnique({ where: { id: f.id }, include: FICHA_INCLUDE });
+      return { ficha: await tx.sstEpiFicha.findUnique({ where: { id: f.id }, include: FICHA_INCLUDE }), nova: f.nova };
     });
-    return NextResponse.json({ data: ficha }, { status: 201 });
+    return NextResponse.json({ data: ficha.ficha, nova: ficha.nova }, { status: 201 });
   } catch (e) {
     const pm = (e as { precisaMotivo?: unknown }).precisaMotivo;
     if (pm) return NextResponse.json({ error: "Há EPI retirado antes do fim da vida útil: informe o motivo.", precisaMotivo: pm }, { status: 422 });

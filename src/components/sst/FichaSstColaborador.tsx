@@ -28,7 +28,7 @@ type Ficha = {
   setor: { nome: string } | null;
   sstFuncoes: { id: string; inicio: string; fim: string | null; funcao: { id: string; nome: string; requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[] } }[];
   sstTreinamentos: { validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; treinamento: { id: string; tipoId: string; data: string; instrutor: string | null; cargaHoraria: number | null; tipo: { nome: string; norma: string | null } } }[];
-  sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null } | null }[];
+  sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null; historico?: boolean } | null }[];
   sstExames: { id: string; exameTipoId: string; data: string; resultado: string | null; observacao: string | null; documentoId: string | null; asoId: string | null; exameTipo: { nome: string }; aso: { tipo: string; data: string } | null }[];
   sstAsos: { id: string; tipo: string; data: string; validade: string | null; resultado: string; restricoes: string | null; medico: string | null; crm: string | null; medicoId: string | null; documentoId: string | null; exames: { exameTipoId: string; data: string; resultado: string | null; exameTipo: { nome: string } }[] }[];
   pendencias: Pendencia[];
@@ -269,11 +269,12 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                   <Card icon={<HardHat className="w-4 h-4" />} titulo={`Entregas de EPI${nEntregas ? ` · ${nEntregas}` : ""}`}
                     acao={<Button size="sm" onClick={() => abrirEntrega()} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Entrega</Button>}>
               {f.sstEpiEntregas.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhuma entrega registrada.</p> : (() => {
-                // Uma linha por cautela (ficha); entregas em lote/avulsas ficam uma por linha.
+                // Uma linha por cautela (termo avulso); ficha de histórico, lote e
+                // avulsas ficam uma por linha (cada uma tem a própria data).
                 type Ent = Ficha["sstEpiEntregas"][number];
                 const grupos: { chave: string; data: string; ficha: Ent["ficha"]; itens: Ent[] }[] = [];
                 for (const e of f.sstEpiEntregas) {
-                  const chave = e.ficha ? `f:${e.ficha.id}` : `e:${e.id}`;
+                  const chave = e.ficha && !e.ficha.historico ? `f:${e.ficha.id}` : `e:${e.id}`;
                   const g = grupos.find((x) => x.chave === chave);
                   if (g) g.itens.push(e); else grupos.push({ chave, data: e.data, ficha: e.ficha, itens: [e] });
                 }
@@ -311,7 +312,10 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                               </ul>
                             </td>
                             <td className="px-3 py-2"><DocLink id={termo} label="assinado" /></td>
-                            <td className="px-2 py-2 text-right"><AcoesLinha acoes={g.ficha ? [
+                            <td className="px-2 py-2 text-right"><AcoesLinha acoes={g.ficha?.historico ? [
+                              { label: "Ver / imprimir ficha", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(g.ficha!.id) },
+                              { label: "Excluir entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: g.itens[0].id }), danger: true, separadorAntes: true },
+                            ] : g.ficha ? [
                               { label: "Ver / imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(g.ficha!.id) },
                               { label: "Excluir cautela", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "ficha", id: g.ficha!.id }), danger: true, separadorAntes: true },
                             ] : [
