@@ -113,7 +113,6 @@ export default function SstColaboradoresPage() {
               <thead className="bg-muted text-xs text-muted-foreground">
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold">Colaborador</th>
-                  <th className="text-left px-3 py-2 font-semibold">Setor</th>
                   <th className="text-left px-3 py-2 font-semibold">Função SST</th>
                   <th className="text-right px-3 py-2 font-semibold">EPI</th>
                   <th className="text-right px-3 py-2 font-semibold">ASO/exames</th>
@@ -125,7 +124,7 @@ export default function SstColaboradoresPage() {
                   <Fragment key={g.chave || "_"}>
                   {grupos && (
                     <tr onClick={() => alternarGrupo(g.chave)} className="border-t border-border bg-muted/50 cursor-pointer select-none hover:bg-muted">
-                      <td colSpan={6} className="px-4 py-1.5">
+                      <td colSpan={5} className="px-4 py-1.5">
                         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
                           {fechados.has(g.chave) ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                           {g.titulo}
@@ -138,7 +137,6 @@ export default function SstColaboradoresPage() {
                   {!fechados.has(g.chave) && g.itens.map((l) => (
                   <tr key={l.id} onClick={() => router.push(`/sst/colaboradores/${l.id}`)} className="border-t border-border/60 hover:bg-muted/40 cursor-pointer">
                     <td className={cn("px-4 py-2 text-foreground", grupos && "pl-9", !l.ativo && "text-muted-foreground line-through")}>{l.nome}{l.afastamento && <span className="ml-2 inline-block align-middle"><SeloAfastado a={l.afastamento} /></span>}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{l.setor ?? "—"}</td>
                     <td className="px-3 py-2">{l.funcao ? <>{agrupar === "funcao" ? null : <>{l.funcao.nome} </>}<span className="text-xs text-muted-foreground">desde {fmtData(l.funcao.desde)}</span></> : <span className="text-muted-foreground/60">—</span>}</td>
                     <Contagem itens={pendenciasDa(l, "epi")} />
                     <Contagem itens={pendenciasDa(l, "aso")} />
@@ -147,7 +145,7 @@ export default function SstColaboradoresPage() {
                   ))}
                   </Fragment>
                 ))}
-                {visiveis.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum colaborador.</td></tr>}
+                {visiveis.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum colaborador.</td></tr>}
               </tbody>
             </table>
           </div>
