@@ -22,6 +22,7 @@ type Row = {
   estoqueAtual: number;
   custo: number;
   valorConsumoAnual: number;
+  valorEstoque: number;
   pctConsumo: number;
   pctAcumulado: number;
   curvaABC: "A" | "B" | "C";
@@ -33,6 +34,7 @@ type Summary = {
   classB: { count: number; pctItems: number; pctValor: number };
   classC: { count: number; pctItems: number; pctValor: number };
   totalConsumoAnual: number;
+  totalValorEstoque: number;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -111,6 +113,11 @@ export default function CurvaAbcPage() {
   const [locais, setLocais]       = useState<LocalEstoque[]>([]);
   const [periodo, setPeriodo]     = usePersistedState<DateRange>("relatorios:suprimentos:curva-abc:periodo", defaultRange);
   const [localId, setLocalId]     = useState("");
+  // Base da curva: valor parado em estoque (saldo × custo) ou consumo anualizado.
+  const [base, setBase]           = usePersistedState<"estoque" | "consumo">("relatorios:suprimentos:curva-abc:base", "estoque");
+  const porEstoque = base === "estoque";
+  const valorDe = (r: Row) => porEstoque ? r.valorEstoque : r.valorConsumoAnual;
+  const sufixo = porEstoque ? " em estoque" : " /ano";
 
   // Load locais once
   useEffect(() => {
@@ -126,12 +133,13 @@ export default function CurvaAbcPage() {
     if (periodo.from) params.set("dataInicio", periodo.from);
     if (periodo.to)   params.set("dataFim",    periodo.to);
     if (localId)      params.set("localId",    localId);
+    if (porEstoque)   params.set("base",       "estoque");
     fetch(`/api/suprimentos/relatorios/caracterizacao?${params}`)
       .then((r) => r.json())
       .then((d) => { setRows(d.rows ?? []); setSummary(d.summary ?? null); })
       .catch(() => setError("Erro ao carregar dados"))
       .finally(() => setLoading(false));
-  }, [periodo, localId]);
+  }, [periodo, localId, porEstoque]);
 
   // Fetch whenever periodo or localId change.
   // Skip while the date picker is mid-selection (from set but to still empty).
@@ -191,7 +199,8 @@ export default function CurvaAbcPage() {
     return true;
   }), [rows, abcFilter, search]);
 
-  const filteredTotal = filtered.reduce((s, r) => s + r.valorConsumoAnual, 0);
+  const filteredTotal = filtered.reduce((s, r) => s + valorDe(r), 0);
+  const totalBase = summary ? (porEstoque ? summary.totalValorEstoque : summary.totalConsumoAnual) : 0;
 
   return (
     <div>
@@ -206,7 +215,12 @@ export default function CurvaAbcPage() {
             local e classe viram chips na linha abaixo. ─────────────────────── */}
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <DateRangePicker value={periodo} onChange={setPeriodo} />
+            <div className="inline-flex h-9 rounded-lg border border-border bg-card p-0.5 text-sm">
+              {([["estoque", "Valor em estoque"], ["consumo", "Consumo"]] as const).map(([k, label]) => (
+                <button key={k} onClick={() => setBase(k)} className={cn("px-3 rounded-md transition-colors", base === k ? "bg-blue-600 text-white font-medium" : "text-muted-foreground hover:text-foreground")}>{label}</button>
+              ))}
+            </div>
+            {!porEstoque && <DateRangePicker value={periodo} onChange={setPeriodo} />}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
@@ -249,7 +263,7 @@ export default function CurvaAbcPage() {
                 <p className="text-xs text-muted-foreground font-medium">Total de Itens</p>
                 <p className="text-3xl font-bold text-foreground mt-1">{summary.totalItems}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {formatBRL(summary.totalConsumoAnual)}<span className="text-muted-foreground/60"> /ano</span>
+                  {formatBRL(totalBase)}<span className="text-muted-foreground/60">{sufixo}</span>
                 </p>
               </div>
 
@@ -272,7 +286,7 @@ export default function CurvaAbcPage() {
                       {cl.pctItems}% dos itens · ~{cl.pctValor}% do valor
                     </p>
                     <p className={cn("text-xs mt-0.5 font-medium", s.sub)}>
-                      {formatBRL(summary.totalConsumoAnual * (cl.pctValor / 100))}<span className="font-normal opacity-60"> /ano</span>
+                      {formatBRL(totalBase * (cl.pctValor / 100))}<span className="font-normal opacity-60">{sufixo}</span>
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-1">{labels[cls]}</p>
                   </div>
@@ -283,8 +297,8 @@ export default function CurvaAbcPage() {
             {/* Distribution bar */}
             <div className="rounded-xl border border-border bg-card px-5 py-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold text-muted-foreground">Distribuição do Valor de Consumo Anual</p>
-                <p className="text-xs text-muted-foreground font-medium">Total: {formatBRL(summary.totalConsumoAnual)} / ano</p>
+                <p className="text-xs font-semibold text-muted-foreground">{porEstoque ? "Distribuição do Valor em Estoque" : "Distribuição do Valor de Consumo Anual"}</p>
+                <p className="text-xs text-muted-foreground font-medium">Total: {formatBRL(totalBase)}{sufixo}</p>
               </div>
 
               <div className="flex h-7 rounded-lg overflow-hidden gap-px">
@@ -342,7 +356,7 @@ export default function CurvaAbcPage() {
                   <th className="text-center px-4 py-3 font-medium">Classe</th>
                   <th className="text-right px-4 py-3 font-medium">% do Valor</th>
                   <th className="text-right px-4 py-3 font-medium">% Acumulado</th>
-                  <th className="text-right px-4 py-3 font-medium">Consumo Anual</th>
+                  <th className="text-right px-4 py-3 font-medium">{porEstoque ? "Valor em Estoque" : "Consumo Anual"}</th>
                   <th className="text-right px-4 py-3 font-medium">Custo Unit.</th>
                   <th className="text-right px-4 py-3 font-medium">Estoque Atual</th>
                 </tr>
@@ -387,10 +401,10 @@ export default function CurvaAbcPage() {
                         </div>
                       </td>
 
-                      {/* Consumo anual */}
+                      {/* Valor da base (estoque ou consumo anual) */}
                       <td className="px-4 py-3 text-right">
-                        <span className={cn("text-sm tabular-nums font-semibold", row.valorConsumoAnual > 0 ? s.value : "text-muted-foreground/60")}>
-                          {row.valorConsumoAnual > 0 ? formatBRL(row.valorConsumoAnual) : "—"}
+                        <span className={cn("text-sm tabular-nums font-semibold", valorDe(row) > 0 ? s.value : "text-muted-foreground/60")}>
+                          {valorDe(row) > 0 ? formatBRL(valorDe(row)) : "—"}
                         </span>
                       </td>
 
@@ -422,7 +436,7 @@ export default function CurvaAbcPage() {
                     </td>
                     <td className="px-4 py-2.5 text-right text-sm font-bold text-foreground tabular-nums">
                       {formatBRL(filteredTotal)}
-                      <span className="text-xs font-normal text-muted-foreground ml-1">/ano</span>
+                      <span className="text-xs font-normal text-muted-foreground ml-1">{porEstoque ? "em estoque" : "/ano"}</span>
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -438,12 +452,21 @@ export default function CurvaAbcPage() {
             <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
             <div className="space-y-1 text-xs text-muted-foreground leading-relaxed">
               <p className="font-semibold text-foreground">Metodologia — Curva ABC (Princípio de Pareto)</p>
-              <p>
-                Os itens são ordenados pelo <strong>Valor de Consumo Anual</strong> (saídas × custo unitário no período selecionado, anualizado).
-                O percentual acumulado determina a classe: <strong className="text-danger">A</strong> até 80% do valor total,
-                <strong className="text-warning"> B</strong> de 80% a 95%, e <strong className="text-muted-foreground">C</strong> o restante.
-                Itens sem saídas registradas recebem valor de consumo zero e são classificados como <strong>C</strong>.
-              </p>
+              {porEstoque ? (
+                <p>
+                  Os itens são ordenados pelo <strong>Valor em Estoque</strong> (saldo atual × custo médio da empresa, no local filtrado).
+                  Só entram itens com saldo. O percentual acumulado determina a classe: <strong className="text-danger">A</strong> até 80% do valor total,
+                  <strong className="text-warning"> B</strong> de 80% a 95%, e <strong className="text-muted-foreground">C</strong> o restante.
+                  Itens sem custo cadastrado ficam com valor zero (classe <strong>C</strong>).
+                </p>
+              ) : (
+                <p>
+                  Os itens são ordenados pelo <strong>Valor de Consumo Anual</strong> (saídas × custo unitário no período selecionado, anualizado).
+                  O percentual acumulado determina a classe: <strong className="text-danger">A</strong> até 80% do valor total,
+                  <strong className="text-warning"> B</strong> de 80% a 95%, e <strong className="text-muted-foreground">C</strong> o restante.
+                  Itens sem saídas registradas recebem valor de consumo zero e são classificados como <strong>C</strong>.
+                </p>
+              )}
             </div>
           </div>
         </div>

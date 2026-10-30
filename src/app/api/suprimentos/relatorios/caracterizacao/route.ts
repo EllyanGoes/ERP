@@ -22,6 +22,10 @@ import { custosPorEmpresaItem, chaveCustoEmpresa } from "@/lib/custo-empresa";
  *   2 a 5 → MTO        — demanda irregular; comprar conforme necessidade
  *   < 2   → Obsoleto   — baixíssima demanda; reavaliar necessidade de estoque
  *
+ * ?base=estoque (Curva ABC por valor em estoque): ordena por saldo atual × custo
+ * (só itens com saldo > 0, no local filtrado se houver) em vez do consumo. O IMD
+ * continua calculado sobre as saídas do período.
+ *
  * Casos especiais:
  *   mesesSemConsumo = 0  →  consumido em TODOS os meses → IMD = 999 (Estocável)
  *   mesesComConsumo = 0  →  nunca consumido              → IMD = 0   (Obsoleto)
@@ -34,6 +38,7 @@ export async function GET(req: NextRequest) {
   const dataInicio = searchParams.get("dataInicio");
   const dataFim    = searchParams.get("dataFim");
   const localId    = searchParams.get("localId");
+  const porEstoque = searchParams.get("base") === "estoque";
 
   let startDate: Date;
   let endDate: Date;
@@ -68,7 +73,7 @@ export async function GET(req: NextRequest) {
       unidade:      { select: { sigla: true } },
       unidadeMedida: true,
       tipoProduto:  { select: { nome: true } },
-      estoqueItems: { where: { clienteDonoId: null }, select: { quantidadeAtual: true } },
+      estoqueItems: { where: { clienteDonoId: null }, select: { quantidadeAtual: true, localEstoqueId: true, empresaId: true } },
     },
     orderBy: { codigo: "asc" },
   });
@@ -107,6 +112,7 @@ export async function GET(req: NextRequest) {
     custo: number;
     // ABC
     valorConsumoAnual: number;
+    valorEstoque: number;
     pctConsumo: number;
     pctAcumulado: number;
     curvaABC: "A" | "B" | "C";
@@ -160,9 +166,11 @@ export async function GET(req: NextRequest) {
     // Valor de Consumo Anual: anualiza os 36 meses → ×(12/36)
     const valorConsumoAnual = (totalValorConsumo / PERIOD_MONTHS) * 12;
 
-    const estoqueAtual = item.estoqueItems.reduce(
-      (s, e) => s + parseFloat(e.quantidadeAtual.toString()), 0
-    );
+    // Na base estoque, o saldo é o da empresa ativa (e do local filtrado).
+    const estoqueAtual = item.estoqueItems
+      .filter((e) => !porEstoque || (e.empresaId === empresaAtiva && (!localId || e.localEstoqueId === localId)))
+      .reduce((s, e) => s + parseFloat(e.quantidadeAtual.toString()), 0);
+    const valorEstoque = Math.max(estoqueAtual, 0) * custo;
 
     return {
       itemId:     item.id,
@@ -173,6 +181,7 @@ export async function GET(req: NextRequest) {
       estoqueAtual,
       custo,
       valorConsumoAnual,
+      valorEstoque,
       pctConsumo:   0,   // preenchido após sort
       pctAcumulado: 0,
       curvaABC:     "C", // idem
@@ -184,14 +193,19 @@ export async function GET(req: NextRequest) {
   });
 
   // ── 4. Curva ABC ───────────────────────────────────────────────────────────
-  rows.sort((a, b) => b.valorConsumoAnual - a.valorConsumoAnual);
+  // Base: consumo anualizado (padrão) ou valor parado em estoque (?base=estoque).
+  const valorBase = (r: Row) => porEstoque ? r.valorEstoque : r.valorConsumoAnual;
+  if (porEstoque) rows.splice(0, rows.length, ...rows.filter((r) => r.estoqueAtual > 0));
+  rows.sort((a, b) => valorBase(b) - valorBase(a));
 
   const totalConsumoAnual = rows.reduce((s, r) => s + r.valorConsumoAnual, 0);
+  const totalValorEstoque = rows.reduce((s, r) => s + r.valorEstoque, 0);
+  const totalBase = porEstoque ? totalValorEstoque : totalConsumoAnual;
   let acumulado = 0;
 
   for (const row of rows) {
-    const pct = totalConsumoAnual > 0
-      ? (row.valorConsumoAnual / totalConsumoAnual) * 100
+    const pct = totalBase > 0
+      ? (valorBase(row) / totalBase) * 100
       : 0;
     acumulado        += pct;
     row.pctConsumo    = Math.round(pct * 100) / 100;
@@ -226,6 +240,7 @@ export async function GET(req: NextRequest) {
     mto:       rows.filter((r) => r.categoriaIMD === "MTO").length,
     obsoleto:  rows.filter((r) => r.categoriaIMD === "OBSOLETO").length,
     totalConsumoAnual,
+    totalValorEstoque,
   };
 
   return NextResponse.json({ rows, summary, periodMonths: PERIOD_MONTHS });
