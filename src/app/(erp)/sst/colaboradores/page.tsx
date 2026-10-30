@@ -9,7 +9,8 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useCachedData } from "@/lib/use-cached-data";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/lib/session-context";
@@ -141,9 +142,9 @@ export default function SstColaboradoresPage() {
                     <td className="px-3 py-2 text-muted-foreground">{l.setor ?? "—"}</td>
                     <td className="px-3 py-2">{l.funcao ? <>{agrupar === "funcao" ? null : <>{l.funcao.nome} </>}<span className="text-xs text-muted-foreground">desde {fmtData(l.funcao.desde)}</span></> : <span className="text-muted-foreground/60">—</span>}</td>
                     <td className="px-3 py-2">{l.afastamento ? <SeloAfastado a={l.afastamento} /> : <Semaforo s={l.semaforo} />}</td>
-                    <Contagem n={l.nEpi} aviso={l.nEpiAviso} />
-                    <Contagem n={l.nAso} aviso={l.nAsoAviso} />
-                    <Contagem n={l.nTreino} aviso={l.nTreinoAviso} />
+                    <Contagem n={l.nEpi} avisos={avisosDa(l, "epi")} />
+                    <Contagem n={l.nAso} avisos={avisosDa(l, "aso")} />
+                    <Contagem n={l.nTreino} avisos={avisosDa(l, "treino")} />
                   </tr>
                   ))}
                   </Fragment>
@@ -158,12 +159,35 @@ export default function SstColaboradoresPage() {
   );
 }
 
-/** Problemas em vermelho; o que vence em breve (atenção) ao lado, em amarelo. */
-function Contagem({ n, aviso }: { n: number; aviso: number }) {
+// Mesma separação por área da API (/api/sst/colaboradores): aviso = severidade ≠ ALTA.
+const AREA: Record<"epi" | "aso" | "treino", (t: string) => boolean> = {
+  epi: (t) => t.startsWith("EPI") || t === "FICHA_EPI_SEM_ASSINATURA",
+  aso: (t) => t.startsWith("ASO") || t === "EXAME_PENDENTE",
+  treino: (t) => t.startsWith("TREINAMENTO"),
+};
+const avisosDa = (l: Linha, area: keyof typeof AREA) => l.pendencias.filter((p) => p.severidade !== "ALTA" && AREA[area](p.tipo));
+
+/** Problemas em vermelho; o que é atenção vira um triângulo com as tags no hover. */
+function Contagem({ n, avisos }: { n: number; avisos: Pendencia[] }) {
   return (
     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
       <span className={n > 0 ? "text-danger font-medium" : "text-muted-foreground"}>{n}</span>
-      {aviso > 0 && <span className="ml-1 text-xs text-warning" title={`${aviso} a vencer em breve / atenção`}>+{aviso}</span>}
+      {avisos.length > 0 && (
+        <TooltipProvider delay={100}>
+          <Tooltip>
+            <TooltipTrigger render={<span className="ml-1.5 inline-flex align-[-2px] text-warning cursor-help" />}>
+              <AlertTriangle className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-[320px] flex-col items-start gap-1 py-2">
+              {avisos.map((p, i) => (
+                <span key={i} className="rounded bg-warning/20 px-1.5 py-0.5 text-[11px] leading-snug text-background whitespace-normal">
+                  {p.titulo}{p.detalhe ? <span className="opacity-75"> · {p.detalhe}</span> : null}
+                </span>
+              ))}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
     </td>
   );
 }
