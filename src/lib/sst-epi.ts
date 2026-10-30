@@ -101,6 +101,21 @@ export async function registrarEntregaEpi(tx: Tx, p: {
 }
 
 /**
+ * Um item de estoque pertence a um só EPI ativo. Dois EPIs no mesmo item
+ * duplicam entregas e confundem o saldo (capacete verde, out/2026).
+ * Devolve a mensagem de erro do 1º conflito ou null.
+ */
+export async function conflitoItemEpi(tx: Tx, p: { empresaId: string; epiId?: string | null; itemIds: string[] }) {
+  const itemIds = Array.from(new Set(p.itemIds.filter(Boolean)));
+  if (!itemIds.length) return null;
+  const outro = await tx.sstEpiItem.findFirst({
+    where: { itemId: { in: itemIds }, epi: { empresaId: p.empresaId, ativo: true, ...(p.epiId ? { id: { not: p.epiId } } : {}) } },
+    select: { item: { select: { codigo: true, descricao: true } }, epi: { select: { nome: true } } },
+  });
+  return outro ? `${outro.item.codigo} ${outro.item.descricao} já está no EPI "${outro.epi.nome}". Um item de estoque só pode estar em um EPI.` : null;
+}
+
+/**
  * Grava a grade de tamanhos do EPI (substitui a anterior). Linhas sem item
  * são ignoradas; item repetido fica com a 1ª linha. Mantém SstEpi.itemId = item
  * do 1º tamanho (compatibilidade).

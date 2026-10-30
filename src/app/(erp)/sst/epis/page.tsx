@@ -94,7 +94,7 @@ export default function SstEpisPage() {
   }
   const [del, setDel] = useState<Epi | null>(null);
   async function excluir() { if (!del) return; setSaving(true); const res = await fetch(`/api/sst/epis/${del.id}`, { method: "DELETE" }); const j = await res.json().catch(() => ({})); setSaving(false); if (!res.ok) { alert(j.error || "Erro"); } setDel(null); load(); }
-  async function alternarAtivo(e: Epi) { await fetch(`/api/sst/epis/${e.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: !e.ativo }) }); load(); }
+  async function alternarAtivo(e: Epi) { const res = await fetch(`/api/sst/epis/${e.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ativo: !e.ativo }) }); if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || "Erro"); } load(); }
 
   const [entrega, setEntrega] = useState(false);
   const [cautela, setCautela] = useState<string | null>(null);

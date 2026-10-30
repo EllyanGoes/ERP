@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { salvarTamanhosEpi } from "@/lib/sst-epi";
+import { salvarTamanhosEpi, conflitoItemEpi } from "@/lib/sst-epi";
 
 // GET /api/sst/epis — EPIs da empresa ativa com os tamanhos (item de estoque +
 // saldo físico próprio somado entre locais) e nº de entregas/funções.
@@ -36,15 +36,18 @@ export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}));
   const nome = String(b.nome ?? "").trim();
   if (!nome) return NextResponse.json({ error: "Informe o nome do EPI." }, { status: 400 });
+  const empresaId = auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  const linhas: { itemId?: string | null; tamanho?: string | null }[] = Array.isArray(b.itens) ? b.itens : b.itemId ? [{ itemId: b.itemId }] : [];
+  const conflito = await conflitoItemEpi(prismaSemEscopo, { empresaId, itemIds: linhas.map((l) => String(l.itemId ?? "")) });
+  if (conflito) return NextResponse.json({ error: conflito }, { status: 409 });
   const epi = await prisma.sstEpi.create({
     data: {
-      empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID,
+      empresaId,
       nome, ca: b.ca?.trim() || null, caValidade: b.caValidade ? new Date(b.caValidade) : null,
       vidaUtilDias: b.vidaUtilDias ? Number(b.vidaUtilDias) : null, fabricante: b.fabricante?.trim() || null,
       descartavel: !!b.descartavel,
     },
   });
-  const linhas = Array.isArray(b.itens) ? b.itens : b.itemId ? [{ itemId: b.itemId }] : [];
   if (linhas.length) await prismaSemEscopo.$transaction((tx) => salvarTamanhosEpi(tx, epi.id, linhas));
   return NextResponse.json({ data: epi }, { status: 201 });
 }
