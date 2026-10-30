@@ -2,7 +2,7 @@
 
 // Cadastro de EPIs (CA, validade, vida útil, descartável, tamanhos ↔ itens de
 // estoque) + entregas e fichas (termo avulso ou ficha de histórico aberta/fechada).
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/shared/PageHeader";
 import DatePicker from "@/components/shared/DatePicker";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
@@ -12,9 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power, X, Lock, LockOpen } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, HardHat, Printer, Paperclip, Power, X, Lock, LockOpen, Search } from "lucide-react";
 import { fmtData, useLookups, UploadAnexo, DocLink, AcoesLinha } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
@@ -27,6 +28,8 @@ type Epi = {
 type LinhaTamanho = { key: number; tamanho: string; itemId: string };
 /** Falta arquivar o papel — a ficha de histórico aberta ainda está em uso, não conta. */
 const semPapel = (f: FichaRow) => !f.documentoId && !(f.historico && !f.fechadaEm);
+/** Busca sem acento/caixa. */
+const norm = (t: string | null | undefined) => (t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 const fmtQtd = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 type Colab = { id: string; nome: string; ativo: boolean; funcao: { nome: string } | null };
 type FichaRow = { id: string; numero: number; data: string; documentoId: string | null; assinadaEm: string | null; historico: boolean; fechadaEm: string | null; colaborador: { id: string; nome: string }; itens: { id: string; quantidade: number; epi: { nome: string } }[] };
@@ -42,6 +45,11 @@ export default function SstEpisPage() {
   // ?aba=fichas (link das pendências) — lido após a hidratação p/ não divergir do SSR.
   useEffect(() => { if (new URLSearchParams(window.location.search).get("aba") === "fichas") setAba("fichas"); }, []);
   const [soPendentes, setSoPendentes] = useState(false);
+  // Busca única p/ as duas abas: EPI (nome, CA, fabricante, item de estoque) e ficha (nº, colaborador, itens).
+  const [busca, setBusca] = usePersistedState<string>("sst:epis:busca", "");
+  const q = norm(busca.trim());
+  const episVisiveis = useMemo(() => !q ? epis : epis.filter((e) => norm([e.nome, e.ca, e.fabricante, e.item?.codigo, e.item?.descricao, ...e.itens.flatMap((i) => [i.tamanho, i.item.codigo, i.item.descricao])].join(" ")).includes(q)), [epis, q]);
+  const fichasVisiveis = useMemo(() => fichas.filter((f) => (!soPendentes || semPapel(f)) && (!q || norm([String(f.numero).padStart(4, "0"), f.colaborador.nome, ...f.itens.map((i) => i.epi.nome)].join(" ")).includes(q))), [fichas, soPendentes, q]);
   async function load() {
     const [j, jf] = await Promise.all([fetch("/api/sst/epis").then((r) => r.json()), fetch("/api/sst/entregas/fichas").then((r) => r.json())]);
     setEpis(j.data ?? []); setFichas(jf.data ?? []); setLoading(false);
@@ -100,7 +108,11 @@ export default function SstEpisPage() {
           {([["epis", "Cadastro de EPIs"], ["fichas", `Fichas de entrega${fichas.filter(semPapel).length ? ` · ${fichas.filter(semPapel).length} sem papel assinado` : ""}`]] as const).map(([k, label]) => (
             <button key={k} onClick={() => setAba(k)} className={cn("px-3 py-2 text-sm -mb-px border-b-2", aba === k ? "border-info text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>{label}</button>
           ))}
-          {aba === "fichas" && <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer"><input type="checkbox" className="rounded" checked={soPendentes} onChange={(e) => setSoPendentes(e.target.checked)} /> só sem papel assinado</label>}
+          <div className="ml-auto mb-1.5 relative">
+            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={aba === "fichas" ? "Buscar nº, colaborador ou EPI…" : "Buscar EPI, CA, fabricante ou item…"} className="h-8 w-72 pl-8 text-sm" />
+          </div>
+          {aba === "fichas" && <label className="ml-3 flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer"><input type="checkbox" className="rounded" checked={soPendentes} onChange={(e) => setSoPendentes(e.target.checked)} /> só sem papel assinado</label>}
         </div>
         {loading ? <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : aba === "fichas" ? (
           <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -109,7 +121,7 @@ export default function SstEpisPage() {
                 <th className="text-left px-4 py-2 font-semibold">Ficha</th><th className="text-left px-3 py-2 font-semibold">Data</th><th className="text-left px-3 py-2 font-semibold">Colaborador</th><th className="text-left px-3 py-2 font-semibold">Itens</th><th className="text-left px-3 py-2 font-semibold">Papel assinado</th><th className="px-3 py-2"></th>
               </tr></thead>
               <tbody>
-                {fichas.filter((f) => !soPendentes || semPapel(f)).map((f) => (
+                {fichasVisiveis.map((f) => (
                   <tr key={f.id} className="border-t border-border/60">
                     <td className="px-4 py-2 tabular-nums text-foreground whitespace-nowrap">nº {String(f.numero).padStart(4, "0")}<span className="block text-[11px] text-muted-foreground">{f.historico ? "histórico" : "termo avulso"}</span></td>
                     <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{f.historico ? <>{fmtData(f.data)}<span className="block text-[11px]">{f.fechadaEm ? `até ${fmtData(f.fechadaEm)}` : "em aberto"}</span></> : fmtData(f.data)}</td>
@@ -129,7 +141,7 @@ export default function SstEpisPage() {
                     </td>
                   </tr>
                 ))}
-                {fichas.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma ficha de entrega ainda — use &quot;Nova entrega&quot; → &quot;Para um colaborador&quot;.</td></tr>}
+                {fichasVisiveis.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">{fichas.length === 0 ? <>Nenhuma ficha de entrega ainda — use &quot;Nova entrega&quot; → &quot;Para um colaborador&quot;.</> : "Nenhuma ficha encontrada."}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -140,7 +152,7 @@ export default function SstEpisPage() {
                 <th className="text-left px-4 py-2 font-semibold">EPI</th><th className="text-left px-3 py-2 font-semibold">CA</th><th className="text-left px-3 py-2 font-semibold">Validade do CA</th><th className="text-right px-3 py-2 font-semibold">Vida útil</th><th className="text-left px-3 py-2 font-semibold">Item de estoque</th><th className="text-right px-3 py-2 font-semibold">Em estoque</th><th className="text-right px-3 py-2 font-semibold">Entregas</th><th className="text-right px-3 py-2 font-semibold">Funções</th><th className="px-3 py-2"></th>
               </tr></thead>
               <tbody>
-                {epis.map((e) => {
+                {episVisiveis.map((e) => {
                   const caVencido = e.caValidade ? new Date(e.caValidade).getTime() < Date.now() : false;
                   return (
                     <tr key={e.id} className={cn("border-t border-border/60", !e.ativo && "opacity-50")}>
@@ -177,7 +189,7 @@ export default function SstEpisPage() {
                     </tr>
                   );
                 })}
-                {epis.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum EPI cadastrado.</td></tr>}
+                {episVisiveis.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">{epis.length === 0 ? "Nenhum EPI cadastrado." : "Nenhum EPI encontrado."}</td></tr>}
               </tbody>
             </table>
           </div>
