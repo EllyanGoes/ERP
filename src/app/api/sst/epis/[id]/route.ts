@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
-import { salvarTamanhosEpi, conflitoItemEpi } from "@/lib/sst-epi";
+import { salvarTamanhosEpi, conflitoItemEpi, type LinhaVariacaoEpi } from "@/lib/sst-epi";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("sst");
@@ -18,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (b.descartavel !== undefined) data.descartavel = !!b.descartavel;
   // itens: [{ itemId, tamanho }] — grade de tamanhos; itemId sozinho = item único (legado).
   const novaGrade = Array.isArray(b.itens) || b.itemId !== undefined;
-  const linhas: { itemId?: string | null; tamanho?: string | null }[] = Array.isArray(b.itens) ? b.itens : b.itemId ? [{ itemId: b.itemId }] : [];
+  const linhas: LinhaVariacaoEpi[] = Array.isArray(b.itens) ? b.itens : b.itemId ? [{ itemId: b.itemId }] : [];
   // Item já em outro EPI ativo: barra ao trocar a grade e ao reativar.
   const atual = await prismaSemEscopo.sstEpi.findUnique({ where: { id: params.id }, select: { empresaId: true, ativo: true, itens: { select: { itemId: true } } } });
   if (!atual) return NextResponse.json({ error: "EPI não encontrado" }, { status: 404 });

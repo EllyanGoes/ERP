@@ -5263,7 +5263,12 @@ model SstEpiItem {
   id      String  @id @default(cuid())
   epiId   String
   itemId  String
-  tamanho String?
+  // Tamanho ou cor (bota 38, capacete VERDE). Cada produto pode ter seu CA:
+  // fabricante/modelo diferentes têm CAs diferentes. Vazio = vale o CA do EPI.
+  tamanho    String?
+  ca         String?
+  caValidade DateTime?
+  fabricante String?
   ordem   Int     @default(0)
   epi     SstEpi  @relation(fields: [epiId], references: [id], onDelete: Cascade)
   item    Item    @relation("SstEpiItemTamanho", fields: [itemId], references: [id])
@@ -5290,6 +5295,8 @@ model SstEpiEntrega {
   // Tamanho entregue e o item de estoque baixado (EPIs com vários tamanhos).
   tamanho               String?
   itemId                String?
+  // CA do produto entregue (o da variação ou o do EPI), gravado na entrega.
+  ca                    String?
   criadoPor             String?
   atualizadoPor         String?
   createdAt             DateTime          @default(now())

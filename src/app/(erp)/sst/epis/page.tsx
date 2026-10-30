@@ -23,9 +23,12 @@ import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
 type ItemRef = { id: string; codigo: string; descricao: string; unidadeMedida: string };
 type Epi = {
   id: string; nome: string; ca: string | null; caValidade: string | null; vidaUtilDias: number | null; fabricante: string | null; itemId: string | null; ativo: boolean; descartavel: boolean;
-  item: ItemRef | null; itens: { itemId: string; tamanho: string | null; saldo: number; item: ItemRef }[]; saldoEstoque: number | null; _count: { entregas: number; requisitos: number };
+  item: ItemRef | null; itens: { itemId: string; tamanho: string | null; ca: string | null; caValidade: string | null; fabricante: string | null; saldo: number; item: ItemRef }[]; saldoEstoque: number | null; _count: { entregas: number; requisitos: number };
 };
-type LinhaTamanho = { key: number; tamanho: string; itemId: string };
+type LinhaTamanho = { key: number; tamanho: string; itemId: string; ca: string; caValidade: string; fabricante: string };
+const linhaVazia = (): LinhaTamanho => ({ key: Date.now(), tamanho: "", itemId: "", ca: "", caValidade: "", fabricante: "" });
+/** CA vencido (data passada). */
+const vencido = (d: string | null | undefined) => !!d && new Date(d).getTime() < Date.now();
 /** Falta arquivar o papel — a ficha de histórico aberta ainda está em uso, não conta. */
 const semPapel = (f: FichaRow) => !f.documentoId && !(f.historico && !f.fechadaEm);
 /** Busca sem acento/caixa. */
@@ -48,7 +51,7 @@ export default function SstEpisPage() {
   // Busca única p/ as duas abas: EPI (nome, CA, fabricante, item de estoque) e ficha (nº, colaborador, itens).
   const [busca, setBusca] = usePersistedState<string>("sst:epis:busca", "");
   const q = norm(busca.trim());
-  const episVisiveis = useMemo(() => !q ? epis : epis.filter((e) => norm([e.nome, e.ca, e.fabricante, e.item?.codigo, e.item?.descricao, ...e.itens.flatMap((i) => [i.tamanho, i.item.codigo, i.item.descricao])].join(" ")).includes(q)), [epis, q]);
+  const episVisiveis = useMemo(() => !q ? epis : epis.filter((e) => norm([e.nome, e.ca, e.fabricante, e.item?.codigo, e.item?.descricao, ...e.itens.flatMap((i) => [i.tamanho, i.ca, i.fabricante, i.item.codigo, i.item.descricao])].join(" ")).includes(q)), [epis, q]);
   const fichasVisiveis = useMemo(() => fichas.filter((f) => (!soPendentes || semPapel(f)) && (!q || norm([String(f.numero).padStart(4, "0"), f.colaborador.nome, ...f.itens.map((i) => i.epi.nome)].join(" ")).includes(q))), [fichas, soPendentes, q]);
   async function load() {
     const [j, jf] = await Promise.all([fetch("/api/sst/epis").then((r) => r.json()), fetch("/api/sst/entregas/fichas").then((r) => r.json())]);
@@ -78,15 +81,15 @@ export default function SstEpisPage() {
   const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
   function abrir(e?: Epi) {
     setEditId(e?.id ?? null); setNome(e?.nome ?? ""); setCa(e?.ca ?? ""); setCaValidade(e?.caValidade ? e.caValidade.slice(0, 10) : ""); setVida(e?.vidaUtilDias ? String(e.vidaUtilDias) : ""); setFab(e?.fabricante ?? ""); setDescartavel(!!e?.descartavel);
-    const base = e?.itens.length ? e.itens.map((i, k) => ({ key: k, tamanho: i.tamanho ?? "", itemId: i.itemId })) : [{ key: 0, tamanho: "", itemId: "" }];
+    const base = e?.itens.length ? e.itens.map((i, k) => ({ key: k, tamanho: i.tamanho ?? "", itemId: i.itemId, ca: i.ca ?? "", caValidade: i.caValidade ? i.caValidade.slice(0, 10) : "", fabricante: i.fabricante ?? "" })) : [{ ...linhaVazia(), key: 0 }];
     setTamanhos(base); setErro(""); setOpen(true);
   }
   async function salvar() {
     if (!nome.trim()) { setErro("Informe o nome."); return; }
     const preenchidas = tamanhos.filter((t) => t.itemId);
-    if (preenchidas.length > 1 && preenchidas.some((t) => !t.tamanho.trim())) { setErro("Com mais de um item, informe o tamanho de cada um."); return; }
+    if (preenchidas.length > 1 && preenchidas.some((t) => !t.tamanho.trim())) { setErro("Com mais de um item, informe o tamanho ou a cor de cada um."); return; }
     setSaving(true); setErro("");
-    const res = await fetch(editId ? `/api/sst/epis/${editId}` : "/api/sst/epis", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, ca: ca || null, caValidade: caValidade || null, vidaUtilDias: vida || null, fabricante: fab || null, descartavel, itens: tamanhos.filter((t) => t.itemId).map((t) => ({ itemId: t.itemId, tamanho: t.tamanho || null })) }) });
+    const res = await fetch(editId ? `/api/sst/epis/${editId}` : "/api/sst/epis", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, ca: ca || null, caValidade: caValidade || null, vidaUtilDias: vida || null, fabricante: fab || null, descartavel, itens: tamanhos.filter((t) => t.itemId).map((t) => ({ itemId: t.itemId, tamanho: t.tamanho || null, ca: t.ca || null, caValidade: t.caValidade || null, fabricante: t.fabricante || null })) }) });
     const j = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
@@ -153,12 +156,16 @@ export default function SstEpisPage() {
               </tr></thead>
               <tbody>
                 {episVisiveis.map((e) => {
-                  const caVencido = e.caValidade ? new Date(e.caValidade).getTime() < Date.now() : false;
+                  // Variação com CA próprio: a coluna mostra os CAs distintos e a validade mais próxima.
+                  const cas = Array.from(new Set([...e.itens.map((i) => i.ca || e.ca), ...(e.itens.length ? [] : [e.ca])].filter(Boolean)));
+                  const validades = [...e.itens.map((i) => i.ca ? i.caValidade : e.caValidade), ...(e.itens.length ? [] : [e.caValidade])].filter((d): d is string => !!d).sort();
+                  const validade = validades[0] ?? null;
+                  const caVencido = vencido(validade);
                   return (
                     <tr key={e.id} className={cn("border-t border-border/60", !e.ativo && "opacity-50")}>
                       <td className="px-4 py-2 text-foreground">{e.nome}{e.fabricante ? <span className="text-xs text-muted-foreground"> · {e.fabricante}</span> : null}{e.descartavel && <span className="ml-1.5 text-[10px] px-1 rounded border border-border text-muted-foreground">descartável</span>}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{e.ca ?? "—"}</td>
-                      <td className={cn("px-3 py-2", caVencido ? "text-danger font-medium" : "text-muted-foreground")}>{fmtData(e.caValidade)}{caVencido && " (vencido)"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{cas.length ? cas.join(" · ") : "—"}</td>
+                      <td className={cn("px-3 py-2", caVencido ? "text-danger font-medium" : "text-muted-foreground")}>{fmtData(validade)}{caVencido && " (vencido)"}</td>
                       <td className="px-3 py-2 text-right text-muted-foreground">{e.vidaUtilDias ? `${e.vidaUtilDias} d` : "—"}</td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {e.itens.length === 0 ? "—" : e.itens.length === 1 && !e.itens[0].tamanho ? (
@@ -166,8 +173,8 @@ export default function SstEpisPage() {
                         ) : (
                           <div className="flex flex-wrap gap-1">
                             {e.itens.map((i) => (
-                              <Link key={i.itemId} href={`/suprimentos/produtos/${i.item.id}`} title={`${i.item.codigo} ${i.item.descricao} — saldo ${fmtQtd(i.saldo)}`}
-                                className={cn("text-[11px] px-1.5 py-0.5 rounded border tabular-nums hover:border-info hover:text-info", i.saldo <= 0 ? "border-danger/30 text-danger bg-danger/5" : "border-border text-foreground")}>
+                              <Link key={i.itemId} href={`/suprimentos/produtos/${i.item.id}`} title={`${i.item.codigo} ${i.item.descricao} — saldo ${fmtQtd(i.saldo)}${i.ca ? ` — CA ${i.ca}${i.caValidade ? ` (val. ${fmtData(i.caValidade)})` : ""}` : ""}`}
+                                className={cn("text-[11px] px-1.5 py-0.5 rounded border tabular-nums hover:border-info hover:text-info", i.saldo <= 0 || (i.ca && vencido(i.caValidade)) ? "border-danger/30 text-danger bg-danger/5" : "border-border text-foreground")}>
                                 {i.tamanho || i.item.codigo} <span className="text-muted-foreground">· {fmtQtd(i.saldo)}</span>
                               </Link>
                             ))}
@@ -202,7 +209,7 @@ export default function SstEpisPage() {
           <div className="space-y-3">
             <div><Label>Nome</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Protetor auricular tipo plug" /></div>
             <div className="grid grid-cols-3 gap-3">
-              <div><Label>CA</Label><Input value={ca} onChange={(e) => setCa(e.target.value)} /></div>
+              <div><Label>CA</Label><Input value={ca} onChange={(e) => setCa(e.target.value)} placeholder="padrão do EPI" /></div>
               <div><Label>Validade do CA</Label><DatePicker value={caValidade} onChange={setCaValidade} /></div>
               <div><Label>Vida útil (dias)</Label><Input type="number" min={1} value={vida} onChange={(e) => setVida(e.target.value)} placeholder="troca a cada" /></div>
             </div>
@@ -213,21 +220,30 @@ export default function SstEpisPage() {
                 <span className="block text-[11px] text-muted-foreground">Máscara, luva, protetor plug… Sem regra de prazo (retirar de novo não pede motivo) e a entrega sempre baixa do estoque.</span></span>
             </label>
             <div>
-              <div className="flex items-center justify-between"><Label>Itens do almoxarifado por tamanho (opcional)</Label>
-                <button type="button" onClick={() => setTamanhos((l) => [...l, { key: Date.now(), tamanho: "", itemId: "" }])} className="text-xs text-info hover:underline inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Tamanho</button>
+              <div className="flex items-center justify-between"><Label>Itens do almoxarifado por tamanho ou cor (opcional)</Label>
+                <button type="button" onClick={() => setTamanhos((l) => [...l, linhaVazia()])} className="text-xs text-info hover:underline inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Tamanho / cor</button>
               </div>
-              <div className="space-y-1.5 mt-1">
+              <div className="space-y-2 mt-1">
                 {tamanhos.map((t) => (
-                  <div key={t.key} className="flex items-center gap-2">
-                    <Input value={t.tamanho} onChange={(ev) => setTamanhos((l) => l.map((x) => x.key === t.key ? { ...x, tamanho: ev.target.value.toUpperCase() } : x))} placeholder={tamanhos.length > 1 ? "Tam." : "Tam. (opc.)"} className="w-24 shrink-0" />
+                  <div key={t.key} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Input value={t.tamanho} onChange={(ev) => setTamanhos((l) => l.map((x) => x.key === t.key ? { ...x, tamanho: ev.target.value.toUpperCase() } : x))} placeholder={tamanhos.length > 1 ? "Tam./cor" : "Tam./cor (opc.)"} className="w-28 shrink-0" />
                     <ComboboxWithCreate className="flex-1 min-w-0" value={t.itemId} onChange={(v) => setTamanhos((l) => l.map((x) => x.key === t.key ? { ...x, itemId: v } : x))} allowNone noneLabel="Sem vínculo com estoque" placeholder="Buscar item…" menuMinWidth={420}
                       disabledValues={tamanhos.filter((x) => x.key !== t.key && x.itemId).map((x) => x.itemId)}
                       options={lk.itens.map((i) => ({ value: i.id, label: i.descricao, code: i.codigo, saldo: i.saldo }))} />
-                    <button type="button" onClick={() => setTamanhos((l) => l.length > 1 ? l.filter((x) => x.key !== t.key) : [{ key: Date.now(), tamanho: "", itemId: "" }])} className="text-muted-foreground hover:text-danger shrink-0" title="Remover"><X className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => setTamanhos((l) => l.length > 1 ? l.filter((x) => x.key !== t.key) : [linhaVazia()])} className="text-muted-foreground hover:text-danger shrink-0" title="Remover"><X className="w-4 h-4" /></button>
+                  </div>
+                  {t.itemId && (
+                    <div className="flex items-center gap-2 pl-[120px] pr-6">
+                      <Input value={t.ca} onChange={(ev) => setTamanhos((l) => l.map((x) => x.key === t.key ? { ...x, ca: ev.target.value } : x))} placeholder={ca ? `CA (${ca})` : "CA"} className="h-8 w-28 text-xs shrink-0" title="CA deste produto — vazio usa o CA do EPI" />
+                      <div className="w-36 shrink-0"><DatePicker value={t.caValidade} onChange={(v) => setTamanhos((l) => l.map((x) => x.key === t.key ? { ...x, caValidade: v } : x))} placeholder="Validade do CA" /></div>
+                      <Input value={t.fabricante} onChange={(ev) => setTamanhos((l) => l.map((x) => x.key === t.key ? { ...x, fabricante: ev.target.value } : x))} placeholder="Fabricante" className="h-8 flex-1 min-w-0 text-xs" />
+                    </div>
+                  )}
                   </div>
                 ))}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1">Um EPI (um CA) pode ter um item por tamanho — ex.: bota 37…44, camisa P/M/G. Na entrega escolhe-se o tamanho e o sistema baixa o item certo.</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Um EPI pode ter um item por tamanho ou cor — ex.: bota 37…44, capacete VERDE/AMARELO. Cada produto pode ter o seu CA (fabricante/modelo diferente); vazio usa o CA do EPI. Na entrega escolhe-se a variação e o sistema baixa o item certo e grava o CA dela.</p>
             </div>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>

@@ -26,7 +26,7 @@ type Ficha = {
   id: string; numero: number; data: string; observacoes: string | null; documentoId: string | null; historico: boolean; fechadaEm: string | null;
   empresa: { id: string; razaoSocial: string; nomeFantasia: string | null; cnpj: string; telefone: string | null; logradouro: string | null; numero: string | null; bairro: string | null; cidade: string | null; estado: string | null };
   colaborador: { id: string; nome: string; cpf: string | null; rg: string | null; matricula: string | null; cargo: string | null; dataAdmissao: string | null; setor: { id: string; nome: string } | null; sstFuncoes: { funcao: { nome: string; requisitosEpi?: { epi: { nome: string; ca: string | null } }[] } }[] };
-  itens: { id: string; data: string; tipo: string; quantidade: number; tamanho: string | null; motivo: string | null; vencimentoUso: string | null; epi: { nome: string; ca: string | null; vidaUtilDias: number | null } }[];
+  itens: { id: string; data: string; tipo: string; quantidade: number; tamanho: string | null; ca?: string | null; motivo: string | null; vencimentoUso: string | null; epi: { nome: string; ca: string | null; vidaUtilDias: number | null } }[];
 };
 
 // Logo impressa no cabeçalho, por empresa (sem logo: caixa com o nome).
@@ -173,7 +173,7 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
                 <th style={{ ...th, width: "6%" }}>Qtd.</th>
                 <th style={{ ...th, textAlign: "left" }}>EPI</th>
                 <th style={{ ...th, width: "9%" }}>CA</th>
-                <th style={{ ...th, width: "7%" }}>Tam.</th>
+                <th style={{ ...th, width: "7%" }}>Tam./cor</th>
                 <th style={{ ...th, width: "30%" }}>Assinatura do colaborador</th>
               </tr>
             </thead>
@@ -183,7 +183,7 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
                   <td style={{ ...td, textAlign: "center" }}>{fmtData(it.data)}</td>
                   <td style={{ ...td, textAlign: "center" }}>{it.quantidade}</td>
                   <td style={td}>{it.epi.nome.toUpperCase()}{it.tipo === "DEVOLUCAO" ? " (DEVOLUÇÃO)" : it.tipo === "TROCA" ? " (TROCA)" : ""}{it.motivo ? <span style={{ fontSize: 8.5, color: "#555" }}> — {it.motivo}</span> : null}</td>
-                  <td style={{ ...td, textAlign: "center" }}>{it.epi.ca ?? "—"}</td>
+                  <td style={{ ...td, textAlign: "center" }}>{it.ca || it.epi.ca || "—"}</td>
                   <td style={{ ...td, textAlign: "center" }}>{it.tamanho || ""}</td>
                   <td style={td}></td>
                 </tr>
@@ -205,7 +205,7 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
             <th style={{ ...th, width: "6%" }}>Qtd.</th>
             <th style={{ ...th, textAlign: "left" }}>EPI</th>
             <th style={{ ...th, width: "9%" }}>CA</th>
-            <th style={{ ...th, width: "9%" }}>Tamanho</th>
+            <th style={{ ...th, width: "9%" }}>Tam./cor</th>
           </tr>
         </thead>
         <tbody>
@@ -214,7 +214,7 @@ export default function CautelaEpi({ id, emDialog = false, onFaltando }: {
               <td style={{ ...td, textAlign: "center" }}>{fmtData(f.data)}</td>
               <td style={{ ...td, textAlign: "center" }}>{it.quantidade}</td>
               <td style={td}>{it.epi.nome.toUpperCase()}{it.tipo === "DEVOLUCAO" ? " (DEVOLUÇÃO)" : it.tipo === "TROCA" ? " (TROCA)" : ""}{it.motivo ? <span style={{ fontSize: 8.5, color: "#555" }}> — {it.motivo}</span> : null}</td>
-              <td style={{ ...td, textAlign: "center" }}>{it.epi.ca ?? "—"}</td>
+              <td style={{ ...td, textAlign: "center" }}>{it.ca || it.epi.ca || "—"}</td>
               <td style={{ ...td, textAlign: "center" }}>{it.tamanho || "N/A"}</td>
             </tr>
           ))}

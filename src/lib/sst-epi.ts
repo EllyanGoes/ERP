@@ -7,14 +7,14 @@ import type { Prisma } from "@prisma/client";
 type Tx = Prisma.TransactionClient;
 
 export type EpiBasico = {
-  id: string; nome: string; vidaUtilDias: number | null; itemId: string | null; item: { descricao: string } | null; descartavel?: boolean;
-  itens?: { itemId: string; tamanho: string | null; item: { descricao: string } }[];
+  id: string; nome: string; vidaUtilDias: number | null; itemId: string | null; item: { descricao: string } | null; descartavel?: boolean; ca?: string | null;
+  itens?: { itemId: string; tamanho: string | null; ca?: string | null; item: { descricao: string } }[];
 };
 
 /** Select do EPI usado pelas rotas de entrega (inclui os tamanhos). */
 export const EPI_ENTREGA_SELECT = {
-  id: true, nome: true, vidaUtilDias: true, itemId: true, descartavel: true, item: { select: { descricao: true } },
-  itens: { orderBy: [{ ordem: "asc" as const }, { tamanho: "asc" as const }], select: { itemId: true, tamanho: true, item: { select: { descricao: true } } } },
+  id: true, nome: true, vidaUtilDias: true, itemId: true, descartavel: true, ca: true, item: { select: { descricao: true } },
+  itens: { orderBy: [{ ordem: "asc" as const }, { tamanho: "asc" as const }], select: { itemId: true, tamanho: true, ca: true, item: { select: { descricao: true } } } },
 };
 
 /**
@@ -24,13 +24,14 @@ export const EPI_ENTREGA_SELECT = {
  */
 export function resolverTamanho(epi: EpiBasico, escolha: { tamanho?: string | null; itemId?: string | null }) {
   const itens = epi.itens ?? [];
-  if (itens.length === 0) return { itemId: epi.itemId, tamanho: escolha.tamanho?.trim() || null, descricao: epi.item?.descricao ?? null };
+  if (itens.length === 0) return { itemId: epi.itemId, tamanho: escolha.tamanho?.trim() || null, descricao: epi.item?.descricao ?? null, ca: epi.ca ?? null };
   const t = escolha.tamanho?.trim().toUpperCase() || null;
   const v = (escolha.itemId && itens.find((i) => i.itemId === escolha.itemId))
     || (t && itens.find((i) => (i.tamanho ?? "").toUpperCase() === t))
     || (itens.length === 1 ? itens[0] : null);
   if (!v) return null;
-  return { itemId: v.itemId, tamanho: v.tamanho ?? escolha.tamanho?.trim() ?? null, descricao: v.item.descricao };
+  // CA da variação (cada produto/fabricante tem o seu); vazio = CA do EPI.
+  return { itemId: v.itemId, tamanho: v.tamanho ?? escolha.tamanho?.trim() ?? null, descricao: v.item.descricao, ca: v.ca || epi.ca || null };
 }
 
 export const TIPOS_ENTREGA = ["ENTREGA", "TROCA", "DEVOLUCAO"] as const;
@@ -94,7 +95,7 @@ export async function registrarEntregaEpi(tx: Tx, p: {
     data: {
       empresaId: p.empresaId, colaboradorId: p.colaboradorId, epiId: p.epi.id, tipo: p.tipo, quantidade, data: p.data,
       motivo: p.motivo, vencimentoUso, movimentacaoEstoqueId, documentoId: p.documentoId, fichaId: p.fichaId, criadoPor: p.criadoPor,
-      tamanho: variante?.tamanho ?? p.tamanho?.trim() ?? null, itemId,
+      tamanho: variante?.tamanho ?? p.tamanho?.trim() ?? null, itemId, ca: variante?.ca ?? p.epi.ca ?? null,
     },
     include: { epi: { select: { id: true, nome: true, ca: true, vidaUtilDias: true, itemId: true } }, colaborador: { select: { id: true, nome: true } } },
   });
@@ -116,17 +117,22 @@ export async function conflitoItemEpi(tx: Tx, p: { empresaId: string; epiId?: st
 }
 
 /**
- * Grava a grade de tamanhos do EPI (substitui a anterior). Linhas sem item
+ * Grava a grade de tamanhos/cores do EPI, com o CA de cada produto (substitui a anterior). Linhas sem item
  * são ignoradas; item repetido fica com a 1ª linha. Mantém SstEpi.itemId = item
  * do 1º tamanho (compatibilidade).
  */
-export async function salvarTamanhosEpi(tx: Tx, epiId: string, linhas: { itemId?: string | null; tamanho?: string | null }[]) {
+export type LinhaVariacaoEpi = { itemId?: string | null; tamanho?: string | null; ca?: string | null; caValidade?: string | null; fabricante?: string | null };
+
+export async function salvarTamanhosEpi(tx: Tx, epiId: string, linhas: LinhaVariacaoEpi[]) {
   const vistos = new Set<string>();
   const validas = linhas
-    .map((l) => ({ itemId: String(l.itemId ?? "").trim(), tamanho: String(l.tamanho ?? "").trim().toUpperCase() || null }))
+    .map((l) => ({
+      itemId: String(l.itemId ?? "").trim(), tamanho: String(l.tamanho ?? "").trim().toUpperCase() || null,
+      ca: String(l.ca ?? "").trim() || null, caValidade: l.caValidade ? new Date(l.caValidade) : null, fabricante: String(l.fabricante ?? "").trim() || null,
+    }))
     .filter((l) => l.itemId && !vistos.has(l.itemId) && vistos.add(l.itemId));
   await tx.sstEpiItem.deleteMany({ where: { epiId } });
-  for (let ordem = 0; ordem < validas.length; ordem++) await tx.sstEpiItem.create({ data: { epiId, itemId: validas[ordem].itemId, tamanho: validas[ordem].tamanho, ordem } });
+  for (let ordem = 0; ordem < validas.length; ordem++) await tx.sstEpiItem.create({ data: { epiId, ...validas[ordem], ordem } });
   await tx.sstEpi.update({ where: { id: epiId }, data: { itemId: validas[0]?.itemId ?? null } });
 }
 

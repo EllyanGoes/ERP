@@ -36,7 +36,7 @@ export type EpiOpt = {
   /** Consumo frequente: sem regra de prazo, baixa de estoque obrigatória. */
   descartavel?: boolean;
   /** Tamanhos (um item de estoque cada). Com 2+ a entrega exige escolher o tamanho. */
-  itens?: { itemId: string; tamanho: string | null; saldo?: number }[];
+  itens?: { itemId: string; tamanho: string | null; ca?: string | null; saldo?: number }[];
   /** Saldo próprio somado em todos os locais (null = sem item de estoque). */
   saldoEstoque?: number | null;
 };
@@ -45,9 +45,11 @@ const grade = (e?: EpiOpt | null) => (e?.itens ?? []).filter((i) => i.tamanho);
 // Botão mostra só o tamanho; a lista mostra também o saldo de cada um.
 const opcoesTamanho = (e: EpiOpt) => grade(e).map((i) => ({
   value: i.tamanho!, label: i.tamanho!,
-  render: () => <span>{i.tamanho}{i.saldo !== undefined && <span className={cn("ml-1.5 text-xs", i.saldo <= 0 ? "text-danger" : "text-muted-foreground")}>{i.saldo.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} em estoque</span>}</span>,
+  render: () => <span>{i.tamanho}{i.ca && <span className="ml-1.5 text-xs text-muted-foreground">CA {i.ca}</span>}{i.saldo !== undefined && <span className={cn("ml-1.5 text-xs", i.saldo <= 0 ? "text-danger" : "text-muted-foreground")}>{i.saldo.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} em estoque</span>}</span>,
 }));
 const fmtQtd = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+/** CA da variação escolhida (cada produto pode ter o seu), senão o do EPI. */
+const caVar = (e: EpiOpt, tamanho: string) => (tamanho && e.itens?.find((i) => i.tamanho === tamanho)?.ca) || e.ca;
 /** Saldo exibido na linha: o do tamanho escolhido, senão o total do EPI. */
 function saldoLinha(e: EpiOpt, tamanho: string): { valor: number; rotulo: string } | null {
   const doTam = tamanho ? e.itens?.find((i) => i.tamanho === tamanho)?.saldo : undefined;
@@ -187,7 +189,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
     const semMotivo = selecionadas.filter(([id, l]) => l.tipo !== "DEVOLUCAO" && antecipada(id) && !l.motivo.trim());
     if (semMotivo.length > 0) { setErro("Há EPI retirado antes do prazo: informe o motivo nas linhas destacadas."); return; }
     const semTamanho = selecionadas.filter(([id, l]) => l.tipo !== "DEVOLUCAO" && grade(episAtivos.find((e) => e.id === id)).length > 1 && !l.tamanho);
-    if (semTamanho.length > 0) { setErro("Escolha o tamanho dos EPIs destacados."); return; }
+    if (semTamanho.length > 0) { setErro("Escolha o tamanho/cor dos EPIs destacados."); return; }
     const descSemBaixa = selecionadas.filter(([id, l]) => { const e = episAtivos.find((x) => x.id === id); return !!e?.descartavel && temEstoque(e) && l.tipo !== "DEVOLUCAO" && !(l.local || localPadrao); });
     if (descSemBaixa.length > 0) { setErro("EPI descartável sai sempre do estoque: escolha o local de baixa."); return; }
     setSaving(true); setErro("");
@@ -222,7 +224,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
   async function salvarLote() {
     const ids = Object.entries(lSel).filter(([, v]) => v).map(([k]) => k);
     if (!lEpiId || ids.length === 0) { setErro("Escolha o EPI e ao menos um colaborador."); return; }
-    if (grade(epiLote).length > 1 && ids.some((id) => !lTam[id])) { setErro("Escolha o tamanho de cada colaborador selecionado."); return; }
+    if (grade(epiLote).length > 1 && ids.some((id) => !lTam[id])) { setErro("Escolha o tamanho/cor de cada colaborador selecionado."); return; }
     if (epiLote?.descartavel && temEstoque(epiLote) && !lLocal) { setErro("EPI descartável sai sempre do estoque: escolha o local de baixa."); return; }
     setSaving(true); setErro("");
     const tamanhos = Object.fromEntries(ids.map((id) => [id, lTam[id] || null]));
@@ -363,7 +365,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                             <div className="flex items-center gap-3">
                               <input type="checkbox" className="rounded" checked={l.sel} onChange={(ev) => setLinha(e.id, { sel: ev.target.checked })} />
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm text-foreground truncate">{e.nome}{e.ca ? <span className="text-xs text-muted-foreground"> · CA {e.ca}</span> : null}{e.descartavel && <span className="ml-1.5 text-[10px] px-1 rounded border border-border text-muted-foreground align-middle">descartável</span>}</p>
+                                <p className="text-sm text-foreground truncate">{e.nome}{(caVar(e, l.tamanho)) ? <span className="text-xs text-muted-foreground"> · CA {caVar(e, l.tamanho)}</span> : null}{e.descartavel && <span className="ml-1.5 text-[10px] px-1 rounded border border-border text-muted-foreground align-middle">descartável</span>}</p>
                                 <p className="text-[11px] text-muted-foreground">
                                   {req ? <span className="text-info font-medium">exigido pela função{!req.obrigatorio && " (opcional)"}</span> : "não exigido pela função"}
                                   {" · "}
@@ -383,7 +385,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                                 <div className="w-[110px]">
                                   <SelectMenu value={l.tipo} onChange={(v) => setLinha(e.id, { tipo: v })} triggerClassName="h-8 w-[110px] text-xs" options={Object.entries(TIPO_ENTREGA).map(([value, label]) => ({ value, label }))} />
                                 </div>
-                                <div className="w-[104px]">{grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tamanho" title="Tamanho" triggerClassName={cn("h-8 w-[104px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}</div>
+                                <div className="w-[104px]">{grade(e).length > 0 && <SelectMenu value={l.tamanho} onChange={(v) => setLinha(e.id, { tamanho: v })} placeholder="Tam./cor" title="Tamanho" triggerClassName={cn("h-8 w-[104px] text-xs", !l.tamanho && l.tipo !== "DEVOLUCAO" && grade(e).length > 1 && "border-warning")} options={opcoesTamanho(e)} />}</div>
                                 <Input type="number" min={1} value={l.qtd} onChange={(ev) => setLinha(e.id, { qtd: ev.target.value })} className="h-8 w-14 text-xs text-center" title="Quantidade" tabIndex={l.sel ? 0 : -1} />
                                 <div className="w-[140px]">{temEstoque(e) && l.tipo !== "DEVOLUCAO" && <SelectMenu value={l.local} onChange={(v) => setLinha(e.id, { local: v })} triggerClassName="h-8 w-[140px] text-xs" options={[{ value: "", label: localPadrao ? "local padrão" : e.descartavel ? "— escolha —" : "— sem baixa —" }, ...lk.locais.map((x) => ({ value: x.id, label: x.nome }))]} />}</div>
                               </div>
@@ -422,7 +424,7 @@ export default function EntregaEpiDialog({ open, onOpenChange, epis, colabs, lk,
                     <div className="flex items-center gap-2">
                       <button type="button" className="text-xs text-info hover:underline" onClick={() => setLSel(Object.fromEntries(colabs.filter(participaSst).map((c) => [c.id, true])))}>todos</button>
                       <button type="button" className="text-xs text-muted-foreground hover:underline" onClick={() => setLSel({})}>nenhum</button>
-                      {loteComTamanho && epiLote && <SelectMenu value="" onChange={(v) => setLTam(Object.fromEntries(Object.entries(lSel).filter(([, x]) => x).map(([k]) => [k, v])))} placeholder="tamanho p/ todos" triggerClassName="h-7 text-xs w-[140px]" options={opcoesTamanho(epiLote)} />}
+                      {loteComTamanho && epiLote && <SelectMenu value="" onChange={(v) => setLTam(Object.fromEntries(Object.entries(lSel).filter(([, x]) => x).map(([k]) => [k, v])))} placeholder="tam./cor p/ todos" triggerClassName="h-7 text-xs w-[140px]" options={opcoesTamanho(epiLote)} />}
                       <input value={lBusca} onChange={(e) => setLBusca(e.target.value)} placeholder="filtrar…" className="text-xs border border-border rounded px-2 py-1 bg-card" />
                     </div></div>
                   <div className="max-h-72 overflow-y-auto border border-border rounded-lg divide-y divide-border/60">

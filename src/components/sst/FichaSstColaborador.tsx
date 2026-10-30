@@ -28,7 +28,7 @@ type Ficha = {
   setor: { nome: string } | null;
   sstFuncoes: { id: string; inicio: string; fim: string | null; funcao: { id: string; nome: string; requisitosExame: { periodicidadeMeses: number; exameTipo: { id: string; nome: string } }[]; requisitosTreinamento: { treinamentoTipo: { id: string; nome: string; validadeMeses: number | null } }[] } }[];
   sstTreinamentos: { validade: string | null; aprovado: boolean; certificadoDocumentoId: string | null; treinamento: { id: string; tipoId: string; data: string; instrutor: string | null; cargaHoraria: number | null; tipo: { nome: string; norma: string | null } } }[];
-  sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null; historico?: boolean; fechadaEm?: string | null } | null }[];
+  sstEpiEntregas: { id: string; epiId: string; tipo: string; data: string; vencimentoUso: string | null; quantidade: number; tamanho: string | null; ca?: string | null; motivo: string | null; documentoId: string | null; movimentacaoEstoqueId: string | null; epi: { nome: string; ca: string | null }; ficha: { id: string; numero: number; documentoId: string | null; historico?: boolean; fechadaEm?: string | null } | null }[];
   sstExames: { id: string; exameTipoId: string; data: string; resultado: string | null; observacao: string | null; documentoId: string | null; asoId: string | null; exameTipo: { nome: string }; aso: { tipo: string; data: string } | null }[];
   sstAsos: { id: string; tipo: string; data: string; validade: string | null; resultado: string; restricoes: string | null; medico: string | null; crm: string | null; medicoId: string | null; documentoId: string | null; exames: { exameTipoId: string; data: string; resultado: string | null; exameTipo: { nome: string } }[] }[];
   pendencias: Pendencia[];
@@ -345,9 +345,9 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                                     <li key={e.id} className="text-sm text-foreground leading-snug">
                                       {e.quantidade > 1 && <span className="tabular-nums text-muted-foreground">{e.quantidade}× </span>}
                                       {e.epi.nome}
-                                      {e.tamanho && <span className="ml-1 text-[11px] px-1 rounded border border-border text-muted-foreground">tam. {e.tamanho}</span>}
+                                      {e.tamanho && <span className="ml-1 text-[11px] px-1 rounded border border-border text-muted-foreground">{/^\d/.test(e.tamanho) ? `tam. ${e.tamanho}` : e.tamanho}</span>}
                                       {e.tipo !== "ENTREGA" && <span className={cn("ml-1 text-[11px] px-1 rounded border", e.tipo === "DEVOLUCAO" ? "border-border text-muted-foreground" : "border-warning/30 text-warning bg-warning/5")}>{TIPO_ENTREGA[e.tipo]}</span>}
-                                      <span className="text-[11px] text-muted-foreground">{e.epi.ca ? ` · CA ${e.epi.ca}` : ""}{e.vencimentoUso && <> · troca <span className={cn(vencida && "text-danger font-medium")}>{fmtData(e.vencimentoUso)}</span></>}</span>
+                                      <span className="text-[11px] text-muted-foreground">{(e.ca || e.epi.ca) ? ` · CA ${e.ca || e.epi.ca}` : ""}{e.vencimentoUso && <> · troca <span className={cn(vencida && "text-danger font-medium")}>{fmtData(e.vencimentoUso)}</span></>}</span>
                                       {e.motivo && <span className="block text-[11px] text-muted-foreground">{e.motivo}</span>}
                                     </li>
                                   );
