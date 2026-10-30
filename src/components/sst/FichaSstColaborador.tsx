@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText, Pencil, Paperclip } from "lucide-react";
+import { Loader2, HardHat, Stethoscope, Trash2, Plus, Printer, GraduationCap, FileText, Pencil, Paperclip, Lock, LockOpen } from "lucide-react";
 import { Semaforo, SeloAfastado, UploadAnexo, DocLink, AcoesLinha, fmtData, hojeISO, useLookups, TIPO_ASO, RESULTADO_ASO, TIPO_ENTREGA, type Pendencia } from "@/components/sst/comum";
 import EntregaEpiDialog from "@/components/sst/EntregaEpiDialog";
 import CautelaEpiDialog from "@/components/sst/CautelaEpiDialog";
@@ -91,12 +91,14 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   const [dlgEpi, setDlgEpi] = useState(false);
   const [epiInicial, setEpiInicial] = useState<string | null>(null);
   function abrirEntrega(epiId = "") { setEpiInicial(epiId || null); setDlgEpi(true); }
-  // Ficha de histórico aberta: fechar (com ou sem o papel assinado já anexado).
-  const [dlgFechar, setDlgFechar] = useState(false);
-  async function fecharFicha(documentoId: string | null) {
-    if (!f?.fichaAberta) return;
-    await fetch(`/api/sst/entregas/fichas/${f.fichaAberta.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(documentoId ? { documentoId } : { fechar: true }) });
-    setDlgFechar(false); load();
+  // Ações da ficha (as mesmas da aba Fichas em EPIs): anexar o papel/termo
+  // assinado (fecha a de histórico), fechar sem anexo e reabrir.
+  type FichaAlvo = { id: string; numero: number; historico: boolean; fechadaEm: string | null; linhas: number };
+  const [anexar, setAnexar] = useState<FichaAlvo | null>(null);
+  async function patchFicha(fichaId: string, body: Record<string, unknown>) {
+    const res = await fetch(`/api/sst/entregas/fichas/${fichaId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || "Erro ao atualizar a ficha"); }
+    setAnexar(null); load();
   }
 
   // ── ASO ──
@@ -292,7 +294,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                   <span className="text-foreground"><b>Ficha de histórico nº {String(f.fichaAberta.numero).padStart(4, "0")}</b> <span className="text-muted-foreground">· aberta desde {fmtData(f.fichaAberta.data)} · {f.fichaAberta._count.itens} linha(s)</span></span>
                   <span className="ml-auto flex items-center gap-3">
                     <button onClick={() => setCautelaAberta(f.fichaAberta!.id)} className="inline-flex items-center gap-1 text-xs text-info hover:underline"><Printer className="w-3.5 h-3.5" /> Imprimir</button>
-                    <button onClick={() => setDlgFechar(true)} className="inline-flex items-center gap-1 text-xs text-info hover:underline"><Paperclip className="w-3.5 h-3.5" /> Fechar e anexar papel</button>
+                    <button onClick={() => setAnexar({ id: f.fichaAberta!.id, numero: f.fichaAberta!.numero, historico: true, fechadaEm: null, linhas: f.fichaAberta!._count.itens })} className="inline-flex items-center gap-1 text-xs text-info hover:underline"><Paperclip className="w-3.5 h-3.5" /> Fechar e anexar papel</button>
                   </span>
                 </div>
               )}
@@ -306,6 +308,19 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                   const g = grupos.find((x) => x.chave === chave);
                   if (g) g.itens.push(e); else grupos.push({ chave, data: e.data, ficha: e.ficha, itens: [e] });
                 }
+                const acoesFicha = (fi: NonNullable<Ent["ficha"]>, termo: string | null, itens: Ent[]) => {
+                  const fechada = !!fi.fechadaEm, hist = !!fi.historico;
+                  const n = f.sstEpiEntregas.filter((e) => e.ficha?.id === fi.id).length;
+                  const alvo = { id: fi.id, numero: fi.numero, historico: hist, fechadaEm: fi.fechadaEm ?? null, linhas: n };
+                  return [
+                    { label: hist ? "Imprimir ficha" : "Imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(fi.id) },
+                    ...(hist && !fechada ? [{ label: "Fechar ficha (papel cheio / fim do mês)", icon: <Lock className="w-4 h-4 mr-2" />, onClick: () => patchFicha(fi.id, { fechar: true }) }] : []),
+                    ...(!termo ? [{ label: hist ? (fechada ? "Anexar papel assinado" : "Fechar e anexar papel assinado") : "Anexar termo assinado", icon: <Paperclip className="w-4 h-4 mr-2" />, onClick: () => setAnexar(alvo) }] : []),
+                    ...(hist && fechada ? [{ label: "Reabrir ficha", icon: <LockOpen className="w-4 h-4 mr-2" />, onClick: () => patchFicha(fi.id, { reabrir: true }) }] : []),
+                    ...(hist ? [{ label: "Excluir esta entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: itens[0].id }), danger: true, separadorAntes: true }] : []),
+                    { label: "Desfazer ficha", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "ficha", id: fi.id }), danger: true, separadorAntes: !hist },
+                  ];
+                };
                 return (
                   <div className="overflow-x-auto"><table className="w-full text-sm">
                     <thead className="text-xs text-muted-foreground bg-muted/50"><tr>
@@ -342,13 +357,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                             <td className="px-3 py-2">{!termo && g.ficha?.historico
                               ? (g.ficha.fechadaEm ? <span className="text-xs text-warning">aguardando arquivo</span> : <span className="text-xs text-info">ficha aberta</span>)
                               : <DocLink id={termo} label="assinado" />}</td>
-                            <td className="px-2 py-2 text-right"><AcoesLinha acoes={g.ficha?.historico ? [
-                              { label: "Ver / imprimir ficha", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(g.ficha!.id) },
-                              { label: "Excluir entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: g.itens[0].id }), danger: true, separadorAntes: true },
-                            ] : g.ficha ? [
-                              { label: "Ver / imprimir cautela", icon: <Printer className="w-4 h-4 mr-2" />, onClick: () => setCautelaAberta(g.ficha!.id) },
-                              { label: "Excluir cautela", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "ficha", id: g.ficha!.id }), danger: true, separadorAntes: true },
-                            ] : [
+                            <td className="px-2 py-2 text-right"><AcoesLinha acoes={g.ficha ? acoesFicha(g.ficha, termo, g.itens) : [
                               { label: "Excluir entrega", icon: <Trash2 className="w-4 h-4 mr-2" />, onClick: () => setExcluir({ tipo: "entrega", id: g.itens[0].id }), danger: true },
                             ]} /></td>
                           </tr>
@@ -597,18 +606,20 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
 
       {/* Popup da cautela (imprime na mesma aba) */}
       <CautelaEpiDialog fichaId={cautelaAberta} onClose={() => { setCautelaAberta(null); load(); }} />
-      <Dialog open={dlgFechar} onOpenChange={setDlgFechar}>
+      <Dialog open={!!anexar} onOpenChange={(o) => !o && setAnexar(null)}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Fechar ficha de histórico nº {f.fichaAberta ? String(f.fichaAberta.numero).padStart(4, "0") : ""}</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">Confira antes: o papel deve ter as {f.fichaAberta?._count.itens ?? 0} linha(s) lançadas no sistema, cada uma assinada. Anexe o escaneado (vai para o GED) — a próxima entrega abre uma ficha nova.</p>
-          {f.fichaAberta && <UploadAnexo tipo="termo-epi" titulo={`Ficha de EPI nº ${String(f.fichaAberta.numero).padStart(4, "0")} — ${f.nome}`} colaboradorId={f.id} value={null} onChange={(d) => { if (d) fecharFicha(d); }} label="Enviar papel assinado (PDF/foto) e fechar" />}
+          <DialogHeader><DialogTitle>{anexar?.historico ? (anexar.fechadaEm ? "Anexar papel assinado" : "Fechar ficha de histórico") : "Anexar termo assinado"} — nº {anexar ? String(anexar.numero).padStart(4, "0") : ""}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{anexar?.historico
+            ? <>Confira antes: o papel deve ter as {anexar.linhas} linha(s) lançadas no sistema, cada uma assinada. Anexe o escaneado (vai para o GED){anexar.fechadaEm ? "." : " — a próxima entrega abre uma ficha nova."}</>
+            : "Anexe o termo assinado pelo colaborador (PDF/foto). Vai para o GED (SST — Termo de EPI) e fica ligado a cada item da cautela."}</p>
+          {anexar && <UploadAnexo tipo="termo-epi" titulo={`${anexar.historico ? "Ficha" : "Termo"} de EPI nº ${String(anexar.numero).padStart(4, "0")} — ${f.nome}`} colaboradorId={f.id} value={null} onChange={(d) => { if (d) patchFicha(anexar.id, { documentoId: d }); }} label={anexar.historico && !anexar.fechadaEm ? "Enviar papel assinado (PDF/foto) e fechar" : "Enviar assinado (PDF/foto)"} />}
           <DialogFooter className="items-center">
-            <button type="button" onClick={() => fecharFicha(null)} className="mr-auto text-xs text-muted-foreground hover:text-foreground hover:underline" title="O papel encheu mas ainda não foi escaneado — anexe depois na aba Fichas (EPIs)">Só fechar (anexo depois)</button>
-            <Button variant="outline" onClick={() => setDlgFechar(false)}>Cancelar</Button>
+            {anexar?.historico && !anexar.fechadaEm && <button type="button" onClick={() => patchFicha(anexar.id, { fechar: true })} className="mr-auto text-xs text-muted-foreground hover:text-foreground hover:underline" title="O papel encheu mas ainda não foi escaneado — anexe depois">Só fechar (anexo depois)</button>}
+            <Button variant="outline" onClick={() => setAnexar(null)}>Cancelar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <ConfirmDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)} title={excluir?.tipo === "entrega" ? "Excluir entrega de EPI?" : excluir?.tipo === "ficha" ? "Excluir cautela?" : excluir?.tipo === "exame" ? "Excluir exame?" : "Excluir ASO?"} description={excluir?.tipo === "aso" ? "O registro vai para a lixeira. Os exames lançados com ele continuam registrados." : excluir?.tipo === "exame"  ? "O registro vai para a lixeira." : excluir?.tipo === "ficha" ? "Todas as entregas da cautela são excluídas e as saídas de estoque estornadas. Vai para a lixeira." : "A saída de estoque (se houve) é estornada. O registro vai para a lixeira."} onConfirm={confirmarExclusao} loading={salvando} confirmLabel="Excluir" />
+      <ConfirmDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)} title={excluir?.tipo === "entrega" ? "Excluir entrega de EPI?" : excluir?.tipo === "ficha" ? "Desfazer ficha?" : excluir?.tipo === "exame" ? "Excluir exame?" : "Excluir ASO?"} description={excluir?.tipo === "aso" ? "O registro vai para a lixeira. Os exames lançados com ele continuam registrados." : excluir?.tipo === "exame"  ? "O registro vai para a lixeira." : excluir?.tipo === "ficha" ? "Todas as entregas da ficha são excluídas e as saídas de estoque estornadas. Vai para a lixeira." : "A saída de estoque (se houve) é estornada. O registro vai para a lixeira."} onConfirm={confirmarExclusao} loading={salvando} confirmLabel="Excluir" />
     </div>
   );
 }
