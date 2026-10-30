@@ -9,7 +9,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useCachedData } from "@/lib/use-cached-data";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -171,7 +171,7 @@ const grave = (p: Pendencia) => p.severidade === "ALTA" || p.severidade === "CRI
 function Contagem({ itens }: { itens: Pendencia[] }) {
   const nGrave = itens.filter(grave).length;
   const cor = nGrave > 0 ? "text-danger font-medium" : itens.length > 0 ? "text-warning font-medium" : "text-muted-foreground";
-  if (itens.length === 0) return <td className="px-3 py-2 text-right tabular-nums"><span className={cor}>0</span></td>;
+  if (itens.length === 0) return <td className="px-3 py-2 text-right"><CheckCircle2 className="ml-auto size-4 text-success" aria-label="Em dia" /></td>;
   const ordenados = [...itens].sort((a, b) => Number(grave(b)) - Number(grave(a)));
   return (
     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
