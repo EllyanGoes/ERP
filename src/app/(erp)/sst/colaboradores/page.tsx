@@ -9,12 +9,12 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useCachedData } from "@/lib/use-cached-data";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/lib/session-context";
-import { Semaforo, SeloAfastado, fmtData, type Pendencia } from "@/components/sst/comum";
+import { SeloAfastado, fmtData, type Pendencia } from "@/components/sst/comum";
 
 type Linha = {
   id: string; nome: string; ativo: boolean; setor: string | null;
@@ -115,7 +115,6 @@ export default function SstColaboradoresPage() {
                   <th className="text-left px-4 py-2 font-semibold">Colaborador</th>
                   <th className="text-left px-3 py-2 font-semibold">Setor</th>
                   <th className="text-left px-3 py-2 font-semibold">Função SST</th>
-                  <th className="text-left px-3 py-2 font-semibold">Situação</th>
                   <th className="text-right px-3 py-2 font-semibold">EPI</th>
                   <th className="text-right px-3 py-2 font-semibold">ASO/exames</th>
                   <th className="text-right px-3 py-2 font-semibold">Treinamentos</th>
@@ -126,7 +125,7 @@ export default function SstColaboradoresPage() {
                   <Fragment key={g.chave || "_"}>
                   {grupos && (
                     <tr onClick={() => alternarGrupo(g.chave)} className="border-t border-border bg-muted/50 cursor-pointer select-none hover:bg-muted">
-                      <td colSpan={7} className="px-4 py-1.5">
+                      <td colSpan={6} className="px-4 py-1.5">
                         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
                           {fechados.has(g.chave) ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                           {g.titulo}
@@ -138,18 +137,17 @@ export default function SstColaboradoresPage() {
                   )}
                   {!fechados.has(g.chave) && g.itens.map((l) => (
                   <tr key={l.id} onClick={() => router.push(`/sst/colaboradores/${l.id}`)} className="border-t border-border/60 hover:bg-muted/40 cursor-pointer">
-                    <td className={cn("px-4 py-2 text-foreground", grupos && "pl-9", !l.ativo && "text-muted-foreground line-through")}>{l.nome}</td>
+                    <td className={cn("px-4 py-2 text-foreground", grupos && "pl-9", !l.ativo && "text-muted-foreground line-through")}>{l.nome}{l.afastamento && <span className="ml-2 inline-block align-middle"><SeloAfastado a={l.afastamento} /></span>}</td>
                     <td className="px-3 py-2 text-muted-foreground">{l.setor ?? "—"}</td>
                     <td className="px-3 py-2">{l.funcao ? <>{agrupar === "funcao" ? null : <>{l.funcao.nome} </>}<span className="text-xs text-muted-foreground">desde {fmtData(l.funcao.desde)}</span></> : <span className="text-muted-foreground/60">—</span>}</td>
-                    <td className="px-3 py-2">{l.afastamento ? <SeloAfastado a={l.afastamento} /> : <Semaforo s={l.semaforo} />}</td>
-                    <Contagem n={l.nEpi} avisos={avisosDa(l, "epi")} />
-                    <Contagem n={l.nAso} avisos={avisosDa(l, "aso")} />
-                    <Contagem n={l.nTreino} avisos={avisosDa(l, "treino")} />
+                    <Contagem itens={pendenciasDa(l, "epi")} />
+                    <Contagem itens={pendenciasDa(l, "aso")} />
+                    <Contagem itens={pendenciasDa(l, "treino")} />
                   </tr>
                   ))}
                   </Fragment>
                 ))}
-                {visiveis.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum colaborador.</td></tr>}
+                {visiveis.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum colaborador.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -159,35 +157,36 @@ export default function SstColaboradoresPage() {
   );
 }
 
-// Mesma separação por área da API (/api/sst/colaboradores): aviso = severidade ≠ ALTA.
+// Mesma separação por área da API (/api/sst/colaboradores).
 const AREA: Record<"epi" | "aso" | "treino", (t: string) => boolean> = {
   epi: (t) => t.startsWith("EPI") || t === "FICHA_EPI_SEM_ASSINATURA",
   aso: (t) => t.startsWith("ASO") || t === "EXAME_PENDENTE",
   treino: (t) => t.startsWith("TREINAMENTO"),
 };
-const avisosDa = (l: Linha, area: keyof typeof AREA) => l.pendencias.filter((p) => p.severidade !== "ALTA" && AREA[area](p.tipo));
+const pendenciasDa = (l: Linha, area: keyof typeof AREA) => l.pendencias.filter((p) => AREA[area](p.tipo));
+const grave = (p: Pendencia) => p.severidade === "ALTA" || p.severidade === "CRITICA";
 
-/** Problemas em vermelho; o que é atenção vira um triângulo com as tags no hover. */
-function Contagem({ n, avisos }: { n: number; avisos: Pendencia[] }) {
+/** A cor do número é a situação da área (vermelho = problema, amarelo = atenção);
+ *  o hover lista cada item da pendência como tag. */
+function Contagem({ itens }: { itens: Pendencia[] }) {
+  const nGrave = itens.filter(grave).length;
+  const cor = nGrave > 0 ? "text-danger font-medium" : itens.length > 0 ? "text-warning font-medium" : "text-muted-foreground";
+  if (itens.length === 0) return <td className="px-3 py-2 text-right tabular-nums"><span className={cor}>0</span></td>;
+  const ordenados = [...itens].sort((a, b) => Number(grave(b)) - Number(grave(a)));
   return (
     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
-      <span className={n > 0 ? "text-danger font-medium" : "text-muted-foreground"}>{n}</span>
-      {avisos.length > 0 && (
-        <TooltipProvider delay={100}>
-          <Tooltip>
-            <TooltipTrigger render={<span className="ml-1.5 inline-flex align-[-2px] text-warning cursor-help" />}>
-              <AlertTriangle className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-[320px] flex-col items-start gap-1 py-2">
-              {avisos.map((p, i) => (
-                <span key={i} className="rounded bg-warning/20 px-1.5 py-0.5 text-[11px] leading-snug text-background whitespace-normal">
-                  {p.titulo}{p.detalhe ? <span className="opacity-75"> · {p.detalhe}</span> : null}
-                </span>
-              ))}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
+      <TooltipProvider delay={100}>
+        <Tooltip>
+          <TooltipTrigger render={<span className={cn(cor, "cursor-help underline decoration-dotted underline-offset-4")} />}>{itens.length}</TooltipTrigger>
+          <TooltipContent side="left" className="max-w-[340px] flex-col items-start gap-1 py-2">
+            {ordenados.map((p, i) => (
+              <span key={i} className={cn("rounded px-1.5 py-0.5 text-[11px] leading-snug whitespace-normal text-white", grave(p) ? "bg-red-600" : "bg-amber-600")}>
+                {p.titulo}{p.detalhe ? <span className="opacity-80"> · {p.detalhe}</span> : null}
+              </span>
+            ))}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </td>
   );
 }
