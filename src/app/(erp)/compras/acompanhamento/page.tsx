@@ -7,7 +7,6 @@ import {
   AlertTriangle, CalendarClock, CheckCircle2, ClipboardList,
   Loader2, PackageCheck, Plus, RefreshCw, Search, ShieldCheck, Truck, X,
 } from "lucide-react";
-import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import SelectMenu from "@/components/shared/SelectMenu";
@@ -110,7 +109,7 @@ const SIGLAS: { etapa: Etapa; sigla: string; nome: string }[] = [
 function TrilhaProcesso({ c, onAbrir }: { c: Cartao; onAbrir: (d: DocumentoRef) => void }) {
   const indiceAtual = SIGLAS.findIndex((s) => s.etapa === c.etapa);
   return (
-    <div className="grid grid-cols-4 gap-1 pt-2 border-t border-border">
+    <div className="grid grid-cols-4 gap-1 pt-1.5 border-t border-border">
       {SIGLAS.map((s, i) => {
         const docs = c.documentos.filter((d) => d.etapa === s.etapa);
         const atual = i === indiceAtual && !c.concluido;
@@ -168,7 +167,7 @@ function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
       onClick={() => onAbrir(c.atual)}
       onKeyDown={(e) => { if (e.key === "Enter") onAbrir(c.atual); }}
       className={cn(
-        "relative overflow-hidden bg-card rounded-lg border p-3 pl-4 space-y-2 cursor-pointer transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "relative overflow-hidden bg-card rounded-lg border p-2.5 pl-3.5 space-y-1.5 cursor-pointer transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         c.atrasado ? "border-red-300 dark:border-red-500/40" : "border-border",
         c.concluido && "opacity-70",
         arrastavel && "active:cursor-grabbing",
@@ -206,15 +205,9 @@ function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
         {c.resumo && <p className="text-xs text-muted-foreground truncate" title={c.resumo}>{c.resumo}</p>}
       </div>
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <StatusBadge status={c.status} />
-        {c.valor != null && c.valor > 0 && (
-          <span className="text-xs font-semibold text-foreground whitespace-nowrap">{formatBRL(c.valor)}</span>
-        )}
-      </div>
-
-      {c.prazo && (
-        <div className="flex items-center justify-end">
+        {c.prazo && (
           <span
             className={cn(
               "flex items-center gap-1 text-[11px] whitespace-nowrap",
@@ -223,10 +216,13 @@ function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
             title={c.prazoLabel ?? undefined}
           >
             {c.atrasado ? <AlertTriangle className="w-3 h-3" /> : <CalendarClock className="w-3 h-3" />}
-            {c.prazoLabel ? `${c.prazoLabel}: ` : ""}{formatDate(c.prazo)}
+            {formatDate(c.prazo)}
           </span>
-        </div>
-      )}
+        )}
+        {c.valor != null && c.valor > 0 && (
+          <span className="ml-auto text-xs font-semibold text-foreground whitespace-nowrap">{formatBRL(c.valor)}</span>
+        )}
+      </div>
 
       <TrilhaProcesso c={c} onAbrir={onAbrir} />
     </div>
@@ -312,14 +308,10 @@ export default function AcompanhamentoComprasPage() {
   }
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <PageHeader
-          title="Kanban de Compras"
-          subtitle="Cada compra é um cartão, na coluna de quem deve a próxima ação"
-          breadcrumbs={[{ label: "Compras" }, { label: "Kanban" }]}
-        />
-        <div className="flex flex-wrap items-center gap-2 shrink-0 pt-1">
+    <div className="p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold text-foreground">Kanban de Compras</h1>
+        <div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => setNovaAberta(true)} className="h-9">
             <Plus className="w-4 h-4 mr-1" />Nova compra
           </Button>
@@ -392,8 +384,8 @@ export default function AcompanhamentoComprasPage() {
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/60" />
         </div>
       ) : (
-        <div className="overflow-x-auto pb-2">
-          <div className="grid grid-cols-4 gap-4 min-w-[1040px]">
+        <div className="overflow-x-auto pb-1">
+          <div className="grid grid-cols-4 gap-3 min-w-[1040px] h-[calc(100vh-126px)] min-h-[420px]">
             {COLUNAS.map((col) => {
               const todos = porColuna[col.coluna];
               // Contagem por status (antes do filtro de status da coluna).
@@ -423,11 +415,11 @@ export default function AcompanhamentoComprasPage() {
                   }}
                   onDrop={(e) => { e.preventDefault(); soltarNaColuna(col.coluna); }}
                   className={cn(
-                    "flex flex-col bg-muted/50 rounded-xl border min-w-0 transition-colors",
+                    "flex flex-col min-h-0 bg-muted/50 rounded-xl border min-w-0 transition-colors",
                     colunaAlvo === col.coluna ? "border-primary ring-1 ring-primary" : "border-border",
                   )}
                 >
-                  <div className="px-3 py-3 border-b border-border space-y-1">
+                  <div className="px-3 py-2 border-b border-border space-y-0.5">
                     <div className="flex items-center gap-2">
                       <span className={cn("w-2 h-2 rounded-full shrink-0", col.cor)} />
                       <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -436,13 +428,11 @@ export default function AcompanhamentoComprasPage() {
                         {abertos.length}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">Próxima ação: {col.dono}</p>
-                    {abertos.length > 0 && (
-                      <p className="text-[11px] text-muted-foreground" title="Tempo na coluna atual">
-                        Mediana {medianaDias(idades)} d
-                        {acima30 > 0 && <> · <span className="text-amber-600 dark:text-amber-400 font-semibold">{acima30} há mais de 30 d</span></>}
-                      </p>
-                    )}
+                    <p className="text-[11px] text-muted-foreground truncate" title="Quem deve a próxima ação · tempo mediano na coluna">
+                      {col.dono}
+                      {abertos.length > 0 && <> · Mediana {medianaDias(idades)} d</>}
+                      {acima30 > 0 && <> · <span className="text-amber-600 dark:text-amber-400 font-semibold">{acima30} há +30 d</span></>}
+                    </p>
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground h-4">
                       <span>{valor > 0 ? formatBRL(valor) : ""}</span>
                       {atrasados > 0 && (
@@ -452,7 +442,7 @@ export default function AcompanhamentoComprasPage() {
                       )}
                     </div>
                     {porStatus.size > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
+                      <div className="flex gap-1 pt-1 pb-0.5 overflow-x-auto [scrollbar-width:thin]">
                         {Array.from(porStatus.entries()).map(([status, qtd]) => {
                           const info = statusInfo(status);
                           const ativo = statusAtivo === status;
@@ -463,7 +453,7 @@ export default function AcompanhamentoComprasPage() {
                               onClick={() => setFiltroStatus((f) => ({ ...f, [col.coluna]: ativo ? undefined : status }))}
                               title={ativo ? "Remover filtro de status" : `Mostrar só ${info.label}`}
                               className={cn(
-                                "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-medium transition-colors",
+                                "flex shrink-0 whitespace-nowrap items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-medium transition-colors",
                                 ativo
                                   ? "border-foreground/40 bg-card text-foreground"
                                   : "border-border text-muted-foreground hover:bg-card hover:text-foreground",
@@ -479,7 +469,7 @@ export default function AcompanhamentoComprasPage() {
                       </div>
                     )}
                   </div>
-                  <div className="p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-330px)] min-h-[160px]">
+                  <div className="p-2 space-y-2 overflow-y-auto flex-1 min-h-0">
                     {cartoes.length === 0 ? (
                       <p className="text-xs text-muted-foreground/70 text-center py-8 px-3">
                         {termo || soAtrasados || statusAtivo ? "Nada encontrado com os filtros atuais" : col.vazio}

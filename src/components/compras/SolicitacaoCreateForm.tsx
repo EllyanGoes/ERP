@@ -617,61 +617,84 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
     await doSubmit(validItens);
   }
 
+  const variasEmpresas = (user?.empresas?.length ?? 0) > 1;
+  const colunaLocal = variasEmpresas ? "col-span-3" : "col-span-4";
+
   return (
     <div>
-      <form onSubmit={handleSubmit} className="space-y-5 max-w-5xl">
+      <form onSubmit={handleSubmit} className={cn("space-y-5", !modoCompra && "max-w-5xl")}>
         {serverError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{serverError}</div>}
 
         <Card>
           <CardHeader className="pb-3"><CardTitle className="text-base">Informações</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
+            <div className="grid grid-cols-12 gap-x-4 gap-y-3">
+              {variasEmpresas && (
+                <div className="col-span-3 space-y-1.5">
+                  <Label>Empresa</Label>
+                  <ComboboxWithCreate
+                    value={empresaId || user?.activeEmpresaId || ""}
+                    onChange={(v) => setEmpresaId(v)}
+                    allowNone={false}
+                    triggerClassName="h-9 rounded-lg"
+                    options={user!.empresas!.map((e) => ({ value: e.id, label: e.nome }))}
+                  />
+                </div>
+              )}
 
-            {(user?.empresas?.length ?? 0) > 1 && (
-              <div className="space-y-1.5">
-                <Label>Empresa</Label>
-                <ComboboxWithCreate
-                  value={empresaId || user?.activeEmpresaId || ""}
-                  onChange={(v) => setEmpresaId(v)}
-                  allowNone={false}
-                  triggerClassName="h-9 rounded-lg"
-                  options={user!.empresas!.map((e) => ({ value: e.id, label: e.nome }))}
-                />
-                <p className="text-xs text-muted-foreground">Para qual empresa do grupo é esta solicitação — todo o processo (cotação, pedido, conferência) seguirá nela.</p>
+              <div className={cn(colunaLocal, "space-y-1.5")}>
+                <Label>Filial <span className="text-red-500">*</span></Label>
+                <SearchableSelect options={filiais} value={filialId}
+                  onChange={(v) => { setFilialId(v); setLocalEstoqueId(""); }}
+                  placeholder="Filtrar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial}
+                  error={submitted && !filialId} />
+                {submitted && !filialId && <p className="text-xs text-red-500">Filial é obrigatória</p>}
               </div>
-            )}
 
-            <div className="space-y-1.5">
-              <Label>Filial <span className="text-red-500">*</span></Label>
-              <SearchableSelect options={filiais} value={filialId}
-                onChange={(v) => { setFilialId(v); setLocalEstoqueId(""); }}
-                placeholder="Digite para filtrar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial}
-                error={submitted && !filialId} />
-              {submitted && !filialId
-                ? <p className="text-xs text-red-500">Filial é obrigatória</p>
-                : !filialId && <p className="text-xs text-muted-foreground">Selecione a filial para habilitar o campo Local de Estoque</p>
-              }
-            </div>
+              <div className={cn(colunaLocal, "space-y-1.5")}>
+                <Label>Local de Estoque <span className="text-red-500">*</span></Label>
+                <SearchableSelect options={locaisEstoque} value={localEstoqueId} onChange={setLocalEstoqueId}
+                  placeholder={filialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Filtrar local...") : "Selecione a filial primeiro"}
+                  getLabel={(l) => l.nome} disabled={!filialId}
+                  error={submitted && !!filialId && !localEstoqueId} />
+                {submitted && !!filialId && !localEstoqueId && (
+                  <p className="text-xs text-red-500">Local de Estoque é obrigatório</p>
+                )}
+              </div>
 
-            <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-6 space-y-1.5">
+              <div className={cn(colunaLocal, "space-y-1.5")}>
+                <Label>Centro de Custo</Label>
+                <SelectField options={centrosCusto} value={centroCustoId} onChange={setCentroCustoId}
+                  placeholder="Selecionar centro de custo..." getLabel={(c) => `${c.codigo} - ${c.nome}`} />
+              </div>
+
+              <div className="col-span-4 space-y-1.5">
                 <Label>Descrição <span className="text-red-500">*</span></Label>
-                <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Descreva o que está sendo solicitado..." />
+                <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="O que está sendo solicitado..." />
               </div>
-              <div className="col-span-3 space-y-1.5">
+              <div className="col-span-4 space-y-1.5">
+                <Label>Motivo <span className="text-red-500">*</span></Label>
+                <Input
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Motivo da solicitação..."
+                  className={submitted && !motivo.trim() ? "border-red-400 focus-visible:ring-red-200" : ""}
+                />
+                {submitted && !motivo.trim() && <p className="text-xs text-red-500">Motivo é obrigatório</p>}
+              </div>
+              <div className="col-span-2 space-y-1.5">
                 <Label>Prioridade <span className="text-red-500">*</span></Label>
                 <select value={prioridade} onChange={(e) => setPrioridade(Number(e.target.value))}
                   className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
                   {PRIORIDADES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                 </select>
               </div>
-              <div className="col-span-3 space-y-1.5">
+              <div className="col-span-2 space-y-1.5">
                 <Label>Entrega desejada</Label>
                 <DatePicker value={entregaDesejada} onChange={(v) => setEntregaDesejada(v)} />
               </div>
-            </div>
 
-            <div className="grid grid-cols-4 gap-4">
-              <div className="space-y-1.5">
+              <div className="col-span-3 space-y-1.5">
                 <Label>Solicitante <span className="text-red-500">*</span></Label>
                 <SearchableSelect
                   options={colaboradores}
@@ -688,7 +711,7 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                 />
                 {submitted && !colaboradorId && <p className="text-xs text-red-500">Solicitante é obrigatório</p>}
               </div>
-              <div className="space-y-1.5">
+              <div className="col-span-3 space-y-1.5">
                 <Label>Setor <span className="text-red-500">*</span></Label>
                 <SelectField
                   options={setores.filter((s) => s.ativo)}
@@ -699,7 +722,7 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                 />
                 {submitted && !setorId && <p className="text-xs text-red-500">Setor é obrigatório</p>}
               </div>
-              <div className="space-y-1.5">
+              <div className="col-span-2 space-y-1.5">
                 <Label>Tipo de compra</Label>
                 <select value={tipoCompra} onChange={(e) => setTipoCompra(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
@@ -708,40 +731,16 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                   <option value="CAPEX">CAPEX</option><option value="ESTOQUE">ESTOQUE</option>
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Motivo <span className="text-red-500">*</span></Label>
-                <Input
-                  value={motivo}
-                  onChange={(e) => setMotivo(e.target.value)}
-                  placeholder="Motivo da solicitação..."
-                  className={submitted && !motivo.trim() ? "border-red-400 focus-visible:ring-red-200" : ""}
+              <div className="col-span-4 space-y-1.5">
+                <Label>Observação</Label>
+                <Textarea
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  placeholder="Informações adicionais..."
+                  rows={1}
+                  className="min-h-9 resize-y"
                 />
-                {submitted && !motivo.trim() && <p className="text-xs text-red-500">Motivo é obrigatório</p>}
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Local de Estoque <span className="text-red-500">*</span></Label>
-                <SearchableSelect options={locaisEstoque} value={localEstoqueId} onChange={setLocalEstoqueId}
-                  placeholder={filialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Digite para filtrar local...") : "Selecione a filial primeiro"}
-                  getLabel={(l) => l.nome} disabled={!filialId}
-                  error={submitted && !!filialId && !localEstoqueId} />
-                {submitted && !!filialId && !localEstoqueId && (
-                  <p className="text-xs text-red-500">Local de Estoque é obrigatório</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <Label>Centro de Custo</Label>
-                <SelectField options={centrosCusto} value={centroCustoId} onChange={setCentroCustoId}
-                  placeholder="Selecionar centro de custo..." getLabel={(c) => `${c.codigo} - ${c.nome}`} />
-              </div>
-            </div>
-
-
-            <div className="space-y-1.5">
-              <Label>Observação</Label>
-              <Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Informações adicionais sobre a solicitação..." rows={3} />
             </div>
           </CardContent>
         </Card>
@@ -769,6 +768,7 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                       value={row.itemId}
                       onChange={(v) => handleItemChange(i, v)}
                       allowNone={false}
+                      triggerClassName="h-9 rounded-lg"
                       placeholder="Selecionar produto..."
                       createHref="/suprimentos/produtos/novo"
                       createParam="descricao"
@@ -798,17 +798,17 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                       disabled={!row.itemId}
                     />
                   </div>
-                  <div className="col-span-2 space-y-1.5">
+                  <div className={cn(itens.length > 1 ? "col-span-2" : "col-span-3", "space-y-1.5")}>
                     {i === 0 && <Label>Observação</Label>}
                     <Input value={row.observacao} onChange={(e) => updateRow(i, "observacao", e.target.value)} placeholder="Opcional..." />
                   </div>
-                  <div className="col-span-1 flex justify-center">
-                    {itens.length > 1 && (
+                  {itens.length > 1 && (
+                    <div className="col-span-1 flex justify-center">
                       <Button type="button" variant="ghost" size="sm" className="text-red-500" onClick={() => removeRow(i)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
