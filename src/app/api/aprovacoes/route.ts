@@ -71,8 +71,10 @@ export async function GET(req: NextRequest) {
             createdAt: true,
             necessidade: { select: { numero: true } },
             fornecedores: {
-              where: { melhorOpcao: true },
-              select: { totalCalculado: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
+              // A indicada vem primeiro; as demais mostram ao aprovador o que foi comparado.
+              where: { OR: [{ melhorOpcao: true }, { status: "RESPONDIDA" }] },
+              orderBy: [{ melhorOpcao: "desc" }, { totalCalculado: "asc" }],
+              select: { status: true, totalCalculado: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
             },
           },
         },

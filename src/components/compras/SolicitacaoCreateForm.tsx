@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "@/lib/session-context";
 import { useFormPersist } from "@/lib/form-persist";
@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Trash2, ChevronDown, Loader2, Save, X, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, ChevronDown, Loader2, Save, Send, X, AlertTriangle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import PropostasCompraGrid, { paraProposta, type PropostaForm } from "@/components/compras/PropostasCompraGrid";
+import { agruparItens, validarPropostas } from "@/lib/compras-processo";
 import ProdutoQuickModal from "@/components/compras/ProdutoQuickModal";
 import EscClose from "@/components/shared/EscClose";
 import DatePicker from "@/components/shared/DatePicker";
@@ -353,19 +355,24 @@ type FormSnapshot = {
   centroCustoId: string;
   observacoes: string;
   itens: ItemRow[];
+  propostas?: PropostaForm[];
+  vencedorId?: string;
 };
 
-export default function SolicitacaoCreateForm() {
+export default function SolicitacaoCreateForm({ modoCompra = false }: {
+  /** Nova compra: mesma SC, mais as propostas dos fornecedores numa tela só. */
+  modoCompra?: boolean;
+}) {
   const voltar   = useVoltarCriacao("/compras/necessidades");
   const { user } = useSession();
   const { confirmCreated, dialog } = useCreateFlow({
-    entity: "solicitação",
+    entity: modoCompra ? "compra" : "solicitação",
     gender: "f",
     onNew: () => resetForm(),
-    viewHref: (id) => `/compras/necessidades/${id}`,
+    viewHref: (id) => (modoCompra ? `/suprimentos/cotacoes/${id}` : `/compras/necessidades/${id}`),
   });
 
-  const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>("sc:nova");
+  const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>(modoCompra ? "compra:nova" : "sc:nova");
   const formRestoredRef = useRef(false);
 
   const [filialId,              setFilialId]              = useState("");
@@ -382,6 +389,11 @@ export default function SolicitacaoCreateForm() {
   const [observacoes,           setObservacoes]           = useState("");
 
   const [itens,       setItens]       = useState<ItemRow[]>([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
+
+  const [propostas,  setPropostas]  = useState<PropostaForm[]>([]);
+  const [vencedorId, setVencedorId] = useState("");
+  const [fornecedores, setFornecedores] = useState<{ value: string; label: string }[]>([]);
+  const enviarAprovacaoRef = useRef(false);
 
   const isDirty = !!(filialId || descricao || motivo || localEstoqueId || itens.some(r => r.itemId));
   useDirtyForm(isDirty);
@@ -420,6 +432,8 @@ export default function SolicitacaoCreateForm() {
       setCentroCustoId(saved.centroCustoId ?? "");
       setObservacoes(saved.observacoes ?? "");
       setItens(saved.itens ?? [{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
+      setPropostas(saved.propostas ?? []);
+      setVencedorId(saved.vencedorId ?? "");
     }
   }, []); // eslint-disable-line
 
@@ -449,12 +463,27 @@ export default function SolicitacaoCreateForm() {
     fetch("/api/suprimentos/produtos").then((r) => r.json()).then((j) => setItemOptions(Array.isArray(j) ? j : j.data ?? []));
     fetch("/api/empresa/colaboradores?ativo=true").then((r) => r.json()).then((j) => setColaboradores(Array.isArray(j) ? j : []));
     fetch("/api/empresa/setores?ativo=true").then((r) => r.json()).then((j) => setSetores(Array.isArray(j) ? j : []));
-  }, []);
+    if (modoCompra) {
+      fetch("/api/suprimentos/fornecedores").then((r) => r.json()).then((j) => {
+        const lista: { id: string; razaoSocial: string; nomeFantasia: string | null }[] = Array.isArray(j) ? j : j.data ?? [];
+        setFornecedores(lista.map((f) => ({ value: f.id, label: f.nomeFantasia || f.razaoSocial })));
+      });
+    }
+  }, [modoCompra]);
+
+  const itensDaCompra = useMemo(
+    () => agruparItens(itens.filter(linhaValida).map((r) => ({ itemId: r.itemId, quantidade: parseFloat(r.quantidade.replace(",", ".")) }))),
+    [itens],
+  );
+  const nomeItem = (itemId: string) => {
+    const opt = itemOptions.find((o) => o.id === itemId);
+    return opt ? `[${opt.codigo}] ${opt.descricao}` : itemId;
+  };
 
   // Auto-save form state to sessionStorage on every change
   useEffect(() => {
-    saveForm({ filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, observacoes, itens });
-  }, [filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, observacoes, itens, saveForm]);
+    saveForm({ filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, observacoes, itens, propostas, vencedorId });
+  }, [filialId, descricao, prioridade, entregaDesejada, colaboradorId, setorId, tipoCompra, motivo, localEstoqueId, centroCustoId, observacoes, itens, propostas, vencedorId, saveForm]);
 
   const loadLocais = useCallback(async (fId: string) => {
     if (!fId) { setLocaisEstoque([]); setLocalEstoqueId(""); return; }
@@ -486,6 +515,7 @@ export default function SolicitacaoCreateForm() {
     setMotivo(""); setLocalEstoqueId(""); setCentroCustoId(""); setObservacoes("");
     setColaboradorId(""); setSetorId("");
     setItens([{ itemId: "", quantidade: "1", unidade: "", observacao: "" }]);
+    setPropostas([]); setVencedorId("");
     setServerError("");
   }
 
@@ -513,7 +543,7 @@ export default function SolicitacaoCreateForm() {
   async function doSubmit(validItens: ItemRow[]) {
     setSaving(true); setServerError("");
     try {
-      const res = await fetch("/api/suprimentos/necessidades", {
+      const res = await fetch(modoCompra ? "/api/compras/nova" : "/api/suprimentos/necessidades", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           empresaId: empresaId || undefined,
@@ -530,11 +560,17 @@ export default function SolicitacaoCreateForm() {
             itemId: r.itemId, quantidade: parseFloat(r.quantidade.replace(",", ".")),
             unidade: r.unidade || null, observacao: r.observacao || null,
           })),
+          ...(modoCompra ? {
+            propostas: propostas.map(paraProposta),
+            vencedorFornecedorId: vencedorId || null,
+            enviarAprovacao: enviarAprovacaoRef.current,
+          } : {}),
         }),
       });
       const json = await res.json();
-      if (!res.ok) { setServerError(json.error || "Erro ao criar solicitação"); return; }
+      if (!res.ok) { setServerError(json.error || (modoCompra ? "Erro ao registrar a compra" : "Erro ao criar solicitação")); return; }
       clearForm();
+      if (json.avisoAprovacao) setServerError(json.avisoAprovacao);
       confirmCreated(json.data.id);
     } catch { setServerError("Erro de conexão. Tente novamente."); }
     finally { setSaving(false); }
@@ -553,6 +589,10 @@ export default function SolicitacaoCreateForm() {
     const validItens = itens.filter(linhaValida);
     if (validItens.length === 0) { setServerError("Adicione pelo menos um item com quantidade válida"); return; }
     if (!descricao.trim()) { setServerError("Descrição é obrigatória"); return; }
+    if (modoCompra) {
+      const erroPropostas = validarPropostas(itensDaCompra, propostas.map(paraProposta), enviarAprovacaoRef.current);
+      if (erroPropostas) { setServerError(erroPropostas); return; }
+    }
 
     // Duplicate check (skip if user already confirmed)
     if (!userConfirmedDuplicate) {
@@ -775,11 +815,42 @@ export default function SolicitacaoCreateForm() {
           </CardContent>
         </Card>
 
+        {modoCompra && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Fornecedores e preços</CardTitle>
+              <p className="text-xs text-muted-foreground">Um fornecedor já basta. O aprovador vê as propostas recebidas e pode pedir mais comparação.</p>
+            </CardHeader>
+            <CardContent>
+              <PropostasCompraGrid
+                itens={itensDaCompra}
+                nomeItem={nomeItem}
+                fornecedores={fornecedores}
+                propostas={propostas}
+                onChange={setPropostas}
+                vencedorId={vencedorId}
+                onVencedor={setVencedorId}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex gap-3 justify-end">
           <Button type="button" variant="outline" onClick={voltar}>Cancelar</Button>
-          <Button type="submit" disabled={saving}>
-            {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Criar Solicitação</>}
-          </Button>
+          {modoCompra ? (
+            <>
+              <Button type="submit" variant="outline" disabled={saving} onClick={() => { enviarAprovacaoRef.current = false; }}>
+                <Save className="w-4 h-4 mr-1" />Salvar rascunho
+              </Button>
+              <Button type="submit" disabled={saving} onClick={() => { enviarAprovacaoRef.current = true; }}>
+                {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Send className="w-4 h-4 mr-1" />Salvar e enviar para aprovação</>}
+              </Button>
+            </>
+          ) : (
+            <Button type="submit" disabled={saving}>
+              {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Criar Solicitação</>}
+            </Button>
+          )}
         </div>
       </form>
 

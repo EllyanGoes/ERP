@@ -129,7 +129,7 @@ const ROTAS_MANUAIS: RouteEntry[] = [
   { href: "/suprimentos/relatorios/caracterizacao", label: "Caracterização",          group: "Almoxarifado",   section: "Relatórios",       icon: FileBarChart2,  keywords: "caracterização produtos laudo" },
 
   { href: "/aprovacoes",                           label: "Minhas Aprovações",       group: "Compras",        section: "Aprovações",       icon: ThumbsUp },
-  { href: "/compras/acompanhamento",               label: "Acompanhamento de Compras", group: "Compras",      section: "Fluxo de Compras", icon: Kanban,         keywords: "acompanhamento quadro kanban fluxo follow-up SC CT PC DE andamento" },
+  { href: "/compras/acompanhamento",               label: "Kanban de Compras", group: "Compras",      section: "Fluxo de Compras", icon: Kanban,         keywords: "acompanhamento quadro kanban fluxo follow-up SC CT PC DE andamento" },
   { href: "/compras/necessidades",                 label: "Solicitação de Compras",  group: "Compras",        section: "Fluxo de Compras", icon: ClipboardList,  keywords: "SC necessidade" },
   { href: "/suprimentos/cotacoes",                 label: "Cotação de Compras",      group: "Compras",        section: "Fluxo de Compras", icon: FileSearch,     keywords: "CT cotação" },
   { href: "/suprimentos/pedidos-compra",           label: "Pedido de Compras",       group: "Compras",        section: "Fluxo de Compras", icon: FilePlus,       keywords: "PC pedido" },

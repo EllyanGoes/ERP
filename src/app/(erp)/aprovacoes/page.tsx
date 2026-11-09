@@ -36,7 +36,7 @@ type SC = {
 type Cotacao = {
   id: string; numero: string; nome: string | null; createdAt: string;
   necessidade: { numero: string } | null;
-  fornecedores: { totalCalculado: string | number | null; fornecedor: { razaoSocial: string; nomeFantasia: string | null } }[];
+  fornecedores: { status: string; totalCalculado: string | number | null; fornecedor: { razaoSocial: string; nomeFantasia: string | null } }[];
 };
 
 type PedidoAprov = {
@@ -198,6 +198,22 @@ function AprovacaoCard({
             </>
           ) : "Aprovar gera o Pedido de Compras a partir do fornecedor vencedor."}
         </div>
+        {(() => {
+          const respondidas = cot.fornecedores.filter((f) => f.status === "RESPONDIDA");
+          return (
+            <div className="mt-1 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">
+                {respondidas.length === 1 ? "1 proposta recebida" : `${respondidas.length} propostas recebidas`}
+              </span>
+              {respondidas.length > 1 && respondidas.map((f, i) => (
+                <span key={i}>
+                  {" · "}{f.fornecedor.nomeFantasia || f.fornecedor.razaoSocial}{" "}
+                  <span className="tabular-nums">{f.totalCalculado != null ? Number(f.totalCalculado).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "sem valor"}</span>
+                </span>
+              ))}
+            </div>
+          );
+        })()}
         <div className="mt-1 text-xs text-muted-foreground">
           {item.solicitadoPorNome && <>Encaminhada por <span className="font-medium text-foreground">{item.solicitadoPorNome}</span> em </>}
           {!item.solicitadoPorNome && <>Encaminhada em </>}

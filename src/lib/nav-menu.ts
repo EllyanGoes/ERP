@@ -247,8 +247,6 @@ export const mainModules: Module[] = [
         kind: "Fluxo de Compras",
         items: [
           { href: "/compras/acompanhamento",     label: "Kanban de Compras",     icon: Kanban },
-          { href: "/compras/necessidades",       label: "Solicitação de Compras", icon: ClipboardList },
-          { href: "/suprimentos/cotacoes",       label: "Cotação de Compras",    icon: FileSearch },
           { href: "/suprimentos/pedidos-compra", label: "Pedido de Compras",     icon: FilePlus },
           { href: "/suprimentos/conferencias",   label: "Doc. Entrada",          icon: PackageCheck },
         ],

@@ -4,13 +4,14 @@ import type { Prisma } from "@prisma/client";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
-  SC_ATIVAS, cotacaoAberta, entradaAberta, faseDoProcesso, pedidoAberto, pedidoVivo,
-  type EtapaCompra as Etapa,
+  SC_ATIVAS, colunaDoCartao, cotacaoAberta, entradaAberta, entradaNaColuna, faseDoProcesso, pedidoAberto, pedidoVivo,
+  type ColunaCompra, type EtapaCompra as Etapa,
 } from "@/lib/compras-processo";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Kanban do processo de compras (SOMENTE LEITURA): cada compra é UM cartão, que
-// anda pelas colunas SC → CT → PC → DE conforme os documentos avançam.
+// anda pelas colunas de espera (quem deve a próxima ação) conforme os documentos
+// SC → CT → PC → DE avançam.
 //
 // O processo é identificado pelo documento raiz (a SC; sem SC, a cotação; sem
 // cotação, o pedido; sem pedido, o DE avulso). A regra de fase está em
@@ -22,6 +23,7 @@ type Documento = { etapa: Etapa; id: string; numero: string; status: string };
 type Cartao = {
   id: string;
   etapa: Etapa;
+  coluna: ColunaCompra;
   numero: string;
   atual: { etapa: Etapa; id: string };
   empresaId: string;
@@ -220,6 +222,7 @@ function montarCartao(p: Processo, corte: Date, vencido: Vencido): Cartao | null
   return {
     id: `${documentos[0].etapa}:${documentos[0].id}`,
     etapa,
+    coluna: colunaDoCartao(etapa, face.status, concluido),
     numero: documentos[0].numero,
     concluido,
     prioridade: p.sc?.prioridade ?? null,
@@ -285,6 +288,8 @@ export async function GET(req: NextRequest) {
       where: {
         necessidadeId: null,
         cotacaoId: null,
+        // Espelho automático de venda intragrupo: não tem entrega nem DE a aguardar.
+        intragrupo: false,
         status: { not: "CANCELADO" },
         OR: [
           pedidoEmAberto,
@@ -319,6 +324,19 @@ export async function GET(req: NextRequest) {
   const cartoes = processos
     .map((p) => montarCartao(p, corte, vencido))
     .filter((c): c is Cartao => c !== null);
+
+  // Com o histórico, a idade é o tempo na coluna atual, não desde a criação.
+  const emAberto = cartoes.filter((c) => !c.concluido);
+  const logs = await prisma.compraStatusLog.findMany({
+    where: { documentoId: { in: emAberto.map((c) => c.atual.id) } },
+    orderBy: { criadoEm: "asc" },
+    select: { documentoId: true, statusDe: true, statusPara: true, criadoEm: true },
+  });
+  const logsPorDocumento = new Map<string, typeof logs>();
+  for (const l of logs) logsPorDocumento.set(l.documentoId, [...(logsPorDocumento.get(l.documentoId) ?? []), l]);
+  for (const c of emAberto) {
+    c.desde = entradaNaColuna(c.atual.etapa, new Date(c.desde), logsPorDocumento.get(c.atual.id) ?? []).toISOString();
+  }
 
   return NextResponse.json({ cartoes, concluidosDias, geradoEm: agora.toISOString() });
 }

@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import StatusBadge from "@/components/shared/StatusBadge";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import { Autoria } from "@/components/shared/Autoria";
-import { cn, formatBRL, formatDate } from "@/lib/utils";
+import { cn, formatBRL, formatDate, formatDateTime } from "@/lib/utils";
 
 export type EtapaCompra = "solicitacao" | "cotacao" | "pedido" | "entrada";
 export type DocumentoRef = { etapa: EtapaCompra; id: string };
@@ -31,6 +31,7 @@ type Detalhe = {
   itens: ItemLinha[];
   propostas?: Proposta[];
   cadeia: Elo[];
+  historico: { id: string; numero: string; status: string; usuario: string | null; em: string }[];
   criadoPor: string | null;
   atualizadoPor: string | null;
 };
@@ -234,6 +235,21 @@ export default function AcompanhamentoDetalheDialog({
                 </div>
               )}
             </Secao>
+
+            {detalhe.historico.length > 0 && (
+              <Secao titulo="Linha do tempo">
+                <ul className="space-y-1.5">
+                  {detalhe.historico.map((h) => (
+                    <li key={h.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="tabular-nums whitespace-nowrap">{formatDateTime(h.em)}</span>
+                      <span className="font-medium text-foreground whitespace-nowrap">{h.numero}</span>
+                      <StatusBadge status={h.status} />
+                      {h.usuario && <span className="truncate">{h.usuario}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </Secao>
+            )}
 
             <Autoria criadoPor={detalhe.criadoPor} atualizadoPor={detalhe.atualizadoPor} />
           </div>
