@@ -43,6 +43,8 @@ export function paraProposta(p: PropostaForm): PropostaCompra {
 }
 
 const MAX_FORNECEDORES = 5;
+// Produto e rótulos ficam visíveis quando a grade rola para o lado.
+const COLUNA_FIXA = "sticky left-0 z-10 bg-card w-[260px] min-w-[260px] max-w-[260px]";
 const soNumero = (v: string) => v.replace(/[^0-9.,]/g, "");
 
 export default function PropostasCompraGrid({
@@ -68,7 +70,7 @@ export default function PropostasCompraGrid({
 
   const linhaCampo = (rotulo: string, campo: "frete" | "vrDesconto" | "condicoesPagamento" | "prazoEntregaDias", numerico = true) => (
     <tr className="border-t border-border">
-      <td className="py-1.5 pr-3 text-muted-foreground" colSpan={2}>{rotulo}</td>
+      <td className={cn(COLUNA_FIXA, "py-1.5 pr-3 text-muted-foreground")}>{rotulo}</td>
       {propostas.map((p) => (
         <td key={p.chave} className="py-1.5 px-1">
           <Input
@@ -89,10 +91,9 @@ export default function PropostasCompraGrid({
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left">
-            <th className="pb-2 pr-3 font-medium text-muted-foreground min-w-[220px]">Produto</th>
-            <th className="pb-2 pr-3 font-medium text-muted-foreground text-right">Qtd.</th>
+            <th className={cn(COLUNA_FIXA, "pb-2 pr-3 font-medium text-muted-foreground")}>Produto</th>
             {propostas.map((p) => (
-              <th key={p.chave} className="pb-2 px-1 font-normal w-48 min-w-[180px]">
+              <th key={p.chave} className="pb-2 px-1 font-normal min-w-[170px]">
                 <div className="flex items-center gap-1">
                   <div className="flex-1 min-w-0">
                     <ComboboxWithCreate
@@ -127,8 +128,12 @@ export default function PropostasCompraGrid({
         <tbody>
           {itens.map((i) => (
             <tr key={i.itemId} className="border-t border-border">
-              <td className="py-1.5 pr-3 max-w-[280px] truncate" title={nomeItem(i.itemId)}>{nomeItem(i.itemId)}</td>
-              <td className="py-1.5 pr-3 text-right tabular-nums">{i.quantidade.toLocaleString("pt-BR")}</td>
+              <td className={cn(COLUNA_FIXA, "py-1.5 pr-3")} title={nomeItem(i.itemId)}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="truncate">{nomeItem(i.itemId)}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">× {i.quantidade.toLocaleString("pt-BR")}</span>
+                </div>
+              </td>
               {propostas.map((p) => (
                 <td key={p.chave} className="py-1.5 px-1">
                   <Input
@@ -151,7 +156,7 @@ export default function PropostasCompraGrid({
               {linhaCampo("Condição de pagamento", "condicoesPagamento", false)}
               {linhaCampo("Prazo de entrega (dias)", "prazoEntregaDias")}
               <tr className="border-t border-border font-semibold">
-                <td className="py-2 pr-3" colSpan={2}>Total</td>
+                <td className={cn(COLUNA_FIXA, "py-2 pr-3")}>Total</td>
                 {calculadas.map((p, idx) => (
                   <td key={propostas[idx].chave} className="py-2 px-1 text-right tabular-nums">
                     {subtotalDaProposta(itens, p) > 0 ? formatBRL(totalDaProposta(itens, p)) : "—"}
@@ -160,7 +165,7 @@ export default function PropostasCompraGrid({
                 <td />
               </tr>
               <tr>
-                <td className="py-1.5 pr-3 text-muted-foreground" colSpan={2}>Fornecedor indicado</td>
+                <td className={cn(COLUNA_FIXA, "py-1.5 pr-3 text-muted-foreground")}>Fornecedor indicado</td>
                 {calculadas.map((p, idx) => {
                   const completa = !!p.fornecedorId && propostaCompleta(itens, p);
                   const indicado = completa && p.fornecedorId === vencedor;
