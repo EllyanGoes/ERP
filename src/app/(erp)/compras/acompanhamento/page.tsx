@@ -4,16 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, FilePlus, FileSearch,
-  Loader2, PackageCheck, RefreshCw, Search, X,
+  AlertTriangle, CalendarClock, CheckCircle2, ClipboardList,
+  Loader2, PackageCheck, Plus, RefreshCw, Search, ShieldCheck, Truck, X,
 } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import StatusBadge from "@/components/shared/StatusBadge";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import SelectMenu from "@/components/shared/SelectMenu";
+import CreateDrawer from "@/components/shared/CreateDrawer";
+import SolicitacaoCreateForm from "@/components/compras/SolicitacaoCreateForm";
 import AcompanhamentoDetalheDialog, { type DocumentoRef } from "@/components/compras/AcompanhamentoDetalheDialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { destinoDoArraste } from "@/lib/compras-processo";
+import { destinoDoArraste, type ColunaCompra } from "@/lib/compras-processo";
 import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
 import { cn, formatBRL, formatDate } from "@/lib/utils";
 
@@ -23,6 +26,7 @@ type Etapa = "solicitacao" | "cotacao" | "pedido" | "entrada";
 type Cartao = {
   id: string;
   etapa: Etapa;
+  coluna: ColunaCompra;
   numero: string;
   atual: DocumentoRef;
   empresaId: string;
@@ -42,13 +46,19 @@ type Cartao = {
 
 type Resposta = { cartoes: Cartao[]; concluidosDias: number; geradoEm: string };
 
-// ── Colunas (uma por processo do fluxo) ────────────────────────────────────────
-const COLUNAS: { etapa: Etapa; label: string; icon: typeof ClipboardList; vazio: string; cor: string }[] = [
-  { etapa: "solicitacao", label: "Solicitação",          icon: ClipboardList, vazio: "Nenhuma solicitação aguardando cotação ou pedido", cor: "bg-amber-500" },
-  { etapa: "cotacao",     label: "Cotação",              icon: FileSearch,    vazio: "Nenhuma cotação em andamento",                     cor: "bg-blue-500" },
-  { etapa: "pedido",      label: "Pedido de Compras",    icon: FilePlus,      vazio: "Nenhum pedido aguardando entrada",                 cor: "bg-indigo-500" },
-  { etapa: "entrada",     label: "Documento de Entrada", icon: PackageCheck,  vazio: "Nenhuma entrada pendente",                         cor: "bg-emerald-500" },
+// ── Colunas: quem deve a próxima ação ──────────────────────────────────────────
+const COLUNAS: { coluna: ColunaCompra; label: string; dono: string; icon: typeof ClipboardList; vazio: string; cor: string }[] = [
+  { coluna: "montagem",    label: "Em montagem",          dono: "Comprador",          icon: ClipboardList, vazio: "Nenhuma compra em montagem",    cor: "bg-amber-500" },
+  { coluna: "aprovacao",   label: "Aguardando aprovação", dono: "Aprovador",          icon: ShieldCheck,   vazio: "Nada aguardando aprovação",     cor: "bg-blue-500" },
+  { coluna: "entrega",     label: "Aguardando entrega",   dono: "Fornecedor / financeiro", icon: Truck,    vazio: "Nenhum pedido aguardando entrega", cor: "bg-indigo-500" },
+  { coluna: "conferencia", label: "Em conferência",       dono: "Almoxarifado / fiscal",   icon: PackageCheck, vazio: "Nenhuma entrada em conferência", cor: "bg-emerald-500" },
 ];
+
+function medianaDias(dias: number[]): number {
+  const ordem = [...dias].sort((a, b) => a - b);
+  const meio = Math.floor(ordem.length / 2);
+  return ordem.length % 2 ? ordem[meio] : Math.round((ordem[meio - 1] + ordem[meio]) / 2);
+}
 
 const OPCOES_CONCLUIDOS = [
   { value: "0",  label: "Ocultar concluídos" },
@@ -142,7 +152,7 @@ function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
   onSoltar: () => void;
 }) {
   const dias = diasDesde(c.desde);
-  const arrastavel = !c.concluido && c.etapa !== "entrada";
+  const arrastavel = !c.concluido && c.coluna !== "conferencia";
 
   return (
     <div
@@ -230,13 +240,14 @@ export default function AcompanhamentoComprasPage() {
   const [concluidosDias, setConcluidosDias] = usePersistedState<string>("compras:acompanhamento:concluidos-dias", "7");
 
   // Filtro de status por coluna (clique nos contadores do cabeçalho).
-  const [filtroStatus, setFiltroStatus] = usePersistedState<Partial<Record<Etapa, string>>>("compras:acompanhamento:status", {});
+  const [filtroStatus, setFiltroStatus] = usePersistedState<Partial<Record<ColunaCompra, string>>>("compras:acompanhamento:status-coluna", {});
   const [aberto, setAberto] = useState<DocumentoRef | null>(null);
 
   // Arrastar leva ao formulário do próximo documento (nada é criado aqui).
   const router = useRouter();
   const [arrastadoId, setArrastadoId] = useState<string | null>(null);
-  const [colunaAlvo, setColunaAlvo] = useState<Etapa | null>(null);
+  const [colunaAlvo, setColunaAlvo] = useState<ColunaCompra | null>(null);
+  const [novaAberta, setNovaAberta] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; href?: string; acao?: string } | null>(null);
 
   const [data, setData] = useState<Resposta | null>(null);
@@ -259,8 +270,8 @@ export default function AcompanhamentoComprasPage() {
   useEffect(() => { load(); }, [load]);
 
   const termo = normalizar(busca.trim());
-  const porEtapa = useMemo(() => {
-    const mapa: Record<Etapa, Cartao[]> = { solicitacao: [], cotacao: [], pedido: [], entrada: [] };
+  const porColuna = useMemo(() => {
+    const mapa: Record<ColunaCompra, Cartao[]> = { montagem: [], aprovacao: [], entrega: [], conferencia: [] };
     for (const c of data?.cartoes ?? []) {
       if (soAtrasados && !c.atrasado) continue;
       if (termo) {
@@ -269,11 +280,11 @@ export default function AcompanhamentoComprasPage() {
         );
         if (!alvo.includes(termo)) continue;
       }
-      mapa[c.etapa].push(c);
+      mapa[c.coluna].push(c);
     }
     // Atrasados no topo, depois os mais antigos na etapa; concluídos por último.
-    for (const etapa of Object.keys(mapa) as Etapa[]) {
-      mapa[etapa].sort((a, b) =>
+    for (const coluna of Object.keys(mapa) as ColunaCompra[]) {
+      mapa[coluna].sort((a, b) =>
         Number(a.concluido) - Number(b.concluido) ||
         Number(b.atrasado) - Number(a.atrasado) ||
         a.desde.localeCompare(b.desde),
@@ -289,11 +300,11 @@ export default function AcompanhamentoComprasPage() {
     setColunaAlvo(null);
   }
 
-  function soltarNaColuna(etapa: Etapa) {
+  function soltarNaColuna(coluna: ColunaCompra) {
     const cartao = data?.cartoes.find((c) => c.id === arrastadoId);
     encerrarArraste();
     if (!cartao) return;
-    const resultado = destinoDoArraste(cartao, etapa);
+    const resultado = destinoDoArraste(cartao, coluna);
     if (!resultado) return;
     if ("erro" in resultado) setAviso({ texto: resultado.erro });
     else if (resultado.aviso) setAviso({ texto: resultado.aviso, href: resultado.href, acao: resultado.acao });
@@ -305,10 +316,13 @@ export default function AcompanhamentoComprasPage() {
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <PageHeader
           title="Kanban de Compras"
-          subtitle="Cada compra é um cartão que avança da solicitação ao documento de entrada"
+          subtitle="Cada compra é um cartão, na coluna de quem deve a próxima ação"
           breadcrumbs={[{ label: "Compras" }, { label: "Kanban" }]}
         />
         <div className="flex flex-wrap items-center gap-2 shrink-0 pt-1">
+          <Button onClick={() => setNovaAberta(true)} className="h-9">
+            <Plus className="w-4 h-4 mr-1" />Nova compra
+          </Button>
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
@@ -381,34 +395,36 @@ export default function AcompanhamentoComprasPage() {
         <div className="overflow-x-auto pb-2">
           <div className="grid grid-cols-4 gap-4 min-w-[1040px]">
             {COLUNAS.map((col) => {
-              const todos = porEtapa[col.etapa];
+              const todos = porColuna[col.coluna];
               // Contagem por status (antes do filtro de status da coluna).
               const porStatus = new Map<string, number>();
               for (const c of todos) porStatus.set(c.status, (porStatus.get(c.status) ?? 0) + 1);
-              const statusAtivo = filtroStatus[col.etapa] && porStatus.has(filtroStatus[col.etapa]!)
-                ? filtroStatus[col.etapa]!
+              const statusAtivo = filtroStatus[col.coluna] && porStatus.has(filtroStatus[col.coluna]!)
+                ? filtroStatus[col.coluna]!
                 : null;
               const cartoes = statusAtivo ? todos.filter((c) => c.status === statusAtivo) : todos;
               const abertos = cartoes.filter((c) => !c.concluido);
               const atrasados = abertos.filter((c) => c.atrasado).length;
               const valor = abertos.reduce((s, c) => s + (c.valor ?? 0), 0);
+              const idades = abertos.map((c) => diasDesde(c.desde));
+              const acima30 = idades.filter((d) => d > 30).length;
               const Icon = col.icon;
               return (
                 <div
-                  key={col.etapa}
+                  key={col.coluna}
                   onDragOver={(e) => {
                     if (!arrastadoId) return;
                     e.preventDefault();
                     e.dataTransfer.dropEffect = "move";
-                    setColunaAlvo(col.etapa);
+                    setColunaAlvo(col.coluna);
                   }}
                   onDragLeave={(e) => {
                     if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setColunaAlvo(null);
                   }}
-                  onDrop={(e) => { e.preventDefault(); soltarNaColuna(col.etapa); }}
+                  onDrop={(e) => { e.preventDefault(); soltarNaColuna(col.coluna); }}
                   className={cn(
                     "flex flex-col bg-muted/50 rounded-xl border min-w-0 transition-colors",
-                    colunaAlvo === col.etapa ? "border-primary ring-1 ring-primary" : "border-border",
+                    colunaAlvo === col.coluna ? "border-primary ring-1 ring-primary" : "border-border",
                   )}
                 >
                   <div className="px-3 py-3 border-b border-border space-y-1">
@@ -420,6 +436,13 @@ export default function AcompanhamentoComprasPage() {
                         {abertos.length}
                       </span>
                     </div>
+                    <p className="text-[11px] text-muted-foreground">Próxima ação: {col.dono}</p>
+                    {abertos.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground" title="Tempo na coluna atual">
+                        Mediana {medianaDias(idades)} d
+                        {acima30 > 0 && <> · <span className="text-amber-600 dark:text-amber-400 font-semibold">{acima30} há mais de 30 d</span></>}
+                      </p>
+                    )}
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground h-4">
                       <span>{valor > 0 ? formatBRL(valor) : ""}</span>
                       {atrasados > 0 && (
@@ -437,7 +460,7 @@ export default function AcompanhamentoComprasPage() {
                             <button
                               key={status}
                               type="button"
-                              onClick={() => setFiltroStatus((f) => ({ ...f, [col.etapa]: ativo ? undefined : status }))}
+                              onClick={() => setFiltroStatus((f) => ({ ...f, [col.coluna]: ativo ? undefined : status }))}
                               title={ativo ? "Remover filtro de status" : `Mostrar só ${info.label}`}
                               className={cn(
                                 "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[11px] font-medium transition-colors",
@@ -473,6 +496,10 @@ export default function AcompanhamentoComprasPage() {
       )}
 
       <AcompanhamentoDetalheDialog documento={aberto} onNavegar={setAberto} onClose={() => setAberto(null)} />
+
+      <CreateDrawer open={novaAberta} onOpenChange={setNovaAberta} title="Nova compra" width="2xl" onCreated={load}>
+        <SolicitacaoCreateForm modoCompra />
+      </CreateDrawer>
     </div>
   );
 }

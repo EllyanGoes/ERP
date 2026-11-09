@@ -259,5 +259,16 @@ export async function GET(_req: NextRequest, { params }: { params: { etapa: stri
 
   // Campos vazios não vão para o popup.
   detalhe.campos = detalhe.campos.filter((c) => c.valor != null && c.valor !== "");
-  return NextResponse.json(detalhe);
+
+  // Linha do tempo: toda mudança de status dos documentos desta compra.
+  const numeros = new Map([[detalhe.id, detalhe.numero], ...detalhe.cadeia.map((e) => [e.id, e.numero] as [string, string])]);
+  const logs = await prisma.compraStatusLog.findMany({
+    where: { documentoId: { in: Array.from(numeros.keys()) } },
+    orderBy: { criadoEm: "asc" },
+    select: { id: true, documentoId: true, statusPara: true, usuario: true, criadoEm: true },
+  });
+  const historico = logs.map((l) => ({
+    id: l.id, numero: numeros.get(l.documentoId) ?? "", status: l.statusPara, usuario: l.usuario, em: l.criadoEm.toISOString(),
+  }));
+  return NextResponse.json({ ...detalhe, historico });
 }

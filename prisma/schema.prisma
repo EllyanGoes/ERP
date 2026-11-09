@@ -1578,6 +1578,22 @@ model Recorrencia {
   @@index([empresaId])
 }
 
+// Histórico de status de SC/CT/PC/DE, gravado por trigger no banco
+// (docs/compras-fluxo-unico-prd.md). Sem FK: sobrevive à exclusão do documento.
+model CompraStatusLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  empresaId     String
+  documentoTipo String
+  documentoId   String
+  statusDe      String?
+  statusPara    String
+  usuario       String?
+  criadoEm      DateTime @default(now())
+
+  @@index([documentoTipo, documentoId])
+  @@index([criadoEm])
+}
+
 model CotacaoCompra {
   id                   String              @id @default(cuid())
   empresaId            String              @default("emp_tramontin")
