@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Edit } from "lucide-react";
 import { formatCPFCNPJ, cn } from "@/lib/utils";
+import { CONSUMIDOR_FINAL_ID } from "@/lib/consumidor-final";
 
 type ClienteRow = {
   id: string;
@@ -119,11 +120,12 @@ export default function ClientesTable({ clientes }: { clientes: ClienteRow[] }) 
     {
       id: "actions",
       header: "",
-      cell: ({ row }) => (
-        <Button variant="ghost" size="icon" asChild>
-          <Link href={`/clientes/${row.original.id}/editar`}><Edit className="w-4 h-4" /></Link>
-        </Button>
-      ),
+      cell: ({ row }) =>
+        row.original.id === CONSUMIDOR_FINAL_ID ? null : ( // cadastro genérico, somente leitura
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/clientes/${row.original.id}/editar`}><Edit className="w-4 h-4" /></Link>
+          </Button>
+        ),
     },
   ], []);
 

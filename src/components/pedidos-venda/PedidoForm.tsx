@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Search, Loader2, Tag, Package } from "lucide-react";
 import { formatBRL, decimalToNumber, cn, parseDecimal } from "@/lib/utils";
+import { CONSUMIDOR_FINAL_ID } from "@/lib/consumidor-final";
 import { useSession } from "@/lib/session-context";
 import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
@@ -225,7 +226,6 @@ export default function PedidoForm({
   const [submitError, setSubmitError] = useState("");
 
   // Header form
-  const CONSUMIDOR_FINAL_ID = "cli_consumidor_final"; // seed da migração 20260613110000
   const [clienteId,         setClienteId]         = useState(pedido?.clienteId ?? "");
   const { user: usuarioSessao } = useSession();
   const voltarLista = useVoltarCriacao("/pedidos-venda");
