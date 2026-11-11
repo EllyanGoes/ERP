@@ -7,6 +7,7 @@ import ClienteDetail from "@/components/clientes/ClienteDetail";
 import EditarTabButton from "@/components/shared/EditarTabButton";
 import ImportarParaConcorrente from "@/components/clientes/ImportarParaConcorrente";
 import { decimalToNumber } from "@/lib/utils";
+import { CONSUMIDOR_FINAL_ID } from "@/lib/consumidor-final";
 
 export const dynamic = "force-dynamic";
 
@@ -123,7 +124,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
               </Link>
             )}
             <StatusBadge status={cliente.status} />
-            <EditarTabButton href={`/clientes/${cliente.id}/editar`} />
+            {cliente.id !== CONSUMIDOR_FINAL_ID && <EditarTabButton href={`/clientes/${cliente.id}/editar`} />}
           </div>
         }
       />

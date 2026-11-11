@@ -4,6 +4,10 @@ import { requireModulo } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clienteSchema } from "@/lib/validations/cliente";
+import { CONSUMIDOR_FINAL_ID, MSG_CONSUMIDOR_FINAL_TRAVADO } from "@/lib/consumidor-final";
+
+const bloqueioConsumidorFinal = () =>
+  NextResponse.json({ error: MSG_CONSUMIDOR_FINAL_TRAVADO }, { status: 409 });
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
   const cliente = await prisma.cliente.findUnique({
@@ -20,6 +24,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("empresa");
   if (!auth.ok) return auth.response;
+  if (params.id === CONSUMIDOR_FINAL_ID) return bloqueioConsumidorFinal();
 
   const body = await req.json();
   const parsed = clienteSchema.safeParse(body);
@@ -48,6 +53,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireModulo("empresa");
   if (!auth.ok) return auth.response;
+  if (params.id === CONSUMIDOR_FINAL_ID) return bloqueioConsumidorFinal();
 
   await prisma.cliente.update({ where: { id: params.id }, data: { status: "INATIVO" } });
   return NextResponse.json({ data: { ok: true } });
