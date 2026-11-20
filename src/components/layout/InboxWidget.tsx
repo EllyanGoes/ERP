@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Inbox, Circle, CheckCircle2, FolderInput, Plus } from "lucide-react";
 import { useSession } from "@/lib/session-context";
+import { usePollingVisivel } from "@/lib/use-polling-visivel";
 import { cn } from "@/lib/utils";
 import InboxMoverMenu, { InboxItemDTO, avisarInboxMudou } from "@/components/projetos/InboxMoverMenu";
 
@@ -38,18 +39,12 @@ export default function InboxWidget() {
 
   // Carrega ao montar, ao focar a janela, a cada 5 min e quando a página da
   // caixa (ou o mover) avisa "erp:inbox-mudou".
+  usePollingVisivel(load, 5 * 60_000, temModulo);
   useEffect(() => {
     if (!temModulo) return;
-    load();
-    const onFocus = () => load();
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("erp:inbox-mudou", onFocus);
-    const id = setInterval(load, 5 * 60_000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("erp:inbox-mudou", onFocus);
-      clearInterval(id);
-    };
+    const onMudou = () => load();
+    window.addEventListener("erp:inbox-mudou", onMudou);
+    return () => window.removeEventListener("erp:inbox-mudou", onMudou);
   }, [load, temModulo]);
 
   // Fecha ao clicar fora / ESC

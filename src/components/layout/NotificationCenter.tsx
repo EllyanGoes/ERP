@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Bell, Check, CheckCheck, X, AlertTriangle, ListTodo } from "lucide-react";
 import { useSession } from "@/lib/session-context";
+import { usePollingVisivel } from "@/lib/use-polling-visivel";
 import { prazoInfo, instantePrazo } from "@/components/projetos/tipos";
 
 // Tarefas atribuídas ao usuário com prazo vencido/hoje entram no sino (a
@@ -127,17 +128,8 @@ export default function NotificationCenter() {
     }
   }, [userId, dispararNativa]);
 
-  useEffect(() => {
-    if (!user) return;
-    poll();
-    const t = setInterval(poll, POLL_MS);
-    const onFocus = () => poll();
-    window.addEventListener("focus", onFocus);
-    return () => {
-      clearInterval(t);
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [user, poll]);
+  // Só consulta com a aba visível (pausa em 2º plano, roda ao voltar).
+  usePollingVisivel(poll, POLL_MS, !!user);
 
   // Prazos das minhas tarefas: ao montar, ao focar, a cada 5 min e quando
   // uma tela de projetos avisa "erp:tarefas-mudou".
@@ -153,18 +145,12 @@ export default function NotificationCenter() {
     } catch { /* silencioso */ }
   }, [temProjetos]);
 
+  usePollingVisivel(carregarPrazos, 5 * 60_000, temProjetos);
   useEffect(() => {
     if (!temProjetos) return;
-    carregarPrazos();
-    const onFocus = () => carregarPrazos();
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("erp:tarefas-mudou", onFocus);
-    const id = setInterval(carregarPrazos, 5 * 60_000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("erp:tarefas-mudou", onFocus);
-      clearInterval(id);
-    };
+    const onMudou = () => carregarPrazos();
+    window.addEventListener("erp:tarefas-mudou", onMudou);
+    return () => window.removeEventListener("erp:tarefas-mudou", onMudou);
   }, [temProjetos, carregarPrazos]);
 
   // Auto-dismiss dos toasts (macOS some sozinho).
