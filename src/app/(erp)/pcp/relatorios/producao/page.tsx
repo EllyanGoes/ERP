@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
 import Dica from "@/components/shared/Dica";
 import EscClose from "@/components/shared/EscClose";
+import { usePollingVisivel } from "@/lib/use-polling-visivel";
 import { corArea, iconeArea } from "@/lib/pcp/area-visual";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
@@ -101,14 +102,8 @@ export default function RelatorioProducaoPage() {
 
   // Atualiza SOZINHO: ao voltar o foco/visibilidade para a aba e a cada 60s —
   // apontamentos feitos no Fluxo de Produção aparecem sem clicar em Atualizar.
-  useEffect(() => {
-    const onFocus = () => carregar();
-    const onVis = () => { if (document.visibilityState === "visible") carregar(); };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVis);
-    const t = setInterval(carregar, 60000);
-    return () => { window.removeEventListener("focus", onFocus); document.removeEventListener("visibilitychange", onVis); clearInterval(t); };
-  }, [carregar]);
+  // Pausa com a aba oculta; a carga inicial já vem do efeito acima.
+  usePollingVisivel(carregar, 60_000, true, false);
 
   // Totais da ÁREA selecionada — os cards do topo batem com a tabela abaixo
   // (antes somavam todas as etapas e confundiam: 780k "produzido" era a soma

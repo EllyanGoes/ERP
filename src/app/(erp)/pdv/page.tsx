@@ -15,6 +15,7 @@ import { useTabTitle } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
 import { cn, formatBRL, decimalToNumber, parseDecimal } from "@/lib/utils";
 import { enviarPermitindoSaldoNegativo } from "@/lib/saldo-negativo-retry";
+import { usePollingVisivel } from "@/lib/use-polling-visivel";
 import { printEscPosUSB } from "@/lib/webusb-print";
 import { buildPedidoEscPos, printPedidoTermicaDialog, type PedidoPrintData } from "@/lib/print-pedido";
 import PagamentosInput, {
@@ -137,10 +138,10 @@ export default function PdvPage() {
     const t = setTimeout(() => carregarFila(true), busca ? 300 : 0);
     return () => clearTimeout(t);
   }, [busca, carregarFila]);
-  useEffect(() => {
-    const i = setInterval(() => carregarFila(false), 15000);
-    return () => clearInterval(i);
-  }, [carregarFila]);
+  // Poll da fila a cada 30s, só com a aba visível (a carga inicial e a busca
+  // ficam no efeito acima; ao voltar para a aba atualiza na hora).
+  const pollFila = useCallback(() => carregarFila(false), [carregarFila]);
+  usePollingVisivel(pollFila, 30_000, true, false);
 
   // cadastros (uma vez)
   useEffect(() => {

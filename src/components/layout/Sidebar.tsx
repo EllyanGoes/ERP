@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useDirtyFormContext } from "@/lib/dirty-form-context";
+import { usePollingVisivel } from "@/lib/use-polling-visivel";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -341,11 +342,7 @@ export default function Sidebar() {
     } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => {
-    fetchPending();
-    const timer = setInterval(fetchPending, 60_000); // poll every 60s
-    return () => clearInterval(timer);
-  }, [fetchPending]);
+  usePollingVisivel(fetchPending, 60_000); // 60s, só com a aba visível
 
   // Visible main modules (exclude admin)
   // Investimentos: carteira PESSOAL — além do módulo, exige a allowlist de
