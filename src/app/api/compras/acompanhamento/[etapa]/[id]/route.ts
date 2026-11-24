@@ -21,7 +21,7 @@ type Elo = { etapa: Etapa; id: string; numero: string; status: string };
 type Proposta = { fornecedor: string; status: string; total: number | null; escolhida: boolean };
 
 type Detalhe = {
-  etapa: Etapa; id: string; numero: string; status: string; empresaId: string; href: string;
+  etapa: Etapa; id: string; numero: string; numeroCompra: string | null; status: string; empresaId: string; href: string;
   campos: Campo[];
   itens: ItemLinha[];
   propostas?: Proposta[];
@@ -73,7 +73,7 @@ async function detalheSolicitacao(id: string): Promise<Detalhe | null> {
   });
   if (!sc) return null;
   return {
-    etapa: "solicitacao", id: sc.id, numero: sc.numero, status: sc.status, empresaId: sc.empresaId, href: HREF.solicitacao(sc.id),
+    etapa: "solicitacao", id: sc.id, numero: sc.numero, numeroCompra: sc.numeroCompra, status: sc.status, empresaId: sc.empresaId, href: HREF.solicitacao(sc.id),
     campos: [
       { label: "Solicitante", valor: sc.colaborador?.nome ?? sc.solicitante },
       { label: "Setor", valor: sc.setor?.nome ?? null },
@@ -120,7 +120,7 @@ async function detalheCotacao(id: string): Promise<Detalhe | null> {
   // só como lista do que está sendo cotado.
   const base = escolhido ?? ct.fornecedores[0];
   return {
-    etapa: "cotacao", id: ct.id, numero: ct.numero, status: ct.status, empresaId: ct.empresaId, href: HREF.cotacao(ct.id),
+    etapa: "cotacao", id: ct.id, numero: ct.numero, numeroCompra: ct.numeroCompra, status: ct.status, empresaId: ct.empresaId, href: HREF.cotacao(ct.id),
     campos: [
       { label: "Apelido", valor: ct.nome },
       { label: "Solicitante", valor: ct.necessidade?.colaborador?.nome ?? ct.necessidade?.solicitante ?? null },
@@ -168,7 +168,7 @@ async function detalhePedido(id: string): Promise<Detalhe | null> {
   if (!pc) return null;
   const siglas = await siglasUnidades(pc.itens.map((i) => i.unidadeId));
   return {
-    etapa: "pedido", id: pc.id, numero: pc.numero, status: pc.status, empresaId: pc.empresaId, href: HREF.pedido(pc.id),
+    etapa: "pedido", id: pc.id, numero: pc.numero, numeroCompra: pc.numeroCompra, status: pc.status, empresaId: pc.empresaId, href: HREF.pedido(pc.id),
     campos: [
       { label: "Fornecedor", valor: nomeFornecedor(pc.fornecedor) },
       { label: "Valor total", valor: num(pc.valorTotal), tipo: "moeda" },
@@ -211,7 +211,7 @@ async function detalheEntrada(id: string): Promise<Detalhe | null> {
   if (!de) return null;
   const siglas = await siglasUnidades(de.itens.map((i) => i.unidadeId));
   return {
-    etapa: "entrada", id: de.id, numero: de.numero, status: de.status, empresaId: de.empresaId, href: HREF.entrada(de.id),
+    etapa: "entrada", id: de.id, numero: de.numero, numeroCompra: de.numeroCompra, status: de.status, empresaId: de.empresaId, href: HREF.entrada(de.id),
     campos: [
       { label: "Fornecedor", valor: nomeFornecedor(de.fornecedor) ?? nomeFornecedor(de.pedido?.fornecedor) },
       { label: "Valor total", valor: num(de.vrTotal) ?? num(de.pedido?.valorTotal), tipo: "moeda" },

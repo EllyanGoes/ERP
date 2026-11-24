@@ -71,6 +71,7 @@ export async function espelharConfirmacaoVenda(pedidoVendaId: string): Promise<v
         data: {
           empresaId: compradora.id,
           numero,
+          numeroCompra: numero,
           fornecedorId,
           status: "CONFIRMADO",
           valorTotal: pedido.valorTotal,

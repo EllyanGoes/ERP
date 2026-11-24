@@ -34,7 +34,7 @@ type AprovacaoSCItem = {
 };
 
 type Necessidade = {
-  id: string; numero: string; status: string; prioridade: number;
+  id: string; numero: string; numeroCompra?: string | null; status: string; prioridade: number;
   createdAt: string;
   solicitante: string | null; justificativa: string | null;
   dataNecessidade: string | null; observacoes: string | null;
@@ -451,7 +451,7 @@ export default function NecessidadeDetailPage() {
     finally   { setSaving(false); }
   }
 
-  useTabTitle(necessidade ? `Solicitação ${necessidade.numero}` : null);
+  useTabTitle(necessidade ? `Compra ${necessidade.numeroCompra ?? necessidade.numero}` : null);
 
   if (loading) return <div className="px-8 pt-8 text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin inline mr-2" />Carregando...</div>;
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
@@ -626,7 +626,7 @@ export default function NecessidadeDetailPage() {
   return (
     <div>
       <PageHeader
-        title={`Solicitação ${necessidade.numero}`}
+        title={necessidade.numeroCompra ? `Compra ${necessidade.numeroCompra} · Solicitação` : `Solicitação ${necessidade.numero}`}
         breadcrumbs={[
           { label: "Compras" },
           { label: "Solicitações de Compras", href: "/compras/necessidades" },

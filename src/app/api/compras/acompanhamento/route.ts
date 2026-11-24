@@ -37,6 +37,10 @@ type Cartao = {
   atrasado: boolean;
   concluido: boolean;
   prioridade: number | null;
+  /** O que está sendo comprado (título do cartão). */
+  assunto: string;
+  solicitante: string | null;
+  setor: string | null;
   documentos: Documento[];
   // Texto extra pesquisável (itens, solicitante, NF…) — não é exibido.
   busca: string;
@@ -46,14 +50,14 @@ const FORNECEDOR = { select: { razaoSocial: true, nomeFantasia: true } } as cons
 const ITENS = { select: { item: { select: { descricao: true } } } } as const;
 
 const DE_SELECT = {
-  id: true, numero: true, empresaId: true, status: true, createdAt: true, updatedAt: true,
+  id: true, numero: true, numeroCompra: true, empresaId: true, status: true, createdAt: true, updatedAt: true,
   numeroNF: true, vrTotal: true, dataConferencia: true,
   fornecedor: FORNECEDOR,
   itens: ITENS,
 } as const;
 
 const PC_SELECT = {
-  id: true, numero: true, empresaId: true, status: true, createdAt: true, updatedAt: true,
+  id: true, numero: true, numeroCompra: true, empresaId: true, status: true, createdAt: true, updatedAt: true,
   valorTotal: true, dataEntregaPrevista: true, descricao: true,
   fornecedor: FORNECEDOR,
   itens: ITENS,
@@ -61,7 +65,7 @@ const PC_SELECT = {
 } as const;
 
 const CT_SELECT = {
-  id: true, numero: true, empresaId: true, status: true, createdAt: true, updatedAt: true,
+  id: true, numero: true, numeroCompra: true, empresaId: true, status: true, createdAt: true, updatedAt: true,
   nome: true, dataLimiteResposta: true, fornecedorVencedorId: true,
   fornecedores: {
     select: { fornecedorId: true, status: true, totalCalculado: true, melhorOpcao: true, fornecedor: FORNECEDOR },
@@ -70,7 +74,7 @@ const CT_SELECT = {
 } as const;
 
 const SC_SELECT = {
-  id: true, numero: true, empresaId: true, status: true, createdAt: true, updatedAt: true,
+  id: true, numero: true, numeroCompra: true, empresaId: true, status: true, createdAt: true, updatedAt: true,
   solicitante: true, dataNecessidade: true, prioridade: true,
   colaborador: { select: { nome: true } },
   setor: { select: { nome: true } },
@@ -223,9 +227,21 @@ function montarCartao(p: Processo, corte: Date, vencido: Vencido): Cartao | null
     id: `${documentos[0].etapa}:${documentos[0].id}`,
     etapa,
     coluna: colunaDoCartao(etapa, face.status, concluido),
-    numero: documentos[0].numero,
+    // Número único da compra; documento antigo sem ele cai no número do 1º documento.
+    numero:
+      p.sc?.numeroCompra ?? p.cts.find((d) => d.numeroCompra)?.numeroCompra ??
+      vivos.find((d) => d.numeroCompra)?.numeroCompra ?? entradas.find(({ de }) => de.numeroCompra)?.de.numeroCompra ??
+      documentos[0].numero,
     concluido,
     prioridade: p.sc?.prioridade ?? null,
+    assunto:
+      (p.sc ? resumoItens(p.sc.itens) : null) ??
+      vivos.map((pc) => pc.descricao || resumoItens(pc.itens)).find(Boolean) ??
+      entradas.map(({ de }) => resumoItens(de.itens)).find(Boolean) ??
+      p.cts.map((ct) => ct.nome).find(Boolean) ??
+      face.titulo,
+    solicitante: p.sc && (p.sc.colaborador?.nome ?? p.sc.solicitante) ? solicitanteDe(p.sc) : null,
+    setor: p.sc?.setor?.nome ?? null,
     documentos,
     ...face,
     busca: [

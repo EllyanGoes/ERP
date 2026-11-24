@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       })
     : Promise.resolve([]);
 
-  const [produtos, clientes, fornecedores, pedidosVenda, pedidosCompra, projetos] = await Promise.all([
+  const [produtos, clientes, fornecedores, pedidosVenda, pedidosCompra, projetos, comprasSemPedido, entradasAvulsas] = await Promise.all([
     prisma.item.findMany({
       where: { OR: [{ codigo: ci }, { descricao: ci }] },
       select: { id: true, codigo: true, descricao: true },
@@ -79,12 +79,30 @@ export async function GET(req: NextRequest) {
       orderBy: { numero: "desc" },
     }),
     prisma.pedidoCompra.findMany({
-      where: { OR: [{ numero: ci }, { fornecedor: { razaoSocial: ci } }, { fornecedor: { nomeFantasia: ci } }] },
+      where: { OR: [{ numero: ci }, { numeroCompra: ci }, { fornecedor: { razaoSocial: ci } }, { fornecedor: { nomeFantasia: ci } }] },
       select: { id: true, numero: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
       take: TAKE,
       orderBy: { numero: "desc" },
     }),
     projetosPromise,
+    // Compra (PC-0430) que ainda não virou pedido: abre pela solicitação.
+    prisma.necessidadeCompra.findMany({
+      where: {
+        numeroCompra: ci,
+        pedidosCompra: { none: {} },
+        cotacoes: { none: { pedidos: { some: {} } } },
+      },
+      select: { id: true, numeroCompra: true, status: true },
+      take: TAKE,
+      orderBy: { numeroCompra: "desc" },
+    }),
+    // Entrada avulsa (sem pedido) também é uma compra com número próprio.
+    prisma.conferenciaCompra.findMany({
+      where: { numeroCompra: ci, pedidoId: null },
+      select: { id: true, numeroCompra: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
+      take: TAKE,
+      orderBy: { numeroCompra: "desc" },
+    }),
   ]);
 
   const results: SearchResult[] = [
@@ -122,6 +140,20 @@ export async function GET(req: NextRequest) {
       titulo: pc.numero,
       subtitulo: pc.fornecedor?.nomeFantasia || pc.fornecedor?.razaoSocial || undefined,
       href: `/suprimentos/pedidos-compra/${pc.id}`,
+    })),
+    ...comprasSemPedido.map((sc) => ({
+      tipo: "pedido-compra" as const,
+      id: sc.id,
+      titulo: sc.numeroCompra!,
+      subtitulo: "Compra em solicitação/cotação",
+      href: `/compras/necessidades/${sc.id}`,
+    })),
+    ...entradasAvulsas.map((de) => ({
+      tipo: "pedido-compra" as const,
+      id: de.id,
+      titulo: de.numeroCompra!,
+      subtitulo: de.fornecedor?.nomeFantasia || de.fornecedor?.razaoSocial || "Documento de entrada",
+      href: `/suprimentos/conferencias/${de.id}`,
     })),
     ...projetos.map((p) => ({
       tipo: "projeto" as const,

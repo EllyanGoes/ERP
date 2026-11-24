@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { generateSimpleDocNumber } from "@/lib/utils";
 import { findMatchingCotacoes } from "@/lib/cotacao-match";
-import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
+import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { getSession } from "@/lib/auth";
 import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { aprovadorPedidoCompras } from "@/lib/aprovacao-cotacao";
+import { numeroCompraDaOrigem, numeroDoPedido } from "@/lib/numero-compra";
 
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("compras");
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
     if (search) {
       where.OR = [
         { numero: { contains: search, mode: "insensitive" } },
+        { numeroCompra: { contains: search, mode: "insensitive" } },
         { fornecedor: { razaoSocial: { contains: search, mode: "insensitive" } } },
         { fornecedor: { nomeFantasia: { contains: search, mode: "insensitive" } } },
       ];
@@ -170,10 +171,10 @@ export async function POST(req: NextRequest) {
     const origem = await prisma.necessidadeCompra.findUnique({ where: { id: necessidadeId }, select: { empresaId: true } });
     if (origem) empresaAlvo = origem.empresaId;
   }
-  const numeroPC = generateSimpleDocNumber("PC", await proximaSequenciaDaEmpresa(empresaAlvo, "PC"));
-
   const pedido = await prisma.$transaction(async (tx) => {
-    const numero = numeroPC;
+    // O pedido leva o número único da compra (herdado da SC/CT ou novo).
+    const numeroCompra = await numeroCompraDaOrigem(tx, empresaAlvo, { necessidadeId, cotacaoId });
+    const numero = await numeroDoPedido(tx, empresaAlvo, numeroCompra);
 
     const parsedItens = itens.map((i: { itemId: string; quantidade: number; precoUnitario: number; unidadeId?: string | null; centroCustoId?: string | null; tesId?: string | null; compoeCusto?: boolean | null }) => ({
       itemId:       i.itemId,
@@ -199,6 +200,7 @@ export async function POST(req: NextRequest) {
     const pedido = await tx.pedidoCompra.create({
       data: {
         numero,
+        numeroCompra,
         empresaId:          empresaAlvo,
         status:             "AGUARDANDO_PAGAMENTO",
         fornecedorId,
