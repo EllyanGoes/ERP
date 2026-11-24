@@ -48,6 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
       orderBy: { createdAt: "asc" },
       select: {
         id: true, numero: true, status: true, createdAt: true, prioridade: true, dataNecessidade: true,
+        dataAprovacao: true, dataCancelamento: true,
         solicitante: true, colaborador: { select: { nome: true } }, setor: { select: { nome: true } },
         itens: ITENS,
       },
@@ -55,7 +56,10 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
     prisma.cotacaoCompra.findMany({
       where,
       orderBy: { createdAt: "asc" },
-      select: { id: true, numero: true, status: true, nome: true, createdAt: true },
+      select: {
+        id: true, numero: true, status: true, nome: true, createdAt: true, dataAprovacao: true,
+        aprovacoes: { select: { createdAt: true, respondidoEm: true, status: true }, orderBy: { createdAt: "asc" } },
+      },
     }),
     prisma.pedidoCompra.findMany({
       where,
@@ -71,6 +75,7 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
       orderBy: { createdAt: "asc" },
       select: {
         id: true, numero: true, status: true, pedidoId: true, numeroNF: true, vrTotal: true, createdAt: true,
+        dataConferencia: true, dtEmissao: true,
         fornecedor: FORNECEDOR, itens: ITENS,
       },
     }),
@@ -112,8 +117,50 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
       })
     : [];
 
+  // ── Linha do tempo: marcos datados do processo, em ordem ────────────────────
+  type Marco = { em: string; etapa: EtapaCompra; label: string; numero?: string };
+  const marcos: Marco[] = [];
+  const add = (em: Date | null | undefined, etapa: EtapaCompra, label: string, numero?: string) => {
+    if (em) marcos.push({ em: em.toISOString(), etapa, label, numero });
+  };
+  for (const d of scs) {
+    add(d.createdAt, "solicitacao", "Solicitação criada", d.numero);
+    add(d.dataAprovacao, "solicitacao", "Solicitação aprovada", d.numero);
+    add(d.dataCancelamento, "solicitacao", "Solicitação cancelada", d.numero);
+  }
+  for (const d of cts) {
+    add(d.createdAt, "cotacao", "Cotação aberta", d.numero);
+    add(d.aprovacoes[0]?.createdAt, "cotacao", "Cotação enviada para aprovação", d.numero);
+    add(d.dataAprovacao ?? d.aprovacoes.find((a) => a.status === "APROVADO")?.respondidoEm, "cotacao", "Cotação aprovada", d.numero);
+  }
+  for (const d of pcs) {
+    add(d.createdAt, "pedido", "Pedido emitido", d.numero);
+  }
+  for (const d of des) {
+    add(d.dtEmissao, "entrada", "Nota fiscal emitida", d.numeroNF ? `NF ${d.numeroNF}` : d.numero);
+    add(d.createdAt, "entrada", "Mercadoria recebida (entrada aberta)", d.numero);
+    if (d.status === "CONCLUIDA") add(d.dataConferencia ?? null, "entrada", "Entrada concluída", d.numero);
+  }
+  marcos.sort((a, b) => a.em.localeCompare(b.em));
+
+  // Duração de cada etapa: do 1º marco dela até o 1º marco da etapa seguinte
+  // (a última vai até a conclusão, ou até agora se ainda está aberta).
+  const ORDEM: EtapaCompra[] = ["solicitacao", "cotacao", "pedido", "entrada"];
+  // A data de emissão da NF é do fornecedor e pode ser anterior ao pedido: não abre fase.
+  const inicioDe = (e: EtapaCompra) => marcos.find((m) => m.etapa === e && m.label !== "Nota fiscal emitida")?.em ?? null;
+  const fimProcesso = concluido ? marcos[marcos.length - 1]?.em ?? null : new Date().toISOString();
+  const fases = ORDEM.map((e, i) => {
+    const inicio = inicioDe(e);
+    if (!inicio) return null;
+    const proxima = ORDEM.slice(i + 1).map(inicioDe).find(Boolean) ?? null;
+    const fim = proxima ?? fimProcesso;
+    return { etapa: e, inicio, fim, emAndamento: !proxima && !concluido };
+  }).filter(Boolean);
+
   return NextResponse.json({
     numeroCompra,
+    marcos,
+    fases,
     empresaId,
     outrasEmpresas: empresas.filter((e) => e !== empresaId),
     etapa,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, Kanban, LayoutList, Loader2, MoreHorizontal, Plus, RefreshCw, Search, X } from "lucide-react";
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { AvatarUsuario } from "@/components/projetos/comum";
 import { destinoDoArraste, type ColunaCompra } from "@/lib/compras-processo";
 import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
+import { useRelatorioCache } from "@/lib/use-relatorio-cache";
 import { cn, formatBRL, formatDate } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -221,24 +222,9 @@ export default function AcompanhamentoComprasPage() {
   const [novaAberta, setNovaAberta] = useState(false);
   const [aviso, setAviso] = useState<{ texto: string; href?: string; acao?: string } | null>(null);
 
-  const [data, setData] = useState<Resposta | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    setErro(null);
-    fetch(`/api/compras/acompanhamento?concluidosDias=${concluidosDias}`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "Erro ao carregar o acompanhamento");
-        return r.json();
-      })
-      .then(setData)
-      .catch((e: Error) => setErro(e.message))
-      .finally(() => setLoading(false));
-  }, [concluidosDias]);
-
-  useEffect(() => { load(); }, [load]);
+  // Volta para a tela sem spinner: mostra o último quadro e atualiza em 2º plano.
+  const { data, loading, refreshing, erro, recarregar: load } =
+    useRelatorioCache<Resposta>(`/api/compras/acompanhamento?concluidosDias=${concluidosDias}`);
 
   const termo = normalizar(busca.trim());
   const porColuna = useMemo(() => {
@@ -458,7 +444,7 @@ export default function AcompanhamentoComprasPage() {
             className="flex items-center justify-center h-9 w-9 border border-border rounded-lg text-muted-foreground hover:bg-muted transition-colors"
             title="Atualizar"
           >
-            <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+            <RefreshCw className={cn("w-4 h-4", (loading || refreshing) && "animate-spin")} />
           </button>
         </div>
       </div>

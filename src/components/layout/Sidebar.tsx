@@ -21,16 +21,17 @@ import {
   ChevronRight,
   ChevronDown,
   Monitor,
+  Sun,
+  Moon,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { useShortcuts } from "@/lib/shortcuts-context";
 import { podeAcessarInvestimentos } from "@/lib/investimentos-acesso";
-import { routeColor } from "@/lib/route-registry";
 import { mainModules, configModule, allModules, type NavItem, type SubSection, type Module } from "@/lib/nav-menu";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { ProgressoCirculo } from "@/components/projetos/comum";
-import ThemeToggle from "@/components/shared/ThemeToggle";
+import { useTheme } from "next-themes";
 
 // ── Future modules (strip-only, no panel, disabled) ───────────────────────────
 const futureModules: { id: string; label: string; icon: LucideIcon }[] = [];
@@ -198,11 +199,19 @@ function UserDropdown({
   user,
   userInitials,
   onLogout,
+  onAtalhos,
+  onConfiguracoes,
+  configAtivo,
 }: {
   user: { nome: string; email: string; perfil: string } | null;
   userInitials: string;
   onLogout: () => void;
+  onAtalhos: () => void;
+  onConfiguracoes: () => void;
+  configAtivo: boolean;
 }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const escuro = resolvedTheme === "dark";
   const btnRef   = useRef<HTMLButtonElement>(null);
   const dropRef  = useRef<HTMLDivElement>(null);
   const [open, setOpen]     = useState(false);
@@ -216,7 +225,7 @@ function UserDropdown({
   function handleToggle() {
     if (!btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom - 220, left: r.right + 8 }); // anchor near bottom
+    setPos({ top: r.bottom - 360, left: r.right + 8 }); // ancorado perto da base
     setOpen((p) => !p);
   }
 
@@ -298,6 +307,35 @@ function UserDropdown({
               <Monitor className="w-4 h-4 text-muted-foreground" />
               Dispositivos
               <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 ml-auto" />
+            </button>
+          </div>
+
+          {/* Antes eram ícones soltos na faixa escura: agora ficam aqui. */}
+          <div className="border-t border-border py-1">
+            <button
+              onClick={() => { setOpen(false); onConfiguracoes(); }}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-muted transition-colors",
+                configAtivo ? "text-primary" : "text-foreground",
+              )}
+            >
+              <Settings className="w-4 h-4 text-muted-foreground" />
+              Configurações
+            </button>
+            <button
+              onClick={() => setTheme(escuro ? "light" : "dark")}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+            >
+              {escuro ? <Sun className="w-4 h-4 text-muted-foreground" /> : <Moon className="w-4 h-4 text-muted-foreground" />}
+              {escuro ? "Tema claro" : "Tema escuro"}
+            </button>
+            <button
+              onClick={() => { setOpen(false); onAtalhos(); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+            >
+              <HelpCircle className="w-4 h-4 text-muted-foreground" />
+              Atalhos do teclado
+              <span className="ml-auto text-xs text-muted-foreground">?</span>
             </button>
           </div>
 
@@ -575,47 +613,16 @@ export default function Sidebar() {
               </button>
             </StripTooltip>
 
-            {/* Notificações migraram para o topo (NotificationCenter, ao lado do
-                seletor de empresa no TabBar). */}
-
-            {/* Alternar tema claro/escuro */}
-            <StripTooltip label="Tema claro / escuro">
-              <ThemeToggle />
-            </StripTooltip>
-
-            {/* Atalhos / Ajuda */}
-            <StripTooltip label="Atalhos do teclado (?)">
-              <button
-                onClick={openShortcuts}
-                className="flex items-center justify-center w-9 h-9 rounded-xl
-                  text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-colors"
-              >
-                <HelpCircle className="w-4 h-4" />
-              </button>
-            </StripTooltip>
-
-            {/* Configurações */}
-            <StripTooltip label="Configurações">
-              <button
-                onClick={() => setOpenId(openId === "configuracoes" ? null : "configuracoes")}
-                className={cn(
-                  "relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
-                  openId === "configuracoes"
-                    ? "bg-gray-700 text-white"
-                    : moduleIsActive(configModule, pathname)
-                    ? "text-blue-400 hover:bg-gray-800"
-                    : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
-                )}
-              >
-                <Settings className="w-4 h-4" />
-                {moduleIsActive(configModule, pathname) && openId !== "configuracoes" && (
-                  <span className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
-                )}
-              </button>
-            </StripTooltip>
-
             {/* Perfil (dropdown do usuário) */}
-            <UserDropdown user={user} userInitials={userInitials} onLogout={handleLogout} />
+            {/* Perfil: tema, atalhos, configurações e Sair ficam no menu do avatar */}
+            <UserDropdown
+              user={user}
+              userInitials={userInitials}
+              onLogout={handleLogout}
+              onAtalhos={openShortcuts}
+              onConfiguracoes={() => setOpenId(openId === "configuracoes" ? null : "configuracoes")}
+              configAtivo={moduleIsActive(configModule, pathname)}
+            />
           </div>
         </div>
 
@@ -638,14 +645,16 @@ export default function Sidebar() {
                     na base do menu. */}
                 <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-3">
                   {openModule.sections.map((section) => (
-                    <div key={section.kind} className="mb-4">
-                      <p className={cn("text-[10px] font-bold uppercase tracking-widest px-2 mb-1", kindStyle[section.kind])}>
-                        {section.kind}
-                      </p>
+                    <div key={section.kind} className="mb-3">
+                      {/* Seção de um item só dispensa título: o próprio item já diz. */}
+                      {section.items.length > 1 && (
+                        <p className="text-[11px] font-medium text-muted-foreground/70 px-2 mb-1">
+                          {section.kind}
+                        </p>
+                      )}
                       {section.items.map((item) => {
                         const active = itemIsActive(item, pathname);
                         const Icon   = item.icon ?? CircleDot;
-                        const color  = routeColor(section.kind);
                         if (item.soon) {
                           return (
                             <div
@@ -666,18 +675,13 @@ export default function Sidebar() {
                             key={item.href}
                             onClick={() => attemptNavigate(() => router.push(item.href))}
                             className={cn(
-                              "w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors",
+                              "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors",
                               active
                                 ? "bg-primary/10 text-primary font-medium"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                : "text-foreground/80 hover:bg-muted hover:text-foreground"
                             )}
                           >
-                            <span className={cn(
-                              "flex shrink-0 items-center justify-center w-5 h-5 rounded-md transition-colors",
-                              active ? `${color.selBg} ${color.selText}` : `${color.bg} ${color.text}`
-                            )}>
-                              <Icon className="w-3 h-3" />
-                            </span>
+                            <Icon className={cn("w-4 h-4 shrink-0", active ? "text-primary" : "text-muted-foreground/70")} />
                             <span className="truncate flex-1 text-left">{item.label}</span>
                             {item.href === "/aprovacoes" && pendingAprov > 0 && (
                               <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
@@ -692,30 +696,6 @@ export default function Sidebar() {
                   {openModule.id === "projetos" && <ProjetosEmAndamento />}
                 </nav>
 
-                {/* User info footer in panel */}
-                {user && (
-                  <div className="border-t border-border p-3 space-y-1 shrink-0">
-                    <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg">
-                      <div className={cn(
-                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-                        user.perfil === "ADMIN" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-                      )}>
-                        {userInitials}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground truncate">{user.nome}</p>
-                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      Sair
-                    </button>
-                  </div>
-                )}
               </>
             )}
 

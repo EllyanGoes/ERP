@@ -7,11 +7,11 @@
 // próprio. Etapa sem documento mostra o próximo passo. A aba fica na URL
 // (?aba=…&doc=…) para o link levar direto a ela.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, ClipboardList, FileText, History, Loader2,
+  AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, ClipboardList, FileText, GanttChart, Loader2,
   PackageCheck, RefreshCw, ShoppingCart,
 } from "lucide-react";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -19,6 +19,7 @@ import EmpresaTag from "@/components/shared/EmpresaTag";
 import { AvatarUsuario } from "@/components/projetos/comum";
 import { CompraEmbutidaProvider } from "@/lib/compra-embutida";
 import { useTabTitle } from "@/lib/tabs-context";
+import { useRelatorioCache } from "@/lib/use-relatorio-cache";
 import type { EtapaCompra } from "@/lib/compras-processo";
 import { cn, formatBRL, formatDate } from "@/lib/utils";
 import SolicitacaoTela from "@/app/(erp)/compras/necessidades/[id]/page";
@@ -45,9 +46,11 @@ type Compra = {
   docAtual: Record<EtapaCompra, string | null>;
   documentos: Record<EtapaCompra, Doc[]>;
   historico: { id: string; etapa: EtapaCompra | null; numero: string; statusDe: string | null; statusPara: string; usuario: string | null; em: string }[];
+  marcos: { em: string; etapa: EtapaCompra; label: string; numero?: string }[];
+  fases: { etapa: EtapaCompra; inicio: string; fim: string | null; emAndamento: boolean }[];
 };
 
-type Aba = EtapaCompra | "historico";
+type Aba = EtapaCompra | "timeline";
 
 const ETAPAS: { etapa: EtapaCompra; label: string; sigla: string; icon: typeof ClipboardList }[] = [
   { etapa: "solicitacao", label: "Solicitação", sigla: "SC", icon: ClipboardList },
@@ -119,25 +122,105 @@ function ProximoPasso({ etapa, compra, onIr }: { etapa: EtapaCompra; compra: Com
   );
 }
 
-function Historico({ compra }: { compra: Compra }) {
-  if (compra.historico.length === 0) {
-    return <p className="mx-8 my-10 text-sm text-muted-foreground text-center">Sem mudanças de status registradas.</p>;
+// ── Timeline: quanto tempo a compra levou, etapa por etapa ───────────────────
+const COR_ETAPA: Record<EtapaCompra, string> = {
+  solicitacao: "#9ca3af", cotacao: "#f97316", pedido: "#3b82f6", entrada: "#8b5cf6",
+};
+const DIA = 86_400_000;
+const diasEntre = (a: string, b: string) => Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / DIA);
+const fmtDias = (d: number) => (d < 1 ? (d * 24 < 1 ? "< 1 h" : `${Math.round(d * 24)} h`) : `${Math.round(d)} d`);
+const fmtData = (iso: string) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+
+function Timeline({ compra }: { compra: Compra }) {
+  const { fases, marcos, historico } = compra;
+  if (marcos.length === 0) {
+    return <p className="mx-8 my-10 text-sm text-muted-foreground text-center">Sem datas registradas para esta compra.</p>;
   }
+  const duracoes = fases.map((f) => diasEntre(f.inicio, f.fim ?? new Date().toISOString()));
+  const total = fases.length ? diasEntre(fases[0].inicio, fases[fases.length - 1].fim ?? new Date().toISOString()) : 0;
+  const maior = Math.max(...duracoes, 0);
+
+  // Eventos: marcos do processo + mudanças de status registradas, em ordem.
+  const eventos = [
+    ...marcos.map((m) => ({ em: m.em, etapa: m.etapa, titulo: m.label, detalhe: m.numero ?? null, principal: true })),
+    ...historico.map((h) => ({
+      em: h.em, etapa: h.etapa, titulo: `Status: ${h.statusDe ? `${h.statusDe} → ` : ""}${h.statusPara}`.replace(/_/g, " ").toLowerCase(),
+      detalhe: [h.numero, h.usuario].filter(Boolean).join(" · ") || null, principal: false,
+    })),
+  ].sort((a, b) => a.em.localeCompare(b.em));
+
   return (
-    <ol className="mx-8 my-6 space-y-2">
-      {compra.historico.map((h) => (
-        <li key={h.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm">
-          <span className="text-xs text-muted-foreground whitespace-nowrap w-36">
-            {new Date(h.em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
-          </span>
-          <span className="font-medium text-foreground">{h.etapa ? NOME_ETAPA[h.etapa] : "Documento"}</span>
-          <span className="text-xs text-muted-foreground">{h.numero}</span>
-          {h.statusDe && <><StatusBadge status={h.statusDe} /><span className="text-muted-foreground">→</span></>}
-          <StatusBadge status={h.statusPara} />
-          {h.usuario && <span className="ml-auto text-xs text-muted-foreground">{h.usuario}</span>}
-        </li>
-      ))}
-    </ol>
+    <div className="mx-8 my-6 space-y-6 max-w-5xl">
+      {/* Resumo */}
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
+        <div>
+          <p className="text-xs text-muted-foreground">{compra.concluido ? "Tempo total da compra" : "Em andamento há"}</p>
+          <p className="text-2xl font-semibold text-foreground">{fmtDias(total)}</p>
+        </div>
+        {fases.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {fmtData(fases[0].inicio)} → {compra.concluido && fases[fases.length - 1].fim ? fmtData(fases[fases.length - 1].fim!) : "hoje"}
+          </p>
+        )}
+      </div>
+
+      {/* Uma barra por etapa, proporcional ao tempo que ela levou */}
+      <div className="space-y-2.5">
+        {fases.map((f, i) => {
+          const d = duracoes[i];
+          const largura = maior > 0 ? Math.max(2, (d / maior) * 100) : 2;
+          const pct = total > 0 ? Math.round((d / total) * 100) : 0;
+          return (
+            <div key={f.etapa} className="grid grid-cols-[120px_1fr_120px] items-center gap-3 text-sm">
+              <span className="text-foreground">{NOME_ETAPA[f.etapa]}</span>
+              <div className="h-6 rounded-md bg-muted/60 overflow-hidden">
+                <div
+                  className={cn("h-full rounded-md", f.emAndamento && "opacity-60 bg-[length:12px_12px]")}
+                  style={{
+                    width: `${largura}%`,
+                    backgroundColor: COR_ETAPA[f.etapa],
+                    backgroundImage: f.emAndamento
+                      ? "linear-gradient(45deg, rgba(255,255,255,.35) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.35) 50%, rgba(255,255,255,.35) 75%, transparent 75%)"
+                      : undefined,
+                  }}
+                  title={`${fmtData(f.inicio)} → ${f.emAndamento ? "agora" : fmtData(f.fim!)}`}
+                />
+              </div>
+              <span className="text-right tabular-nums">
+                <span className="font-semibold text-foreground">{fmtDias(d)}</span>
+                <span className="text-xs text-muted-foreground"> · {pct}%{f.emAndamento ? " · aberta" : ""}</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Linha do tempo dos eventos */}
+      <ol className="relative border-l border-border ml-1.5 space-y-3">
+        {eventos.map((e, i) => {
+          const anterior = i > 0 ? eventos[i - 1].em : null;
+          const intervalo = anterior ? diasEntre(anterior, e.em) : 0;
+          return (
+            <li key={`${e.em}-${i}`} className="relative pl-5">
+              <span
+                className={cn("absolute -left-[5px] top-1.5 rounded-full", e.principal ? "w-2.5 h-2.5" : "w-2 h-2 -left-[4px] bg-border")}
+                style={e.principal && e.etapa ? { backgroundColor: COR_ETAPA[e.etapa] } : undefined}
+              />
+              <div className="flex flex-wrap items-baseline gap-x-3">
+                <span className={cn("text-sm", e.principal ? "font-medium text-foreground" : "text-muted-foreground first-letter:uppercase")}>
+                  {e.titulo}
+                </span>
+                {e.detalhe && <span className="text-xs text-muted-foreground">{e.detalhe}</span>}
+                <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                  {fmtData(e.em)}
+                  {anterior && intervalo >= 1 / 24 && <span className="ml-2 text-foreground/70">+{fmtDias(intervalo)}</span>}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -149,34 +232,22 @@ export default function CompraPage() {
   const router = useRouter();
   const empresa = searchParams.get("empresa");
 
-  const [compra, setCompra] = useState<Compra | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    setErro(null);
-    fetch(`/api/compras/compra/${encodeURIComponent(numeroCompra)}${empresa ? `?empresa=${empresa}` : ""}`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => null))?.error ?? "Erro ao carregar a compra");
-        return r.json();
-      })
-      .then(setCompra)
-      .catch((e: Error) => setErro(e.message))
-      .finally(() => setLoading(false));
-  }, [numeroCompra, empresa]);
-
-  useEffect(() => { load(); }, [load]);
+  // Cabeçalho e abas aparecem na hora ao voltar para a compra; atualiza em 2º plano.
+  const { data: compra, loading, refreshing, erro, recarregar: load } = useRelatorioCache<Compra>(
+    `/api/compras/compra/${encodeURIComponent(numeroCompra)}${empresa ? `?empresa=${empresa}` : ""}`,
+  );
   useTabTitle(`Compra ${numeroCompra}`);
 
   const abaParam = searchParams.get("aba") as Aba | null;
-  const aba: Aba = abaParam && (abaParam === "historico" || ETAPAS.some((e) => e.etapa === abaParam))
-    ? abaParam
+  // "historico" é o nome antigo da aba Timeline (links já compartilhados).
+  const abaNormalizada = (abaParam as string) === "historico" ? "timeline" : abaParam;
+  const aba: Aba = abaNormalizada && (abaNormalizada === "timeline" || ETAPAS.some((e) => e.etapa === abaNormalizada))
+    ? abaNormalizada
     : compra?.etapa ?? "solicitacao";
 
   // Documento mostrado na aba: o da URL (se for desta etapa), senão o atual da etapa.
   const docId = useMemo(() => {
-    if (!compra || aba === "historico") return null;
+    if (!compra || aba === "timeline") return null;
     const docParam = searchParams.get("doc");
     if (docParam && compra.documentos[aba].some((d) => d.id === docParam)) return docParam;
     return compra.docAtual[aba];
@@ -207,8 +278,8 @@ export default function CompraPage() {
   }
 
   const indiceAtual = ETAPAS.findIndex((e) => e.etapa === compra.etapa);
-  const docsDaAba = aba === "historico" ? [] : compra.documentos[aba];
-  const Tela = aba === "historico" ? null : TELAS[aba];
+  const docsDaAba = aba === "timeline" ? [] : compra.documentos[aba];
+  const Tela = aba === "timeline" ? null : TELAS[aba];
 
   return (
     <div>
@@ -281,7 +352,7 @@ export default function CompraPage() {
               title="Atualizar"
               className="flex items-center justify-center h-8 w-8 border border-border rounded-lg text-muted-foreground hover:bg-muted"
             >
-              <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+              <RefreshCw className={cn("w-4 h-4", (loading || refreshing) && "animate-spin")} />
             </button>
           </div>
         </div>
@@ -314,13 +385,13 @@ export default function CompraPage() {
           })}
           <button
             type="button"
-            onClick={() => irPara("historico")}
+            onClick={() => irPara("timeline")}
             className={cn(
               "flex items-center gap-2 px-3.5 py-2 text-sm border-b-2 -mb-px transition-colors ml-auto",
-              aba === "historico" ? "border-primary text-foreground font-semibold" : "border-transparent text-muted-foreground hover:text-foreground",
+              aba === "timeline" ? "border-primary text-foreground font-semibold" : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            <History className="w-4 h-4" /> Histórico
+            <GanttChart className="w-4 h-4" /> Timeline
           </button>
         </nav>
       </div>
@@ -345,8 +416,8 @@ export default function CompraPage() {
         </div>
       )}
 
-      {aba === "historico" ? (
-        <Historico compra={compra} />
+      {aba === "timeline" ? (
+        <Timeline compra={compra} />
       ) : docId && Tela ? (
         <CompraEmbutidaProvider key={docId} docId={docId}>
           <Tela />
