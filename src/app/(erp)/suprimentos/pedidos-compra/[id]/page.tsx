@@ -23,6 +23,7 @@ import {
 import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, FileInput, Link2, FileText, Pencil } from "lucide-react";
 import { useDocumentoId } from "@/lib/compra-embutida";
 import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaResumo, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
+import CancelarCompraDialog from "@/components/compras/CancelarCompraDialog";
 
 const STATUS_FLOW: { value: string; label: string }[] = [
   { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
@@ -64,6 +65,7 @@ type ContaPagarMin = {
 
 type PedidoCompra = {
   id: string;
+  empresaId: string;
   numero: string;
   numeroCompra?: string | null;
   numeroAntigo?: string | null;
@@ -132,6 +134,7 @@ export default function PedidoCompraDetailPage() {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [actioning, setActioning] = useState(false);
+  const [cancelarAberto, setCancelarAberto] = useState(false);
 
   // ── Vincular Cotação popover ──────────────────────────────────────────────────
   const [ctPopoverOpen,  setCtPopoverOpen]  = useState(false);
@@ -837,7 +840,11 @@ async function openWAModal() {
             {/* Status inline selector */}
             <Select
               value={pedido.status}
-              onValueChange={(v) => changeStatus(v)}
+              onValueChange={(v) => {
+                // Cancelar pergunta: só o pedido (compra continua) ou a compra inteira.
+                if (v === "CANCELADO" && pedido.numeroCompra) setCancelarAberto(true);
+                else changeStatus(v);
+              }}
               disabled={actioning || ["CANCELADO", "RECEBIDO", "AGUARDANDO_APROVACAO"].includes(pedido.status)}
             >
               <SelectTrigger className="h-8 w-48 text-xs font-medium">
@@ -1244,6 +1251,17 @@ async function openWAModal() {
             </div>
           </div>
         </ModalPortal>
+      )}
+      {pedido.numeroCompra && (
+        <CancelarCompraDialog
+          open={cancelarAberto}
+          onOpenChange={setCancelarAberto}
+          numeroCompra={pedido.numeroCompra}
+          empresaId={pedido.empresaId}
+          pedidoNumero={pedido.numero}
+          onCancelarSoPedido={() => changeStatus("CANCELADO")}
+          onConcluido={load}
+        />
       )}
     </div>
   );

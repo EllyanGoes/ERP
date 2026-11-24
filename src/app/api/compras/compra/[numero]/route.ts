@@ -184,6 +184,8 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
     outrasEmpresas: empresas.filter((e) => e !== empresaId),
     etapa,
     concluido,
+    // Cancelada: solicitação cancelada/rejeitada e nenhum pedido vivo nem entrada.
+    cancelada: !!sc && ["CANCELADA", "REJEITADA"].includes(sc.status) && vivos.length === 0 && des.length === 0,
     assunto:
       (sc ? resumoItens(sc.itens) : null) ??
       vivos.map((p) => p.descricao || resumoItens(p.itens)).find(Boolean) ??

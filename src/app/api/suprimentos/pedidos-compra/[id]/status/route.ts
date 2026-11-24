@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { criarConferenciaDePedido } from "@/lib/pedido-compra-de";
+import { reabrirAposCancelarPedido } from "@/lib/cancelar-compra";
 
 const TRANSITIONS: Record<string, string[]> = {
   // Aguardando (re)aprovação: só o aprovador decide (rota /aprovacao); daqui
@@ -88,6 +89,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         conferenciaCreated: true,
       },
     });
+  }
+
+  // ── Cancelar só o pedido: a compra continua (cotação reaberta p/ novo pedido) ──
+  if (status === "CANCELADO") {
+    await prisma.$transaction(async (tx) => {
+      await tx.pedidoCompra.update({ where: { id: pedidoId }, data: { status } });
+      await reabrirAposCancelarPedido(tx, pedidoId);
+    });
+    return NextResponse.json({ data: { id: pedidoId, status } });
   }
 
   // ── All other transitions ─────────────────────────────────────────────────
