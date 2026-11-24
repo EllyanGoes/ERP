@@ -65,7 +65,7 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
       where,
       orderBy: { createdAt: "asc" },
       select: {
-        id: true, numero: true, numeroAntigo: true, status: true, valorTotal: true, descricao: true, createdAt: true,
+        id: true, numero: true, numeroAntigo: true, status: true, valorTotal: true, descricao: true, createdAt: true, updatedAt: true,
         dataEntregaPrevista: true, fornecedor: FORNECEDOR, itens: ITENS,
         conferencia: { select: { id: true, status: true } },
       },
@@ -118,15 +118,22 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
     : [];
 
   // ── Linha do tempo: marcos datados do processo, em ordem ────────────────────
-  type Marco = { em: string; etapa: EtapaCompra; label: string; numero?: string };
+  // `semFase`: o marco aparece na lista mas não abre etapa nas barras (NF do
+  // fornecedor, documento cancelado). `foraDeOrdem`: criado antes da etapa
+  // anterior começar (documento antigo vinculado depois).
+  type Marco = { em: string; etapa: EtapaCompra; label: string; numero?: string; semFase?: boolean; cancelado?: boolean; foraDeOrdem?: boolean };
   const marcos: Marco[] = [];
-  const add = (em: Date | null | undefined, etapa: EtapaCompra, label: string, numero?: string) => {
-    if (em) marcos.push({ em: em.toISOString(), etapa, label, numero });
+  const add = (em: Date | null | undefined, etapa: EtapaCompra, label: string, numero?: string, extra: Partial<Marco> = {}) => {
+    if (em) marcos.push({ em: em.toISOString(), etapa, label, numero, ...extra });
   };
+  const canceladoEm = (id: string, fallback: Date) =>
+    logs.find((l) => l.documentoId === id && l.statusPara.startsWith("CANCELAD"))?.criadoEm ?? fallback;
+
   for (const d of scs) {
-    add(d.createdAt, "solicitacao", "Solicitação criada", d.numero);
-    add(d.dataAprovacao, "solicitacao", "Solicitação aprovada", d.numero);
-    add(d.dataCancelamento, "solicitacao", "Solicitação cancelada", d.numero);
+    const cancelada = d.status === "CANCELADA" || d.status === "REJEITADA";
+    add(d.createdAt, "solicitacao", "Solicitação criada", d.numero, { semFase: cancelada, cancelado: cancelada });
+    add(d.dataAprovacao, "solicitacao", "Solicitação aprovada", d.numero, { semFase: cancelada });
+    add(d.dataCancelamento, "solicitacao", "Solicitação cancelada", d.numero, { semFase: true, cancelado: true });
   }
   for (const d of cts) {
     add(d.createdAt, "cotacao", "Cotação aberta", d.numero);
@@ -134,28 +141,40 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
     add(d.dataAprovacao ?? d.aprovacoes.find((a) => a.status === "APROVADO")?.respondidoEm, "cotacao", "Cotação aprovada", d.numero);
   }
   for (const d of pcs) {
-    add(d.createdAt, "pedido", "Pedido emitido", d.numero);
+    const cancelado = d.status === "CANCELADO";
+    add(d.createdAt, "pedido", "Pedido emitido", d.numero, { semFase: cancelado, cancelado });
+    if (cancelado) add(canceladoEm(d.id, d.updatedAt), "pedido", "Pedido cancelado", d.numero, { semFase: true, cancelado: true });
   }
   for (const d of des) {
-    add(d.dtEmissao, "entrada", "Nota fiscal emitida", d.numeroNF ? `NF ${d.numeroNF}` : d.numero);
+    add(d.dtEmissao, "entrada", "Nota fiscal emitida", d.numeroNF ? `NF ${d.numeroNF}` : d.numero, { semFase: true });
     add(d.createdAt, "entrada", "Mercadoria recebida (entrada aberta)", d.numero);
     if (d.status === "CONCLUIDA") add(d.dataConferencia ?? null, "entrada", "Entrada concluída", d.numero);
   }
   marcos.sort((a, b) => a.em.localeCompare(b.em));
 
-  // Duração de cada etapa: do 1º marco dela até o 1º marco da etapa seguinte
-  // (a última vai até a conclusão, ou até agora se ainda está aberta).
+  // Etapas pela ordem REAL das datas: cada uma vai do seu 1º marco até o início
+  // da próxima (a última, até a conclusão ou agora). Assim nenhuma passa de 100%.
   const ORDEM: EtapaCompra[] = ["solicitacao", "cotacao", "pedido", "entrada"];
-  // A data de emissão da NF é do fornecedor e pode ser anterior ao pedido: não abre fase.
-  const inicioDe = (e: EtapaCompra) => marcos.find((m) => m.etapa === e && m.label !== "Nota fiscal emitida")?.em ?? null;
-  const fimProcesso = concluido ? marcos[marcos.length - 1]?.em ?? null : new Date().toISOString();
-  const fases = ORDEM.map((e, i) => {
-    const inicio = inicioDe(e);
-    if (!inicio) return null;
-    const proxima = ORDEM.slice(i + 1).map(inicioDe).find(Boolean) ?? null;
-    const fim = proxima ?? fimProcesso;
-    return { etapa: e, inicio, fim, emAndamento: !proxima && !concluido };
-  }).filter(Boolean);
+  const inicioDe = (e: EtapaCompra) => marcos.find((m) => m.etapa === e && !m.semFase)?.em ?? null;
+  const ultimoValido = [...marcos].reverse().find((m) => !m.semFase)?.em ?? null;
+  const fimProcesso = concluido ? ultimoValido : new Date().toISOString();
+  const inicios = ORDEM
+    .map((etapa) => ({ etapa, inicio: inicioDe(etapa) }))
+    .filter((x): x is { etapa: EtapaCompra; inicio: string } => !!x.inicio)
+    .sort((a, b) => a.inicio.localeCompare(b.inicio));
+  const fases = inicios.map((f, i) => {
+    const proxima = inicios[i + 1]?.inicio ?? null;
+    return { etapa: f.etapa, inicio: f.inicio, fim: proxima ?? fimProcesso, emAndamento: !proxima && !concluido };
+  });
+
+  // Marco de etapa posterior datado antes do início de uma etapa anterior.
+  for (const m of marcos) {
+    const idx = ORDEM.indexOf(m.etapa);
+    const anterior = ORDEM.slice(0, idx).map(inicioDe).filter((x): x is string => !!x);
+    if (m.label.endsWith("emitido") || m.label.endsWith("aberta") || m.label.endsWith("criada")) {
+      if (anterior.some((ini) => m.em < ini)) m.foraDeOrdem = true;
+    }
+  }
 
   return NextResponse.json({
     numeroCompra,

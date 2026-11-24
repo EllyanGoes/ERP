@@ -46,7 +46,7 @@ type Compra = {
   docAtual: Record<EtapaCompra, string | null>;
   documentos: Record<EtapaCompra, Doc[]>;
   historico: { id: string; etapa: EtapaCompra | null; numero: string; statusDe: string | null; statusPara: string; usuario: string | null; em: string }[];
-  marcos: { em: string; etapa: EtapaCompra; label: string; numero?: string }[];
+  marcos: { em: string; etapa: EtapaCompra; label: string; numero?: string; cancelado?: boolean; foraDeOrdem?: boolean }[];
   fases: { etapa: EtapaCompra; inicio: string; fim: string | null; emAndamento: boolean }[];
 };
 
@@ -142,10 +142,14 @@ function Timeline({ compra }: { compra: Compra }) {
 
   // Eventos: marcos do processo + mudanças de status registradas, em ordem.
   const eventos = [
-    ...marcos.map((m) => ({ em: m.em, etapa: m.etapa, titulo: m.label, detalhe: m.numero ?? null, principal: true })),
+    ...marcos.map((m) => ({
+      em: m.em, etapa: m.etapa, titulo: m.label, detalhe: m.numero ?? null, principal: true,
+      cancelado: !!m.cancelado, foraDeOrdem: !!m.foraDeOrdem,
+    })),
     ...historico.map((h) => ({
       em: h.em, etapa: h.etapa, titulo: `Status: ${h.statusDe ? `${h.statusDe} → ` : ""}${h.statusPara}`.replace(/_/g, " ").toLowerCase(),
       detalhe: [h.numero, h.usuario].filter(Boolean).join(" · ") || null, principal: false,
+      cancelado: false, foraDeOrdem: false,
     })),
   ].sort((a, b) => a.em.localeCompare(b.em));
 
@@ -211,6 +215,14 @@ function Timeline({ compra }: { compra: Compra }) {
                   {e.titulo}
                 </span>
                 {e.detalhe && <span className="text-xs text-muted-foreground">{e.detalhe}</span>}
+                {e.cancelado && (
+                  <span className="rounded px-1.5 py-px text-[10px] font-semibold bg-muted text-muted-foreground">cancelado · fora da contagem</span>
+                )}
+                {e.foraDeOrdem && (
+                  <span className="rounded px-1.5 py-px text-[10px] font-semibold bg-warning/15 text-warning" title="Documento criado antes da etapa anterior e vinculado depois a esta compra">
+                    criado antes da etapa anterior · vinculado depois
+                  </span>
+                )}
                 <span className="ml-auto text-xs text-muted-foreground tabular-nums">
                   {fmtData(e.em)}
                   {anterior && intervalo >= 1 / 24 && <span className="ml-2 text-foreground/70">+{fmtDias(intervalo)}</span>}
@@ -283,83 +295,112 @@ export default function CompraPage() {
 
   return (
     <div>
-      {/* Cabeçalho da compra */}
-      <div className="px-8 pt-6 pb-4 border-b border-border space-y-3">
-        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+      {/* Cabeçalho da compra: identificação · indicadores · abas */}
+      <div className="px-8 pt-5 border-b border-border bg-card">
+        <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Link href="/compras/acompanhamento" className="flex items-center gap-1 hover:text-foreground">
             <ArrowLeft className="w-3.5 h-3.5" /> Fluxo de Compras
           </Link>
-        </div>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold text-foreground font-mono">{compra.numeroCompra}</h1>
-              {/* Nome por extenso: a sigla da empresa ("CT") se confundia com a de Cotação. */}
-              <EmpresaTag empresaId={compra.empresaId} compact={false} />
+          <span>/</span>
+          <span className="font-mono text-foreground/80">{compra.numeroCompra}</span>
+        </nav>
+
+        <div className="flex items-start justify-between gap-4 mt-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-2xl font-semibold text-foreground font-mono tracking-tight">{compra.numeroCompra}</h1>
               {compra.concluido ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-0.5 text-xs font-semibold text-success">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Concluída
                 </span>
               ) : (
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                  style={{ color: COR_ETAPA[compra.etapa], borderColor: `${COR_ETAPA[compra.etapa]}55`, backgroundColor: `${COR_ETAPA[compra.etapa]}14` }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: COR_ETAPA[compra.etapa] }} />
                   {NOME_ETAPA[compra.etapa]}
                 </span>
               )}
               {compra.prioridade != null && compra.prioridade >= 4 && (
-                <span className="rounded px-2 py-0.5 text-xs font-semibold bg-danger/15 text-danger">
+                <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-danger/10 text-danger border border-danger/30">
                   {compra.prioridade >= 5 ? "Crítica" : "Urgente"}
                 </span>
               )}
-              {compra.setor && (
-                <span className="rounded px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground capitalize">{compra.setor.toLowerCase()}</span>
+            </div>
+            <p className="mt-1.5 text-lg font-medium text-foreground truncate" title={compra.assunto ?? undefined}>
+              {compra.assunto ?? "Compra sem itens"}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {/* Nome por extenso: a sigla da empresa ("CT") se confundia com a de Cotação. */}
+              <EmpresaTag empresaId={compra.empresaId} compact={false} />
+              {compra.setor && <span>Setor <span className="text-foreground/80 capitalize">{compra.setor.toLowerCase()}</span></span>}
+              {compra.outrasEmpresas.length > 0 && (
+                <span>
+                  Também existe {compra.numeroCompra} em{" "}
+                  {compra.outrasEmpresas.map((e) => (
+                    <Link key={e} href={`${pathname}?empresa=${e}`} className="ml-1 hover:underline"><EmpresaTag empresaId={e} compact={false} /></Link>
+                  ))}
+                </span>
               )}
             </div>
-            {compra.assunto && <p className="text-base text-foreground">{compra.assunto}</p>}
-            {compra.outrasEmpresas.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Também existe {compra.numeroCompra} em:{" "}
-                {compra.outrasEmpresas.map((e) => (
-                  <Link key={e} href={`${pathname}?empresa=${e}`} className="mr-2 hover:underline"><EmpresaTag empresaId={e} compact={false} /></Link>
-                ))}
-              </p>
-            )}
           </div>
-
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-            {compra.fornecedor && (
-              <div><p className="text-[11px] text-muted-foreground">Fornecedor</p><p className="font-medium text-foreground">{compra.fornecedor}</p></div>
-            )}
-            {compra.valor != null && (
-              <div><p className="text-[11px] text-muted-foreground">Valor</p><p className="font-semibold text-foreground">{formatBRL(compra.valor)}</p></div>
-            )}
-            {(compra.entregaPrevista || compra.dataNecessidade) && (
-              <div>
-                <p className="text-[11px] text-muted-foreground">{compra.entregaPrevista ? "Entrega prevista" : "Necessário em"}</p>
-                <p className="flex items-center gap-1 text-foreground">
-                  <CalendarClock className="w-3.5 h-3.5 text-muted-foreground" />
-                  {formatDate(compra.entregaPrevista ?? compra.dataNecessidade!)}
-                </p>
-              </div>
-            )}
-            {compra.solicitante && (
-              <div className="flex items-center gap-2">
-                <AvatarUsuario nome={compra.solicitante} />
-                <div><p className="text-[11px] text-muted-foreground">Solicitante</p><p className="text-foreground">{compra.solicitante}</p></div>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={load}
-              title="Atualizar"
-              className="flex items-center justify-center h-8 w-8 border border-border rounded-lg text-muted-foreground hover:bg-muted"
-            >
-              <RefreshCw className={cn("w-4 h-4", (loading || refreshing) && "animate-spin")} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={load}
+            title="Atualizar"
+            className="shrink-0 flex items-center justify-center h-8 w-8 border border-border rounded-lg text-muted-foreground hover:bg-muted"
+          >
+            <RefreshCw className={cn("w-4 h-4", (loading || refreshing) && "animate-spin")} />
+          </button>
         </div>
 
+        {/* Indicadores: sempre os mesmos 5, "—" quando não há */}
+        {(() => {
+          const prazo = compra.entregaPrevista ?? compra.dataNecessidade;
+          const vencido = !!prazo && !compra.concluido && new Date(prazo) < new Date(new Date().toDateString());
+          const inicio = compra.fases[0]?.inicio ?? compra.marcos[0]?.em ?? null;
+          const fim = compra.concluido ? compra.fases[compra.fases.length - 1]?.fim ?? null : new Date().toISOString();
+          const dias = inicio && fim ? diasEntre(inicio, fim) : null;
+          const quadros: { rotulo: string; valor: React.ReactNode }[] = [
+            {
+              rotulo: "Solicitante",
+              valor: compra.solicitante ? (
+                <span className="flex items-center gap-2 min-w-0">
+                  <AvatarUsuario nome={compra.solicitante} size="sm" />
+                  <span className="truncate" title={compra.solicitante}>{compra.solicitante}</span>
+                </span>
+              ) : null,
+            },
+            { rotulo: "Fornecedor", valor: compra.fornecedor ? <span className="truncate block" title={compra.fornecedor}>{compra.fornecedor}</span> : null },
+            { rotulo: "Valor", valor: compra.valor != null ? <span className="font-semibold tabular-nums">{formatBRL(compra.valor)}</span> : null },
+            {
+              rotulo: compra.entregaPrevista ? "Entrega prevista" : "Necessário em",
+              valor: prazo ? (
+                <span className={cn("flex items-center gap-1.5", vencido && "text-danger font-semibold")}>
+                  <CalendarClock className="w-3.5 h-3.5" />{formatDate(prazo)}{vencido && <span className="text-[11px] font-medium">· vencido</span>}
+                </span>
+              ) : null,
+            },
+            {
+              rotulo: compra.concluido ? "Tempo total" : "Em andamento há",
+              valor: dias != null ? <span className="font-semibold tabular-nums">{fmtDias(dias)}</span> : null,
+            },
+          ];
+          return (
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-5 rounded-xl border border-border bg-muted/30 divide-y md:divide-y-0 md:divide-x divide-border">
+              {quadros.map((q) => (
+                <div key={q.rotulo} className="px-4 py-2.5 min-w-0">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{q.rotulo}</p>
+                  <div className="mt-0.5 text-sm text-foreground min-w-0">{q.valor ?? <span className="text-muted-foreground">—</span>}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* Abas: uma por etapa, na ordem do processo */}
-        <nav className="flex flex-wrap items-center gap-1 -mb-4 pt-1">
+        <nav className="flex flex-wrap items-center gap-1 mt-3">
           {ETAPAS.map((e, i) => {
             const docs = compra.documentos[e.etapa];
             const ativa = aba === e.etapa;
