@@ -106,7 +106,7 @@ function ProximoPasso({ etapa, compra, onIr }: { etapa: EtapaCompra; compra: Com
   }
 
   return (
-    <div className="mx-8 my-10 flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-muted/30 py-14 text-center">
+    <div className="mx-8 my-10 flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-card py-14 text-center">
       <p className="text-sm text-muted-foreground max-w-md">{texto}</p>
       {acao?.href && (
         <Link href={acao.href} className="inline-flex items-center h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90">
@@ -150,7 +150,7 @@ function Timeline({ compra }: { compra: Compra }) {
   ].sort((a, b) => a.em.localeCompare(b.em));
 
   return (
-    <div className="mx-8 my-6 space-y-6 max-w-5xl">
+    <div className="mx-8 my-6 space-y-6 max-w-5xl rounded-xl border border-border bg-card shadow-sm p-6">
       {/* Resumo */}
       <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
         <div>
@@ -397,6 +397,8 @@ export default function CompraPage() {
         </nav>
       </div>
 
+      {/* Conteúdo das abas sobre fundo levemente cinza: os cartões brancos se destacam. */}
+      <div className="bg-muted/50 dark:bg-background min-h-[calc(100vh-240px)] pb-8">
       {/* Mais de um documento na etapa (ex.: PC-0430 e PC-0430/2): seletor */}
       {docsDaAba.length > 1 && (
         <div className="flex flex-wrap items-center gap-1.5 px-8 pt-4">
@@ -426,6 +428,7 @@ export default function CompraPage() {
       ) : (
         <ProximoPasso etapa={aba} compra={compra} onIr={(a) => irPara(a)} />
       )}
+      </div>
     </div>
   );
 }

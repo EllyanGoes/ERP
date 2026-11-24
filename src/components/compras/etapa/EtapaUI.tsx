@@ -38,8 +38,8 @@ export function EtapaSecao({
   className?: string;
 }) {
   return (
-    <section className={cn("bg-card rounded-xl border border-border overflow-hidden", className)}>
-      <header className="flex items-center gap-2 px-5 h-11 border-b border-border">
+    <section className={cn("bg-card rounded-xl border border-border shadow-sm overflow-hidden", className)}>
+      <header className="flex items-center gap-2 px-5 h-11 border-b border-border bg-muted/40">
         {icone && <span className="text-muted-foreground [&_svg]:w-4 [&_svg]:h-4">{icone}</span>}
         <h2 className="text-sm font-semibold text-foreground">{titulo}</h2>
         {acoes && <div className="ml-auto flex items-center gap-2">{acoes}</div>}
@@ -78,7 +78,7 @@ export function EtapaCampo({ rotulo, children, span, className }: { rotulo: Reac
 /** Classes da tabela padrão (itens, títulos, propostas…). */
 export const tabela = {
   table: "w-full text-sm",
-  thead: "bg-muted/50 border-b border-border",
+  thead: "bg-muted/60 border-b border-border",
   th: "px-4 py-2.5 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap",
   thNum: "px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap",
   tr: "border-b border-border last:border-0",
