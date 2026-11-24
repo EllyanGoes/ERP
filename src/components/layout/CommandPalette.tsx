@@ -28,7 +28,7 @@ const RECORD_META: Record<SearchResult["tipo"], { label: string; icon: LucideIco
   "cliente":       { label: "Cliente",          icon: Users,         section: "Faturamento"        },
   "fornecedor":    { label: "Fornecedor",       icon: Truck,         section: "Compras"          },
   "pedido-venda":  { label: "Pedido de Venda",  icon: ShoppingCart,  section: "Faturamento"        },
-  "pedido-compra": { label: "Pedido de Compra", icon: ClipboardList, section: "Fluxo de Compras" },
+  "pedido-compra": { label: "Pedido de Compra", icon: ClipboardList, section: "Processos" },
   "projeto":       { label: "Projeto",          icon: FolderKanban,  section: "Geral"            },
 };
 

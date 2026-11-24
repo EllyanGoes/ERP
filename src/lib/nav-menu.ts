@@ -241,11 +241,11 @@ export const mainModules: Module[] = [
         ],
       },
       {
-        kind: "Fluxo de Compras",
+        kind: "Processos",
         items: [
           // Compra é um processo só (página /compras/compra/PC-xxxx com abas por etapa):
           // listas de Pedidos e Doc. Entrada saíram do menu e seguem no ⌘K (route-registry).
-          { href: "/compras/acompanhamento",     label: "Kanban de Compras",     icon: Kanban },
+          { href: "/compras/acompanhamento",     label: "Fluxo de Compras",      icon: Kanban },
         ],
       },
       {

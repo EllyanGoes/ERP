@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, Loader2, MoreHorizontal, Plus, RefreshCw, Search, X } from "lucide-react";
-import StatusBadge from "@/components/shared/StatusBadge";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import SelectMenu from "@/components/shared/SelectMenu";
 import CreateDrawer from "@/components/shared/CreateDrawer";
@@ -102,52 +101,24 @@ function normalizar(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-// ── Trilha SC · CT · PC · DE do processo ───────────────────────────────────────
-const SIGLAS: { etapa: Etapa; sigla: string; nome: string }[] = [
-  { etapa: "solicitacao", sigla: "SC", nome: "Solicitação" },
-  { etapa: "cotacao",     sigla: "CT", nome: "Cotação" },
-  { etapa: "pedido",      sigla: "PC", nome: "Pedido de Compras" },
-  { etapa: "entrada",     sigla: "DE", nome: "Documento de Entrada" },
-];
+// ── Cartão ─────────────────────────────────────────────────────────────────────
+// Enxuto de propósito: a coluna já diz a etapa e o status, e os documentos
+// SC·CT·PC·DE ficam na página da compra. No cartão: o que se compra, de quem,
+// quanto, até quando e quem pediu.
 
-function TrilhaProcesso({ c, onAbrir }: { c: Cartao; onAbrir: (d: DocumentoRef) => void }) {
-  const indiceAtual = SIGLAS.findIndex((s) => s.etapa === c.etapa);
-  return (
-    <div className="flex items-center gap-1 mt-2">
-      {SIGLAS.map((s, i) => {
-        const docs = c.documentos.filter((d) => d.etapa === s.etapa);
-        const atual = i === indiceAtual && !c.concluido;
-        const passou = docs.length > 0 && !atual;
-        const estilo = cn(
-          "h-4 px-1.5 rounded text-[10px] font-medium leading-4 whitespace-nowrap",
-          atual && "bg-primary text-primary-foreground",
-          passou && "bg-success/15 text-success",
-          !atual && !passou && "bg-muted text-muted-foreground/50",
-        );
-        if (docs.length === 0) {
-          return <span key={s.etapa} className={estilo} title={`${s.nome}: sem documento`}>{s.sigla}</span>;
-        }
-        const extras = docs.length - 1;
-        return (
-          <button
-            key={s.etapa}
-            type="button"
-            title={`${s.nome}: ${docs.map((d) => d.numero).join(", ")}`}
-            onClick={(e) => { e.stopPropagation(); onAbrir({ etapa: docs[0].etapa, id: docs[0].id }); }}
-            className={cn(estilo, "hover:opacity-80")}
-          >
-            {s.sigla}{extras > 0 ? ` +${extras}` : ""}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+// Status que fogem do normal da coluna e merecem aparecer no cartão.
+const STATUS_DE_ALERTA: Record<string, string> = {
+  RASCUNHO: "Rascunho",
+  DIVERGENCIA: "Divergência",
+  PARCIALMENTE_ATENDIDA: "Parcial",
+  EM_TRANSITO: "Em trânsito",
+  REJEITADA: "Reprovada",
+};
 
-// ── Cartão (mesmo desenho do cartão de Projetos) ──────────────────────────────
-function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
+function CartaoProcesso({ c, mostrarEmpresa, onAbrir, arrastando, onArrastar, onSoltar }: {
   c: Cartao;
-  onAbrir: (d: DocumentoRef) => void;
+  mostrarEmpresa: boolean;
+  onAbrir: () => void;
   arrastando: boolean;
   onArrastar: (id: string) => void;
   onSoltar: () => void;
@@ -156,6 +127,9 @@ function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
   const arrastavel = !c.concluido;
   // Na SC o "título" da API é o solicitante; nas demais etapas é o fornecedor/cotação.
   const contraparte = c.etapa === "solicitacao" || c.titulo === c.assunto ? null : c.titulo;
+  const alerta = !c.concluido ? STATUS_DE_ALERTA[c.status] : undefined;
+  const urgente = c.prioridade != null && c.prioridade >= 4;
+  const tempo = `Nesta etapa há ${dias} d${c.prazo ? ` · ${c.prazoLabel ?? "Prazo"} ${formatDate(c.prazo)}` : ""}`;
 
   return (
     <div
@@ -168,26 +142,27 @@ function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
         onArrastar(c.id);
       }}
       onDragEnd={onSoltar}
-      onClick={() => onAbrir(c.atual)}
-      onKeyDown={(e) => { if (e.key === "Enter") onAbrir(c.atual); }}
+      onClick={onAbrir}
+      onKeyDown={(e) => { if (e.key === "Enter") onAbrir(); }}
       className={cn(
-        "relative bg-card rounded-lg border px-3 py-2 shadow-sm cursor-pointer transition-colors hover:border-blue-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        c.atrasado ? "border-danger/50" : "border-border",
-        c.concluido && "opacity-70",
+        "bg-card rounded-lg border border-border px-3 py-2.5 shadow-sm cursor-pointer transition-colors hover:border-blue-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         arrastando && "opacity-40",
       )}
     >
-      {(c.setor || (c.prioridade != null && c.prioridade >= 4)) && (
+      {(urgente || c.setor || alerta) && (
         <div className="flex flex-wrap gap-1 mb-1.5">
-          {c.prioridade != null && c.prioridade >= 4 && (
-            <span className="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium text-white bg-red-500">
-              {c.prioridade >= 5 ? "Crítica" : "Urgente"}
+          {urgente && (
+            <span className="rounded px-1.5 py-px text-[10px] font-semibold bg-danger/15 text-danger">
+              {c.prioridade! >= 5 ? "Crítica" : "Urgente"}
             </span>
           )}
           {c.setor && (
-            <span className="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium text-white bg-blue-600" title="Setor">
-              {c.setor}
+            <span className="rounded px-1.5 py-px text-[10px] font-medium bg-muted text-muted-foreground capitalize">
+              {c.setor.toLowerCase()}
             </span>
+          )}
+          {alerta && (
+            <span className="rounded px-1.5 py-px text-[10px] font-semibold bg-warning/15 text-warning">{alerta}</span>
           )}
         </div>
       )}
@@ -195,51 +170,31 @@ function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
       <div className="flex items-start gap-1.5">
         {c.concluido && <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-success" />}
         <p
-          className={cn("text-sm text-foreground leading-snug flex-1 line-clamp-2", c.concluido && "line-through text-muted-foreground")}
+          className={cn("text-sm leading-snug flex-1 line-clamp-2", c.concluido ? "text-muted-foreground" : "text-foreground")}
           title={c.assunto}
         >
           {c.assunto}
         </p>
       </div>
+      {contraparte && <p className="mt-0.5 text-xs text-muted-foreground truncate" title={contraparte}>{contraparte}</p>}
 
-      <div className="flex items-center gap-1.5 mt-1 min-w-0 text-[11px] text-muted-foreground">
-        <span className="font-medium whitespace-nowrap">{c.numero}</span>
-        <EmpresaTag empresaId={c.empresaId} />
-        {contraparte && <span className="truncate" title={contraparte}>· {contraparte}</span>}
+      <div className="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground">
+        <span className="font-mono">{c.numero}</span>
+        {mostrarEmpresa && <EmpresaTag empresaId={c.empresaId} />}
+        {c.concluido ? (
+          c.prazo && <span title={tempo}>{formatDate(c.prazo)}</span>
+        ) : c.atrasado && c.prazo ? (
+          <span className="flex items-center gap-0.5 font-semibold text-danger" title={tempo}>
+            <Clock className="w-3 h-3" />{formatDate(c.prazo)}
+          </span>
+        ) : (
+          <span className={cn(dias >= DIAS_ALERTA && "text-warning")} title={tempo}>{dias === 0 ? "hoje" : `${dias} d`}</span>
+        )}
+        <span className="ml-auto flex items-center gap-2">
+          {c.valor != null && c.valor > 0 && <span className="font-semibold text-foreground">{formatBRL(c.valor)}</span>}
+          {c.solicitante && <AvatarUsuario nome={c.solicitante} size="sm" title={`Solicitante: ${c.solicitante}`} />}
+        </span>
       </div>
-
-      <div className="flex items-center gap-2 mt-2 flex-wrap">
-        {!c.concluido && <StatusBadge status={c.status} />}
-        {c.prazo && (
-          <span
-            title={c.prazoLabel ?? undefined}
-            className={cn(
-              "inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md whitespace-nowrap",
-              c.concluido ? "bg-success/15 text-success" : c.atrasado ? "bg-danger/15 text-danger font-semibold" : "text-muted-foreground",
-            )}
-          >
-            <Clock className="w-3 h-3" /> {formatDate(c.prazo)}
-          </span>
-        )}
-        {!c.concluido && (
-          <span
-            title={`Nesta etapa desde ${formatDate(c.desde)}`}
-            className={cn("text-[11px] whitespace-nowrap", dias >= DIAS_ALERTA ? "text-warning font-semibold" : "text-muted-foreground")}
-          >
-            {dias === 0 ? "hoje" : `${dias} d`}
-          </span>
-        )}
-        {c.valor != null && c.valor > 0 && (
-          <span className="text-[11px] font-semibold text-foreground whitespace-nowrap">{formatBRL(c.valor)}</span>
-        )}
-        {c.solicitante && (
-          <span className="ml-auto">
-            <AvatarUsuario nome={c.solicitante} size="sm" title={`Solicitante: ${c.solicitante}`} />
-          </span>
-        )}
-      </div>
-
-      <TrilhaProcesso c={c} onAbrir={onAbrir} />
     </div>
   );
 }
@@ -247,7 +202,6 @@ function CartaoProcesso({ c, onAbrir, arrastando, onArrastar, onSoltar }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function AcompanhamentoComprasPage() {
   const [busca, setBusca] = useSessionState<string>("compras:acompanhamento:busca", "");
-  const [soAtrasados, setSoAtrasados] = usePersistedState<boolean>("compras:acompanhamento:so-atrasados", false);
   const [concluidosDias, setConcluidosDias] = usePersistedState<string>("compras:acompanhamento:concluidos-dias", "7");
 
   // Filtro de status por coluna (clique nos contadores do cabeçalho).
@@ -285,7 +239,6 @@ export default function AcompanhamentoComprasPage() {
   const porColuna = useMemo(() => {
     const mapa: Record<ColunaCompra, Cartao[]> = { montagem: [], aprovacao: [], entrega: [], conferencia: [], concluido: [] };
     for (const c of data?.cartoes ?? []) {
-      if (soAtrasados && !c.atrasado) continue;
       if (termo) {
         const alvo = normalizar(
           [c.numero, c.titulo, c.resumo, c.busca, ...c.documentos.map((d) => d.numero)].filter(Boolean).join(" "),
@@ -303,10 +256,11 @@ export default function AcompanhamentoComprasPage() {
     }
     mapa.concluido.sort((a, b) => (b.prazo ?? "").localeCompare(a.prazo ?? ""));
     return mapa;
-  }, [data, soAtrasados, termo]);
+  }, [data, termo]);
 
   const colunas = concluidosDias === "0" ? COLUNAS.filter((c) => c.coluna !== "concluido") : COLUNAS;
-  const totalAtrasados = (data?.cartoes ?? []).filter((c) => c.atrasado).length;
+  // Sigla da empresa no cartão só quando o quadro mistura empresas (modo grupo).
+  const variasEmpresas = new Set((data?.cartoes ?? []).map((c) => c.empresaId)).size > 1;
 
   // Cartão abre a página única da compra, na aba do documento clicado.
   function abrirCompra(c: Cartao, d: DocumentoRef) {
@@ -333,7 +287,7 @@ export default function AcompanhamentoComprasPage() {
   return (
     <div className="p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold text-foreground">Kanban de Compras</h1>
+        <h1 className="text-lg font-semibold text-foreground">Fluxo de Compras</h1>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex">
             <Button onClick={() => setNovaAberta(true)} className="h-9 rounded-r-none">
@@ -376,20 +330,6 @@ export default function AcompanhamentoComprasPage() {
               </button>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setSoAtrasados((v) => !v)}
-            className={cn(
-              "flex items-center gap-1.5 h-9 px-3 rounded-lg border text-sm font-medium transition-colors",
-              soAtrasados
-                ? "border-red-300 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-300"
-                : "border-border text-muted-foreground hover:bg-muted",
-            )}
-            title="Mostrar só os documentos com prazo vencido"
-          >
-            <AlertTriangle className="w-4 h-4" />
-            Atrasados{totalAtrasados > 0 ? ` (${totalAtrasados})` : ""}
-          </button>
           <SelectMenu
             value={concluidosDias}
             options={OPCOES_CONCLUIDOS}
@@ -462,7 +402,7 @@ export default function AcompanhamentoComprasPage() {
                 }}
                 onDrop={(e) => { e.preventDefault(); soltarNaColuna(col.coluna); }}
                 className={cn(
-                  "w-[272px] shrink-0 bg-muted/60 rounded-xl border flex flex-col max-h-full transition-colors",
+                  "flex-1 min-w-[272px] max-w-[380px] bg-muted/60 rounded-xl border flex flex-col max-h-full transition-colors",
                   colunaAlvo === col.coluna ? "border-primary ring-1 ring-primary" : "border-border",
                 )}
               >
@@ -477,8 +417,8 @@ export default function AcompanhamentoComprasPage() {
                   {ehConcluido && <Check className="w-3.5 h-3.5 text-success" />}
                   <span className="text-xs text-muted-foreground">{cartoes.length}</span>
                   {atrasados > 0 && (
-                    <span className="text-[11px] font-semibold text-danger whitespace-nowrap" title="Com prazo vencido">
-                      {atrasados} atras.
+                    <span className="flex items-center gap-1 text-[11px] text-danger whitespace-nowrap" title={`${atrasados} com prazo vencido`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-danger" />{atrasados}
                     </span>
                   )}
                   <button
@@ -536,14 +476,15 @@ export default function AcompanhamentoComprasPage() {
 
                 {/* Cartões */}
                 <div className="px-2 pb-2 space-y-2 overflow-y-auto flex-1 min-h-[6px]">
-                  {cartoes.length === 0 && (termo || soAtrasados || statusAtivo) ? (
+                  {cartoes.length === 0 && (termo || statusAtivo) ? (
                     <p className="text-xs text-muted-foreground/70 text-center py-4 px-3">Nada encontrado com os filtros atuais</p>
                   ) : (
                     cartoes.map((c) => (
                       <CartaoProcesso
                         key={c.id}
                         c={c}
-                        onAbrir={(d) => abrirCompra(c, d)}
+                        mostrarEmpresa={variasEmpresas}
+                        onAbrir={() => abrirCompra(c, c.atual)}
                         arrastando={arrastadoId === c.id}
                         onArrastar={setArrastadoId}
                         onSoltar={encerrarArraste}

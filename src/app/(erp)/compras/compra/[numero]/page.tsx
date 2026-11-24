@@ -194,7 +194,7 @@ export default function CompraPage() {
       <div className="flex flex-col items-center justify-center py-24 gap-3">
         <AlertTriangle className="w-8 h-8 text-red-500" />
         <p className="text-sm text-muted-foreground">{erro}</p>
-        <Link href="/compras/acompanhamento" className="text-sm font-medium text-primary hover:underline">Voltar ao Kanban de Compras</Link>
+        <Link href="/compras/acompanhamento" className="text-sm font-medium text-primary hover:underline">Voltar ao Fluxo de Compras</Link>
       </div>
     );
   }
@@ -216,7 +216,7 @@ export default function CompraPage() {
       <div className="px-8 pt-6 pb-4 border-b border-border space-y-3">
         <div className="flex items-center gap-1 text-sm text-muted-foreground">
           <Link href="/compras/acompanhamento" className="flex items-center gap-1 hover:text-foreground">
-            <ArrowLeft className="w-3.5 h-3.5" /> Kanban de Compras
+            <ArrowLeft className="w-3.5 h-3.5" /> Fluxo de Compras
           </Link>
         </div>
         <div className="flex flex-wrap items-start justify-between gap-4">

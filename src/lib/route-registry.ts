@@ -129,11 +129,11 @@ const ROTAS_MANUAIS: RouteEntry[] = [
   { href: "/suprimentos/relatorios/caracterizacao", label: "Caracterização",          group: "Almoxarifado",   section: "Relatórios",       icon: FileBarChart2,  keywords: "caracterização produtos laudo" },
 
   { href: "/aprovacoes",                           label: "Minhas Aprovações",       group: "Compras",        section: "Aprovações",       icon: ThumbsUp },
-  { href: "/compras/acompanhamento",               label: "Kanban de Compras", group: "Compras",      section: "Fluxo de Compras", icon: Kanban,         keywords: "acompanhamento quadro kanban fluxo follow-up SC CT PC DE andamento" },
-  { href: "/compras/necessidades",                 label: "Solicitação de Compras",  group: "Compras",        section: "Fluxo de Compras", icon: ClipboardList,  keywords: "SC necessidade" },
-  { href: "/suprimentos/cotacoes",                 label: "Cotação de Compras",      group: "Compras",        section: "Fluxo de Compras", icon: FileSearch,     keywords: "CT cotação" },
-  { href: "/suprimentos/pedidos-compra",           label: "Pedido de Compras",       group: "Compras",        section: "Fluxo de Compras", icon: FilePlus,       keywords: "PC pedido" },
-  { href: "/suprimentos/conferencias",             label: "Doc. de Entrada",         group: "Compras",        section: "Fluxo de Compras", icon: PackageCheck,   keywords: "DE conferência entrada NF nota fiscal" },
+  { href: "/compras/acompanhamento",               label: "Fluxo de Compras",  group: "Compras",      section: "Processos", icon: Kanban,         keywords: "acompanhamento quadro kanban fluxo processo compra follow-up SC CT PC DE andamento" },
+  { href: "/compras/necessidades",                 label: "Solicitação de Compras",  group: "Compras",        section: "Processos",         icon: ClipboardList,  keywords: "SC necessidade" },
+  { href: "/suprimentos/cotacoes",                 label: "Cotação de Compras",      group: "Compras",        section: "Processos",         icon: FileSearch,     keywords: "CT cotação" },
+  { href: "/suprimentos/pedidos-compra",           label: "Pedido de Compras",       group: "Compras",        section: "Processos",         icon: FilePlus,       keywords: "PC pedido" },
+  { href: "/suprimentos/conferencias",             label: "Doc. de Entrada",         group: "Compras",        section: "Processos",         icon: PackageCheck,   keywords: "DE conferência entrada NF nota fiscal" },
 
   { href: "/compras/relatorios/spend",             label: "SPEND",                   group: "Compras",        section: "Relatórios Compras", icon: BarChart3,   keywords: "spend gastos fornecedor" },
   { href: "/compras/relatorios/sla",               label: "SLA",                     group: "Compras",        section: "Relatórios Compras", icon: Clock,       keywords: "sla prazo nível serviço" },
