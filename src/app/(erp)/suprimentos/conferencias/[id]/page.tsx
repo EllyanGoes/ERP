@@ -8,7 +8,7 @@ import EscClose from "@/components/shared/EscClose";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EtapaLayout, EtapaSecao, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Autoria } from "@/components/shared/Autoria";
 import { formatDate, formatBRL, decimalToNumber, cn } from "@/lib/utils";
@@ -25,6 +25,9 @@ import DuplicatasTab, { type TituloResumo } from "@/components/suprimentos/Dupli
 import ModoToggle from "@/components/suprimentos/ModoToggle";
 import { previewDuplicatasDE, type CondicaoFull, type ParcelaCustomRow } from "@/lib/duplicatas-preview";
 import { useDocumentoId } from "@/lib/compra-embutida";
+
+/** Rótulo de campo no padrão das telas de etapa da compra (EtapaCampo). */
+const ROTULO = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -1264,7 +1267,7 @@ export default function DocumentoEntradaDetailPage() {
         }
       />
 
-      <div className="px-6 pb-6 space-y-4">
+      <EtapaLayout>
         {(actionError || validationError) && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {validationError || actionError}
@@ -1281,15 +1284,12 @@ export default function DocumentoEntradaDetailPage() {
         )}
 
         {/* ── Seção 1: Dados do Documento ───────────────────────────────────── */}
-        <Card size="sm">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-base">Dados do Documento</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2.5">
+        <EtapaSecao titulo="Dados da nota">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
 
             {/* Tipo de Documento */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Tipo de Documento <span className="text-red-500">*</span></Label>
+              <Label className={ROTULO}>Tipo de Documento <span className="text-red-500">*</span></Label>
               {nfEditable ? (
                 <select
                   value={tipoNota}
@@ -1310,7 +1310,7 @@ export default function DocumentoEntradaDetailPage() {
 
             {/* Número NF */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
+              <Label className={cn("text-[11px] font-medium uppercase tracking-wide", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Número NF{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
               {nfEditable ? (
@@ -1328,7 +1328,7 @@ export default function DocumentoEntradaDetailPage() {
 
             {/* Série */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
+              <Label className={cn("text-[11px] font-medium uppercase tracking-wide", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Série{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
               {nfEditable ? (
@@ -1346,7 +1346,7 @@ export default function DocumentoEntradaDetailPage() {
 
             {/* DT Emissão */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">DT Emissão <span className="text-red-500">*</span></Label>
+              <Label className={ROTULO}>DT Emissão <span className="text-red-500">*</span></Label>
               {nfEditable ? (
                 <DatePicker
                   value={dtEmissao}
@@ -1363,7 +1363,7 @@ export default function DocumentoEntradaDetailPage() {
 
             {/* Espécie de Documento */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
+              <Label className={cn("text-[11px] font-medium uppercase tracking-wide", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
                 Espécie de Documento{isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
               {nfEditable ? (
@@ -1381,7 +1381,7 @@ export default function DocumentoEntradaDetailPage() {
 
             {/* UF Origem */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">UF Origem</Label>
+              <Label className={ROTULO}>UF Origem</Label>
               {nfEditable ? (
                 <ComboboxWithCreate
                   value={ufOrigem}
@@ -1397,20 +1397,20 @@ export default function DocumentoEntradaDetailPage() {
 
             {/* Loja */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Loja</Label>
+              <Label className={ROTULO}>Loja</Label>
               <Input value="01" readOnly className="bg-muted" />
             </div>
 
             {/* Nº Documento (read-only) */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Nº interno da entrada</Label>
+              <Label className={ROTULO}>Nº interno da entrada</Label>
               <Input value={conferencia.numero} readOnly className="bg-muted font-mono text-xs text-muted-foreground" />
             </div>
 
             {/* Data Conferência (read-only) */}
             {conferencia.dataConferencia && (
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Data Conferência</Label>
+                <Label className={ROTULO}>Data Conferência</Label>
                 <Input
                   value={formatDate(conferencia.dataConferencia)}
                   readOnly
@@ -1418,15 +1418,14 @@ export default function DocumentoEntradaDetailPage() {
                 />
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </EtapaSecao>
 
         {/* ── Seção 2: Fornecedor ───────────────────────────────────────────── */}
-        <Card size="sm">
-          <CardHeader className="pb-1">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Fornecedor</CardTitle>
-              {conferencia.pedido && (
+        <EtapaSecao
+          titulo="Fornecedor"
+          acoes={conferencia.pedido && (
+            <ForaDaCompra>
                 <Link
                   href={`/suprimentos/pedidos-compra/${conferencia.pedido.id}`}
                   className="text-xs text-info hover:underline"
@@ -1436,13 +1435,12 @@ export default function DocumentoEntradaDetailPage() {
                     ? <>Ver pedido <span className="font-mono">{conferencia.pedido.numero}</span></>
                     : "Ver pedido"}
                 </Link>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-x-4 gap-y-2.5">
+            </ForaDaCompra>
+          )}
+        >
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-x-6 gap-y-4">
               <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs text-muted-foreground">
+                <Label className={ROTULO}>
                   Fornecedor <span className="text-red-500">*</span>
                 </Label>
                 {nfEditable ? (
@@ -1464,7 +1462,7 @@ export default function DocumentoEntradaDetailPage() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">CNPJ</Label>
+                <Label className={ROTULO}>CNPJ</Label>
                 <Input
                   value={
                     nfEditable
@@ -1477,27 +1475,35 @@ export default function DocumentoEntradaDetailPage() {
               </div>
               {fornInfo?.contato && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Contato</Label>
+                  <Label className={ROTULO}>Contato</Label>
                   <Input value={fornInfo.contato} readOnly className="bg-muted" />
                 </div>
               )}
               {fornInfo?.email && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">E-mail</Label>
+                  <Label className={ROTULO}>E-mail</Label>
                   <Input value={fornInfo.email} readOnly className="bg-muted" />
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+        </EtapaSecao>
 
         {/* ── Itens ────────────────────────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
-              <CardTitle className="text-base">Itens</CardTitle>
-
-              <div className="ml-auto flex items-center gap-x-4 gap-y-2 flex-wrap">
+        <EtapaSecao
+          titulo="Itens"
+          semPadding
+          acoes={itemsEditable && (
+            <button
+              type="button"
+              onClick={() => { setComponenteDe(null); setShowAddRow((v) => !v); }}
+              className="flex items-center gap-1.5 text-xs font-medium text-info hover:text-info transition-colors"
+            >
+              <span className="text-base leading-none">+</span> Adicionar item
+            </button>
+          )}
+        >
+            <div className="px-5 py-3 border-b border-border">
+              <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
                 {/* TES — modo Global/Por Item */}
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">TES:</span>
@@ -1590,19 +1596,8 @@ export default function DocumentoEntradaDetailPage() {
                     </div>
                   )}
                 </div>
-
-                {itemsEditable && (
-                  <button
-                    type="button"
-                    onClick={() => { setComponenteDe(null); setShowAddRow((v) => !v); }}
-                    className="flex items-center gap-1.5 text-xs font-medium text-info hover:text-info transition-colors"
-                  >
-                    <span className="text-base leading-none">+</span> Adicionar item
-                  </button>
-                )}
               </div>
             </div>
-          </CardHeader>
           {/* ── Busca de produto para adicionar ──────────────────────────── */}
           {itemsEditable && showAddRow && (() => {
             const q = addItemSearch.toLowerCase().trim();
@@ -1649,36 +1644,35 @@ export default function DocumentoEntradaDetailPage() {
               </div>
             );
           })()}
-          <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted border-b border-border">
+              <table className={tabela.table}>
+                <thead className={tabela.thead}>
                   <tr>
-                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">#NF</th>
-                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Produto</th>
-                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Descrição</th>
+                    <th className="text-left px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">#NF</th>
+                    <th className="text-left px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Produto</th>
+                    <th className="text-left px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Descrição</th>
                     {modoTes === "POR_ITEM" && (
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="TES: preset de comportamento que preenche as flags da linha. Não decide destino.">TES</th>
+                      <th className="text-left px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap" title="TES: preset de comportamento que preenche as flags da linha. Não decide destino.">TES</th>
                     )}
                     {modoLocalEstoque === "POR_ITEM" && (
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">Local Estoque</th>
+                      <th className="text-left px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Local Estoque</th>
                     )}
                     {modoCentro === "POR_ITEM" && (
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
+                      <th className="text-left px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap" title="Centro herdado do pedido (default editável). Não classifica destino de custo.">Centro de custo</th>
                     )}
                     {modoNatureza === "POR_ITEM" && (
-                      <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs" title="Natureza financeira da linha (classificação gerencial do título — rateio automático). Default: sugestão do TES.">Natureza</th>
+                      <th className="text-left px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap" title="Natureza financeira da linha (classificação gerencial do título — rateio automático). Default: sugestão do TES.">Natureza</th>
                     )}
-                    <th className="text-center px-2 py-2 font-medium text-muted-foreground text-xs" title="Capitaliza (imobilizado): marca a linha como capex e exige o bem. Herança/orçamento na entrada.">Capex</th>
-                    <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs">U.M.</th>
-                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Qtd. Pedida</th>
-                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Qtd. Recebida</th>
-                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Vlr. Unit.</th>
-                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">% Desc.</th>
-                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Vlr. Total</th>
-                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Vlr. IPI</th>
-                    <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs">Vlr. ICMS</th>
-                    <th className="text-center px-2 py-2 font-medium text-muted-foreground text-xs">Status</th>
+                    <th className="text-center px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap" title="Capitaliza (imobilizado): marca a linha como capex e exige o bem. Herança/orçamento na entrada.">Capex</th>
+                    <th className="text-left px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">U.M.</th>
+                    <th className="text-right px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Qtd. Pedida</th>
+                    <th className="text-right px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Qtd. Recebida</th>
+                    <th className="text-right px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Vlr. Unit.</th>
+                    <th className="text-right px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">% Desc.</th>
+                    <th className="text-right px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Vlr. Total</th>
+                    <th className="text-right px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Vlr. IPI</th>
+                    <th className="text-right px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Vlr. ICMS</th>
+                    <th className="text-center px-2 py-2.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">Status</th>
                     {itemsEditable && <th className="w-8" />}
                   </tr>
                 </thead>
@@ -2206,8 +2200,7 @@ export default function DocumentoEntradaDetailPage() {
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
+        </EtapaSecao>
 
         {/* ── Abas (rodapé estilo Protheus): Duplicatas | Totais | Outros ── */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -2253,7 +2246,7 @@ export default function DocumentoEntradaDetailPage() {
                   <>
                     <div className="space-y-1">
                       <span className="flex items-center gap-1.5">
-                        <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
+                        <Label className={ROTULO}>Condição de Pagamento</Label>
                         <InfoHint>A condição estrutura o <b>prazo</b> do negócio (à vista, parcelado, sem vencimento).</InfoHint>
                       </span>
                       {nfEditable ? (
@@ -2270,7 +2263,7 @@ export default function DocumentoEntradaDetailPage() {
                     </div>
                     <div className="space-y-1">
                       <span className="flex items-center gap-1.5">
-                        <Label className="text-xs text-muted-foreground">Forma de Pagamento (prevista)</Label>
+                        <Label className={ROTULO}>Forma de Pagamento (prevista)</Label>
                         <InfoHint>A forma é o <b>meio de quitação</b> (PIX, dinheiro, permuta…) — <b>permuta</b> substitui dinheiro por bens/serviços, total ou parcialmente.</InfoHint>
                       </span>
                       {nfEditable ? (
@@ -2287,7 +2280,7 @@ export default function DocumentoEntradaDetailPage() {
                     </div>
                     <div className="space-y-1">
                       <span className="flex items-center gap-1.5">
-                        <Label className="text-xs text-muted-foreground">Natureza Financeira (prevista)</Label>
+                        <Label className={ROTULO}>Natureza Financeira (prevista)</Label>
                         <InfoHint>
                           Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>, não da natureza.
                         </InfoHint>
@@ -2319,7 +2312,7 @@ export default function DocumentoEntradaDetailPage() {
                 </span>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Valor pago</Label>
+                    <Label className={ROTULO}>Valor pago</Label>
                     {nfEditable ? (
                       <Input type="number" step="0.01" min="0" value={valorPagoAntecipado}
                         onChange={(e) => setValorPagoAntecipado(e.target.value)}
@@ -2329,11 +2322,11 @@ export default function DocumentoEntradaDetailPage() {
                     )}
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Data do pagamento</Label>
+                    <Label className={ROTULO}>Data do pagamento</Label>
                     <DatePicker value={dataPagoAntecipado} onChange={setDataPagoAntecipado} disabled={!nfEditable} triggerClassName="h-9" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Forma</Label>
+                    <Label className={ROTULO}>Forma</Label>
                     <ComboboxWithCreate
                       value={formaPagoAntecipadoId}
                       onChange={setFormaPagoAntecipadoId}
@@ -2345,7 +2338,7 @@ export default function DocumentoEntradaDetailPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Conta de saída</Label>
+                    <Label className={ROTULO}>Conta de saída</Label>
                     <ComboboxWithCreate
                       value={contaPagoAntecipadoId}
                       onChange={setContaPagoAntecipadoId}
@@ -2375,7 +2368,7 @@ export default function DocumentoEntradaDetailPage() {
             {aba === "totais" && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Vlr. Mercadoria</Label>
+                  <Label className={ROTULO}>Vlr. Mercadoria</Label>
                   {itemsEditable ? (
                     <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-muted text-right" />
                   ) : (
@@ -2383,7 +2376,7 @@ export default function DocumentoEntradaDetailPage() {
                   )}
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Frete</Label>
+                  <Label className={ROTULO}>Frete</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -2399,7 +2392,7 @@ export default function DocumentoEntradaDetailPage() {
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Seguro</Label>
+              <Label className={ROTULO}>Seguro</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -2415,7 +2408,7 @@ export default function DocumentoEntradaDetailPage() {
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Despesas</Label>
+              <Label className={ROTULO}>Despesas</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -2431,7 +2424,7 @@ export default function DocumentoEntradaDetailPage() {
               )}
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Desc. Total Itens</Label>
+              <Label className={ROTULO}>Desc. Total Itens</Label>
               <Input
                 value={descontoTotalItens > 0 ? formatBRL(descontoTotalItens) : "—"}
                 readOnly
@@ -2439,7 +2432,7 @@ export default function DocumentoEntradaDetailPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Desc. Global (NF)</Label>
+              <Label className={ROTULO}>Desc. Global (NF)</Label>
               {nfEditable ? (
                 <Input
                   type="number"
@@ -2456,7 +2449,7 @@ export default function DocumentoEntradaDetailPage() {
             </div>
             {descontoHerdado > 0 && (
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Desc. do Pedido (rateado)</Label>
+                <Label className={ROTULO}>Desc. do Pedido (rateado)</Label>
                 <Input
                   value={`− ${formatBRL(descontoHerdado)}`}
                   readOnly
@@ -2466,7 +2459,7 @@ export default function DocumentoEntradaDetailPage() {
             )}
             {freteHerdado > 0 && (
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Frete/Encargos do Pedido (rateado)</Label>
+                <Label className={ROTULO}>Frete/Encargos do Pedido (rateado)</Label>
                 <Input
                   value={`+ ${formatBRL(freteHerdado)}`}
                   readOnly
@@ -2475,7 +2468,7 @@ export default function DocumentoEntradaDetailPage() {
               </div>
             )}
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Vlr. Líquido</Label>
+                  <Label className={ROTULO}>Vlr. Líquido</Label>
                   <Input
                     value={vlrLiquido > 0 ? formatBRL(vlrLiquido) : "—"}
                     readOnly
@@ -2490,7 +2483,7 @@ export default function DocumentoEntradaDetailPage() {
               <div className="space-y-4">
                 {(isEditable || isDivergencia || (isConcluded && isAdmin)) && (
                   <div className="space-y-1.5 max-w-xs">
-                    <Label>Responsável pela Conferência</Label>
+                    <Label className={ROTULO}>Responsável pela Conferência</Label>
                     <ComboboxWithCreate
                       value={usuarioResponsavelId}
                       onChange={(v) => {
@@ -2540,7 +2533,7 @@ export default function DocumentoEntradaDetailPage() {
             </Button>
           )}
         </div>
-      </div>
+      </EtapaLayout>
 
       {/* ── Popup: novos vínculos fornecedor × produto ───────────────────────── */}
       {vinculoPopup && (

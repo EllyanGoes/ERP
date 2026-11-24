@@ -559,6 +559,19 @@ export default function AcompanhamentoComprasPage() {
                           <>
                             <div className="px-3 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground">Filtrar por status</div>
                             <div className="pb-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFiltroStatus((f) => ({ ...f, [col.coluna]: undefined }));
+                                  setMenuColuna(null);
+                                }}
+                                className={cn("w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted", !statusAtivo && "font-semibold")}
+                              >
+                                <span className="w-2 h-2 shrink-0" />
+                                <span className="flex-1 truncate">Todos</span>
+                                <span className="text-xs text-muted-foreground">{todos.length}</span>
+                                {!statusAtivo && <Check className="w-3.5 h-3.5 text-primary" />}
+                              </button>
                               {Array.from(porStatus.entries()).map(([status, qtd]) => {
                                 const ativo = statusAtivo === status;
                                 return (

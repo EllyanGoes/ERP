@@ -19,6 +19,7 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import EscClose from "@/components/shared/EscClose";
 import { useDocumentoId } from "@/lib/compra-embutida";
+import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,15 +71,6 @@ const PRIORIDADE_INFO: Record<number, { label: string; className: string }> = {
   4: { label: "4 — Alta",        className: "text-orange-500" },
   5: { label: "5 — Crítica",     className: "text-danger font-semibold" },
 };
-
-function InfoField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">{label}</p>
-      <div className="text-sm text-foreground">{children}</div>
-    </div>
-  );
-}
 
 function PrioridadeBadge({ prioridade }: { prioridade: number }) {
   const info = PRIORIDADE_INFO[prioridade] ?? { label: String(prioridade), className: "text-muted-foreground" };
@@ -207,33 +199,11 @@ function UnitSelect({ value, options, onChange, disabled }: {
   );
 }
 
-// ── useSidebarExpanded ────────────────────────────────────────────────────────
-// Returns true while the sidebar nav-panel is open (data-sidebar-expanded="1").
-
-function useSidebarExpanded() {
-  const [expanded, setExpanded] = useState(() =>
-    typeof document !== "undefined"
-      ? document.documentElement.dataset.sidebarExpanded === "1"
-      : false
-  );
-  useEffect(() => {
-    // Read initial value (SSR-safe)
-    setExpanded(document.documentElement.dataset.sidebarExpanded === "1");
-    const obs = new MutationObserver(() => {
-      setExpanded(document.documentElement.dataset.sidebarExpanded === "1");
-    });
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-sidebar-expanded"] });
-    return () => obs.disconnect();
-  }, []);
-  return expanded;
-}
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function NecessidadeDetailPage() {
   const id = useDocumentoId();
   const router = useRouter();
-  const sidebarExpanded = useSidebarExpanded();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
 
@@ -690,304 +660,241 @@ export default function NecessidadeDetailPage() {
           </div>
         }
       />
-
-      <div className="px-8 pb-8">
-        {actionError && (
-          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm mb-5">{actionError}</div>
-        )}
-
-        {/* Side-by-side quando sidebar recolhida; empilhado quando painel aberto */}
-        <div className={cn("flex gap-5", sidebarExpanded ? "flex-col" : "flex-row items-start")}>
-
-          {/* ── Coluna esquerda: Informações ─────────────────────────────── */}
-          <div className="min-w-0 flex-1 space-y-5">
-
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-base">Informações</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-
-                {/* Row 1: identidade */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
-                  <InfoField label="Compra">
-                    <span className="font-mono font-bold text-foreground">{compraNumero}</span>
-                    {necessidade.numeroCompra && (
-                      <span className="block font-mono text-xs text-muted-foreground">{necessidade.numero}</span>
-                    )}
-                  </InfoField>
-                  <InfoField label="Status">
-                    <div className="mt-0.5"><StatusBadge status={necessidade.status} /></div>
-                  </InfoField>
-                  <InfoField label="Prioridade">
-                    <PrioridadeBadge prioridade={necessidade.prioridade} />
-                  </InfoField>
-                  <InfoField label="Data de Criação">
-                    {formatDate(necessidade.createdAt)}
-                  </InfoField>
-                </div>
-
-                <div className="h-px bg-muted" />
-
-                {/* Row 2: origem */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
-                  <InfoField label="Filial">
-                    {necessidade.filial ? (necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial) : "—"}
-                  </InfoField>
-                  <InfoField label="Local de Estoque">
-                    {necessidade.localEstoque?.nome ?? "—"}
-                  </InfoField>
-                  <InfoField label="Setor">
-                    {necessidade.setor?.nome ?? "—"}
-                  </InfoField>
-                  <InfoField label="Centro de Custo">
-                    {necessidade.centroCusto ? `${necessidade.centroCusto.codigo} — ${necessidade.centroCusto.nome}` : "—"}
-                  </InfoField>
-                </div>
-
-                <div className="h-px bg-muted" />
-
-                {/* Row 3: solicitação */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
-                  <InfoField label="Solicitante">
-                    {necessidade.colaborador?.nome ?? necessidade.solicitante ?? "—"}
-                  </InfoField>
-                  <InfoField label="Entrega Desejada">
-                    {formatDate(necessidade.dataNecessidade)}
-                  </InfoField>
-                  <InfoField label="Tipo de Compra">
-                    {necessidade.tipoCompra ?? "—"}
-                  </InfoField>
-                  <InfoField label="Motivo">
-                    {necessidade.motivo ?? "—"}
-                  </InfoField>
-                </div>
-
-                {/* Row 4: classificação — só mostra se algum tiver valor */}
-                {(necessidade.categoria || necessidade.projeto || necessidade.classificacaoAuxiliar) && (
-                  <>
-                    <div className="h-px bg-muted" />
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
-                      <InfoField label="Categoria">{necessidade.categoria ?? "—"}</InfoField>
-                      <InfoField label="Projeto">{necessidade.projeto ?? "—"}</InfoField>
-                      <InfoField label="Classificação Auxiliar">{necessidade.classificacaoAuxiliar ?? "—"}</InfoField>
-                    </div>
-                  </>
-                )}
-
-                <div className="h-px bg-muted" />
-
-                {/* Row 5: textos livres */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                  <InfoField label="Descrição / Justificativa">
-                    <span className="text-foreground whitespace-pre-wrap">{necessidade.justificativa || "—"}</span>
-                  </InfoField>
-                  <InfoField label="Observações">
-                    <span className="text-foreground whitespace-pre-wrap">{necessidade.observacoes || "—"}</span>
-                  </InfoField>
-                </div>
-
-                <Autoria criadoPor={necessidade.criadoPor} atualizadoPor={necessidade.atualizadoPor} />
-              </CardContent>
-            </Card>
-
-            {/* Approval / rejection / cancellation info */}
-            {(necessidade.status === "APROVADA" || necessidade.status === "REJEITADA" || isCancelada) && (
-              <Card className={
-                necessidade.status === "APROVADA" ? "border-success/30 bg-success/10"
-                : isCancelada ? "border-border bg-muted"
-                : "border-danger/30 bg-danger/10"
-              }>
-                <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {necessidade.status === "APROVADA" && (
-                    <>
-                      <div><p className="text-xs text-muted-foreground">Aprovado por</p><p className="text-sm font-medium">{necessidade.aprovadoPor || "—"}</p></div>
-                      <div><p className="text-xs text-muted-foreground">Data de Aprovação</p><p className="text-sm font-medium">{formatDate(necessidade.dataAprovacao)}</p></div>
-                    </>
-                  )}
-                  {necessidade.status === "REJEITADA" && (
-                    <div className="sm:col-span-3">
-                      <p className="text-xs text-danger">Motivo da Rejeição</p>
-                      <p className="text-sm text-danger mt-1">{necessidade.motivoReprovacao || "—"}</p>
-                    </div>
-                  )}
-                  {isCancelada && (
-                    <div className="sm:col-span-3">
-                      <p className="text-xs text-muted-foreground">Motivo do Cancelamento</p>
-                      <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{necessidade.motivoCancelamento || "—"}</p>
-                      {necessidade.dataCancelamento && (
-                        <p className="text-xs text-muted-foreground mt-1.5">Cancelada em {formatDate(necessidade.dataCancelamento)}</p>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
+      <EtapaLayout
+        lateral={
+          <>
             {/* ── Histórico de Aprovações ───────────────────────────────────── */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4 text-success" />
-                  <CardTitle className="text-base">Histórico de Aprovações</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {(necessidade.aprovacoes ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic">Nenhuma aprovação registrada.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {(necessidade.aprovacoes ?? []).map((apr) => (
-                      <div key={apr.id} className="flex items-center gap-4 bg-muted rounded-lg px-4 py-3 text-sm">
-                        <div className="shrink-0">
-                          {apr.status === "APROVADO" && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
-                          {apr.status === "REPROVADO" && <XCircle className="w-5 h-5 text-red-500" />}
-                          {apr.status === "PENDENTE" && <Clock className="w-5 h-5 text-amber-500" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-foreground truncate">
-                            {apr.etapaNome ?? `Etapa ${apr.etapaOrdem}`}
-                            <span className="ml-2 text-xs font-normal text-muted-foreground">
-                              · {apr.aprovador.nome}
-                            </span>
-                          </p>
-                          {apr.observacao && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{apr.observacao}</p>
-                          )}
-                          {!apr.waMsgId && apr.status === "PENDENTE" && (
-                            <p className="text-xs text-warning mt-0.5 flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3 shrink-0" />
-                              Mensagem não enviada — configure o WhatsApp e reenvie
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className={cn(
-                            "inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full",
-                            apr.status === "APROVADO"  && "bg-success/10 text-success border border-success/30",
-                            apr.status === "REPROVADO" && "bg-danger/10 text-danger border border-danger/30",
-                            apr.status === "PENDENTE"  && "bg-warning/10 text-warning border border-warning/30",
-                          )}>
-                            {apr.status === "APROVADO" && "Aprovado"}
-                            {apr.status === "REPROVADO" && "Reprovado"}
-                            {apr.status === "PENDENTE" && "Aguardando"}
-                          </span>
-                          {apr.respondidoEm && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{formatDate(apr.respondidoEm)}</p>
-                          )}
-                        </div>
+            <EtapaSecao titulo="Aprovações" icone={<MessageCircle />}>
+              {(necessidade.aprovacoes ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">Nenhuma aprovação registrada.</p>
+              ) : (
+                <ul className="divide-y divide-border -my-2">
+                  {(necessidade.aprovacoes ?? []).map((apr) => (
+                    <li key={apr.id} className="flex items-start gap-3 py-2 text-sm">
+                      <div className="shrink-0 mt-0.5">
+                        {apr.status === "APROVADO" && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                        {apr.status === "REPROVADO" && <XCircle className="w-4 h-4 text-red-500" />}
+                        {apr.status === "PENDENTE" && <Clock className="w-4 h-4 text-amber-500" />}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-          </div>
-
-          {/* ── Coluna direita: Itens + Cotações ─────────────────────────── */}
-          <div className={cn("space-y-5", sidebarExpanded ? "w-full" : "w-[720px] shrink-0")}>
-
-            <Card>
-              <CardHeader><CardTitle className="text-base">Itens Solicitados</CardTitle></CardHeader>
-              <CardContent className="p-0">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted border-b border-border">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Código</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Descrição</th>
-                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Qtd.</th>
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground w-14">Un.</th>
-                      {necessidade.status === "APROVADA" && (
-                        <th className="text-right px-4 py-3 font-medium text-muted-foreground">Aprov.</th>
-                      )}
-                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Obs.</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {necessidade.itens.map((item) => (
-                      <tr key={item.id} className="hover:bg-muted">
-                        <td className="px-4 py-3 font-mono text-xs">{item.item.codigo}</td>
-                        <td className="px-4 py-3">{item.item.descricao}</td>
-                        <td className="px-4 py-3 text-right tabular-nums">
-                          {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                          {item.unidade ?? item.item.unidade?.sigla ?? item.item.unidadeMedida}
-                        </td>
-                        {necessidade.status === "APROVADA" && (
-                          <td className="px-4 py-3 text-right text-success font-medium tabular-nums">
-                            {item.quantidadeAprovada ? decimalToNumber(item.quantidadeAprovada).toLocaleString("pt-BR") : "—"}
-                          </td>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground truncate">
+                          {apr.etapaNome ?? `Etapa ${apr.etapaOrdem}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{apr.aprovador.nome}</p>
+                        {apr.observacao && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{apr.observacao}</p>
                         )}
-                        <td className="px-4 py-3 text-muted-foreground text-xs">{item.observacao || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-
-            {/* Cotações */}
-            {necessidade.cotacoes?.length > 0 && (
-              <Card>
-                <CardHeader><CardTitle className="text-base">Cotações Geradas</CardTitle></CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {necessidade.cotacoes.map((c) => (
-                    <Link key={c.id} href={`/suprimentos/cotacoes/${c.id}`}
-                      title={c.numero}
-                      className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
-                      {c.numeroCompra
-                        ? <span className="font-medium text-foreground group-hover:text-info">Cotação</span>
-                        : <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>}
-                      <StatusBadge status={c.status} />
-                    </Link>
+                        {!apr.waMsgId && apr.status === "PENDENTE" && (
+                          <p className="text-xs text-warning mt-0.5 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 shrink-0" />
+                            Mensagem não enviada — configure o WhatsApp e reenvie
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className={cn(
+                          "inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full",
+                          apr.status === "APROVADO"  && "bg-success/10 text-success border border-success/30",
+                          apr.status === "REPROVADO" && "bg-danger/10 text-danger border border-danger/30",
+                          apr.status === "PENDENTE"  && "bg-warning/10 text-warning border border-warning/30",
+                        )}>
+                          {apr.status === "APROVADO" && "Aprovado"}
+                          {apr.status === "REPROVADO" && "Reprovado"}
+                          {apr.status === "PENDENTE" && "Aguardando"}
+                        </span>
+                        {apr.respondidoEm && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{formatDate(apr.respondidoEm)}</p>
+                        )}
+                      </div>
+                    </li>
                   ))}
-                </CardContent>
-              </Card>
-            )}
+                </ul>
+              )}
+            </EtapaSecao>
 
-            {/* Pedidos de Compra */}
-            {(necessidade.pedidosCompra?.length ?? 0) > 0 && (
-              <Card>
-                <CardHeader><CardTitle className="text-base">Pedidos de Compra</CardTitle></CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {necessidade.pedidosCompra!.map((p) => (
-                    <Link key={p.id} href={`/suprimentos/pedidos-compra/${p.id}`}
-                      className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
-                      <span className="font-mono font-medium text-foreground group-hover:text-info">{p.numero}</span>
-                      <StatusBadge status={p.status} />
-                    </Link>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Documentos de Entrada */}
-            {(() => {
-              const conferencias = (necessidade.pedidosCompra ?? [])
-                .map((p) => p.conferencia)
-                .filter((c): c is NonNullable<typeof c> => c !== null);
-              return conferencias.length > 0 ? (
-                <Card>
-                  <CardHeader><CardTitle className="text-base">Documentos de Entrada</CardTitle></CardHeader>
-                  <CardContent className="flex flex-wrap gap-2">
-                    {conferencias.map((c) => (
-                      <Link key={c.id} href={`/suprimentos/conferencias/${c.id}`}
+            {/* Atalhos para os outros documentos — na página da compra as abas já fazem isso */}
+            <ForaDaCompra>
+              {necessidade.cotacoes?.length > 0 && (
+                <EtapaSecao titulo="Cotações Geradas">
+                  <div className="flex flex-wrap gap-2">
+                    {necessidade.cotacoes.map((c) => (
+                      <Link key={c.id} href={`/suprimentos/cotacoes/${c.id}`}
                         title={c.numero}
                         className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
                         {c.numeroCompra
-                          ? <span className="font-medium text-foreground group-hover:text-info">Entrada</span>
+                          ? <span className="font-medium text-foreground group-hover:text-info">Cotação</span>
                           : <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>}
                         <StatusBadge status={c.status} />
                       </Link>
                     ))}
-                  </CardContent>
-                </Card>
-              ) : null;
-            })()}
+                  </div>
+                </EtapaSecao>
+              )}
 
+              {(necessidade.pedidosCompra?.length ?? 0) > 0 && (
+                <EtapaSecao titulo="Pedidos de Compra">
+                  <div className="flex flex-wrap gap-2">
+                    {necessidade.pedidosCompra!.map((p) => (
+                      <Link key={p.id} href={`/suprimentos/pedidos-compra/${p.id}`}
+                        className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
+                        <span className="font-mono font-medium text-foreground group-hover:text-info">{p.numero}</span>
+                        <StatusBadge status={p.status} />
+                      </Link>
+                    ))}
+                  </div>
+                </EtapaSecao>
+              )}
+
+              {(() => {
+                const conferencias = (necessidade.pedidosCompra ?? [])
+                  .map((p) => p.conferencia)
+                  .filter((c): c is NonNullable<typeof c> => c !== null);
+                return conferencias.length > 0 ? (
+                  <EtapaSecao titulo="Documentos de Entrada">
+                    <div className="flex flex-wrap gap-2">
+                      {conferencias.map((c) => (
+                        <Link key={c.id} href={`/suprimentos/conferencias/${c.id}`}
+                          title={c.numero}
+                          className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
+                          {c.numeroCompra
+                            ? <span className="font-medium text-foreground group-hover:text-info">Entrada</span>
+                            : <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>}
+                          <StatusBadge status={c.status} />
+                        </Link>
+                      ))}
+                    </div>
+                  </EtapaSecao>
+                ) : null;
+              })()}
+            </ForaDaCompra>
+          </>
+        }
+      >
+        {actionError && (
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
+        )}
+
+        <EtapaSecao titulo="Dados da solicitação">
+          <div className="space-y-4">
+            <EtapaCampos>
+              <ForaDaCompra>
+                <EtapaCampo rotulo="Compra">
+                  <span className="font-mono font-bold text-foreground">{compraNumero}</span>
+                  {necessidade.numeroCompra && (
+                    <span className="block font-mono text-xs text-muted-foreground">{necessidade.numero}</span>
+                  )}
+                </EtapaCampo>
+              </ForaDaCompra>
+              <EtapaCampo rotulo="Status"><StatusBadge status={necessidade.status} /></EtapaCampo>
+              <EtapaCampo rotulo="Prioridade"><PrioridadeBadge prioridade={necessidade.prioridade} /></EtapaCampo>
+              <EtapaCampo rotulo="Data de criação">{formatDate(necessidade.createdAt)}</EtapaCampo>
+              <EtapaCampo rotulo="Entrega desejada">{necessidade.dataNecessidade ? formatDate(necessidade.dataNecessidade) : null}</EtapaCampo>
+              <EtapaCampo rotulo="Local de estoque">{necessidade.localEstoque?.nome}</EtapaCampo>
+              <EtapaCampo rotulo="Centro de custo">
+                {necessidade.centroCusto ? `${necessidade.centroCusto.codigo} — ${necessidade.centroCusto.nome}` : null}
+              </EtapaCampo>
+              <EtapaCampo rotulo="Tipo de compra">{necessidade.tipoCompra}</EtapaCampo>
+              <EtapaCampo rotulo="Motivo">{necessidade.motivo}</EtapaCampo>
+              <EtapaCampo rotulo="Filial">
+                {necessidade.filial ? (necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial) : null}
+              </EtapaCampo>
+              <ForaDaCompra>
+                <EtapaCampo rotulo="Solicitante">{necessidade.colaborador?.nome ?? necessidade.solicitante}</EtapaCampo>
+                <EtapaCampo rotulo="Setor">{necessidade.setor?.nome}</EtapaCampo>
+              </ForaDaCompra>
+              {/* Classificação — só mostra se algum tiver valor */}
+              {(necessidade.categoria || necessidade.projeto || necessidade.classificacaoAuxiliar) && (
+                <>
+                  <EtapaCampo rotulo="Categoria">{necessidade.categoria}</EtapaCampo>
+                  <EtapaCampo rotulo="Projeto">{necessidade.projeto}</EtapaCampo>
+                  <EtapaCampo rotulo="Classificação auxiliar">{necessidade.classificacaoAuxiliar}</EtapaCampo>
+                </>
+              )}
+              <EtapaCampo rotulo="Descrição / Justificativa" span={2}>
+                {necessidade.justificativa ? <span className="whitespace-pre-wrap">{necessidade.justificativa}</span> : null}
+              </EtapaCampo>
+              <EtapaCampo rotulo="Observações" span={2}>
+                {necessidade.observacoes ? <span className="whitespace-pre-wrap">{necessidade.observacoes}</span> : null}
+              </EtapaCampo>
+            </EtapaCampos>
+
+            {/* Aprovação / rejeição / cancelamento */}
+            {(necessidade.status === "APROVADA" || necessidade.status === "REJEITADA" || isCancelada) && (
+              <div className={cn(
+                "rounded-lg border px-4 py-3",
+                necessidade.status === "APROVADA" ? "border-success/30 bg-success/10"
+                : isCancelada ? "border-border bg-muted"
+                : "border-danger/30 bg-danger/10",
+              )}>
+                {necessidade.status === "APROVADA" && (
+                  <EtapaCampos>
+                    <EtapaCampo rotulo="Aprovado por">{necessidade.aprovadoPor}</EtapaCampo>
+                    <EtapaCampo rotulo="Data de aprovação">{necessidade.dataAprovacao ? formatDate(necessidade.dataAprovacao) : null}</EtapaCampo>
+                  </EtapaCampos>
+                )}
+                {necessidade.status === "REJEITADA" && (
+                  <EtapaCampos>
+                    <EtapaCampo rotulo="Motivo da rejeição" span={4}>
+                      {necessidade.motivoReprovacao ? <span className="text-danger">{necessidade.motivoReprovacao}</span> : null}
+                    </EtapaCampo>
+                  </EtapaCampos>
+                )}
+                {isCancelada && (
+                  <EtapaCampos>
+                    <EtapaCampo rotulo="Motivo do cancelamento" span={4}>
+                      {necessidade.motivoCancelamento ? <span className="whitespace-pre-wrap">{necessidade.motivoCancelamento}</span> : null}
+                      {necessidade.dataCancelamento && (
+                        <p className="text-xs text-muted-foreground mt-1.5">Cancelada em {formatDate(necessidade.dataCancelamento)}</p>
+                      )}
+                    </EtapaCampo>
+                  </EtapaCampos>
+                )}
+              </div>
+            )}
+
+            <Autoria criadoPor={necessidade.criadoPor} atualizadoPor={necessidade.atualizadoPor} />
           </div>
-        </div>
-      </div>
+        </EtapaSecao>
+
+        <EtapaSecao titulo="Itens" semPadding>
+          <div className="overflow-x-auto">
+            <table className={tabela.table}>
+              <thead className={tabela.thead}>
+                <tr>
+                  <th className={tabela.th}>Código</th>
+                  <th className={tabela.th}>Descrição</th>
+                  <th className={tabela.thNum}>Qtd.</th>
+                  <th className={tabela.th}>Un.</th>
+                  {necessidade.status === "APROVADA" && (
+                    <th className={tabela.thNum}>Aprov.</th>
+                  )}
+                  <th className={tabela.th}>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {necessidade.itens.map((item) => (
+                  <tr key={item.id} className={tabela.tr}>
+                    <td className={tabela.tdCodigo}>{item.item.codigo}</td>
+                    <td className={tabela.td}>{item.item.descricao}</td>
+                    <td className={tabela.tdNum}>
+                      {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                    </td>
+                    <td className={cn(tabela.td, "text-muted-foreground")}>
+                      {item.unidade ?? item.item.unidade?.sigla ?? item.item.unidadeMedida}
+                    </td>
+                    {necessidade.status === "APROVADA" && (
+                      <td className={cn(tabela.tdNum, "text-success font-medium")}>
+                        {item.quantidadeAprovada ? decimalToNumber(item.quantidadeAprovada).toLocaleString("pt-BR") : "—"}
+                      </td>
+                    )}
+                    <td className={cn(tabela.td, "text-muted-foreground text-xs")}>{item.observacao || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </EtapaSecao>
+      </EtapaLayout>
 
       {/* Approve modal */}
       {showApproveForm && (

@@ -20,8 +20,9 @@ import { useTabTitle } from "@/lib/tabs-context";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, CheckCircle2, FileInput, Link2, FileText, Pencil } from "lucide-react";
+import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, FileInput, Link2, FileText, Pencil } from "lucide-react";
 import { useDocumentoId } from "@/lib/compra-embutida";
+import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaResumo, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 
 const STATUS_FLOW: { value: string; label: string }[] = [
   { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
@@ -72,6 +73,7 @@ type PedidoCompra = {
   descricao: string | null;
   valorTotal: unknown;
   dataEntregaPrevista: string | null;
+  createdAt?: string | null;
   observacoes: string | null;
   cotacaoId: string | null;
   necessidadeId: string | null;
@@ -405,7 +407,6 @@ async function openWAModal() {
     if (!pedido) return "";
     const cf  = pedido.cotacaoFornecedor;
     const sc  = pedido.necessidade ?? pedido.cotacao?.necessidade ?? null;
-    const total = calcTotal();
 
     const itensLines = pedido.itens.map((it, i) => {
       const qtd   = decimalToNumber(it.quantidade);
@@ -490,18 +491,6 @@ async function openWAModal() {
     setShowWAModal(false);
   }
 
-  function calcTotal() {
-    if (!pedido) return 0;
-    const fromDB = decimalToNumber(pedido.valorTotal);
-    if (fromDB > 0) return fromDB;
-    return pedido.itens.reduce((sum, it) => {
-      const vlItem = decimalToNumber(it.valorTotal);
-      const qtd    = decimalToNumber(it.quantidade);
-      const preco  = decimalToNumber(it.precoUnitario);
-      return sum + (vlItem > 0 ? vlItem : qtd * preco);
-    }, 0);
-  }
-
   useTabTitle(pedido ? `Compra ${pedido.numeroCompra ?? pedido.numero}` : null);
 
   if (loading) return (
@@ -511,7 +500,6 @@ async function openWAModal() {
   );
   if (!pedido) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
-  const totalGeral  = calcTotal();
   const cf          = pedido.cotacaoFornecedor;
   const fornNome    = pedido.fornecedor.nomeFantasia || pedido.fornecedor.razaoSocial;
   const codigoForn  = pedido.fornecedor.id.slice(-8).toUpperCase();
@@ -536,6 +524,293 @@ async function openWAModal() {
   }, 0);
   const netTotal = subtotalVal - vrDescontoVal + freteVal + despesasVal + seguroVal;
 
+  const sc = pedido.necessidade ?? pedido.cotacao?.necessidade ?? null;
+  const scSetor = sc ? (sc.centroCusto?.nome ?? sc.setor?.nome ?? sc.localEstoque?.nome ?? null) : null;
+
+  // Descrição: herdada da solicitação (vinculada pela cotação) quando o pedido não tem a sua.
+  const descHasSc = !!pedido.cotacao?.necessidade;
+  const scDescricao = pedido.cotacao?.necessidade?.justificativa ?? null;
+  const descricaoExibida = descHasSc ? (pedido.descricao ?? scDescricao) : pedido.descricao;
+  const descCanEdit = !descHasSc || isAdmin;
+
+  const lateral = (
+    <>
+      {/* ── Valores ─────────────────────────────────────────────────────── */}
+      <EtapaSecao titulo="Valores">
+        <EtapaResumo
+          linhas={[
+            { rotulo: "Total itens", valor: totalItensQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 }) },
+            { rotulo: "Total bruto", valor: formatBRL(subtotalVal) },
+            ...(vrDescontoVal > 0 ? [{
+              rotulo: `Desconto${descontoVal > 0 ? ` (${descontoVal.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)` : ""}`,
+              valor: <span className="text-danger">− {formatBRL(vrDescontoVal)}</span>,
+            }] : []),
+            ...(freteVal > 0 ? [{ rotulo: "Frete", valor: `+ ${formatBRL(freteVal)}` }] : []),
+            ...(despesasVal > 0 ? [{ rotulo: "Despesas", valor: `+ ${formatBRL(despesasVal)}` }] : []),
+            ...(seguroVal > 0 ? [{ rotulo: "Seguro", valor: `+ ${formatBRL(seguroVal)}` }] : []),
+            { rotulo: "Total líquido", valor: formatBRL(netTotal), destaque: true },
+          ]}
+        />
+      </EtapaSecao>
+
+      {/* ── Contas a Pagar (gerado no Documento de Entrada pela condição) ── */}
+      {pedido.contasPagar && pedido.contasPagar.length > 0 && (
+        <EtapaSecao titulo="Contas a pagar" semPadding>
+          <ul className="divide-y divide-border">
+            {pedido.contasPagar.map((c) => {
+              const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
+              const podePagar = c.status !== "PAGA" && c.status !== "CANCELADA";
+              return (
+                <li key={c.id} className="px-5 py-3 space-y-1.5 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-foreground">
+                      {c.numero}
+                      {c.parcelaTotal && c.parcelaTotal > 1 && (
+                        <span className="ml-1.5 text-muted-foreground">{c.parcelaNumero}/{c.parcelaTotal}</span>
+                      )}
+                    </span>
+                    <StatusBadge status={c.status} />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">
+                      {c.dataVencimento ? `Vence ${formatDate(c.dataVencimento)}` : <span className="italic">sem previsão</span>}
+                    </span>
+                    <span className="tabular-nums text-foreground">
+                      {formatBRL(decimalToNumber(c.valorOriginal))}
+                      <span className="text-muted-foreground"> · pago {formatBRL(decimalToNumber(c.valorPago))}</span>
+                    </span>
+                  </div>
+                  {podePagar && (
+                    <div className="flex justify-end">
+                      <Button size="sm" variant="outline" onClick={() => router.push(`/contas-pagar?abrir=${c.id}`)}
+                        className="h-7 gap-1 border-rose-200 text-danger hover:bg-danger/10">
+                        Pagar{saldo > 0 ? ` ${formatBRL(saldo)}` : ""}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </EtapaSecao>
+      )}
+
+      {/* ── Solicitação de Compras ────────────────────────────────────── */}
+      <EtapaSecao
+        titulo="Solicitação"
+        className="overflow-visible"
+        acoes={
+          /* Vincular / desvincular SC (só a vinculada direto no pedido) */
+          <div className="relative" ref={scPopoverRef}>
+            {pedido.necessidade ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-red-500 gap-1"
+                onClick={() => vincularNecessidade(null)}
+                disabled={actioning}
+                title="Desvincular solicitação"
+              >
+                <X className="w-3 h-3" /> Desvincular
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2.5 text-xs gap-1.5"
+                onClick={() => { setScPopoverOpen((v) => !v); setScSearch(""); setScOptions([]); }}
+                disabled={actioning}
+              >
+                <Link2 className="w-3 h-3" /> Vincular solicitação
+              </Button>
+            )}
+
+            {/* Popover de busca SC */}
+            {scPopoverOpen && (
+              <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-card rounded-xl border border-border shadow-xl">
+                <div className="p-3 border-b border-border">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <input
+                      autoFocus
+                      type="text"
+                      value={scSearch}
+                      onChange={(e) => setScSearch(e.target.value)}
+                      placeholder="Buscar solicitação… (compra, solicitante…)"
+                      className="w-full pl-8 pr-3 h-8 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-52 overflow-y-auto">
+                  {scSearching ? (
+                    <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…
+                    </div>
+                  ) : scOptions.length === 0 ? (
+                    <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">
+                      {scSearch.trim() ? "Nenhuma solicitação encontrada." : "Nenhuma solicitação disponível."}
+                    </p>
+                  ) : scOptions.map((n) => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onMouseDown={() => vincularNecessidade(n.id)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:bg-indigo-500/15 border-b border-gray-50 last:border-0"
+                    >
+                      <span className="flex flex-col items-start">
+                        <span className="font-mono font-semibold text-foreground">{n.numeroCompra ?? n.numero}</span>
+                        {n.numeroCompra && <span className="font-mono text-[10px] text-muted-foreground">{n.numero}</span>}
+                      </span>
+                      <div className="text-right">
+                        {n.solicitante && <p className="text-xs text-muted-foreground">{n.solicitante}</p>}
+                        {(n.centroCusto?.nome ?? n.localEstoque?.nome ?? n.setor?.nome) && (
+                          <p className="text-xs text-muted-foreground">
+                            {n.centroCusto?.nome ?? n.localEstoque?.nome ?? n.setor?.nome}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        }
+      >
+        {sc ? (
+          <div className="space-y-4">
+            <EtapaCampos colunas={2}>
+              <EtapaCampo rotulo="Nº interno"><span className="font-mono">{sc.numero}</span></EtapaCampo>
+              <ForaDaCompra>
+                <EtapaCampo rotulo="Solicitante">{sc.solicitante}</EtapaCampo>
+                <EtapaCampo rotulo={sc.centroCusto ? "Centro de custo" : sc.setor ? "Setor" : "Local"} span={2}>{scSetor}</EtapaCampo>
+              </ForaDaCompra>
+              <EtapaCampo rotulo="Justificativa" span={2}>{sc.justificativa}</EtapaCampo>
+            </EtapaCampos>
+            <ForaDaCompra>
+              <Link
+                href={`/compras/necessidades/${sc.id}`}
+                className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                title={sc.numero}
+              >
+                <FileText className="w-3 h-3" />
+                {sc.numeroCompra && sc.numeroCompra !== pedido.numeroCompra ? `Abrir solicitação · ${sc.numeroCompra}` : "Abrir solicitação"}
+              </Link>
+            </ForaDaCompra>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">
+            Nenhuma solicitação vinculada. Clique em &quot;Vincular solicitação&quot; para associar.
+          </p>
+        )}
+      </EtapaSecao>
+
+      {/* ── Cotação ─────────────────────────────────────────────────────── */}
+      <EtapaSecao
+        titulo="Cotação"
+        className="overflow-visible"
+        acoes={
+          /* Vincular / desvincular CT */
+          <div className="relative" ref={ctPopoverRef}>
+            {pedido.cotacao ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-red-500 gap-1"
+                onClick={() => vincularCotacao(null)}
+                disabled={actioning}
+                title="Desvincular cotação"
+              >
+                <X className="w-3 h-3" /> Desvincular
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2.5 text-xs gap-1.5"
+                onClick={() => { setCtPopoverOpen((v) => !v); setCtSearch(""); setCtOptions([]); }}
+                disabled={actioning}
+              >
+                <Link2 className="w-3 h-3" /> Vincular cotação
+              </Button>
+            )}
+
+            {/* Popover de busca */}
+            {ctPopoverOpen && (
+              <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-card rounded-xl border border-border shadow-xl">
+                <div className="p-3 border-b border-border">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <input
+                      autoFocus
+                      type="text"
+                      value={ctSearch}
+                      onChange={(e) => setCtSearch(e.target.value)}
+                      placeholder="Buscar cotação… (compra, nome…)"
+                      className="w-full pl-8 pr-3 h-8 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-52 overflow-y-auto">
+                  {ctSearching ? (
+                    <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…
+                    </div>
+                  ) : ctOptions.length === 0 ? (
+                    <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">
+                      {ctSearch.trim() ? "Nenhuma cotação encontrada." : "Nenhuma cotação disponível."}
+                    </p>
+                  ) : ctOptions.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={() => vincularCotacao(c.id)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:bg-indigo-500/15 border-b border-gray-50 last:border-0"
+                    >
+                      <span className="flex flex-col items-start">
+                        <span className="font-mono font-semibold text-foreground">{c.numeroCompra ?? c.necessidade?.numeroCompra ?? c.numero}</span>
+                        {(c.numeroCompra ?? c.necessidade?.numeroCompra) && (
+                          <span className="font-mono text-[10px] text-muted-foreground">{c.numero}</span>
+                        )}
+                      </span>
+                      <div className="text-right">
+                        {c.nome && <p className="text-xs text-muted-foreground">{c.nome}</p>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        }
+      >
+        {pedido.cotacao ? (
+          <div className="space-y-4">
+            <EtapaCampos colunas={2}>
+              <EtapaCampo rotulo="Nº interno"><span className="font-mono">{pedido.cotacao.numero}</span></EtapaCampo>
+              <EtapaCampo rotulo="Proposta">{cf ? <span className="font-mono">{propostaLabel}</span> : null}</EtapaCampo>
+              {pedido.cotacao.nome && <EtapaCampo rotulo="Nome" span={2}>{pedido.cotacao.nome}</EtapaCampo>}
+            </EtapaCampos>
+            <ForaDaCompra>
+              <Link
+                href={`/suprimentos/cotacoes/${pedido.cotacao.id}`}
+                className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                title={pedido.cotacao.numero}
+              >
+                <FileText className="w-3 h-3" />
+                {pedido.cotacao.numeroCompra && pedido.cotacao.numeroCompra !== pedido.numeroCompra
+                  ? `Abrir cotação · ${pedido.cotacao.numeroCompra}`
+                  : "Abrir cotação"}
+              </Link>
+            </ForaDaCompra>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">Nenhuma cotação vinculada.</p>
+        )}
+      </EtapaSecao>
+    </>
+  );
+
   return (
     <div>
       <PageHeader
@@ -549,7 +824,8 @@ async function openWAModal() {
           { label: pedido.numero },
         ]}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <StatusBadge status={pedido.status} />
             <FinanceiroCompraBadge status={pedido.statusFinanceiro} />
             {/* Editar: itens, preços, encargos… Depois de aprovado, salvar
                 devolve o pedido para aprovação. */}
@@ -594,7 +870,7 @@ async function openWAModal() {
         }
       />
 
-      <div className="px-8 pb-8 max-w-5xl space-y-6">
+      <EtapaLayout lateral={lateral}>
         {actionError && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
         )}
@@ -630,595 +906,164 @@ async function openWAModal() {
           );
         })()}
 
-        {/* ── Descrição ──────────────────────────────────────────────────── */}
-        {(() => {
-          const hasSc = !!pedido.cotacao?.necessidade;
-          const scDescricao = pedido.cotacao?.necessidade?.justificativa ?? null;
-          const descricaoExibida = hasSc ? (pedido.descricao ?? scDescricao) : pedido.descricao;
-          const canEdit = !hasSc || isAdmin;
-
-          if (!descricaoExibida && !canEdit) return null;
-
-          return (
-            <div className="bg-card rounded-xl border border-border overflow-hidden">
-              <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-                <h2 className="font-semibold text-sm text-foreground">Descrição</h2>
-                <div className="flex items-center gap-2">
-                  {hasSc && (
-                    <span className="text-xs text-info bg-info/10 border border-info/30 px-2 py-0.5 rounded-full">
-                      Herdado da solicitação
+        {/* ── Dados do pedido ─────────────────────────────────────────────── */}
+        <EtapaSecao titulo="Dados do pedido">
+          <EtapaCampos>
+            <EtapaCampo rotulo="Status"><StatusBadge status={pedido.status} /></EtapaCampo>
+            <EtapaCampo rotulo="Emissão">{pedido.createdAt ? formatDate(pedido.createdAt) : null}</EtapaCampo>
+            <EtapaCampo rotulo="Entrega prevista">
+              {pedido.dataEntregaPrevista ? formatDate(pedido.dataEntregaPrevista) : cf?.prazoEntregaDias ? `${cf.prazoEntregaDias} dias` : null}
+            </EtapaCampo>
+            <EtapaCampo rotulo="Condição de pagamento">{cf?.condicoesPagamento}</EtapaCampo>
+            <EtapaCampo rotulo="Tipo de frete">{cf?.tipoFrete ? (TIPO_FRETE_LABEL[cf.tipoFrete] ?? cf.tipoFrete) : null}</EtapaCampo>
+            {pedido.numeroAntigo && pedido.numeroAntigo !== pedido.numero && (
+              <EtapaCampo rotulo="Nº antigo"><span className="font-mono">{pedido.numeroAntigo}</span></EtapaCampo>
+            )}
+            {pedido.conferencia && (
+              <ForaDaCompra>
+                <EtapaCampo rotulo="Entrada">
+                  <span className="inline-flex items-center gap-2">
+                    <Link
+                      href={`/suprimentos/conferencias/${pedido.conferencia.id}`}
+                      className="text-info hover:underline font-medium"
+                      title={pedido.conferencia.numero}
+                    >
+                      {pedido.conferencia.numeroCompra && pedido.conferencia.numeroCompra !== pedido.numeroCompra
+                        ? `Entrada · ${pedido.conferencia.numeroCompra}`
+                        : "Entrada"}
+                    </Link>
+                    <StatusBadge status={pedido.conferencia.status} />
+                  </span>
+                </EtapaCampo>
+              </ForaDaCompra>
+            )}
+            <EtapaCampo
+              span={4}
+              rotulo={
+                <span className="inline-flex items-center gap-2">
+                  Descrição
+                  {descHasSc && (
+                    <span className="normal-case tracking-normal text-[10px] text-info bg-info/10 border border-info/30 px-1.5 py-px rounded-full">
+                      herdado da solicitação
                     </span>
                   )}
-                  {canEdit && !editingDescricao && (
+                </span>
+              }
+            >
+              {editingDescricao ? (
+                <div className="flex gap-2 items-start">
+                  <Input
+                    autoFocus
+                    value={descricaoEdit}
+                    onChange={(e) => setDescricaoEdit(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveDescricao(); if (e.key === "Escape") setEditingDescricao(false); }}
+                    placeholder="Descrição do pedido..."
+                    className="flex-1"
+                  />
+                  <Button size="sm" onClick={saveDescricao} disabled={savingDescricao} className="shrink-0">
+                    {savingDescricao ? <Loader2 className="w-3 h-3 animate-spin" /> : "Salvar"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingDescricao(false)} className="shrink-0">
+                    Cancelar
+                  </Button>
+                </div>
+              ) : descricaoExibida ? (
+                <span>
+                  {descricaoExibida}
+                  {descCanEdit && (
                     <button
                       onClick={() => { setDescricaoEdit(pedido.descricao ?? scDescricao ?? ""); setEditingDescricao(true); }}
-                      className="text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
+                      className="ml-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
                       Editar
                     </button>
                   )}
-                </div>
-              </div>
-              <div className="p-4">
-                {editingDescricao ? (
-                  <div className="flex gap-2 items-start">
-                    <Input
-                      autoFocus
-                      value={descricaoEdit}
-                      onChange={(e) => setDescricaoEdit(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") saveDescricao(); if (e.key === "Escape") setEditingDescricao(false); }}
-                      placeholder="Descrição do pedido..."
-                      className="flex-1"
-                    />
-                    <Button size="sm" onClick={saveDescricao} disabled={savingDescricao} className="shrink-0">
-                      {savingDescricao ? <Loader2 className="w-3 h-3 animate-spin" /> : "Salvar"}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditingDescricao(false)} className="shrink-0">
-                      Cancelar
-                    </Button>
-                  </div>
-                ) : descricaoExibida ? (
-                  <p className="text-sm text-foreground">{descricaoExibida}</p>
-                ) : (
-                  <button
-                    onClick={() => { setDescricaoEdit(""); setEditingDescricao(true); }}
-                    className="text-sm text-muted-foreground hover:text-muted-foreground italic transition-colors"
-                  >
-                    + Adicionar descrição
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ── Solicitação de Compras ────────────────────────────────────── */}
-        {(() => {
-          const sc = pedido.necessidade ?? pedido.cotacao?.necessidade ?? null;
-          return (
-            <div className="bg-card rounded-xl border border-border">
-              <div className="px-4 py-3 border-b border-border bg-muted rounded-t-xl flex items-center justify-between gap-3">
-                <h2 className="font-semibold text-sm text-foreground">Solicitação de Compras</h2>
-
-                <div className="flex items-center gap-2 ml-auto">
-                  {/* Link to SC */}
-                  {sc && (
-                    <Link
-                      href={`/compras/necessidades/${sc.id}`}
-                      className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-                      title={sc.numero}
-                    >
-                      <FileText className="w-3 h-3" />
-                      {sc.numeroCompra && sc.numeroCompra !== pedido.numeroCompra ? `Solicitação · ${sc.numeroCompra}` : "Solicitação"}
-                      {sc.solicitante && (
-                        <span className="text-muted-foreground font-normal ml-1">· {sc.solicitante}</span>
-                      )}
-                    </Link>
-                  )}
-
-                  {/* Vincular / desvincular SC button (only for directly linked) */}
-                  <div className="relative" ref={scPopoverRef}>
-                    {pedido.necessidade ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-red-500 gap-1"
-                        onClick={() => vincularNecessidade(null)}
-                        disabled={actioning}
-                        title="Desvincular solicitação"
-                      >
-                        <X className="w-3 h-3" /> Desvincular solicitação
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2.5 text-xs gap-1.5"
-                        onClick={() => { setScPopoverOpen((v) => !v); setScSearch(""); setScOptions([]); }}
-                        disabled={actioning}
-                      >
-                        <Link2 className="w-3 h-3" /> Vincular solicitação
-                      </Button>
-                    )}
-
-                    {/* Popover de busca SC */}
-                    {scPopoverOpen && (
-                      <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-card rounded-xl border border-border shadow-xl">
-                        <div className="p-3 border-b border-border">
-                          <div className="relative">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                            <input
-                              autoFocus
-                              type="text"
-                              value={scSearch}
-                              onChange={(e) => setScSearch(e.target.value)}
-                              placeholder="Buscar solicitação… (compra, solicitante…)"
-                              className="w-full pl-8 pr-3 h-8 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            />
-                          </div>
-                        </div>
-                        <div className="max-h-52 overflow-y-auto">
-                          {scSearching ? (
-                            <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-muted-foreground">
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…
-                            </div>
-                          ) : scOptions.length === 0 ? (
-                            <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">
-                              {scSearch.trim() ? "Nenhuma solicitação encontrada." : "Nenhuma solicitação disponível."}
-                            </p>
-                          ) : scOptions.map((n) => (
-                            <button
-                              key={n.id}
-                              type="button"
-                              onMouseDown={() => vincularNecessidade(n.id)}
-                              className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:bg-indigo-500/15 border-b border-gray-50 last:border-0"
-                            >
-                              <span className="flex flex-col items-start">
-                                <span className="font-mono font-semibold text-foreground">{n.numeroCompra ?? n.numero}</span>
-                                {n.numeroCompra && <span className="font-mono text-[10px] text-muted-foreground">{n.numero}</span>}
-                              </span>
-                              <div className="text-right">
-                                {n.solicitante && <p className="text-xs text-muted-foreground">{n.solicitante}</p>}
-                                {(n.centroCusto?.nome ?? n.localEstoque?.nome ?? n.setor?.nome) && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {n.centroCusto?.nome ?? n.localEstoque?.nome ?? n.setor?.nome}
-                                  </p>
-                                )}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* SC info body */}
-              {sc ? (
-                <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Nº interno da solicitação</Label>
-                    <Input value={sc.numero} readOnly className="bg-muted font-mono text-muted-foreground" />
-                  </div>
-                  {sc.solicitante && (
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Solicitante</Label>
-                      <Input value={sc.solicitante} readOnly className="bg-muted" />
-                    </div>
-                  )}
-                  {(sc.centroCusto?.nome ?? sc.localEstoque?.nome ?? sc.setor?.nome) && (
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">
-                        {sc.centroCusto ? "Centro de Custo" : sc.setor ? "Setor" : "Local"}
-                      </Label>
-                      <Input
-                        value={sc.centroCusto?.nome ?? sc.setor?.nome ?? sc.localEstoque?.nome ?? ""}
-                        readOnly
-                        className="bg-muted"
-                      />
-                    </div>
-                  )}
-                  {sc.justificativa && (
-                    <div className="col-span-full space-y-1">
-                      <Label className="text-xs text-muted-foreground">Justificativa</Label>
-                      <Input value={sc.justificativa} readOnly className="bg-muted" />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="px-4 py-5 text-sm text-muted-foreground italic">
-                  Nenhuma solicitação vinculada. Clique em &quot;Vincular solicitação&quot; para associar.
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* ── Seção Fornecedor ─────────────────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Fornecedor</h2>
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Código fornecedor</Label>
-              <Input value={codigoForn} readOnly className="font-mono bg-muted" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Nome Fornecedor</Label>
-              <Input value={fornNome} readOnly className="bg-muted" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Contato</Label>
-              <Input value={pedido.fornecedor.contato ?? "—"} readOnly className="bg-muted" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">E-mail</Label>
-              <Input value={pedido.fornecedor.email ?? "—"} readOnly className="bg-muted" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Proposta</Label>
-              <Input value={propostaLabel} readOnly className="bg-muted font-mono" />
-            </div>
-          </div>
-        </div>
-
-        {/* ── Seção Cotação / Financeiro ───────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border">
-          <div className="px-4 py-3 border-b border-border bg-muted rounded-t-xl flex items-center justify-between gap-3">
-            <h2 className="font-semibold text-sm text-foreground">Cotação</h2>
-
-            <div className="flex items-center gap-2 ml-auto">
-              {/* Link to cotação */}
-              {pedido.cotacao && (
-                <Link
-                  href={`/suprimentos/cotacoes/${pedido.cotacao.id}`}
-                  className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-                  title={pedido.cotacao.numero}
+                </span>
+              ) : descCanEdit ? (
+                <button
+                  onClick={() => { setDescricaoEdit(""); setEditingDescricao(true); }}
+                  className="text-sm text-muted-foreground hover:text-foreground italic transition-colors"
                 >
-                  <FileText className="w-3 h-3" />
-                  {pedido.cotacao.numeroCompra && pedido.cotacao.numeroCompra !== pedido.numeroCompra
-                    ? `Cotação · ${pedido.cotacao.numeroCompra}`
-                    : "Cotação"}
-                  {pedido.cotacao.nome ? ` — ${pedido.cotacao.nome}` : ""}
-                </Link>
-              )}
+                  + Adicionar descrição
+                </button>
+              ) : null}
+            </EtapaCampo>
+          </EtapaCampos>
+        </EtapaSecao>
 
-              {/* Vincular / desvincular CT button */}
-              <div className="relative" ref={ctPopoverRef}>
-                {pedido.cotacao ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-red-500 gap-1"
-                    onClick={() => vincularCotacao(null)}
-                    disabled={actioning}
-                    title="Desvincular cotação"
-                  >
-                    <X className="w-3 h-3" /> Desvincular cotação
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2.5 text-xs gap-1.5"
-                    onClick={() => { setCtPopoverOpen((v) => !v); setCtSearch(""); setCtOptions([]); }}
-                    disabled={actioning}
-                  >
-                    <Link2 className="w-3 h-3" /> Vincular cotação
-                  </Button>
-                )}
-
-                {/* Popover de busca */}
-                {ctPopoverOpen && (
-                  <div className="absolute right-0 top-full mt-2 z-50 w-96 bg-card rounded-xl border border-border shadow-xl">
-                    <div className="p-3 border-b border-border">
-                      <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                        <input
-                          autoFocus
-                          type="text"
-                          value={ctSearch}
-                          onChange={(e) => setCtSearch(e.target.value)}
-                          placeholder="Buscar cotação… (compra, nome…)"
-                          className="w-full pl-8 pr-3 h-8 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-                    <div className="max-h-52 overflow-y-auto">
-                      {ctSearching ? (
-                        <div className="flex items-center justify-center py-4 gap-1.5 text-xs text-muted-foreground">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Buscando…
-                        </div>
-                      ) : ctOptions.length === 0 ? (
-                        <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">
-                          {ctSearch.trim() ? "Nenhuma cotação encontrada." : "Nenhuma cotação disponível."}
-                        </p>
-                      ) : ctOptions.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onMouseDown={() => vincularCotacao(c.id)}
-                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:bg-indigo-500/15 border-b border-gray-50 last:border-0"
-                        >
-                          <span className="flex flex-col items-start">
-                            <span className="font-mono font-semibold text-foreground">{c.numeroCompra ?? c.necessidade?.numeroCompra ?? c.numero}</span>
-                            {(c.numeroCompra ?? c.necessidade?.numeroCompra) && (
-                              <span className="font-mono text-[10px] text-muted-foreground">{c.numero}</span>
-                            )}
-                          </span>
-                          <div className="text-right">
-                            {c.nome && <p className="text-xs text-muted-foreground">{c.nome}</p>}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Total itens</Label>
-              <Input
-                value={totalItensQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                readOnly
-                className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Total bruto</Label>
-              <Input
-                value={formatBRL(subtotalVal)}
-                readOnly
-                className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">% Desconto</Label>
-              <Input
-                value={descontoVal > 0 ? descontoVal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00"}
-                readOnly
-                className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Vr Desconto</Label>
-              <Input
-                value={formatBRL(vrDescontoVal)}
-                readOnly
-                className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Total líquido</Label>
-              <Input
-                value={formatBRL(netTotal)}
-                readOnly
-                className="bg-muted text-right font-semibold text-foreground"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Frete</Label>
-              <Input
-                value={freteVal > 0 ? freteVal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00"}
-                readOnly
-                className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Tipo Frete</Label>
-              <Input
-                value={cf?.tipoFrete ? (TIPO_FRETE_LABEL[cf.tipoFrete] ?? cf.tipoFrete) : "—"}
-                readOnly
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Condição pagamento</Label>
-              <Input
-                value={cf?.condicoesPagamento ?? "—"}
-                readOnly
-                className="bg-muted"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Despesas</Label>
-              <Input
-                value={despesasVal > 0 ? despesasVal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00"}
-                readOnly
-                className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Seguro</Label>
-              <Input
-                value={seguroVal > 0 ? seguroVal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00"}
-                readOnly
-                className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Entrega Prevista</Label>
-              <Input
-                value={pedido.dataEntregaPrevista ? formatDate(pedido.dataEntregaPrevista) : cf?.prazoEntregaDias ? `${cf.prazoEntregaDias} dias` : "—"}
-                readOnly
-                className="bg-muted"
-              />
-            </div>
-            {pedido.conferencia && (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Entrada</Label>
-                <div className="flex items-center h-9 px-3 border border-border rounded-md bg-muted gap-2">
-                  <Link
-                    href={`/suprimentos/conferencias/${pedido.conferencia.id}`}
-                    className="text-sm text-info hover:underline font-medium"
-                    title={pedido.conferencia.numero}
-                  >
-                    {pedido.conferencia.numeroCompra && pedido.conferencia.numeroCompra !== pedido.numeroCompra
-                      ? `Entrada · ${pedido.conferencia.numeroCompra}`
-                      : "Entrada"}
-                  </Link>
-                  <StatusBadge status={pedido.conferencia.status} />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Contas a Pagar (gerado no Documento de Entrada pela condição) ── */}
-        {pedido.contasPagar && pedido.contasPagar.length > 0 && (
-          <div className="bg-card rounded-xl border border-border overflow-hidden">
-            <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-              <h3 className="font-semibold text-foreground text-sm">Contas a Pagar</h3>
-              <FinanceiroCompraBadge status={pedido.statusFinanceiro} />
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground border-b border-border">
-                    <th className="px-4 py-2 font-medium">Título</th>
-                    <th className="px-4 py-2 font-medium">Parcela</th>
-                    <th className="px-4 py-2 font-medium">Vencimento</th>
-                    <th className="px-4 py-2 font-medium text-right">Valor</th>
-                    <th className="px-4 py-2 font-medium text-right">Pago</th>
-                    <th className="px-4 py-2 font-medium">Situação</th>
-                    <th className="px-4 py-2 font-medium text-right" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {pedido.contasPagar.map((c) => {
-                    const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
-                    const podePagar = c.status !== "PAGA" && c.status !== "CANCELADA";
-                    return (
-                      <tr key={c.id} className="border-b border-gray-50">
-                        <td className="px-4 py-2.5 font-mono text-xs text-foreground">{c.numero}</td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{c.parcelaTotal && c.parcelaTotal > 1 ? `${c.parcelaNumero}/${c.parcelaTotal}` : "—"}</td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{c.dataVencimento ? formatDate(c.dataVencimento) : <span className="text-muted-foreground italic">sem previsão</span>}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums">{formatBRL(decimalToNumber(c.valorOriginal))}</td>
-                        <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{formatBRL(decimalToNumber(c.valorPago))}</td>
-                        <td className="px-4 py-2.5"><StatusBadge status={c.status} /></td>
-                        <td className="px-4 py-2.5 text-right">
-                          {podePagar && (
-                            <Button size="sm" variant="outline" onClick={() => router.push(`/contas-pagar?abrir=${c.id}`)}
-                              className="h-7 gap-1 border-rose-200 text-danger hover:bg-danger/10">
-                              Pagar{saldo > 0 ? ` ${formatBRL(saldo)}` : ""}
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* ── Fornecedor ──────────────────────────────────────────────────── */}
+        <EtapaSecao titulo="Fornecedor">
+          <EtapaCampos>
+            <EtapaCampo rotulo="Nome" span={2}>{fornNome}</EtapaCampo>
+            <EtapaCampo rotulo="CNPJ/CPF">{pedido.fornecedor.cpfCnpj}</EtapaCampo>
+            <EtapaCampo rotulo="Código"><span className="font-mono">{codigoForn}</span></EtapaCampo>
+            <EtapaCampo rotulo="Contato" span={2}>{pedido.fornecedor.contato}</EtapaCampo>
+            <EtapaCampo rotulo="E-mail" span={2}>{pedido.fornecedor.email}</EtapaCampo>
+          </EtapaCampos>
+        </EtapaSecao>
 
         {/* ── Itens do Pedido ───────────────────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Itens da cotação</h2>
-          </div>
+        <EtapaSecao titulo="Itens" semPadding>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
+            <table className={tabela.table}>
+              <thead className={tabela.thead}>
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Produto</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Descrição</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Situação</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Quantidade</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Preço Unitário</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Total Item</th>
+                  <th className={tabela.th}>Código</th>
+                  <th className={tabela.th}>Descrição</th>
+                  <th className={tabela.thNum}>Qtd</th>
+                  <th className={tabela.th}>Un</th>
+                  <th className={tabela.thNum}>Preço</th>
+                  <th className={tabela.thNum}>Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {pedido.itens.map((item) => {
                   const qtd    = decimalToNumber(item.quantidade);
                   const preco  = decimalToNumber(item.precoUnitario);
                   const vlItem = decimalToNumber(item.valorTotal) || qtd * preco;
                   return (
-                    <tr key={item.id} className="hover:bg-muted">
-                      <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
-                      <td className="px-4 py-2 text-foreground">{item.item.descricao}</td>
-                      <td className="px-4 py-2 text-muted-foreground">{item.item.unidadeMedida}</td>
-                      <td className="px-4 py-2">
-                        <span className="inline-flex items-center gap-1 text-xs text-success bg-success/10 border border-success/30 rounded px-2 py-0.5">
-                          <CheckCircle2 className="w-3 h-3" /> Considera
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-right text-foreground">
+                    <tr key={item.id} className={tabela.tr}>
+                      <td className={tabela.tdCodigo}>{item.item.codigo}</td>
+                      <td className={tabela.td}>{item.item.descricao}</td>
+                      <td className={tabela.tdNum}>
                         {qtd.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
                       </td>
-                      <td className="px-4 py-2 text-right text-foreground">{formatBRL(preco)}</td>
-                      <td className="px-4 py-2 text-right font-medium text-foreground">{formatBRL(vlItem)}</td>
+                      <td className={cn(tabela.td, "text-muted-foreground")}>{item.item.unidadeMedida}</td>
+                      <td className={tabela.tdNum}>{formatBRL(preco)}</td>
+                      <td className={cn(tabela.tdNum, "font-medium")}>{formatBRL(vlItem)}</td>
                     </tr>
                   );
                 })}
                 {pedido.itens.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-4 text-center text-muted-foreground text-sm">
+                    <td colSpan={6} className="px-4 py-4 text-center text-muted-foreground text-sm">
                       Nenhum item no pedido
                     </td>
                   </tr>
                 )}
               </tbody>
-              <tfoot className="border-t-2 border-border bg-muted">
-                <tr>
-                  <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-muted-foreground">Total bruto</td>
-                  <td className="px-4 py-1.5 text-right text-sm text-foreground">{formatBRL(subtotalVal)}</td>
-                </tr>
-                {vrDescontoVal > 0 && (
+              {pedido.itens.length > 0 && (
+                <tfoot className={tabela.tfoot}>
                   <tr>
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-muted-foreground">
-                      Desconto{descontoVal > 0 ? ` (${descontoVal.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)` : ""}
-                    </td>
-                    <td className="px-4 py-1.5 text-right text-sm text-danger">− {formatBRL(vrDescontoVal)}</td>
+                    <td colSpan={2} className={tabela.td}>Total bruto</td>
+                    <td className={tabela.tdNum}>{totalItensQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</td>
+                    <td colSpan={2} />
+                    <td className={tabela.tdNum}>{formatBRL(subtotalVal)}</td>
                   </tr>
-                )}
-                {freteVal > 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-muted-foreground">Frete</td>
-                    <td className="px-4 py-1.5 text-right text-sm text-foreground">+ {formatBRL(freteVal)}</td>
-                  </tr>
-                )}
-                {despesasVal > 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-muted-foreground">Despesas</td>
-                    <td className="px-4 py-1.5 text-right text-sm text-foreground">+ {formatBRL(despesasVal)}</td>
-                  </tr>
-                )}
-                {seguroVal > 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-sm text-muted-foreground">Seguro</td>
-                    <td className="px-4 py-1.5 text-right text-sm text-foreground">+ {formatBRL(seguroVal)}</td>
-                  </tr>
-                )}
-                <tr className="border-t border-border">
-                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">Total líquido</td>
-                  <td className="px-4 py-2 text-right font-bold text-foreground">{formatBRL(netTotal)}</td>
-                </tr>
-              </tfoot>
+                </tfoot>
+              )}
             </table>
           </div>
-        </div>
+        </EtapaSecao>
 
         {pedido.observacoes && (
-          <div className="bg-card rounded-xl border border-border overflow-hidden">
-            <div className="px-4 py-3 border-b border-border bg-muted">
-              <h2 className="font-semibold text-sm text-foreground">Observações</h2>
-            </div>
-            <div className="p-4">
-              <p className="text-sm text-foreground whitespace-pre-wrap">{pedido.observacoes}</p>
-            </div>
-          </div>
+          <EtapaSecao titulo="Observações">
+            <p className="text-sm text-foreground whitespace-pre-wrap">{pedido.observacoes}</p>
+          </EtapaSecao>
         )}
 
         <Autoria criadoPor={pedido.criadoPor} atualizadoPor={pedido.atualizadoPor} />
-      </div>
+      </EtapaLayout>
 
       {/* ── WA Modal ─────────────────────────────────────────────────────────── */}
       {showWAModal && pedido && (

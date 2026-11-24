@@ -26,6 +26,9 @@ import { useSession } from "@/lib/session-context";
 import PropostaForm from "@/components/suprimentos/PropostaForm";
 import EscClose from "@/components/shared/EscClose";
 import { useDocumentoId } from "@/lib/compra-embutida";
+import {
+  EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaResumo, ForaDaCompra, tabela,
+} from "@/components/compras/etapa/EtapaUI";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type FornecedorOption = {
@@ -80,6 +83,7 @@ type Cotacao = {
   dataLimiteResposta: string | null;
   observacoes: string | null;
   infoEntrega: string | null;
+  createdAt?: string | null;
   criadoPor?: string | null;
   atualizadoPor?: string | null;
   necessidade: {
@@ -115,6 +119,14 @@ const STATUS_RESP_BADGE: Record<string, { label: string; cls: string }> = {
   AGUARDANDO: { label: "Pendente",            cls: "bg-warning/15 text-warning border border-warning/30" },
   RESPONDIDA: { label: "Proposta Registrada", cls: "bg-success/15 text-success border border-success/30" },
   RECUSADA:   { label: "Desqualificado",      cls: "bg-danger/15 text-danger border border-danger/30" },
+};
+
+// Mesmos rótulos/cores da listagem de cotações.
+const STATUS_COTACAO_BADGE: Record<string, { label: string; cls: string }> = {
+  PENDENTE:             { label: "Pendente",          cls: "bg-warning/15 text-warning" },
+  EM_ANALISE:           { label: "Em Análise",        cls: "bg-info/15 text-info" },
+  AGUARDANDO_APROVACAO: { label: "Aguard. Aprovação", cls: "bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300" },
+  CONCLUIDA:            { label: "Concluída",         cls: "bg-success/15 text-success" },
 };
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -466,6 +478,10 @@ export default function CotacaoDetailPage() {
   // Aprovador designado da pendência atual (além do ADMIN) pode aprovar/reprovar.
   const isAprovador = (cotacao.aprovacoes ?? []).some((a) => a.status === "PENDENTE" && a.aprovadorId === user?.id);
   const podeAprovar = isAdmin || isAprovador;
+  const statusBadge = STATUS_COTACAO_BADGE[cotacao.status] ?? { label: cotacao.status, cls: "bg-muted text-muted-foreground" };
+  const melhorOpcao = cotacao.fornecedores.find((cf) => cf.melhorOpcao && cf.status === "RESPONDIDA");
+  const aprovacoes = cotacao.aprovacoes ?? [];
+  const pedidosGerados = cotacao.status === "CONCLUIDA" ? cotacao.pedidos : [];
 
   return (
     <div>
@@ -478,6 +494,9 @@ export default function CotacaoDetailPage() {
         ]}
         action={
           <div className="flex items-center gap-2">
+            <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap", statusBadge.cls)}>
+              {statusBadge.label}
+            </span>
             {(cotacao.status === "PENDENTE" || cotacao.status === "EM_ANALISE") && (
               <Button
                 onClick={() => {
@@ -540,160 +559,185 @@ export default function CotacaoDetailPage() {
                 Excluir
               </Button>
             )}
-            <Button variant="outline" onClick={() => router.push("/suprimentos/cotacoes")}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar
-            </Button>
+            <ForaDaCompra>
+              <Button variant="outline" onClick={() => router.push("/suprimentos/cotacoes")}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar
+              </Button>
+            </ForaDaCompra>
           </div>
         }
       />
 
-      <div className="px-8 pb-8 space-y-6 max-w-6xl">
+      <EtapaLayout
+        lateral={
+          <>
+            <EtapaSecao titulo="Fornecedores">
+              {cotacao.fornecedores.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum fornecedor vinculado.</p>
+              ) : (
+                <EtapaResumo
+                  linhas={[
+                    ...cotacao.fornecedores.map((cf) => {
+                      const badge = STATUS_RESP_BADGE[cf.status] ?? { label: cf.status, cls: "bg-muted text-muted-foreground" };
+                      const total = decimalToNumber(cf.totalCalculado);
+                      const melhor = cf.melhorOpcao && cf.status === "RESPONDIDA";
+                      return {
+                        rotulo: (
+                          <span className={cn("block truncate max-w-[12rem]", melhor && "text-success font-medium")} title={cf.fornecedor.razaoSocial}>
+                            {cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial}
+                          </span>
+                        ),
+                        valor: cf.status === "RESPONDIDA" && total > 0
+                          ? <span className={cn(melhor && "text-success font-semibold")}>{formatBRL(total)}</span>
+                          : <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap", badge.cls)}>{badge.label}</span>,
+                      };
+                    }),
+                    { rotulo: "Propostas registradas", valor: `${respondidas.length}/${cotacao.fornecedores.length}`, destaque: true },
+                    ...(melhorOpcao ? [{
+                      rotulo: "Melhor opção",
+                      valor: <span className="text-success">{melhorOpcao.fornecedor.nomeFantasia || melhorOpcao.fornecedor.razaoSocial}</span>,
+                    }] : []),
+                  ]}
+                />
+              )}
+            </EtapaSecao>
+
+            {(aprovacoes.length > 0 || pedidosGerados.length > 0) && (
+              <EtapaSecao titulo="Aprovação">
+                {aprovacoes.length > 0 && (
+                  <ul className="space-y-2 text-sm">
+                    {aprovacoes.map((a) => {
+                      const nome = a.aprovador?.nome ?? "Aprovador";
+                      const quando = a.respondidoEm ?? a.createdAt;
+                      const data = quando ? new Date(quando).toLocaleString("pt-BR") : "—";
+                      if (a.status === "APROVADO") return (
+                        <li key={a.id} className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-foreground"><b className="font-semibold">Aprovada</b> por {nome}</p>
+                            <p className="text-xs text-muted-foreground">{data}</p>
+                          </div>
+                        </li>
+                      );
+                      if (a.status === "REPROVADO") return (
+                        <li key={a.id} className="flex items-start gap-2">
+                          <XCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-foreground"><b className="font-semibold">Reprovada</b> por {nome}{a.observacao ? ` — ${a.observacao}` : ""}</p>
+                            <p className="text-xs text-muted-foreground">{data}</p>
+                          </div>
+                        </li>
+                      );
+                      return (
+                        <li key={a.id} className="flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-foreground">Aguardando aprovação de {nome}</p>
+                            <p className="text-xs text-muted-foreground">desde {data}</p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {pedidosGerados.length > 0 && (
+                  <div className={cn("flex items-center gap-2 text-sm text-success font-medium", aprovacoes.length > 0 && "mt-3 pt-3 border-t border-border")}>
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>
+                      Pedido gerado:{" "}
+                      {pedidosGerados.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/suprimentos/pedidos-compra/${p.id}`}
+                          className="underline hover:text-green-900 ml-1"
+                        >
+                          {p.numero}
+                        </Link>
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </EtapaSecao>
+            )}
+          </>
+        }
+      >
         {actionError && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
         )}
 
-        {/* ── Info header card ───────────────────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border px-5 py-4">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Apelido</p>
-              <p className="font-semibold text-foreground truncate">{cotacao.nome || <span className="text-muted-foreground/60 font-normal">—</span>}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Solicitação vinculada</p>
-              {cotacao.necessidade ? (
-                <Link
-                  href={`/compras/necessidades/${cotacao.necessidade.id}`}
-                  className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-info hover:text-blue-900 hover:underline"
-                  title={cotacao.necessidade.numero}
-                >
-                  {cotacao.numeroCompra ? (
-                    <>
-                      <span className="font-sans">Solicitação</span>
-                      <span className="text-xs font-normal text-muted-foreground">{cotacao.necessidade.numero}</span>
-                    </>
-                  ) : cotacao.necessidade.numero}
-                </Link>
-              ) : (
-                <span className="text-muted-foreground/60">—</span>
-              )}
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Prazo de resposta</p>
-              <p className="font-medium text-foreground">
-                {cotacao.dataLimiteResposta
-                  ? formatDate(cotacao.dataLimiteResposta)
-                  : <span className="text-muted-foreground/60">—</span>}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Informações de entrega</p>
-              <p className="text-foreground text-xs line-clamp-2 whitespace-pre-wrap">
-                {cotacao.infoEntrega || <span className="text-muted-foreground/60">—</span>}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Observações</p>
-              <p className="text-foreground text-xs line-clamp-2 whitespace-pre-wrap">
-                {cotacao.observacoes || <span className="text-muted-foreground/60">—</span>}
-              </p>
-            </div>
-          </div>
-          {/* ── Dados da solicitação (SC): setor, solicitante, motivo e descrição ── */}
+        <EtapaSecao titulo="Dados da cotação">
+          <EtapaCampos>
+            <EtapaCampo rotulo="Status">
+              <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap", statusBadge.cls)}>
+                {statusBadge.label}
+              </span>
+            </EtapaCampo>
+            <EtapaCampo rotulo="Apelido">{cotacao.nome}</EtapaCampo>
+            <EtapaCampo rotulo="Criação">{cotacao.createdAt ? formatDate(cotacao.createdAt) : null}</EtapaCampo>
+            <EtapaCampo rotulo="Prazo de respostas">{cotacao.dataLimiteResposta ? formatDate(cotacao.dataLimiteResposta) : null}</EtapaCampo>
+            <EtapaCampo rotulo="Informações de entrega" span={2}>
+              {cotacao.infoEntrega && <span className="whitespace-pre-wrap">{cotacao.infoEntrega}</span>}
+            </EtapaCampo>
+            <EtapaCampo rotulo="Observações" span={2}>
+              {cotacao.observacoes && <span className="whitespace-pre-wrap">{cotacao.observacoes}</span>}
+            </EtapaCampo>
+            {melhorOpcao && (
+              <EtapaCampo rotulo="Melhor opção" span={2}>
+                <span className="text-success font-medium">{melhorOpcao.fornecedor.nomeFantasia || melhorOpcao.fornecedor.razaoSocial}</span>
+              </EtapaCampo>
+            )}
+          </EtapaCampos>
+
+          {/* Dados da solicitação (SC) — na página da compra a aba Solicitação já mostra. */}
           {cotacao.necessidade && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mt-4 pt-3 border-t border-border">
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Solicitação</p>
-                <Link
-                  href={`/compras/necessidades/${cotacao.necessidade.id}`}
-                  className="font-mono text-sm font-semibold text-info hover:underline"
-                  title={cotacao.necessidade.numero}
-                >
-                  {cotacao.numeroCompra ? (
-                    <>
-                      <span className="font-sans">Solicitação</span>
-                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">{cotacao.necessidade.numero}</span>
-                    </>
-                  ) : cotacao.necessidade.numero}
-                </Link>
+            <ForaDaCompra>
+              <div className="mt-4 pt-4 border-t border-border">
+                <EtapaCampos>
+                  <EtapaCampo rotulo="Solicitação vinculada">
+                    <Link
+                      href={`/compras/necessidades/${cotacao.necessidade.id}`}
+                      className="font-mono font-semibold text-info hover:underline"
+                      title={cotacao.necessidade.numero}
+                    >
+                      {cotacao.necessidade.numero}
+                    </Link>
+                  </EtapaCampo>
+                  <EtapaCampo rotulo="Setor">
+                    {cotacao.necessidade.setor
+                      ? [cotacao.necessidade.setor.pai?.nome, cotacao.necessidade.setor.nome].filter(Boolean).join(" / ")
+                      : null}
+                  </EtapaCampo>
+                  <EtapaCampo rotulo="Solicitante">
+                    {cotacao.necessidade.colaborador?.nome || cotacao.necessidade.solicitante}
+                  </EtapaCampo>
+                  <EtapaCampo rotulo="Motivo">{cotacao.necessidade.motivo}</EtapaCampo>
+                  <EtapaCampo rotulo="Descrição" span={4}>
+                    {cotacao.necessidade.justificativa && <span className="whitespace-pre-wrap">{cotacao.necessidade.justificativa}</span>}
+                  </EtapaCampo>
+                </EtapaCampos>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Setor</p>
-                <p className="text-foreground text-xs">
-                  {cotacao.necessidade.setor
-                    ? [cotacao.necessidade.setor.pai?.nome, cotacao.necessidade.setor.nome].filter(Boolean).join(" / ")
-                    : <span className="text-muted-foreground/60">—</span>}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Solicitante</p>
-                <p className="text-foreground text-xs truncate">
-                  {cotacao.necessidade.colaborador?.nome || cotacao.necessidade.solicitante || <span className="text-muted-foreground/60">—</span>}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Motivo</p>
-                <p className="text-foreground text-xs">
-                  {cotacao.necessidade.motivo || <span className="text-muted-foreground/60">—</span>}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-0.5">Descrição</p>
-                <p className="text-foreground text-xs line-clamp-2 whitespace-pre-wrap">
-                  {cotacao.necessidade.justificativa || <span className="text-muted-foreground/60">—</span>}
-                </p>
-              </div>
-            </div>
+            </ForaDaCompra>
           )}
-          <Autoria criadoPor={cotacao.criadoPor} atualizadoPor={cotacao.atualizadoPor} className="mt-3" />
-        </div>
+          <Autoria criadoPor={cotacao.criadoPor} atualizadoPor={cotacao.atualizadoPor} className="mt-4" />
+        </EtapaSecao>
 
-        {/* ── Histórico de aprovação (quem aprovou/reprovou e quando) ─────── */}
-        {(cotacao.aprovacoes ?? []).length > 0 && (
-          <div className="bg-card rounded-xl border border-border px-5 py-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Histórico de aprovação</p>
-            <ul className="space-y-1.5 text-sm">
-              {(cotacao.aprovacoes ?? []).map((a) => {
-                const nome = a.aprovador?.nome ?? "Aprovador";
-                const quando = a.respondidoEm ?? a.createdAt;
-                const data = quando ? new Date(quando).toLocaleString("pt-BR") : "—";
-                if (a.status === "APROVADO") return (
-                  <li key={a.id} className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
-                    <span className="text-foreground"><b className="font-semibold">Aprovada</b> por {nome}</span>
-                    <span className="text-muted-foreground ml-auto text-xs whitespace-nowrap">{data}</span>
-                  </li>
-                );
-                if (a.status === "REPROVADO") return (
-                  <li key={a.id} className="flex items-start gap-2">
-                    <XCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
-                    <span className="text-foreground"><b className="font-semibold">Reprovada</b> por {nome}{a.observacao ? ` — ${a.observacao}` : ""}</span>
-                    <span className="text-muted-foreground ml-auto text-xs whitespace-nowrap">{data}</span>
-                  </li>
-                );
-                return (
-                  <li key={a.id} className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-warning shrink-0" />
-                    <span className="text-foreground">Aguardando aprovação de {nome}</span>
-                    <span className="text-muted-foreground ml-auto text-xs whitespace-nowrap">desde {data}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-
-        {/* ── Itens da cotação × propostas dos fornecedores (matriz) ──────── */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <button
-            type="button"
-            className="w-full flex items-center justify-between px-4 py-3 bg-muted border-b border-border hover:bg-muted transition-colors"
-            onClick={() => setItensOpen(!itensOpen)}
-          >
-            <span className="font-semibold text-sm text-foreground">Itens da cotação</span>
-            {itensOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-          </button>
+        {/* ── Propostas: itens da cotação × propostas dos fornecedores (matriz) ── */}
+        <EtapaSecao
+          titulo="Propostas"
+          semPadding
+          acoes={
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setItensOpen(!itensOpen)}
+              title={itensOpen ? "Recolher" : "Expandir"}
+            >
+              {itensOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+          }
+        >
           {itensOpen && (() => {
             const fornecedores = cotacao.fornecedores;
             // Menor preço válido por item (entre propostas respondidas que cotam o
@@ -717,13 +761,13 @@ export default function CotacaoDetailPage() {
 
             return (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted border-b border-border">
+                <table className={tabela.table}>
+                  <thead className={tabela.thead}>
                     <tr>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground align-bottom">Código</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground align-bottom">Descrição</th>
-                      <th className="text-left px-4 py-2 font-medium text-muted-foreground align-bottom">U.M.</th>
-                      <th className="text-right px-4 py-2 font-medium text-muted-foreground align-bottom">Qtd</th>
+                      <th className={cn(tabela.th, "align-bottom")}>Código</th>
+                      <th className={cn(tabela.th, "align-bottom")}>Descrição</th>
+                      <th className={cn(tabela.th, "align-bottom")}>U.M.</th>
+                      <th className={cn(tabela.thNum, "align-bottom")}>Qtd</th>
                       {fornecedores.map((cf) => {
                         const badge = STATUS_RESP_BADGE[cf.status] ?? { label: cf.status, cls: "bg-muted text-muted-foreground" };
                         const fornNome = cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial;
@@ -811,10 +855,10 @@ export default function CotacaoDetailPage() {
                       })}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border">
+                  <tbody>
                     {Array.from(allItemsMap.entries()).map(([itemId, item]) => (
-                      <tr key={itemId} className="hover:bg-muted">
-                        <td className="px-4 py-2 font-mono text-xs whitespace-nowrap">
+                      <tr key={itemId} className={cn(tabela.tr, "hover:bg-muted/50")}>
+                        <td className={tabela.tdCodigo}>
                           <Link
                             href={`/suprimentos/produtos/${itemId}?tab=compras`}
                             className="text-muted-foreground hover:text-info hover:underline"
@@ -823,7 +867,7 @@ export default function CotacaoDetailPage() {
                             {item.codigo}
                           </Link>
                         </td>
-                        <td className="px-4 py-2">
+                        <td className={tabela.td}>
                           <Link
                             href={`/suprimentos/produtos/${itemId}?tab=compras`}
                             className="text-foreground hover:text-info hover:underline"
@@ -832,8 +876,8 @@ export default function CotacaoDetailPage() {
                             {item.descricao}
                           </Link>
                         </td>
-                        <td className="px-4 py-2 text-muted-foreground">{item.unidadeMedida}</td>
-                        <td className="px-4 py-2 text-right text-foreground">
+                        <td className={cn(tabela.td, "text-muted-foreground")}>{item.unidadeMedida}</td>
+                        <td className={tabela.tdNum}>
                           {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                         </td>
                         {fornecedores.map((cf) => {
@@ -848,7 +892,7 @@ export default function CotacaoDetailPage() {
                             <td
                               key={cf.id}
                               className={cn(
-                                "px-4 py-2 text-right whitespace-nowrap border-l border-border",
+                                "px-4 py-2.5 text-right tabular-nums whitespace-nowrap border-l border-border",
                                 melhorCol && "bg-success/5",
                                 ehMenor ? "text-success font-semibold" : "text-foreground"
                               )}
@@ -1067,28 +1111,8 @@ export default function CotacaoDetailPage() {
               Nenhum fornecedor vinculado a esta cotação.
             </p>
           )}
-        </div>
-
-        {/* ── Concluída: pedidos gerados ────────────────────────────────── */}
-        {cotacao.status === "CONCLUIDA" && cotacao.pedidos.length > 0 && (
-          <div className="bg-success/10 border border-success/30 rounded-xl px-4 py-3 flex items-center gap-3">
-            <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
-            <span className="text-sm text-success font-medium">
-              Pedido gerado:{" "}
-              {cotacao.pedidos.map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/suprimentos/pedidos-compra/${p.id}`}
-                  className="underline hover:text-green-900 ml-1"
-                >
-                  {p.numero}
-                </Link>
-              ))}
-            </span>
-          </div>
-        )}
-
-      </div>
+        </EtapaSecao>
+      </EtapaLayout>
 
       {/* ── Edit cotação modal ─────────────────────────────────────────────────── */}
       {showEditModal && (

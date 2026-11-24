@@ -294,7 +294,8 @@ export default function CompraPage() {
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold text-foreground font-mono">{compra.numeroCompra}</h1>
-              <EmpresaTag empresaId={compra.empresaId} />
+              {/* Nome por extenso: a sigla da empresa ("CT") se confundia com a de Cotação. */}
+              <EmpresaTag empresaId={compra.empresaId} compact={false} />
               {compra.concluido ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Concluída
@@ -305,12 +306,12 @@ export default function CompraPage() {
                 </span>
               )}
               {compra.prioridade != null && compra.prioridade >= 4 && (
-                <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+                <span className="rounded px-2 py-0.5 text-xs font-semibold bg-danger/15 text-danger">
                   {compra.prioridade >= 5 ? "Crítica" : "Urgente"}
                 </span>
               )}
               {compra.setor && (
-                <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-semibold text-white">{compra.setor}</span>
+                <span className="rounded px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground capitalize">{compra.setor.toLowerCase()}</span>
               )}
             </div>
             {compra.assunto && <p className="text-base text-foreground">{compra.assunto}</p>}
@@ -318,7 +319,7 @@ export default function CompraPage() {
               <p className="text-xs text-muted-foreground">
                 Também existe {compra.numeroCompra} em:{" "}
                 {compra.outrasEmpresas.map((e) => (
-                  <Link key={e} href={`${pathname}?empresa=${e}`} className="mr-2 hover:underline"><EmpresaTag empresaId={e} /></Link>
+                  <Link key={e} href={`${pathname}?empresa=${e}`} className="mr-2 hover:underline"><EmpresaTag empresaId={e} compact={false} /></Link>
                 ))}
               </p>
             )}
