@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, Loader2, MoreHorizontal, Plus, RefreshCw, Search, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, Kanban, LayoutList, Loader2, MoreHorizontal, Plus, RefreshCw, Search, X } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import DataTable from "@/components/shared/DataTable";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import SelectMenu from "@/components/shared/SelectMenu";
 import CreateDrawer from "@/components/shared/CreateDrawer";
@@ -106,6 +108,8 @@ function normalizar(s: string): string {
 // SC·CT·PC·DE ficam na página da compra. No cartão: o que se compra, de quem,
 // quanto, até quando e quem pediu.
 
+const ORDEM_VISUAL: ColunaCompra[] = ["montagem", "aprovacao", "entrega", "conferencia", "concluido"];
+
 // Status que fogem do normal da coluna e merecem aparecer no cartão.
 const STATUS_DE_ALERTA: Record<string, string> = {
   RASCUNHO: "Rascunho",
@@ -203,6 +207,7 @@ function CartaoProcesso({ c, mostrarEmpresa, onAbrir, arrastando, onArrastar, on
 export default function AcompanhamentoComprasPage() {
   const [busca, setBusca] = useSessionState<string>("compras:acompanhamento:busca", "");
   const [concluidosDias, setConcluidosDias] = usePersistedState<string>("compras:acompanhamento:concluidos-dias", "7");
+  const [visao, setVisao] = usePersistedState<"quadro" | "lista">("compras:acompanhamento:visao", "quadro");
 
   // Filtro de status por coluna (clique nos contadores do cabeçalho).
   const [filtroStatus, setFiltroStatus] = usePersistedState<Partial<Record<ColunaCompra, string>>>("compras:acompanhamento:status-coluna", {});
@@ -259,8 +264,100 @@ export default function AcompanhamentoComprasPage() {
   }, [data, termo]);
 
   const colunas = concluidosDias === "0" ? COLUNAS.filter((c) => c.coluna !== "concluido") : COLUNAS;
+  // Visão em lista: os mesmos cartões (com a busca aplicada), na ordem das etapas.
+  const linhasLista = colunas.flatMap((col) => porColuna[col.coluna]);
+
   // Sigla da empresa no cartão só quando o quadro mistura empresas (modo grupo).
   const variasEmpresas = new Set((data?.cartoes ?? []).map((c) => c.empresaId)).size > 1;
+
+  const colunasLista: ColumnDef<Cartao>[] = [
+    {
+      id: "numero", header: "Compra", accessorKey: "numero",
+      cell: ({ row: { original: c } }) => (
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
+          {c.concluido && <CheckCircle2 className="w-3.5 h-3.5 text-success" />}
+          <span className="font-mono text-xs font-semibold text-foreground">{c.numero}</span>
+          {variasEmpresas && <EmpresaTag empresaId={c.empresaId} />}
+        </span>
+      ),
+    },
+    {
+      id: "assunto", header: "O que", accessorKey: "assunto",
+      cell: ({ row: { original: c } }) => (
+        <span className="flex items-center gap-1.5 min-w-0">
+          {c.prioridade != null && c.prioridade >= 4 && (
+            <span className="shrink-0 rounded px-1.5 py-px text-[10px] font-semibold bg-danger/15 text-danger">
+              {c.prioridade >= 5 ? "Crítica" : "Urgente"}
+            </span>
+          )}
+          <span className="truncate max-w-[340px] text-foreground" title={c.assunto}>{c.assunto}</span>
+        </span>
+      ),
+    },
+    {
+      id: "etapa", header: "Etapa",
+      accessorFn: (c) => ORDEM_VISUAL.indexOf(c.coluna),
+      cell: ({ row: { original: c } }) => {
+        const col = COLUNAS.find((x) => x.coluna === c.coluna)!;
+        return (
+          <span className="flex items-center gap-1.5 whitespace-nowrap">
+            <span className="rounded-md px-1.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: `${col.cor}1f`, color: col.cor }}>
+              {col.label}
+            </span>
+            {!c.concluido && STATUS_DE_ALERTA[c.status] && (
+              <span className="rounded px-1.5 py-px text-[10px] font-semibold bg-warning/15 text-warning">{STATUS_DE_ALERTA[c.status]}</span>
+            )}
+          </span>
+        );
+      },
+    },
+    {
+      id: "fornecedor", header: "Fornecedor",
+      accessorFn: (c) => (c.etapa === "solicitacao" ? "" : c.titulo),
+      cell: ({ getValue }) => <span className="truncate max-w-[220px] block text-muted-foreground">{String(getValue() || "—")}</span>,
+    },
+    {
+      id: "setor", header: "Setor", accessorFn: (c) => c.setor ?? "",
+      cell: ({ getValue }) => <span className="text-muted-foreground capitalize">{String(getValue() || "—").toLowerCase()}</span>,
+    },
+    {
+      id: "solicitante", header: "Solicitante", accessorFn: (c) => c.solicitante ?? "",
+      cell: ({ row: { original: c } }) => c.solicitante ? (
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
+          <AvatarUsuario nome={c.solicitante} size="sm" />
+          <span className="text-muted-foreground">{c.solicitante}</span>
+        </span>
+      ) : <span className="text-muted-foreground">—</span>,
+    },
+    {
+      id: "prazo", header: "Prazo", accessorKey: "prazo", meta: { sortTipo: "data" },
+      cell: ({ row: { original: c } }) => c.prazo ? (
+        <span
+          title={c.prazoLabel ?? undefined}
+          className={cn("whitespace-nowrap", c.atrasado && !c.concluido ? "font-semibold text-danger" : "text-muted-foreground")}
+        >
+          {formatDate(c.prazo)}
+        </span>
+      ) : <span className="text-muted-foreground">—</span>,
+    },
+    {
+      id: "dias", header: "Na etapa", accessorFn: (c) => (c.concluido ? null : diasDesde(c.desde)), meta: { sortTipo: "numero" },
+      cell: ({ getValue }) => {
+        const d = getValue() as number | null;
+        return d == null
+          ? <span className="text-muted-foreground">—</span>
+          : <span className={cn("whitespace-nowrap", d >= DIAS_ALERTA ? "text-warning" : "text-muted-foreground")}>{d === 0 ? "hoje" : `${d} d`}</span>;
+      },
+    },
+    {
+      id: "valor", header: "Valor", accessorFn: (c) => c.valor ?? 0, meta: { sortTipo: "numero" },
+      cell: ({ row: { original: c } }) => (
+        <span className="block text-right font-semibold text-foreground whitespace-nowrap">
+          {c.valor != null && c.valor > 0 ? formatBRL(c.valor) : "—"}
+        </span>
+      ),
+    },
+  ];
 
   // Cartão abre a página única da compra, na aba do documento clicado.
   function abrirCompra(c: Cartao, d: DocumentoRef) {
@@ -330,6 +427,25 @@ export default function AcompanhamentoComprasPage() {
               </button>
             )}
           </div>
+          <div className="flex items-center gap-0.5 h-9 p-0.5 border border-border rounded-lg bg-card">
+            {([
+              { v: "quadro", label: "Quadro", Icon: Kanban },
+              { v: "lista",  label: "Lista",  Icon: LayoutList },
+            ] as const).map(({ v, label, Icon }) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVisao(v)}
+                title={label}
+                className={cn(
+                  "flex items-center gap-1.5 h-full px-2.5 rounded-md text-sm transition-colors",
+                  visao === v ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="w-4 h-4" />{label}
+              </button>
+            ))}
+          </div>
           <SelectMenu
             value={concluidosDias}
             options={OPCOES_CONCLUIDOS}
@@ -370,6 +486,16 @@ export default function AcompanhamentoComprasPage() {
         <div className="flex justify-center py-24">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground/60" />
         </div>
+      ) : visao === "lista" ? (
+        <DataTable
+          data={linhasLista}
+          columns={colunasLista}
+          hideSearch
+          columnConfig
+          itemLabel="compra"
+          getRowId={(c) => c.id}
+          onRowClick={(c) => abrirCompra(c, c.atual)}
+        />
       ) : (
         // Dimensões do kanban de Projetos: lista de 272px e 12px entre listas.
         <div className="flex items-start gap-3 overflow-x-auto pb-1 h-[calc(100vh-126px)] min-h-[420px]">
