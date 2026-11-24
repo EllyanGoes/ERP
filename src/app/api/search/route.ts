@@ -79,8 +79,8 @@ export async function GET(req: NextRequest) {
       orderBy: { numero: "desc" },
     }),
     prisma.pedidoCompra.findMany({
-      where: { OR: [{ numero: ci }, { numeroCompra: ci }, { fornecedor: { razaoSocial: ci } }, { fornecedor: { nomeFantasia: ci } }] },
-      select: { id: true, numero: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
+      where: { OR: [{ numero: ci }, { numeroCompra: ci }, { numeroAntigo: ci }, { fornecedor: { razaoSocial: ci } }, { fornecedor: { nomeFantasia: ci } }] },
+      select: { id: true, numero: true, numeroAntigo: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
       take: TAKE,
       orderBy: { numero: "desc" },
     }),
@@ -138,7 +138,10 @@ export async function GET(req: NextRequest) {
       tipo: "pedido-compra" as const,
       id: pc.id,
       titulo: pc.numero,
-      subtitulo: pc.fornecedor?.nomeFantasia || pc.fornecedor?.razaoSocial || undefined,
+      subtitulo: [
+        pc.fornecedor?.nomeFantasia || pc.fornecedor?.razaoSocial,
+        pc.numeroAntigo && pc.numeroAntigo !== pc.numero ? `antigo ${pc.numeroAntigo}` : null,
+      ].filter(Boolean).join(" · ") || undefined,
       href: `/suprimentos/pedidos-compra/${pc.id}`,
     })),
     ...comprasSemPedido.map((sc) => ({

@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       where.OR = [
         { numero: { contains: search, mode: "insensitive" } },
         { numeroCompra: { contains: search, mode: "insensitive" } },
+        { numeroAntigo: { contains: search, mode: "insensitive" } },
         { fornecedor: { razaoSocial: { contains: search, mode: "insensitive" } } },
         { fornecedor: { nomeFantasia: { contains: search, mode: "insensitive" } } },
       ];

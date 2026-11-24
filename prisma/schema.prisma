@@ -2404,6 +2404,8 @@ model PedidoCompra {
   // Número ÚNICO da compra (PC-0430): o mesmo em SC, CT, PC e DE do processo.
   // Sai da sequência "PC"; o pedido de compras nasce com numero = numeroCompra.
   numeroCompra         String?
+  // Número que o pedido tinha antes da renumeração por ordem de criação (24/11/2026).
+  numeroAntigo         String?
   cotacaoId            String?
   necessidadeId        String?
   fornecedorId         String

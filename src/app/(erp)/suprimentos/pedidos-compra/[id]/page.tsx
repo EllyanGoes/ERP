@@ -64,6 +64,7 @@ type PedidoCompra = {
   id: string;
   numero: string;
   numeroCompra?: string | null;
+  numeroAntigo?: string | null;
   status: string;
   statusFinanceiro?: string | null;
   contasPagar?: ContaPagarMin[];
@@ -537,7 +538,10 @@ async function openWAModal() {
   return (
     <div>
       <PageHeader
-        title={pedido.numeroCompra ? `Compra ${pedido.numeroCompra} · Pedido${pedido.numero !== pedido.numeroCompra ? ` ${pedido.numero}` : ""}` : `Pedido ${pedido.numero}`}
+        title={
+          (pedido.numeroCompra ? `Compra ${pedido.numeroCompra} · Pedido${pedido.numero !== pedido.numeroCompra ? ` ${pedido.numero}` : ""}` : `Pedido ${pedido.numero}`) +
+          (pedido.numeroAntigo && pedido.numeroAntigo !== pedido.numero ? ` (antes ${pedido.numeroAntigo})` : "")
+        }
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Pedidos de Compra", href: "/suprimentos/pedidos-compra" },
