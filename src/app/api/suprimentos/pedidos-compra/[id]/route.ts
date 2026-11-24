@@ -23,11 +23,12 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       },
       cotacao: {
         select: {
-          id: true, numero: true, nome: true,
+          id: true, numero: true, numeroCompra: true, nome: true,
           necessidade: {
             select: {
               id: true,
               numero: true,
+              numeroCompra: true,
               solicitante: true,
               justificativa: true,
               motivo: true,
@@ -46,7 +47,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       itens: {
         include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true } } },
       },
-      conferencia: { select: { id: true, numero: true, status: true } },
+      conferencia: { select: { id: true, numero: true, numeroCompra: true, status: true } },
       contasPagar: { orderBy: [{ parcelaNumero: "asc" }, { dataVencimento: "asc" }] },
       // Pendência de re-aprovação (pedido editado depois de aprovado)
       aprovacoes: {
@@ -55,7 +56,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       },
       necessidade: {
         select: {
-          id: true, numero: true, solicitante: true,
+          id: true, numero: true, numeroCompra: true, solicitante: true,
           justificativa: true,
           motivo: true,
           centroCusto:  { select: { nome: true } },
@@ -219,8 +220,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       include: {
         cotacao: {
           select: {
-            id: true, numero: true,
-            necessidade: { select: { id: true, numero: true, solicitante: true } },
+            id: true, numero: true, numeroCompra: true,
+            necessidade: { select: { id: true, numero: true, numeroCompra: true, solicitante: true } },
           },
         },
       },

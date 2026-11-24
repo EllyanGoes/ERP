@@ -17,6 +17,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         select: {
           id: true,
           numero: true,
+          numeroCompra: true,
           // Dados da SC exibidos no cabeçalho da cotação e no PDF de aprovação.
           solicitante: true,
           motivo: true,
@@ -44,7 +45,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         },
         orderBy: { createdAt: "asc" },
       },
-      pedidos: { select: { id: true, numero: true, status: true, conferencia: { select: { id: true } } } },
+      pedidos: { select: { id: true, numero: true, numeroCompra: true, status: true, conferencia: { select: { id: true } } } },
       // Aprovações da cotação: a pendente libera o botão de aprovar ao aprovador
       // designado (além do ADMIN); as resolvidas formam o histórico (quem aprovou
       // /reprovou e quando) exibido na tela.

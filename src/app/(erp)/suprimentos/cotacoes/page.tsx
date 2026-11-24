@@ -47,10 +47,12 @@ type CotacaoItem = {
   empresaId?: string;
   id: string;
   numero: string;
+  /** Número único da compra (PC-0430) — identificador do processo; CT- é detalhe. */
+  numeroCompra?: string | null;
   nome: string | null;
   status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA";
   createdAt: string;
-  necessidade: { id: string; numero: string } | null;
+  necessidade: { id: string; numero: string; numeroCompra?: string | null } | null;
   _count: { fornecedores: number };
   fornecedores: Array<{
     status: "AGUARDANDO" | "RESPONDIDA" | "RECUSADA";
@@ -83,8 +85,8 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 const SORT_OPTIONS = [
   { value: "createdAt_desc", label: "Mais recente" },
   { value: "createdAt_asc",  label: "Mais antiga" },
-  { value: "numero_asc",     label: "Número ↑" },
-  { value: "numero_desc",    label: "Número ↓" },
+  { value: "numero_asc",     label: "Compra ↑" },
+  { value: "numero_desc",    label: "Compra ↓" },
 ];
 
 // ── Column definitions ────────────────────────────────────────────────────────
@@ -113,12 +115,14 @@ function makeCotacoesCols(
     },
     {
       id: "numero",
-      label: "Num. Cotação",
+      label: "Compra",
       thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
       tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
       render: (c) => (
-        <span className="inline-flex items-center gap-1.5">
-          {c.numero} <EmpresaTag empresaId={c.empresaId} />
+        <span className="inline-flex items-center gap-1.5" title={c.numeroCompra ? `Cotação ${c.numero}` : undefined}>
+          {c.numeroCompra ?? c.numero}
+          {c.numeroCompra && <span className="text-[11px] font-normal text-muted-foreground">{c.numero}</span>}
+          <EmpresaTag empresaId={c.empresaId} />
         </span>
       ),
     },
@@ -131,7 +135,8 @@ function makeCotacoesCols(
         <Link
           href={`/compras/necessidades/${c.necessidade.id}`}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-info hover:text-blue-900 hover:underline"
+          className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-info hover:underline"
+          title="Abrir a solicitação desta compra"
         >
           {c.necessidade.numero}
         </Link>
@@ -358,7 +363,8 @@ function KanbanCard({ c, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
-          <span className="font-mono text-xs font-bold text-muted-foreground">{c.numero}</span> <EmpresaTag empresaId={c.empresaId} />
+          <span className="font-mono text-xs font-bold text-muted-foreground" title={c.numeroCompra ? `Cotação ${c.numero}` : undefined}>{c.numeroCompra ?? c.numero}</span>
+          {c.numeroCompra && <span className="ml-1 font-mono text-[10px] text-muted-foreground/70">{c.numero}</span>} <EmpresaTag empresaId={c.empresaId} />
           {c.nome && (
             <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">{c.nome}</p>
           )}
@@ -499,6 +505,8 @@ export default function CotacoesPage() {
       const q = search.trim().toLowerCase();
       list = list.filter((c) =>
         c.numero.toLowerCase().includes(q) ||
+        (c.numeroCompra ?? "").toLowerCase().includes(q) ||
+        (c.necessidade?.numero ?? "").toLowerCase().includes(q) ||
         (c.nome ?? "").toLowerCase().includes(q)
       );
     }
@@ -513,8 +521,8 @@ export default function CotacoesPage() {
 
     const [field, dir] = sortKey.split("_");
     list.sort((a, b) => {
-      const va = field === "createdAt" ? new Date(a.createdAt).getTime() : a.numero;
-      const vb = field === "createdAt" ? new Date(b.createdAt).getTime() : b.numero;
+      const va = field === "createdAt" ? new Date(a.createdAt).getTime() : (a.numeroCompra ?? a.numero);
+      const vb = field === "createdAt" ? new Date(b.createdAt).getTime() : (b.numeroCompra ?? b.numero);
       if (va < vb) return dir === "asc" ? -1 : 1;
       if (va > vb) return dir === "asc" ? 1 : -1;
       return 0;
@@ -558,7 +566,7 @@ export default function CotacoesPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar número ou apelido..."
+              placeholder="Buscar compra, número ou apelido..."
               className="pl-9 pr-8 h-9 text-sm"
             />
             {search && (
@@ -706,7 +714,7 @@ export default function CotacoesPage() {
                         <KanbanCard
                           key={c.id}
                           c={c}
-                          onDelete={() => setDeleteTarget({ id: c.id, numero: c.numero })}
+                          onDelete={() => setDeleteTarget({ id: c.id, numero: c.numeroCompra ?? c.numero })}
                           onClick={() => router.push(`/suprimentos/cotacoes/${c.id}`)}
                           canDelete={canDelete(c)}
                           onDragStart={() => setDragItem({ id: c.id, status: c.status })}
@@ -767,7 +775,7 @@ export default function CotacoesPage() {
                           {canDelete(c) && (
                             <DropdownMenuItem
                               className="text-danger focus:text-danger"
-                              onClick={() => setDeleteTarget({ id: c.id, numero: c.numero })}
+                              onClick={() => setDeleteTarget({ id: c.id, numero: c.numeroCompra ?? c.numero })}
                             >
                               <Trash2 className="h-4 w-4 mr-2" /> Excluir
                             </DropdownMenuItem>

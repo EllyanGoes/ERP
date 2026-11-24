@@ -321,7 +321,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     });
 
     // Track which SCs were updated (for user notification)
-    const scAtualizadas: Array<{ numero: string; status: string }> = [];
+    const scAtualizadas: Array<{ numero: string; numeroCompra: string | null; status: string }> = [];
 
     // Helper: compute and update SC status given a necessidadeId
     async function atualizarStatusSC(necessidadeId: string) {
@@ -329,6 +329,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         where: { id: necessidadeId },
         select: {
           numero: true,
+          numeroCompra: true,
           status: true,
           itens: { select: { itemId: true, quantidade: true } },
         },
@@ -418,7 +419,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           where: { id: necessidadeId },
           data: { status: novoStatus },
         });
-        scAtualizadas.push({ numero: necessidade.numero, status: novoStatus });
+        scAtualizadas.push({ numero: necessidade.numero, numeroCompra: necessidade.numeroCompra, status: novoStatus });
       }
     }
 
@@ -446,7 +447,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           select: { quantidadeRecebida: true, vlrUnitario: true, item: { select: { descricao: true } } },
         });
         const det = detalheItens(itensConf.map((it) => ({ quantidade: it.quantidadeRecebida, precoUnitario: it.vlrUnitario, item: it.item })));
-        const baseDescPaga = `Compra ${conferencia.numero}${det ? ` — ${det}` : " (entrada avulsa)"}`;
+        const baseDescPaga = `Compra ${conferencia.numeroCompra ?? conferencia.numero}${det ? ` — ${det}` : " (entrada avulsa)"}`;
         // Entrada já paga abate do valor a parcelar; grade manual (se houver)
         // substitui a condição sobre o RESTANTE.
         const pagoEfetivo = await criarCpEntradaPaga(tx, { valorEntrada, baseDesc: baseDescPaga, dataCompetencia: conferencia.dtEmissao ?? hojeUTC });
@@ -459,7 +460,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             create: { empresaId: conferencia.empresaId, prefixo: "CP", ultimo: 1 },
             update: { ultimo: { increment: 1 } },
           });
-          const baseDesc = `Compra ${conferencia.numero}${det ? ` — ${det}` : " (entrada avulsa)"}`;
+          const baseDesc = `Compra ${conferencia.numeroCompra ?? conferencia.numero}${det ? ` — ${det}` : " (entrada avulsa)"}`;
           const cpAvulsa = await tx.contaPagar.create({
             data: {
               empresaId: conferencia.empresaId,

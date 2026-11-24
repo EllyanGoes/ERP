@@ -24,15 +24,12 @@ import {
   CreditCard,
   Settings2,
   CircleDot,
-  FilePlus,
   Tag,
   Ruler,
   MapPin,
   ArrowLeftRight,
   CalendarDays,
   Banknote,
-  FileSearch,
-  PackageCheck,
   PieChart,
   UserCog,
   ShieldCheck,
@@ -246,9 +243,9 @@ export const mainModules: Module[] = [
       {
         kind: "Fluxo de Compras",
         items: [
+          // Compra é um processo só (página /compras/compra/PC-xxxx com abas por etapa):
+          // listas de Pedidos e Doc. Entrada saíram do menu e seguem no ⌘K (route-registry).
           { href: "/compras/acompanhamento",     label: "Kanban de Compras",     icon: Kanban },
-          { href: "/suprimentos/pedidos-compra", label: "Pedido de Compras",     icon: FilePlus },
-          { href: "/suprimentos/conferencias",   label: "Doc. Entrada",          icon: PackageCheck },
         ],
       },
       {

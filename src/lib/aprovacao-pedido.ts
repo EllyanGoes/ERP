@@ -17,6 +17,14 @@ export const STATUS_PEDIDO_APROVADO = ["AGUARDANDO_PAGAMENTO", "EM_TRANSITO", "C
 const linkPedido = (id: string) => `/suprimentos/pedidos-compra/${id}`;
 
 /**
+ * Identificador do pedido nas mensagens: o número da compra (PC-0430). O número
+ * do pedido já deriva dele (PC-0430/2 no 2º pedido do processo) e é mais preciso;
+ * sem número da compra, fica o do pedido.
+ */
+const compraDoPedido = (p: { numero: string; numeroCompra: string | null }) =>
+  p.numeroCompra && !p.numero.startsWith(p.numeroCompra) ? p.numeroCompra : p.numero;
+
+/**
  * Pedido editado após aprovado: vira AGUARDANDO_APROVACAO, substitui a
  * pendência anterior e avisa o aprovador (in-app + Telegram com botões).
  * Sem aprovador configurado, fica aguardando e só ADMIN aprova no pedido.
@@ -24,7 +32,7 @@ const linkPedido = (id: string) => `/suprimentos/pedidos-compra/${id}`;
 export async function submeterPedidoParaAprovacao(pedidoId: string, solicitadoPor: string): Promise<{ aprovacaoId: string | null; semAprovador: boolean }> {
   const pedido = await prisma.pedidoCompra.findUnique({
     where: { id: pedidoId },
-    select: { id: true, numero: true, valorTotal: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
+    select: { id: true, numero: true, numeroCompra: true, valorTotal: true, fornecedor: { select: { razaoSocial: true, nomeFantasia: true } } },
   });
   if (!pedido) throw new Error("Pedido não encontrado");
   const aprovador = await aprovadorPedidoCompras();
@@ -55,7 +63,7 @@ export async function submeterPedidoParaAprovacao(pedidoId: string, solicitadoPo
       usuarioId: aprovador.aprovadorId,
       tipo: "PEDIDO_APROVACAO_SOLICITADA",
       titulo: "Pedido de compras editado aguarda aprovação",
-      mensagem: `O pedido ${pedido.numero} (${forn}, ${total}) foi alterado e precisa ser aprovado de novo.`,
+      mensagem: `O pedido da Compra ${compraDoPedido(pedido)} (${forn}, ${total}) foi alterado e precisa ser aprovado de novo.`,
       link: linkPedido(pedidoId),
     }).catch(() => {});
 
@@ -73,7 +81,7 @@ export async function submeterPedidoParaAprovacao(pedidoId: string, solicitadoPo
       const texto = [
         `🧾 *Pedido de Compras alterado — aguarda sua aprovação*`,
         ``,
-        `• *Pedido:* ${escMD(pedido.numero)}`,
+        `• *Compra:* ${escMD(compraDoPedido(pedido))}`,
         `• *Fornecedor:* ${escMD(forn)}`,
         `• *Total:* ${escMD(total)}`,
         ``,
@@ -108,7 +116,7 @@ export async function responderAprovacaoPedido(opts: {
   respondente: { id: string; nome: string; perfil: string };
 }): Promise<{ status: "APROVADO" | "REPROVADO"; pedidoNumero: string }> {
   const { pedidoId, acao, observacao, respondente } = opts;
-  const pedido = await prisma.pedidoCompra.findUnique({ where: { id: pedidoId }, select: { id: true, numero: true, status: true } });
+  const pedido = await prisma.pedidoCompra.findUnique({ where: { id: pedidoId }, select: { id: true, numero: true, numeroCompra: true, status: true } });
   if (!pedido) throw new Error("Pedido não encontrado");
   if (pedido.status !== "AGUARDANDO_APROVACAO") throw new Error("O pedido não está aguardando aprovação.");
 
@@ -141,7 +149,7 @@ export async function responderAprovacaoPedido(opts: {
     const linhas = [
       `${aprovado ? "✅" : "❌"} *Pedido ${aprovado ? "aprovado" : "reprovado"}*`,
       ``,
-      `• *Pedido:* ${escMD(pedido.numero)}`,
+      `• *Compra:* ${escMD(compraDoPedido(pedido))}`,
       `• *${aprovado ? "Aprovado" : "Reprovado"} por:* ${escMD(respondente.nome)}`,
       ...(observacao ? [`• *Motivo:* ${escMD(observacao)}`] : []),
     ];
@@ -157,8 +165,8 @@ export async function responderAprovacaoPedido(opts: {
       tipo: novoStatus === "APROVADO" ? "PEDIDO_APROVADO" : "PEDIDO_REPROVADO",
       titulo: novoStatus === "APROVADO" ? "Pedido de compras aprovado" : "Pedido de compras reprovado",
       mensagem: novoStatus === "APROVADO"
-        ? `O pedido ${pedido.numero} foi aprovado e voltou para Aguardando Pagamento.`
-        : `O pedido ${pedido.numero} foi reprovado${observacao ? `: ${observacao}` : "."} Ele voltou para rascunho.`,
+        ? `O pedido da Compra ${compraDoPedido(pedido)} foi aprovado e voltou para Aguardando Pagamento.`
+        : `O pedido da Compra ${compraDoPedido(pedido)} foi reprovado${observacao ? `: ${observacao}` : "."} Ele voltou para rascunho.`,
       link: linkPedido(pedidoId),
     }).catch(() => {});
   }

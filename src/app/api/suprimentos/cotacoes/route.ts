@@ -41,9 +41,10 @@ export async function GET(req: NextRequest) {
         id: true,
         empresaId: true,
         numero: true,
+        numeroCompra: true,
         nome: true,
         status: true,
-        necessidade: { select: { id: true, numero: true } },
+        necessidade: { select: { id: true, numero: true, numeroCompra: true } },
         _count: { select: { fornecedores: true } },
         fornecedores: {
           where: { status: "RESPONDIDA" },
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
   // ── Listagem completa (tela de Cotações) ───────────────────────────────────
   const data = await prisma.cotacaoCompra.findMany({
     include: {
-      necessidade: { select: { id: true, numero: true } },
+      necessidade: { select: { id: true, numero: true, numeroCompra: true } },
       _count: { select: { fornecedores: true } },
       fornecedores: {
         select: {
@@ -87,11 +88,11 @@ export async function POST(req: NextRequest) {
   if (necessidadeId) {
     const existingCT = await prisma.cotacaoCompra.findFirst({
       where: { necessidadeId },
-      select: { numero: true },
+      select: { numero: true, numeroCompra: true },
     });
     if (existingCT) {
       return NextResponse.json(
-        { error: `Já existe a Cotação ${existingCT.numero} para esta Solicitação. Não é possível criar mais de uma cotação por solicitação.` },
+        { error: `Já existe a Cotação da compra ${existingCT.numeroCompra ?? existingCT.numero} para esta Solicitação. Não é possível criar mais de uma cotação por solicitação.` },
         { status: 409 }
       );
     }

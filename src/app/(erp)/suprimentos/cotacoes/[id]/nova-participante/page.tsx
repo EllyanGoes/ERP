@@ -116,7 +116,7 @@ export default function NovaParticipantePage() {
       if (!res.ok) { setError(json.error || "Erro ao carregar cotação"); return; }
 
       const cotacao = json.data;
-      setCotacaoNumero(cotacao.numero);
+      setCotacaoNumero(cotacao.numeroCompra ?? cotacao.numero);
       const fornIds: string[] = (cotacao.fornecedores ?? []).map((f: { fornecedorId: string }) => f.fornecedorId);
       setExistingFornIds(fornIds);
       setPropostaNumero((cotacao.fornecedores?.length ?? 0) + 1);

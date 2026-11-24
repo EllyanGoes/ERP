@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Autoria } from "@/components/shared/Autoria";
@@ -25,6 +25,7 @@ import {
 import { useSession } from "@/lib/session-context";
 import PropostaForm from "@/components/suprimentos/PropostaForm";
 import EscClose from "@/components/shared/EscClose";
+import { useDocumentoId } from "@/lib/compra-embutida";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type FornecedorOption = {
@@ -118,7 +119,7 @@ const STATUS_RESP_BADGE: Record<string, { label: string; cls: string }> = {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function CotacaoDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const id = useDocumentoId();
   const router = useRouter();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
@@ -473,7 +474,7 @@ export default function CotacaoDetailPage() {
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Cotações", href: "/suprimentos/cotacoes" },
-          { label: cotacao.numero },
+          { label: cotacao.numeroCompra ?? cotacao.numero },
         ]}
         action={
           <div className="flex items-center gap-2">
@@ -565,8 +566,14 @@ export default function CotacaoDetailPage() {
                 <Link
                   href={`/compras/necessidades/${cotacao.necessidade.id}`}
                   className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-info hover:text-blue-900 hover:underline"
+                  title={cotacao.necessidade.numero}
                 >
-                  {cotacao.necessidade.numero}
+                  {cotacao.numeroCompra ? (
+                    <>
+                      <span className="font-sans">Solicitação</span>
+                      <span className="text-xs font-normal text-muted-foreground">{cotacao.necessidade.numero}</span>
+                    </>
+                  ) : cotacao.necessidade.numero}
                 </Link>
               ) : (
                 <span className="text-muted-foreground/60">—</span>
@@ -597,12 +604,18 @@ export default function CotacaoDetailPage() {
           {cotacao.necessidade && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm mt-4 pt-3 border-t border-border">
               <div>
-                <p className="text-xs text-muted-foreground mb-0.5">SC</p>
+                <p className="text-xs text-muted-foreground mb-0.5">Solicitação</p>
                 <Link
                   href={`/compras/necessidades/${cotacao.necessidade.id}`}
                   className="font-mono text-sm font-semibold text-info hover:underline"
+                  title={cotacao.necessidade.numero}
                 >
-                  {cotacao.necessidade.numero}
+                  {cotacao.numeroCompra ? (
+                    <>
+                      <span className="font-sans">Solicitação</span>
+                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">{cotacao.necessidade.numero}</span>
+                    </>
+                  ) : cotacao.necessidade.numero}
                 </Link>
               </div>
               <div>
@@ -1086,7 +1099,10 @@ export default function CotacaoDetailPage() {
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
               <div>
                 <h2 className="font-semibold text-foreground">Editar cotação</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">{cotacao?.numero}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {cotacao?.numeroCompra ? `Compra ${cotacao.numeroCompra}` : cotacao?.numero}
+                  {cotacao?.numeroCompra && <span className="ml-1.5 font-mono text-[11px] text-muted-foreground/70">{cotacao.numero}</span>}
+                </p>
               </div>
               <button
                 onClick={() => setShowEditModal(false)}
@@ -1471,7 +1487,7 @@ export default function CotacaoDetailPage() {
           <EscClose onClose={() => { if (!deleteLoading) setShowDeleteModal(false); }} />
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md mx-4">
             <div className="px-6 py-5">
-              <p className="font-semibold text-foreground">Excluir cotação {cotacao.numero}?</p>
+              <p className="font-semibold text-foreground">Excluir cotação {cotacao.numeroCompra ? `da compra ${cotacao.numeroCompra}` : cotacao.numero}?</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Esta ação remove a cotação e todas as propostas dos fornecedores vinculadas.
                 {cotacao.pedidos.length > 0 && (() => {

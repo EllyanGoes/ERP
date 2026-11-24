@@ -27,11 +27,11 @@ export async function GET(req: NextRequest) {
       _count:       { select: { itens: true } },
       cotacoes: {
         select: {
-          id: true, numero: true, status: true,
+          id: true, numero: true, numeroCompra: true, status: true,
           pedidos: {
             select: {
               id: true, numero: true, status: true,
-              conferencia: { select: { id: true, numero: true, status: true } },
+              conferencia: { select: { id: true, numero: true, numeroCompra: true, status: true } },
             },
           },
         },
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       pedidosCompra: {
         select: {
           id: true, numero: true, status: true,
-          conferencia: { select: { id: true, numero: true, status: true } },
+          conferencia: { select: { id: true, numero: true, numeroCompra: true, status: true } },
         },
         orderBy: { createdAt: "asc" as const },
       },

@@ -8,6 +8,7 @@ import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/a
 import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 import { responderAprovacaoPedido } from "@/lib/aprovacao-pedido";
+import { rotuloCompra } from "@/lib/numero-compra";
 
 // POST /api/aprovacoes/bulk-responder
 // Body: { ids: string[], acao: "APROVAR" | "REPROVAR", observacao?: string }
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
         where: { id },
         include: {
           aprovador: true,
-          cotacao: { select: { id: true, numero: true, nome: true } },
+          cotacao: { select: { id: true, numero: true, numeroCompra: true, nome: true } },
         },
       });
 
@@ -104,14 +105,18 @@ export async function POST(req: NextRequest) {
       const link = `/suprimentos/cotacoes/${cotacaoId}`;
       await marcarNotificacoesLidasPorLink(aprovacao.aprovadorId, link, "COTACAO_APROVACAO_SOLICITADA").catch(() => {});
       if (aprovacao.solicitadoPor) {
-        const ref = aprovacao.cotacao?.nome || aprovacao.cotacao?.numero || "";
+        const ref = rotuloCompra(aprovacao.cotacao, "Compra");
+        // O pedido leva o número da compra; só cita o dele quando difere (PC-0430/2).
+        const pedidoGerado = novoPedidoNumero && novoPedidoNumero !== aprovacao.cotacao?.numeroCompra
+          ? `pedido ${novoPedidoNumero} gerado`
+          : "pedido gerado";
         await notificarUsuario({
           usuarioId: aprovacao.solicitadoPor,
           tipo: novoStatus === "APROVADO" ? "COTACAO_APROVADA" : "COTACAO_REPROVADA",
           titulo: novoStatus === "APROVADO" ? "Cotação aprovada" : "Cotação reprovada",
           mensagem: novoStatus === "APROVADO"
-            ? `Sua cotação ${ref} foi aprovada — Pedido ${novoPedidoNumero} gerado.`
-            : `Sua cotação ${ref} foi reprovada${observacao ? `: ${observacao}` : "."}`,
+            ? `Sua ${ref} foi aprovada — ${pedidoGerado}.`
+            : `Sua ${ref} foi reprovada${observacao ? `: ${observacao}` : "."}`,
           link,
         }).catch(() => {});
       }

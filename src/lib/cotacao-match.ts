@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 export type CotacaoMatch = {
   id: string;
   numero: string;
+  /** Número único da compra (PC-0430). */
+  numeroCompra: string | null;
   nome: string | null;
   status: string;
   necessidadeNumero: string | null;
@@ -41,6 +43,7 @@ export async function findMatchingCotacoes(
     select: {
       id: true,
       numero: true,
+      numeroCompra: true,
       nome: true,
       status: true,
       necessidade: { select: { numero: true } },
@@ -72,6 +75,7 @@ export async function findMatchingCotacoes(
       return {
         id: c.id,
         numero: c.numero,
+        numeroCompra: c.numeroCompra,
         nome: c.nome,
         status: c.status,
         necessidadeNumero: c.necessidade?.numero ?? null,

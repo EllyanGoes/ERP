@@ -21,6 +21,7 @@ import { cn, formatBRL } from "@/lib/utils";
 type PedidoDetail = {
   id: string;
   numero: string;
+  numeroCompra: string | null;
   fornecedorNome: string;
   valor: number;
   receiptDate: string;
@@ -151,7 +152,7 @@ function DrillDownModal({
             <table className="w-full text-sm">
               <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide sticky top-0">
                 <tr>
-                  <th className="text-left px-5 py-3 font-semibold">Nº Doc.</th>
+                  <th className="text-left px-5 py-3 font-semibold">Compra</th>
                   <th className="text-left px-5 py-3 font-semibold">Fornecedor</th>
                   <th className="text-right px-5 py-3 font-semibold">Data Recebimento</th>
                   <th className="text-right px-5 py-3 font-semibold">Valor</th>
@@ -168,7 +169,7 @@ function DrillDownModal({
                       router.push(`/suprimentos/conferencias/${p.id}`);
                     }}
                   >
-                    <td className="px-5 py-3 font-mono text-xs text-info group-hover:underline">{p.numero}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-info group-hover:underline" title={`Entrada ${p.numero}`}>{p.numeroCompra || p.numero}</td>
                     <td className="px-5 py-3 text-foreground">{p.fornecedorNome}</td>
                     <td className="px-5 py-3 text-right text-muted-foreground text-xs">{fmtDate(p.receiptDate)}</td>
                     <td className="px-5 py-3 text-right font-semibold text-foreground">

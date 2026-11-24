@@ -28,7 +28,7 @@ type CotacaoFornecedor = {
 };
 
 type Cotacao = {
-  id: string; numero: string; nome: string | null;
+  id: string; numero: string; numeroCompra?: string | null; nome: string | null;
   fornecedores: CotacaoFornecedor[];
 };
 
@@ -100,7 +100,10 @@ export default function FormalizacaoPage() {
       </nav>
 
       <h1 className="text-2xl font-bold text-foreground mb-6">
-        Formalização da proposta - {cotacao.numero}
+        Formalização da proposta - {cotacao.numeroCompra ? `Compra ${cotacao.numeroCompra}` : cotacao.numero}
+        {cotacao.numeroCompra && (
+          <span className="ml-2 align-middle font-mono text-sm font-normal text-muted-foreground">{cotacao.numero}</span>
+        )}
       </h1>
 
       <div className="bg-card border rounded-lg p-6 space-y-6">

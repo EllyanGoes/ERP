@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       include: {
         necessidade: {
           select: {
-            id: true, numero: true, status: true,
+            id: true, numero: true, numeroCompra: true, status: true,
             solicitante: true, dataNecessidade: true, createdAt: true,
             cotacoes: {
               select: { id: true, numero: true, nome: true, status: true },
@@ -39,7 +39,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       include: {
         pedido: {
           select: {
-            id: true, numero: true, status: true,
+            id: true, numero: true, numeroCompra: true, status: true,
             valorTotal: true, dataEntregaPrevista: true, createdAt: true,
             fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
             necessidade: { select: { id: true, numero: true, status: true, solicitante: true } },
@@ -62,7 +62,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       include: {
         conferencia: {
           select: {
-            id: true, numero: true, status: true,
+            id: true, numero: true, numeroCompra: true, status: true,
             dataConferencia: true, createdAt: true,
             // Fornecedor direto da conferência (recebimentos avulsos, sem pedido).
             fornecedor: { select: { razaoSocial: true, nomeFantasia: true } },
@@ -83,6 +83,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   // ── Visão em processos: uma linha por cadeia SC → CT → PC → DE ────────────
   type Doc = { id: string; numero: string; status: string } | null;
   type Processo = {
+    /** Número único da compra (PC-0430). */
+    compra: string | null;
     sc: (NonNullable<Doc> & { solicitante?: string | null }) | null;
     ct: Doc; pc: Doc; de: Doc;
     fornecedor: string | null;
@@ -104,6 +106,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     if (sc) scUsadas.add(sc.id);
     if (p.conferencia) deUsadas.add(p.conferencia.id);
     processos.push({
+      compra: p.numeroCompra ?? p.numero,
       sc: sc ? { id: sc.id, numero: sc.numero, status: sc.status, solicitante: sc.solicitante } : null,
       ct,
       pc: { id: p.id, numero: p.numero, status: p.status },
@@ -131,6 +134,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     deUsadas.add(c.id);
     const f = c.pedido?.fornecedor ?? c.fornecedor;
     processos.push({
+      compra: c.numeroCompra ?? c.pedido?.numero ?? null,
       sc: null, ct: null,
       pc: c.pedido ? { id: c.pedido.id, numero: c.pedido.numero, status: "" } : null,
       de: { id: c.id, numero: c.numero, status: c.status },
@@ -150,6 +154,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     scUsadas.add(n.id);
     const ct0 = n.cotacoes[0];
     processos.push({
+      compra: n.numeroCompra ?? null,
       sc: { id: n.id, numero: n.numero, status: n.status, solicitante: n.solicitante },
       ct: ct0 ? { id: ct0.id, numero: ct0.nome || ct0.numero, status: ct0.status } : null,
       pc: null, de: null,

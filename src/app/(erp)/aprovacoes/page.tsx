@@ -27,20 +27,20 @@ type SCItem = {
 };
 
 type SC = {
-  id: string; numero: string; status: string; prioridade: number;
+  id: string; numero: string; numeroCompra: string | null; status: string; prioridade: number;
   justificativa: string | null; motivo: string | null; solicitante: string | null; createdAt: string;
   filial: { id: string; nomeFantasia: string | null; razaoSocial: string } | null;
   itens: SCItem[];
 };
 
 type Cotacao = {
-  id: string; numero: string; nome: string | null; createdAt: string;
-  necessidade: { numero: string } | null;
+  id: string; numero: string; numeroCompra: string | null; nome: string | null; createdAt: string;
+  necessidade: { numero: string; numeroCompra: string | null } | null;
   fornecedores: { status: string; totalCalculado: string | number | null; fornecedor: { razaoSocial: string; nomeFantasia: string | null } }[];
 };
 
 type PedidoAprov = {
-  id: string; numero: string; status: string; valorTotal: string | number | null; createdAt: string;
+  id: string; numero: string; numeroCompra: string | null; status: string; valorTotal: string | number | null; createdAt: string;
   fornecedor: { razaoSocial: string; nomeFantasia: string | null };
   _count: { itens: number };
 };
@@ -63,6 +63,32 @@ const PRIORIDADE: Record<number, { label: string; cls: string }> = {
   4: { label: "Alta",        cls: "text-orange-500" },
   5: { label: "Crítica",     cls: "text-danger font-semibold" },
 };
+
+// ── Número da compra ─────────────────────────────────────────────────────────
+// O processo (SC → CT → PC → DE) é identificado pelo número único da compra
+// (PC-0430); o número de cada documento fica só como detalhe (tooltip).
+
+/** Número da compra de uma cotação (o da SC de origem prevalece), ou o próprio. */
+function compraDaCotacao(c: Cotacao): string {
+  return c.necessidade?.numeroCompra || c.numeroCompra || c.necessidade?.numero || c.numero;
+}
+
+/** O pedido já leva o número da compra (PC-0430/2 no 2º pedido do processo). */
+function compraDoPedido(p: PedidoAprov): string {
+  return p.numeroCompra && !p.numero.startsWith(p.numeroCompra) ? p.numeroCompra : p.numero;
+}
+
+/** Números internos dos documentos, para o tooltip. */
+function docsDaCotacao(c: Cotacao): string {
+  return [`Cotação ${c.numero}`, c.necessidade ? `Solicitação ${c.necessidade.numero}` : null].filter(Boolean).join(" · ");
+}
+
+function numeroDaAprovacao(r: Aprovacao): string {
+  if (r.necessidade) return r.necessidade.numeroCompra || r.necessidade.numero;
+  if (r.cotacao) return compraDaCotacao(r.cotacao);
+  if (r.pedidoCompra) return compraDoPedido(r.pedidoCompra);
+  return "";
+}
 
 // ── Card ───────────────────────────────────────────────────────────────────────
 
@@ -123,8 +149,8 @@ function AprovacaoCard({
         )}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <Link href={`/suprimentos/pedidos-compra/${ped.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm">
-            {ped.numero}
+          <Link href={`/suprimentos/pedidos-compra/${ped.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm" title={`Pedido ${ped.numero}`}>
+            Compra {compraDoPedido(ped)}
           </Link>
           <span className="text-xs px-2 py-0.5 rounded-full bg-info/10 text-info font-medium border border-info/30">Pedido de Compras · alterado</span>
         </div>
@@ -185,11 +211,11 @@ function AprovacaoCard({
         )}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <Link href={`/suprimentos/cotacoes/${cot.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm">
-            {cot.nome || cot.numero}
+          <Link href={`/suprimentos/cotacoes/${cot.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm" title={docsDaCotacao(cot)}>
+            Compra {compraDaCotacao(cot)}
           </Link>
+          {cot.nome && <span className="text-sm text-foreground">— {cot.nome}</span>}
           <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium border border-amber-100">Cotação · Pedido de Compras</span>
-          {cot.necessidade && <span className="text-xs text-muted-foreground">SC {cot.necessidade.numero}</span>}
         </div>
         <div className="mt-2 text-sm text-muted-foreground">
           {venceNome ? (
@@ -282,8 +308,9 @@ function AprovacaoCard({
             <Link
               href={`/compras/necessidades/${sc.id}`}
               className="font-semibold text-foreground hover:text-info transition-colors text-sm"
+              title={`Solicitação ${sc.numero}`}
             >
-              {sc.numero}
+              Compra {sc.numeroCompra || sc.numero}
             </Link>
             {item.etapaNome && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-info/10 text-info font-medium border border-info/20">
@@ -640,29 +667,34 @@ export default function AprovacoesPage() {
     } satisfies ColumnDef<Aprovacao>] : []),
     {
       id: "numero",
-      header: "Nº",
-      // Busca acha tanto pelo código da cotação quanto pelo da SC de origem.
-      accessorFn: (r) => r.necessidade?.numero
-        ?? [r.cotacao?.numero, r.cotacao?.necessidade?.numero].filter(Boolean).join(" "),
+      header: "Compra",
+      // Ordena pelo número da compra; a busca também acha pelo código antigo
+      // dos documentos (SC-/CT-), que fica só no tooltip.
+      accessorFn: (r) => [
+        numeroDaAprovacao(r),
+        r.necessidade?.numero, r.cotacao?.numero, r.cotacao?.necessidade?.numero, r.pedidoCompra?.numero,
+      ].filter(Boolean).join(" "),
       cell: ({ row }) => {
         const r = row.original;
         if (r.necessidade) {
           return (
-            <Link href={`/compras/necessidades/${r.necessidade.id}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
-              {r.necessidade.numero}
+            <Link href={`/compras/necessidades/${r.necessidade.id}`} title={`Solicitação ${r.necessidade.numero}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
+              {numeroDaAprovacao(r)}
             </Link>
           );
         }
         if (r.cotacao) {
           return (
-            <span className="whitespace-nowrap">
-              <Link href={`/suprimentos/cotacoes/${r.cotacao.id}`} className="font-medium text-foreground hover:text-info transition-colors">
-                {r.cotacao.numero}
-              </Link>
-              {r.cotacao.necessidade && (
-                <span className="ml-1.5 text-xs text-muted-foreground">{r.cotacao.necessidade.numero}</span>
-              )}
-            </span>
+            <Link href={`/suprimentos/cotacoes/${r.cotacao.id}`} title={docsDaCotacao(r.cotacao)} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
+              {numeroDaAprovacao(r)}
+            </Link>
+          );
+        }
+        if (r.pedidoCompra) {
+          return (
+            <Link href={`/suprimentos/pedidos-compra/${r.pedidoCompra.id}`} title={`Pedido ${r.pedidoCompra.numero}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
+              {numeroDaAprovacao(r)}
+            </Link>
           );
         }
         return <span>—</span>;
@@ -671,7 +703,7 @@ export default function AprovacoesPage() {
     {
       id: "tipo",
       header: "Tipo",
-      accessorFn: (r) => r.necessidade ? "SC" : "Cotação · PC",
+      accessorFn: (r) => r.necessidade ? "SC" : r.pedidoCompra ? "Pedido · alterado" : "Cotação · PC",
       cell: ({ getValue }) => (
         <span className={cn(
           "text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap border",

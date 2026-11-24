@@ -166,7 +166,8 @@ export default function EditarSolicitacaoPage() {
 
   const [ready,   setReady]   = useState(false);
   const [numero,  setNumero]  = useState("");
-  useTabTitle(numero || null);
+  const [numeroCompra, setNumeroCompra] = useState<string | null>(null);
+  useTabTitle(numeroCompra ? `Compra ${numeroCompra}` : (numero || null));
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState("");
@@ -203,6 +204,7 @@ export default function EditarSolicitacaoPage() {
       if (data.status !== "RASCUNHO") { setError("Apenas rascunhos podem ser editados"); setLoading(false); return; }
       setDocEmpresaId(data.empresaId ?? "");
       setNumero(data.numero);
+      setNumeroCompra(data.numeroCompra ?? null);
       const cached = loadForm();
       if (cached && !formRestoredRef.current) {
         formRestoredRef.current = true;
@@ -409,11 +411,11 @@ export default function EditarSolicitacaoPage() {
   return (
     <div>
       <PageHeader
-        title={`Editar Solicitação ${numero}`}
+        title={numeroCompra ? `Editar Compra ${numeroCompra} · Solicitação` : `Editar Solicitação ${numero}`}
         breadcrumbs={[
           { label: "Compras" },
           { label: "Solicitações de Compras", href: "/compras/necessidades" },
-          { label: numero, href: `/compras/necessidades/${id}` },
+          { label: numeroCompra ?? numero, href: `/compras/necessidades/${id}` },
           { label: "Editar" },
         ]}
       />

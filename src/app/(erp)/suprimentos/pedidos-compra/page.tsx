@@ -31,6 +31,8 @@ type Pedido = {
   empresaId?: string;
   id: string;
   numero: string;
+  numeroCompra?: string | null;
+  numeroAntigo?: string | null;
   status: string;
   statusFinanceiro?: string | null;
   descricao: string | null;
@@ -39,16 +41,16 @@ type Pedido = {
   createdAt: string;
   fornecedor: { razaoSocial: string; nomeFantasia: string | null };
   cotacao: {
-    id: string; numero: string;
+    id: string; numero: string; numeroCompra?: string | null;
     necessidade: {
-      id: string; numero: string; solicitante: string | null;
+      id: string; numero: string; numeroCompra?: string | null; solicitante: string | null;
       justificativa: string | null;
       centroCusto: { nome: string } | null;
       localEstoque: { nome: string } | null;
     } | null;
   } | null;
   _count: { itens: number };
-  conferencia: { id: string; numero: string; status: string } | null;
+  conferencia: { id: string; numero: string; numeroCompra?: string | null; status: string } | null;
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -86,10 +88,18 @@ type FilterOp = "is" | "is_not";
 const COLS: ColDef<Pedido>[] = [
   {
     id: "numero",
-    label: "Número",
+    label: "Compra",
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
-    render: (p) => p.numero,
+    // `numero` do pedido = número da compra (ou PC-0430/2 no 2º pedido do processo)
+    render: (p) => (
+      <div className="flex flex-col">
+        <span>{p.numero}</span>
+        {p.numeroAntigo && p.numeroAntigo !== p.numero && (
+          <span className="text-[10px] font-normal text-muted-foreground">antes {p.numeroAntigo}</span>
+        )}
+      </div>
+    ),
   },
   {
     id: "fornecedor",
@@ -112,7 +122,7 @@ const COLS: ColDef<Pedido>[] = [
   },
   {
     id: "sc",
-    label: "SC / Solicitante",
+    label: "Solicitação",
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden md:table-cell",
     tdClass: "px-4 py-3 hidden md:table-cell",
     render: (p) => {
@@ -124,9 +134,9 @@ const COLS: ColDef<Pedido>[] = [
           onClick={(e) => e.stopPropagation()}
           className="group flex flex-col gap-0.5"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-info hover:text-info hover:underline">
+          <span className="flex items-center gap-1 text-xs font-medium text-info hover:text-info hover:underline" title={sc.numero}>
             <ClipboardList className="w-3 h-3 flex-shrink-0" />
-            {sc.numero}
+            Solicitação
             <ChevronRight className="w-3 h-3 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
           </span>
           {(sc.solicitante || setor) && (
@@ -151,9 +161,10 @@ const COLS: ColDef<Pedido>[] = [
           href={`/suprimentos/cotacoes/${p.cotacao.id}`}
           onClick={(e) => e.stopPropagation()}
           className="group flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline"
+          title={p.cotacao.numero}
         >
           <FileText className="w-3 h-3 flex-shrink-0" />
-          {p.cotacao.numero}
+          Cotação
           <ChevronRight className="w-3 h-3 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
         </Link>
       ) : (
@@ -191,7 +202,7 @@ const COLS: ColDef<Pedido>[] = [
   },
   {
     id: "docEntrada",
-    label: "Doc. Entrada",
+    label: "Entrada",
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground hidden xl:table-cell",
     tdClass: "px-4 py-3 hidden xl:table-cell",
     render: (p) =>
@@ -200,9 +211,10 @@ const COLS: ColDef<Pedido>[] = [
           href={`/suprimentos/conferencias/${p.conferencia.id}`}
           onClick={(e) => e.stopPropagation()}
           className="group flex items-center gap-1 text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:text-teal-300 hover:underline"
+          title={p.conferencia.numero}
         >
           <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
-          {p.conferencia.numero}
+          Entrada
           <ChevronRight className="w-3 h-3 text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity" />
         </Link>
       ) : (
@@ -413,7 +425,7 @@ function KanbanCard({
       onClick={() => !isDragging && router.push(`/suprimentos/pedidos-compra/${p.id}`)}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-semibold text-foreground">{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
+        <span className="font-mono text-xs font-semibold text-foreground" title={p.numeroAntigo && p.numeroAntigo !== p.numero ? `antes ${p.numeroAntigo}` : undefined}>{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
         <div onClick={(e) => e.stopPropagation()}>
           <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
         </div>
@@ -428,9 +440,10 @@ function KanbanCard({
           href={`/compras/necessidades/${sc.id}`}
           onClick={(e) => e.stopPropagation()}
           className="inline-flex items-center gap-1 text-xs text-info hover:text-info hover:underline mb-0.5"
+          title={sc.numero}
         >
           <ClipboardList className="w-3 h-3" />
-          {sc.numero}
+          Solicitação
           {sc.solicitante && <span className="text-muted-foreground">· {sc.solicitante}</span>}
         </Link>
       )}
@@ -439,9 +452,10 @@ function KanbanCard({
           href={`/suprimentos/cotacoes/${p.cotacao.id}`}
           onClick={(e) => e.stopPropagation()}
           className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline mb-1"
+          title={p.cotacao.numero}
         >
           <FileText className="w-3 h-3" />
-          {p.cotacao.numero}
+          Cotação
         </Link>
       )}
 
@@ -546,18 +560,18 @@ export default function PedidosCompraPage() {
         return;
       }
 
-      const { conferenciaCreated, conferenciaId, conferenciaNumero } = json.data ?? {};
+      const { conferenciaCreated, conferenciaId } = json.data ?? {};
 
       if (toStatus === "RECEBIDO" && conferenciaCreated) {
         pushToast({
           type: "success",
-          message: `Doc. de Entrada ${conferenciaNumero} criado automaticamente.`,
+          message: "Entrada da compra criada automaticamente.",
           link: { href: `/suprimentos/conferencias/${conferenciaId}`, label: "Abrir" },
         });
       } else if (toStatus === "RECEBIDO" && conferenciaId) {
         pushToast({
           type: "success",
-          message: `Pedido recebido. Doc. de Entrada ${conferenciaNumero ?? ""} já existia.`,
+          message: "Pedido recebido. A entrada da compra já existia.",
           link: { href: `/suprimentos/conferencias/${conferenciaId}`, label: "Abrir" },
         });
       } else if (toStatus === "CANCELADO") {
@@ -616,6 +630,9 @@ export default function PedidosCompraPage() {
       const sc = p.cotacao?.necessidade;
       return (
         p.numero.toLowerCase().includes(q) ||
+        (p.numeroCompra ?? "").toLowerCase().includes(q) ||
+        (p.numeroAntigo ?? "").toLowerCase().includes(q) ||
+        (p.conferencia?.numero ?? "").toLowerCase().includes(q) ||
         (p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial).toLowerCase().includes(q) ||
         (p.cotacao?.numero ?? "").toLowerCase().includes(q) ||
         (sc?.numero ?? "").toLowerCase().includes(q) ||
@@ -709,17 +726,18 @@ export default function PedidosCompraPage() {
 
     autoTable(doc, {
       startY: 32,
-      head: [["Número", "Fornecedor", "Descrição", "SC / Solicitante", "Cotação", "Status", "Valor Total", "Entrega Prevista"]],
+      head: [["Compra", "Fornecedor", "Descrição", "Solicitante", "Nº anterior", "Status", "Valor Total", "Entrega Prevista"]],
       body: filtered.map((p) => {
         const sc = p.cotacao?.necessidade;
         const descricao = p.descricao ?? sc?.justificativa ?? "";
-        const scLabel = sc ? `${sc.numero}${sc.solicitante ? ` · ${sc.solicitante}` : ""}` : "—";
+        const setor = sc?.centroCusto?.nome ?? sc?.localEstoque?.nome ?? null;
+        const scLabel = [setor, sc?.solicitante].filter(Boolean).join(" · ") || "—";
         return [
           p.numero,
           p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial,
           descricao || "—",
           scLabel,
-          p.cotacao?.numero ?? "—",
+          p.numeroAntigo && p.numeroAntigo !== p.numero ? p.numeroAntigo : "—",
           STATUS_LABEL[p.status] ?? p.status,
           formatBRL(decimalToNumber(p.valorTotal)),
           p.dataEntregaPrevista ? formatDate(p.dataEntregaPrevista) : "—",

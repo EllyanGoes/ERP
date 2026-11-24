@@ -35,7 +35,7 @@ import EscClose from "@/components/shared/EscClose";
 
 type Necessidade = {
   empresaId?: string;
-  id: string; numero: string; status: string; prioridade: number;
+  id: string; numero: string; numeroCompra?: string | null; status: string; prioridade: number;
   solicitante: string | null; justificativa: string | null;
   dataNecessidade: string | null; createdAt: string;
   tipoCompra: string | null; motivo: string | null;
@@ -44,14 +44,17 @@ type Necessidade = {
   setor: { id: string; nome: string } | null;
   _count: { itens: number };
   cotacoes?: Array<{
-    id: string; numero: string; status: string;
+    id: string; numero: string; numeroCompra?: string | null; status: string;
     pedidos: Array<{
       id: string; numero: string; status: string;
-      conferencia: { id: string; numero: string; status: string } | null;
+      conferencia: { id: string; numero: string; numeroCompra?: string | null; status: string } | null;
     }>;
   }>;
-  pedidosCompra?: Array<{ id: string; numero: string; status: string; conferencia: { id: string; numero: string; status: string } | null }>;
+  pedidosCompra?: Array<{ id: string; numero: string; status: string; conferencia: { id: string; numero: string; numeroCompra?: string | null; status: string } | null }>;
 };
+
+// Identificador da compra (número único do processo); SC- antigo como fallback.
+const compraDe = (n: { numero: string; numeroCompra?: string | null }) => n.numeroCompra ?? n.numero;
 
 const STATUS_OPTIONS = [
   { value: "RASCUNHO",              label: "Rascunho" },
@@ -81,8 +84,8 @@ const KANBAN_COLUMNS: { status: string; label: string; color: string; dot: strin
 const SORT_OPTIONS = [
   { value: "createdAt_desc",  label: "Mais recente" },
   { value: "createdAt_asc",   label: "Mais antiga" },
-  { value: "numero_asc",      label: "Número ↑" },
-  { value: "numero_desc",     label: "Número ↓" },
+  { value: "numero_asc",      label: "Compra ↑" },
+  { value: "numero_desc",     label: "Compra ↓" },
   { value: "prioridade_desc", label: "Prioridade ↑" },
   { value: "prioridade_asc",  label: "Prioridade ↓" },
 ];
@@ -115,14 +118,19 @@ const PRIORIDADE_LABEL: Record<number, { label: string; color: string }> = {
 // de uma cadeia cancelada/substituída — escondidos atrás de um "+N" (ou esmaecidos
 // quando não há nenhum ativo). É componente próprio porque o toggle de expandir
 // precisa de useState por célula (as funções render de NECESSIDADES_COLS são puras).
+type ChipRecord = { id: string; numero: string; numeroCompra?: string | null; status: string };
+
 function RecordChips({
   primary,
   secondary,
   hrefBase,
+  etapa,
 }: {
-  primary: Array<{ id: string; numero: string; status: string }>;
-  secondary?: Array<{ id: string; numero: string; status: string }>;
+  primary: Array<ChipRecord>;
+  secondary?: Array<ChipRecord>;
   hrefBase: string;
+  /** Documento do mesmo processo: com numeroCompra, o chip mostra a etapa (o número é o da compra). */
+  etapa?: string;
 }) {
   const [showAll, setShowAll] = useState(false);
   const sec = secondary ?? [];
@@ -142,8 +150,11 @@ function RecordChips({
           key={it.id}
           href={`${hrefBase}/${it.id}`}
           className={cn(chipClass, dimIds.has(it.id) && "opacity-50")}
+          title={it.numero}
         >
-          <span className="font-mono text-[10px] font-medium text-muted-foreground hover:text-info">{it.numero}</span>
+          {etapa && it.numeroCompra
+            ? <span className="text-[10px] font-medium text-muted-foreground hover:text-info">{etapa}</span>
+            : <span className="font-mono text-[10px] font-medium text-muted-foreground hover:text-info">{it.numero}</span>}
           <StatusBadge status={it.status} />
         </Link>
       ))}
@@ -169,13 +180,18 @@ function RecordChips({
 const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
   {
     id: "numero",
-    label: "Número",
-    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-28",
+    label: "Compra",
+    thClass: "text-left px-4 py-3 font-medium text-muted-foreground w-32",
     tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
     render: (n) => (
-      <span className="flex items-center gap-1">
-        {n.numero}
-        <ChevronRight className="w-3 h-3 text-muted-foreground/60" />
+      <span className="flex flex-col">
+        <span className="flex items-center gap-1">
+          {compraDe(n)}
+          <ChevronRight className="w-3 h-3 text-muted-foreground/60" />
+        </span>
+        {n.numeroCompra && n.numeroCompra !== n.numero && (
+          <span className="text-[10px] font-normal text-muted-foreground">{n.numero}</span>
+        )}
       </span>
     ),
   },
@@ -251,8 +267,11 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
               key={c.id}
               href={`/suprimentos/cotacoes/${c.id}`}
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted hover:bg-info/10 border border-border hover:border-info/30 transition-colors"
+              title={c.numero}
             >
-              <span className="font-mono text-[10px] font-medium text-muted-foreground hover:text-info">{c.numero}</span>
+              {c.numeroCompra
+                ? <span className="text-[10px] font-medium text-muted-foreground hover:text-info">Cotação</span>
+                : <span className="font-mono text-[10px] font-medium text-muted-foreground hover:text-info">{c.numero}</span>}
               <StatusBadge status={c.status} />
             </Link>
           ))}
@@ -297,7 +316,7 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
           .filter((c, i, arr) => arr.findIndex((x) => x.id === c.id) === i);
       const ativas = dedupeConf(allPedidos.filter((p) => p.status !== "CANCELADO"));
       const outras = dedupeConf(allPedidos.filter((p) => p.status === "CANCELADO"));
-      return <RecordChips primary={ativas} secondary={outras} hrefBase="/suprimentos/conferencias" />;
+      return <RecordChips primary={ativas} secondary={outras} hrefBase="/suprimentos/conferencias" etapa="Entrada" />;
     },
   },
 ];
@@ -503,7 +522,7 @@ function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-bold text-muted-foreground">{n.numero}</span> <EmpresaTag empresaId={n.empresaId} />
+        <span className="font-mono text-xs font-bold text-muted-foreground" title={n.numeroCompra ? n.numero : undefined}>{compraDe(n)}</span> <EmpresaTag empresaId={n.empresaId} />
         {canDelete && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -745,6 +764,7 @@ export default function NecessidadesPage() {
       const q = search.trim().toLowerCase();
       list = list.filter((n) =>
         n.numero.toLowerCase().includes(q) ||
+        (n.numeroCompra?.toLowerCase().includes(q) ?? false) ||
         (n.solicitante?.toLowerCase().includes(q) ?? false) ||
         (n.justificativa?.toLowerCase().includes(q) ?? false) ||
         (n.tipoCompra?.toLowerCase().includes(q) ?? false) ||
@@ -771,7 +791,7 @@ export default function NecessidadesPage() {
       } else if (field === "prioridade") {
         va = a.prioridade; vb = b.prioridade;
       } else {
-        va = a.numero; vb = b.numero;
+        va = compraDe(a); vb = compraDe(b);
       }
       if (va < vb) return dir === "asc" ? -1 : 1;
       if (va > vb) return dir === "asc" ? 1 : -1;
@@ -1081,7 +1101,9 @@ export default function NecessidadesPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground">Excluir solicitação?</p>
-                <p className="text-sm text-muted-foreground mt-0.5">{deleteItem.numero}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {deleteItem.numeroCompra ? `Compra ${deleteItem.numeroCompra} · ${deleteItem.numero}` : deleteItem.numero}
+                </p>
               </div>
             </div>
             <p className="text-sm text-muted-foreground mb-4">Esta ação é permanente e não pode ser desfeita.</p>

@@ -19,6 +19,8 @@ export async function GET() {
         select: {
           id: true,
           numero: true,
+          numeroCompra: true,
+          numeroAntigo: true,
           fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
         },
       },

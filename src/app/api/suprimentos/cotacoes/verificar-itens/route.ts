@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       numero: true,
+      numeroCompra: true,
       nome: true,
       status: true,
       fornecedores: {
@@ -46,9 +47,11 @@ export async function GET(req: NextRequest) {
     for (const cf of ct.fornecedores) {
       for (const ci of cf.itens) {
         if (!itemCotacaoMap[ci.itemId]) itemCotacaoMap[ci.itemId] = [];
-        const already = itemCotacaoMap[ci.itemId].find((x) => x.cotacaoNumero === ct.numero);
+        // Identifica a cotação pelo número da compra (PC-0430); o CT- fica de fallback.
+        const ref = ct.numeroCompra ?? ct.numero;
+        const already = itemCotacaoMap[ci.itemId].find((x) => x.cotacaoNumero === ref);
         if (!already) {
-          itemCotacaoMap[ci.itemId].push({ cotacaoNumero: ct.numero, cotacaoNome: ct.nome });
+          itemCotacaoMap[ci.itemId].push({ cotacaoNumero: ref, cotacaoNome: ct.nome });
         }
       }
     }

@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
         });
 
         const msgBody = [
-          `*Ordem de Compras Nº ${sc.numero}*`,
+          `*Compra Nº ${sc.numeroCompra ?? sc.numero}*`,
           ``,
           `• *Empresa:* ${sc.empresa ? (sc.empresa.nomeFantasia ?? sc.empresa.razaoSocial) : "—"}`,
           `• *Filial:* ${filialNome}`,

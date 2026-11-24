@@ -18,11 +18,11 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       itens: {
         include: { item: { select: { id: true, codigo: true, descricao: true, unidadeMedida: true, unidade: { select: { sigla: true } } } } },
       },
-      cotacoes: { select: { id: true, numero: true, status: true }, orderBy: { createdAt: "asc" as const } },
+      cotacoes: { select: { id: true, numero: true, numeroCompra: true, status: true }, orderBy: { createdAt: "asc" as const } },
       pedidosCompra: {
         select: {
           id: true, numero: true, status: true,
-          conferencia: { select: { id: true, numero: true, status: true } },
+          conferencia: { select: { id: true, numero: true, numeroCompra: true, status: true } },
         },
         orderBy: { createdAt: "asc" as const },
       },

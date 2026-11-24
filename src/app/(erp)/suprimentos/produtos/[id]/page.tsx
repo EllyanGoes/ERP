@@ -120,6 +120,7 @@ type UnidadeOpt   = { id: string; sigla: string; nome: string };
 type EtapaDoc = { id: string; numero: string; status: string } | null;
 type ComprasData = {
   processos: Array<{
+    compra: string | null;
     sc: (NonNullable<EtapaDoc> & { solicitante?: string | null }) | null;
     ct: EtapaDoc; pc: EtapaDoc; de: EtapaDoc;
     fornecedor: string | null;
@@ -2295,10 +2296,8 @@ export default function ProdutoDetailPage() {
                       <table className="w-full text-sm">
                         <thead className="bg-muted border-b border-border text-xs text-muted-foreground uppercase tracking-wide">
                           <tr>
-                            <th className="text-left px-4 py-2.5 font-semibold">Solicitação</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Cotação</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Pedido</th>
-                            <th className="text-left px-4 py-2.5 font-semibold">Entrada</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Compra</th>
+                            <th className="text-left px-4 py-2.5 font-semibold">Etapas</th>
                             <th className="text-left px-4 py-2.5 font-semibold">Fornecedor</th>
                             <th className="text-right px-4 py-2.5 font-semibold">Qtd.</th>
                             <th className="text-right px-4 py-2.5 font-semibold">Preço Unit.</th>
@@ -2308,25 +2307,33 @@ export default function ProdutoDetailPage() {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {compras.processos.map((pr, i) => {
-                            // Célula de etapa: número clicável (tooltip = status) ou —
-                            const etapa = (doc: EtapaDoc, href: (id: string) => string) =>
+                            // Etapa da compra: sigla clicável (tooltip = nº do documento e status) ou apagada.
+                            const etapa = (sigla: string, doc: EtapaDoc, href: (id: string) => string) =>
                               doc ? (
                                 <Link
+                                  key={sigla}
                                   href={href(doc.id)}
-                                  title={doc.status || undefined}
-                                  className="font-mono text-xs font-bold text-info hover:underline"
+                                  title={[doc.numero, doc.status].filter(Boolean).join(" · ")}
+                                  className="px-1.5 rounded bg-success/15 text-success text-[10px] font-semibold hover:opacity-80"
                                 >
-                                  {doc.numero}
+                                  {sigla}
                                 </Link>
                               ) : (
-                                <span className="text-muted-foreground">—</span>
+                                <span key={sigla} className="px-1.5 rounded bg-muted text-muted-foreground/50 text-[10px] font-semibold">{sigla}</span>
                               );
                             return (
                               <tr key={i} className="hover:bg-info/10">
-                                <td className="px-4 py-3">{etapa(pr.sc, (id) => `/compras/necessidades/${id}`)}</td>
-                                <td className="px-4 py-3">{etapa(pr.ct, (id) => `/suprimentos/cotacoes/${id}`)}</td>
-                                <td className="px-4 py-3">{etapa(pr.pc, (id) => `/suprimentos/pedidos-compra/${id}`)}</td>
-                                <td className="px-4 py-3">{etapa(pr.de, (id) => `/suprimentos/conferencias/${id}`)}</td>
+                                <td className="px-4 py-3 font-mono text-xs font-bold text-foreground whitespace-nowrap">
+                                  {pr.compra ?? <span className="text-muted-foreground">—</span>}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-1">
+                                    {etapa("SC", pr.sc, (id) => `/compras/necessidades/${id}`)}
+                                    {etapa("CT", pr.ct, (id) => `/suprimentos/cotacoes/${id}`)}
+                                    {etapa("PC", pr.pc, (id) => `/suprimentos/pedidos-compra/${id}`)}
+                                    {etapa("DE", pr.de, (id) => `/suprimentos/conferencias/${id}`)}
+                                  </div>
+                                </td>
                                 <td className="px-4 py-3 text-foreground text-xs font-medium">
                                   {pr.fornecedor ?? <span className="text-muted-foreground">—</span>}
                                 </td>

@@ -1,6 +1,9 @@
+"use client";
+
 import { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+import { useEmbutidoNaCompra } from "@/lib/compra-embutida";
 
 interface Breadcrumb { label: string; href?: string }
 
@@ -13,6 +16,12 @@ interface PageHeaderProps {
 }
 
 export default function PageHeader({ title, subtitle, breadcrumbs, action, actions }: PageHeaderProps) {
+  // Dentro de uma aba da página da compra o título é o da compra: fica só a barra de botões.
+  const embutido = useEmbutidoNaCompra();
+  if (embutido) {
+    const botoes = action ?? actions;
+    return botoes ? <div className="flex justify-end px-8 pt-4 pb-2">{botoes}</div> : null;
+  }
   return (
     <div className="flex items-start justify-between px-8 pt-8 pb-6">
       <div>

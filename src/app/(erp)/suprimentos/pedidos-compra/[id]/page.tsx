@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -21,6 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, CheckCircle2, FileInput, Link2, FileText, Pencil } from "lucide-react";
+import { useDocumentoId } from "@/lib/compra-embutida";
 
 const STATUS_FLOW: { value: string; label: string }[] = [
   { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
@@ -46,7 +47,7 @@ type CotacaoFornecedor = {
 };
 
 type NecessidadeMin = {
-  id: string; numero: string; solicitante: string | null;
+  id: string; numero: string; numeroCompra?: string | null; solicitante: string | null;
   justificativa: string | null;
   motivo: string | null;
   centroCusto:  { nome: string } | null;
@@ -77,9 +78,9 @@ type PedidoCompra = {
   necessidade: NecessidadeMin | null;
   empresa: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
   cotacao: {
-    id: string; numero: string; nome: string | null;
+    id: string; numero: string; numeroCompra?: string | null; nome: string | null;
     necessidade: {
-      id: string; numero: string; solicitante: string | null;
+      id: string; numero: string; numeroCompra?: string | null; solicitante: string | null;
       justificativa: string | null;
       motivo: string | null;
       centroCusto:  { nome: string } | null;
@@ -103,7 +104,7 @@ type PedidoCompra = {
     valorTotal: unknown;
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string };
   }>;
-  conferencia: { id: string; numero: string; status: string } | null;
+  conferencia: { id: string; numero: string; numeroCompra?: string | null; status: string } | null;
   cotacaoFornecedor: CotacaoFornecedor | null;
   // Pendência de re-aprovação (pedido editado depois de aprovado)
   aprovacoes?: { id: string; aprovadorId: string; createdAt: string; aprovador: { nome: string } }[];
@@ -120,7 +121,7 @@ const TIPO_FRETE_LABEL: Record<string, string> = {
 
 
 export default function PedidoCompraDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const id = useDocumentoId();
   const router  = useRouter();
   const { user } = useSession();
   const isAdmin  = user?.perfil === "ADMIN";
@@ -133,7 +134,7 @@ export default function PedidoCompraDetailPage() {
   // ── Vincular Cotação popover ──────────────────────────────────────────────────
   const [ctPopoverOpen,  setCtPopoverOpen]  = useState(false);
   const [ctSearch,       setCtSearch]       = useState("");
-  const [ctOptions,      setCtOptions]      = useState<{ id: string; numero: string; nome: string | null; necessidade: { numero: string } | null }[]>([]);
+  const [ctOptions,      setCtOptions]      = useState<{ id: string; numero: string; numeroCompra?: string | null; nome: string | null; necessidade: { numero: string; numeroCompra?: string | null } | null }[]>([]);
   const [ctSearching,    setCtSearching]    = useState(false);
   const ctPopoverRef = useRef<HTMLDivElement>(null);
 
@@ -202,8 +203,8 @@ export default function PedidoCompraDetailPage() {
         const res  = await fetch(`/api/suprimentos/cotacoes`);
         const json = await res.json();
         const q    = ctSearch.toLowerCase().trim();
-        const list = (json.data ?? []).filter((c: { numero: string; nome: string | null }) =>
-          !q || c.numero.toLowerCase().includes(q) || (c.nome ?? "").toLowerCase().includes(q)
+        const list = (json.data ?? []).filter((c: { numero: string; numeroCompra?: string | null; nome: string | null }) =>
+          !q || c.numero.toLowerCase().includes(q) || (c.numeroCompra ?? "").toLowerCase().includes(q) || (c.nome ?? "").toLowerCase().includes(q)
         );
         setCtOptions(list.slice(0, 15));
       } catch { /* ignore */ }
@@ -224,6 +225,7 @@ export default function PedidoCompraDetailPage() {
         const list = ((json.data ?? []) as NecessidadeMin[]).filter((n) =>
           !q ||
           n.numero.toLowerCase().includes(q) ||
+          (n.numeroCompra ?? "").toLowerCase().includes(q) ||
           (n.solicitante ?? "").toLowerCase().includes(q) ||
           (n.justificativa ?? "").toLowerCase().includes(q)
         );
@@ -421,9 +423,8 @@ async function openWAModal() {
       lines.push(``);
     }
 
-    // ── SC block (only if linked) ──────────────────────────────────────────────
+    // ── Solicitação (only if linked) — sem número: a compra tem um código só ──
     if (sc) {
-      lines.push(`*SC:* ${sc.numero}`);
       const setor = sc.centroCusto?.nome ?? sc.localEstoque?.nome ?? null;
       if (setor)              lines.push(`*Setor:* ${setor}`);
       if (sc.solicitante)     lines.push(`*Solicitante:* ${sc.solicitante}`);
@@ -433,7 +434,7 @@ async function openWAModal() {
     }
 
     // ── PC block ──────────────────────────────────────────────────────────────
-    lines.push(`*PC:* ${pedido.numero.replace(/^PC-/, "")}`);
+    lines.push(`*Pedido de compra:* ${pedido.numero}`);
     lines.push(`*Fornecedor:* ${pedido.fornecedor.nomeFantasia || pedido.fornecedor.razaoSocial}`);
     if (cf?.condicoesPagamento) lines.push(`*Cond. Pagamento:* ${cf.condicoesPagamento}`);
     if (pedido.dataEntregaPrevista) lines.push(`*Entrega Prevista:* ${formatDate(pedido.dataEntregaPrevista)}`);
@@ -586,7 +587,7 @@ async function openWAModal() {
             {!pedido.conferencia && pedido.status !== "CANCELADO" && (
               <Button size="sm" className="gap-1.5" onClick={() => router.push(`/suprimentos/conferencias/novo?pedidoId=${id}`)}>
                 <FileInput className="w-3.5 h-3.5" />
-                Gerar Doc. Entrada
+                Gerar Entrada
               </Button>
             )}
           </div>
@@ -645,7 +646,7 @@ async function openWAModal() {
                 <div className="flex items-center gap-2">
                   {hasSc && (
                     <span className="text-xs text-info bg-info/10 border border-info/30 px-2 py-0.5 rounded-full">
-                      Herdado da SC
+                      Herdado da solicitação
                     </span>
                   )}
                   {canEdit && !editingDescricao && (
@@ -705,9 +706,10 @@ async function openWAModal() {
                     <Link
                       href={`/compras/necessidades/${sc.id}`}
                       className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                      title={sc.numero}
                     >
                       <FileText className="w-3 h-3" />
-                      {sc.numero}
+                      {sc.numeroCompra && sc.numeroCompra !== pedido.numeroCompra ? `Solicitação · ${sc.numeroCompra}` : "Solicitação"}
                       {sc.solicitante && (
                         <span className="text-muted-foreground font-normal ml-1">· {sc.solicitante}</span>
                       )}
@@ -723,9 +725,9 @@ async function openWAModal() {
                         className="h-7 px-2 text-xs text-muted-foreground hover:text-red-500 gap-1"
                         onClick={() => vincularNecessidade(null)}
                         disabled={actioning}
-                        title="Desvincular SC"
+                        title="Desvincular solicitação"
                       >
-                        <X className="w-3 h-3" /> Desvincular SC
+                        <X className="w-3 h-3" /> Desvincular solicitação
                       </Button>
                     ) : (
                       <Button
@@ -735,7 +737,7 @@ async function openWAModal() {
                         onClick={() => { setScPopoverOpen((v) => !v); setScSearch(""); setScOptions([]); }}
                         disabled={actioning}
                       >
-                        <Link2 className="w-3 h-3" /> Vincular SC
+                        <Link2 className="w-3 h-3" /> Vincular solicitação
                       </Button>
                     )}
 
@@ -750,7 +752,7 @@ async function openWAModal() {
                               type="text"
                               value={scSearch}
                               onChange={(e) => setScSearch(e.target.value)}
-                              placeholder="Buscar SC… (número, solicitante…)"
+                              placeholder="Buscar solicitação… (compra, solicitante…)"
                               className="w-full pl-8 pr-3 h-8 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
                           </div>
@@ -762,7 +764,7 @@ async function openWAModal() {
                             </div>
                           ) : scOptions.length === 0 ? (
                             <p className="px-4 py-3 text-xs text-muted-foreground italic text-center">
-                              {scSearch.trim() ? "Nenhuma SC encontrada." : "Nenhuma SC disponível."}
+                              {scSearch.trim() ? "Nenhuma solicitação encontrada." : "Nenhuma solicitação disponível."}
                             </p>
                           ) : scOptions.map((n) => (
                             <button
@@ -771,7 +773,10 @@ async function openWAModal() {
                               onMouseDown={() => vincularNecessidade(n.id)}
                               className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:bg-indigo-500/15 border-b border-gray-50 last:border-0"
                             >
-                              <span className="font-mono font-semibold text-foreground">{n.numero}</span>
+                              <span className="flex flex-col items-start">
+                                <span className="font-mono font-semibold text-foreground">{n.numeroCompra ?? n.numero}</span>
+                                {n.numeroCompra && <span className="font-mono text-[10px] text-muted-foreground">{n.numero}</span>}
+                              </span>
                               <div className="text-right">
                                 {n.solicitante && <p className="text-xs text-muted-foreground">{n.solicitante}</p>}
                                 {(n.centroCusto?.nome ?? n.localEstoque?.nome ?? n.setor?.nome) && (
@@ -793,8 +798,8 @@ async function openWAModal() {
               {sc ? (
                 <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Número SC</Label>
-                    <Input value={sc.numero} readOnly className="bg-muted font-mono" />
+                    <Label className="text-xs text-muted-foreground">Nº interno da solicitação</Label>
+                    <Input value={sc.numero} readOnly className="bg-muted font-mono text-muted-foreground" />
                   </div>
                   {sc.solicitante && (
                     <div className="space-y-1">
@@ -823,7 +828,7 @@ async function openWAModal() {
                 </div>
               ) : (
                 <div className="px-4 py-5 text-sm text-muted-foreground italic">
-                  Nenhuma SC vinculada. Clique em &quot;Vincular SC&quot; para associar.
+                  Nenhuma solicitação vinculada. Clique em &quot;Vincular solicitação&quot; para associar.
                 </div>
               )}
             </div>
@@ -870,14 +875,13 @@ async function openWAModal() {
                 <Link
                   href={`/suprimentos/cotacoes/${pedido.cotacao.id}`}
                   className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                  title={pedido.cotacao.numero}
                 >
                   <FileText className="w-3 h-3" />
-                  {pedido.cotacao.numero}{pedido.cotacao.nome ? ` — ${pedido.cotacao.nome}` : ""}
-                  {pedido.cotacao.necessidade && (
-                    <span className="text-muted-foreground font-normal ml-1">
-                      · SC {pedido.cotacao.necessidade.numero}
-                    </span>
-                  )}
+                  {pedido.cotacao.numeroCompra && pedido.cotacao.numeroCompra !== pedido.numeroCompra
+                    ? `Cotação · ${pedido.cotacao.numeroCompra}`
+                    : "Cotação"}
+                  {pedido.cotacao.nome ? ` — ${pedido.cotacao.nome}` : ""}
                 </Link>
               )}
 
@@ -890,9 +894,9 @@ async function openWAModal() {
                     className="h-7 px-2 text-xs text-muted-foreground hover:text-red-500 gap-1"
                     onClick={() => vincularCotacao(null)}
                     disabled={actioning}
-                    title="Desvincular Cotação"
+                    title="Desvincular cotação"
                   >
-                    <X className="w-3 h-3" /> Desvincular CT
+                    <X className="w-3 h-3" /> Desvincular cotação
                   </Button>
                 ) : (
                   <Button
@@ -902,7 +906,7 @@ async function openWAModal() {
                     onClick={() => { setCtPopoverOpen((v) => !v); setCtSearch(""); setCtOptions([]); }}
                     disabled={actioning}
                   >
-                    <Link2 className="w-3 h-3" /> Vincular CT
+                    <Link2 className="w-3 h-3" /> Vincular cotação
                   </Button>
                 )}
 
@@ -917,7 +921,7 @@ async function openWAModal() {
                           type="text"
                           value={ctSearch}
                           onChange={(e) => setCtSearch(e.target.value)}
-                          placeholder="Buscar cotação… (ex: CT-2025-0001)"
+                          placeholder="Buscar cotação… (compra, nome…)"
                           className="w-full pl-8 pr-3 h-8 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -938,12 +942,14 @@ async function openWAModal() {
                           onMouseDown={() => vincularCotacao(c.id)}
                           className="w-full flex items-center justify-between px-4 py-2.5 text-sm hover:bg-indigo-50 dark:bg-indigo-500/15 border-b border-gray-50 last:border-0"
                         >
-                          <span className="font-mono font-semibold text-foreground">{c.numero}</span>
+                          <span className="flex flex-col items-start">
+                            <span className="font-mono font-semibold text-foreground">{c.numeroCompra ?? c.necessidade?.numeroCompra ?? c.numero}</span>
+                            {(c.numeroCompra ?? c.necessidade?.numeroCompra) && (
+                              <span className="font-mono text-[10px] text-muted-foreground">{c.numero}</span>
+                            )}
+                          </span>
                           <div className="text-right">
                             {c.nome && <p className="text-xs text-muted-foreground">{c.nome}</p>}
-                            {c.necessidade && (
-                              <p className="text-xs text-muted-foreground">SC {c.necessidade.numero}</p>
-                            )}
                           </div>
                         </button>
                       ))}
@@ -1044,13 +1050,16 @@ async function openWAModal() {
             </div>
             {pedido.conferencia && (
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Doc. Entrada</Label>
+                <Label className="text-xs text-muted-foreground">Entrada</Label>
                 <div className="flex items-center h-9 px-3 border border-border rounded-md bg-muted gap-2">
                   <Link
                     href={`/suprimentos/conferencias/${pedido.conferencia.id}`}
                     className="text-sm text-info hover:underline font-medium"
+                    title={pedido.conferencia.numero}
                   >
-                    {pedido.conferencia.numero}
+                    {pedido.conferencia.numeroCompra && pedido.conferencia.numeroCompra !== pedido.numeroCompra
+                      ? `Entrada · ${pedido.conferencia.numeroCompra}`
+                      : "Entrada"}
                   </Link>
                   <StatusBadge status={pedido.conferencia.status} />
                 </div>

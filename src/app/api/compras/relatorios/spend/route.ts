@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 type PedidoDetail = {
   id: string;
   numero: string;
+  /** Número único da compra (PC-0430); null em entrada sem processo. */
+  numeroCompra: string | null;
   fornecedorNome: string;
   valor: number;
   receiptDate: string;
@@ -85,6 +87,7 @@ export async function GET(req: NextRequest) {
     prev.pedidosList.push({
       id: c.id,
       numero: c.numero,
+      numeroCompra: c.numeroCompra,
       fornecedorNome: fornecedorNome(c),
       valor: docValor(c),
       receiptDate: d.toISOString(),
@@ -166,6 +169,7 @@ export async function GET(req: NextRequest) {
     prev.pedidosList.push({
       id: c.id,
       numero: c.numero,
+      numeroCompra: c.numeroCompra,
       fornecedorNome: fornecedorNome(c),
       valor: docValor(c),
       receiptDate: docDate(c).toISOString(),

@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { editTelegramMessage, escMD } from "@/lib/telegram";
-import { numeroCompraDaOrigem, numeroDoPedido } from "@/lib/numero-compra";
+import { identificadorCompra, numeroCompraDaOrigem, numeroDoPedido } from "@/lib/numero-compra";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Aprovação da COTAÇÃO → geração do Pedido de Compras.
@@ -179,18 +179,25 @@ export async function finalizarMensagemAprovacaoCotacao(
       select: {
         telegramChatId: true,
         telegramMsgId: true,
-        cotacao: { select: { numero: true, nome: true, necessidade: { select: { numero: true } } } },
+        cotacao: {
+          select: { numero: true, numeroCompra: true, nome: true, necessidade: { select: { numero: true, numeroCompra: true } } },
+        },
       },
     });
     if (!ap?.telegramChatId || !ap.telegramMsgId) return;
 
-    const ref = ap.cotacao?.nome || ap.cotacao?.necessidade?.numero || ap.cotacao?.numero || "Cotação";
+    const ct = ap.cotacao;
+    const ref = identificadorCompra({
+      numeroCompra: ct?.necessidade?.numeroCompra ?? ct?.numeroCompra,
+      numero: ct?.necessidade?.numero ?? ct?.numero,
+      nome: ct?.nome,
+    }) ?? "Cotação";
     const aprovado = status === "APROVADO";
     const icon = aprovado ? "✅" : "❌";
     const linhas = [
       `${icon} *Cotação ${aprovado ? "aprovada" : "reprovada"}*`,
       ``,
-      `• *Cotação:* ${escMD(ref)}`,
+      `• *Compra:* ${escMD(ref)}`,
       `• *${aprovado ? "Aprovada" : "Reprovada"} por:* ${escMD(aprovadorNome)}`,
       ...(aprovado && pedidoNumero ? [`• *Pedido de Compras:* ${escMD(pedidoNumero)}`] : []),
     ];

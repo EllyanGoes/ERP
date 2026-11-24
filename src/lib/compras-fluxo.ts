@@ -11,7 +11,7 @@ import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notifica
 import { buildCotacaoPDF } from "@/lib/pdf-cotacao";
 import { sendTelegramDM, sendTelegramDocument, sendTelegramMessage, escMD } from "@/lib/telegram";
 import { formatBRL } from "@/lib/utils";
-import { novoNumeroCompra } from "@/lib/numero-compra";
+import { identificadorCompra, novoNumeroCompra, rotuloCompra } from "@/lib/numero-compra";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fluxo único de compras (docs/compras-fluxo-unico-prd.md). A "Nova compra" grava
@@ -182,7 +182,7 @@ export async function submeterCotacaoParaAprovacao(params: {
   const cotacao = await db.cotacaoCompra.findUnique({
     where: { id: cotacaoId },
     include: {
-      necessidade: { select: { numero: true } },
+      necessidade: { select: { numero: true, numeroCompra: true } },
       fornecedores: {
         select: {
           id: true, status: true, totalCalculado: true, melhorOpcao: true,
@@ -197,7 +197,13 @@ export async function submeterCotacaoParaAprovacao(params: {
   if (respondidas.length === 0) throw new ErroCompras("Nenhum fornecedor respondeu a cotação ainda");
 
   const aprovador = await aprovadorPedidoCompras();
-  const numeroRef = cotacao.nome || cotacao.necessidade?.numero || cotacao.numero;
+  // Identifica pela compra (PC-0430), com o nome da cotação depois.
+  const docCompra = {
+    numeroCompra: cotacao.necessidade?.numeroCompra ?? cotacao.numeroCompra,
+    numero: cotacao.necessidade?.numero ?? cotacao.numero,
+    nome: cotacao.nome,
+  };
+  const numeroRef = identificadorCompra(docCompra) ?? cotacao.numero;
 
   const aprovacaoId = await db.$transaction(async (tx) => {
     await tx.cotacaoCompra.update({ where: { id: cotacaoId }, data: { status: "AGUARDANDO_APROVACAO" } });
@@ -232,7 +238,7 @@ export async function submeterCotacaoParaAprovacao(params: {
     usuarioId: aprovador.aprovadorId,
     tipo: "COTACAO_APROVACAO_SOLICITADA",
     titulo: "Cotação aguardando aprovação",
-    mensagem: `A cotação ${numeroRef} foi enviada para sua aprovação.`,
+    mensagem: `${rotuloCompra(docCompra)} foi enviada para sua aprovação.`,
     link: `/suprimentos/cotacoes/${cotacaoId}`,
   });
 
@@ -255,7 +261,7 @@ export async function submeterCotacaoParaAprovacao(params: {
   const texto = [
     `🧾 *Cotação aguardando sua aprovação*`,
     ``,
-    `• *Cotação:* ${escMD(numeroRef)}`,
+    `• *Compra:* ${escMD(numeroRef)}`,
     ...linhasPropostasTelegram(propostas),
     ``,
     `Aprovar gera o Pedido de Compras\\.`,

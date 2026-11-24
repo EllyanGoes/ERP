@@ -6,6 +6,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { findRoute } from "@/lib/route-registry";
 import type { LucideIcon } from "lucide-react";
+import { useEmbutidoNaCompra } from "@/lib/compra-embutida";
 
 // ── Route title map ──────────────────────────────────────────────────────────
 const ROUTE_TITLES: Record<string, string> = {
@@ -156,9 +157,11 @@ export function useTabsContext() {
 // ── Hook — pages call this to set their dynamic title ────────────────────────
 export function useTabTitle(title: string | null | undefined) {
   const { setTabTitle } = useTabsContext();
+  // Tela de etapa dentro da página da compra não troca o título da aba.
+  const embutido = useEmbutidoNaCompra();
   useEffect(() => {
-    if (title) setTabTitle(title);
-  }, [title, setTabTitle]);
+    if (title && !embutido) setTabTitle(title);
+  }, [title, setTabTitle, embutido]);
 }
 
 const TABS_STORAGE_KEY = "erp:open-tabs";

@@ -58,3 +58,28 @@ export async function numeroDoPedido(tx: Tx, empresaId: string, numeroCompra: st
   while (ocupados.has(`${numeroCompra}/${i}`)) i++;
   return `${numeroCompra}/${i}`;
 }
+
+/**
+ * Identificador da compra para mensagens e notificações: "PC-0430 —
+ * VERGALHÃO…". Usa o número único da compra; sem ele (processo antigo), cai no
+ * número do próprio documento. O nome/descrição, quando houver, vem depois.
+ */
+export function identificadorCompra(
+  doc: { numeroCompra?: string | null; numero?: string | null; nome?: string | null } | null | undefined,
+): string | null {
+  const id = doc?.numeroCompra || doc?.numero || null;
+  const nome = doc?.nome?.trim() || null;
+  if (id && nome) return `${id} — ${nome}`;
+  return id ?? nome;
+}
+
+/** Igual a `identificadorCompra`, com o prefixo: "Compra PC-0430 — VERGALHÃO…". */
+export function rotuloCompra(
+  doc: { numeroCompra?: string | null; numero?: string | null; nome?: string | null } | null | undefined,
+  fallback = "Compra",
+): string {
+  const id = doc?.numeroCompra || doc?.numero || null;
+  const ident = identificadorCompra(doc);
+  if (!ident) return fallback;
+  return id ? `Compra ${ident}` : ident;
+}

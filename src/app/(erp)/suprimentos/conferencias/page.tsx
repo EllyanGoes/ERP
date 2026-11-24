@@ -1,5 +1,6 @@
 "use client";
 
+import SelectMenu from "@/components/shared/SelectMenu";
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -20,6 +21,7 @@ type ConferenciaRow = {
   empresaId?: string;
   id: string;
   numero: string;
+  numeroCompra?: string | null;
   numeroNF: string | null;
   status: string;
   dtEmissao: string | null;
@@ -31,6 +33,8 @@ type ConferenciaRow = {
   pedido: {
     id: string;
     numero: string;
+    numeroCompra?: string | null;
+    numeroAntigo?: string | null;
     fornecedor: { razaoSocial: string; nomeFantasia: string | null } | null;
   } | null;
   fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
@@ -38,6 +42,12 @@ type ConferenciaRow = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+// Código da compra (PC-0430). No 2º pedido do processo (PC-0430/2) vale o nº do pedido.
+function compraLabel(doc: ConferenciaRow): string {
+  if (doc.pedido?.numero.includes("/")) return doc.pedido.numero;
+  return doc.numeroCompra ?? doc.pedido?.numero ?? doc.numero;
+}
+
 function getFornecedorNome(doc: ConferenciaRow): string {
   if (doc.fornecedor) return doc.fornecedor.nomeFantasia || doc.fornecedor.razaoSocial;
   if (doc.pedido?.fornecedor) return doc.pedido.fornecedor.nomeFantasia || doc.pedido.fornecedor.razaoSocial;
@@ -101,10 +111,20 @@ function loadFilters(): Filters {
 const COLS: ColDef<ConferenciaRow>[] = [
   {
     id: "numero",
-    label: "Nº Doc",
+    label: "Compra",
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
-    render: (doc) => doc.numero,
+    render: (doc) => {
+      const compra = compraLabel(doc);
+      return (
+        <div className="flex flex-col">
+          <span>{compra}</span>
+          {compra !== doc.numero && (
+            <span className="text-[10px] font-normal text-muted-foreground">{doc.numero}</span>
+          )}
+        </div>
+      );
+    },
   },
   {
     id: "numeroNF",
@@ -126,8 +146,15 @@ const COLS: ColDef<ConferenciaRow>[] = [
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3",
     render: (doc) => doc.pedido
-      ? <span className="font-mono text-xs text-info">{doc.pedido.numero}</span>
-      : <span className="text-muted-foreground/60 text-xs">—</span>,
+      ? (
+        <div className="flex flex-col">
+          <span className="text-xs text-info">Pedido</span>
+          {doc.pedido.numeroAntigo && doc.pedido.numeroAntigo !== doc.pedido.numero && (
+            <span className="font-mono text-[10px] text-muted-foreground">antes {doc.pedido.numeroAntigo}</span>
+          )}
+        </div>
+      )
+      : <span className="text-muted-foreground/60 text-xs">avulsa</span>,
   },
   {
     id: "dtEmissao",
@@ -267,9 +294,9 @@ function KanbanCard({ doc }: { doc: ConferenciaRow }) {
       className="bg-card border border-border rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md hover:border-blue-300 transition-all"
       onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
     >
-      <span className="font-mono text-xs font-semibold text-foreground">{doc.numero}</span> <EmpresaTag empresaId={doc.empresaId} />
-      {doc.pedido && (
-        <p className="text-xs text-info mt-0.5">{doc.pedido.numero}</p>
+      <span className="font-mono text-xs font-semibold text-foreground" title={doc.numero}>{compraLabel(doc)}</span> <EmpresaTag empresaId={doc.empresaId} />
+      {!doc.pedido && (
+        <p className="text-xs text-muted-foreground mt-0.5">Entrada avulsa</p>
       )}
       <p className="text-xs text-foreground font-medium mt-1 line-clamp-1">{forn}</p>
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
@@ -327,9 +354,11 @@ export default function DocumentosEntradaPage() {
       if (!q) return true;
       return (
         doc.numero.toLowerCase().includes(q) ||
+        (doc.numeroCompra ?? "").toLowerCase().includes(q) ||
         (doc.numeroNF ?? "").toLowerCase().includes(q) ||
         getFornecedorNome(doc).toLowerCase().includes(q) ||
-        (doc.pedido?.numero ?? "").toLowerCase().includes(q)
+        (doc.pedido?.numero ?? "").toLowerCase().includes(q) ||
+        (doc.pedido?.numeroAntigo ?? "").toLowerCase().includes(q)
       );
     });
   }, [docs, filters]);
@@ -427,7 +456,7 @@ export default function DocumentosEntradaPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
             className="pl-9 h-9 text-sm"
-            placeholder="Buscar nº doc, NF, fornecedor, pedido…"
+            placeholder="Buscar compra, NF, fornecedor…"
             value={filters.search}
             onChange={(e) => updateFilters({ search: e.target.value })}
           />
@@ -509,16 +538,13 @@ export default function DocumentosEntradaPage() {
 
         {/* Ordenação — list only */}
         {filters.view === "list" && (
-          <label className="flex items-center gap-1.5 h-9 px-3 text-xs border border-border rounded-lg bg-card text-muted-foreground">
-            <span>Ordenar:</span>
-            <select
-              value={filters.sort}
-              onChange={(e) => updateFilters({ sort: e.target.value as SortValue })}
-              className="bg-transparent text-foreground text-xs outline-none cursor-pointer"
-            >
-              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </label>
+          <SelectMenu
+            value={filters.sort}
+            options={SORT_OPTIONS}
+            onChange={(v) => updateFilters({ sort: v as SortValue })}
+            triggerClassName="h-9 text-xs"
+            title="Ordenar"
+          />
         )}
 
         {/* View toggle */}

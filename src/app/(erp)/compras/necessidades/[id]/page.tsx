@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Che
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import EscClose from "@/components/shared/EscClose";
+import { useDocumentoId } from "@/lib/compra-embutida";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,8 +58,8 @@ type Necessidade = {
     observacao: string | null; unidade: string | null;
     item: { id: string; codigo: string; descricao: string; unidadeMedida: string; unidade: { sigla: string } | null };
   }>;
-  cotacoes: Array<{ id: string; numero: string; status: string }>;
-  pedidosCompra?: Array<{ id: string; numero: string; status: string; conferencia: { id: string; numero: string; status: string } | null }>;
+  cotacoes: Array<{ id: string; numero: string; numeroCompra?: string | null; status: string }>;
+  pedidosCompra?: Array<{ id: string; numero: string; status: string; conferencia: { id: string; numero: string; numeroCompra?: string | null; status: string } | null }>;
   aprovacoes?: AprovacaoSCItem[];
 };
 
@@ -230,7 +231,7 @@ function useSidebarExpanded() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function NecessidadeDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const id = useDocumentoId();
   const router = useRouter();
   const sidebarExpanded = useSidebarExpanded();
   const { user } = useSession();
@@ -457,6 +458,11 @@ export default function NecessidadeDetailPage() {
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isRascunho = necessidade.status === "RASCUNHO";
+  // Identificador da compra (número único do processo); SC- antigo como fallback/detalhe.
+  const compraNumero = necessidade.numeroCompra ?? necessidade.numero;
+  const compraRotulo = necessidade.numeroCompra
+    ? `Compra ${necessidade.numeroCompra} · ${necessidade.numero}`
+    : necessidade.numero;
   const isCancelada = necessidade.status === "CANCELADA";
   // Editar nunca em SC cancelada (estado final); senão admin sempre, ou estados iniciais.
   const canEdit    = !isCancelada && (isAdmin || ["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status));
@@ -468,11 +474,11 @@ export default function NecessidadeDetailPage() {
     return (
       <div>
         <PageHeader
-          title={`Editar ${necessidade.numero}`}
+          title={necessidade.numeroCompra ? `Editar Compra ${necessidade.numeroCompra} · Solicitação` : `Editar ${necessidade.numero}`}
           breadcrumbs={[
             { label: "Compras" },
             { label: "Solicitações de Compras", href: "/compras/necessidades" },
-            { label: necessidade.numero },
+            { label: compraNumero },
             { label: "Editar" },
           ]}
         />
@@ -630,7 +636,7 @@ export default function NecessidadeDetailPage() {
         breadcrumbs={[
           { label: "Compras" },
           { label: "Solicitações de Compras", href: "/compras/necessidades" },
-          { label: necessidade.numero },
+          { label: compraNumero },
         ]}
         action={
           <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -702,8 +708,11 @@ export default function NecessidadeDetailPage() {
 
                 {/* Row 1: identidade */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
-                  <InfoField label="Número">
-                    <span className="font-mono font-bold text-foreground">{necessidade.numero}</span>
+                  <InfoField label="Compra">
+                    <span className="font-mono font-bold text-foreground">{compraNumero}</span>
+                    {necessidade.numeroCompra && (
+                      <span className="block font-mono text-xs text-muted-foreground">{necessidade.numero}</span>
+                    )}
                   </InfoField>
                   <InfoField label="Status">
                     <div className="mt-0.5"><StatusBadge status={necessidade.status} /></div>
@@ -924,8 +933,11 @@ export default function NecessidadeDetailPage() {
                 <CardContent className="flex flex-wrap gap-2">
                   {necessidade.cotacoes.map((c) => (
                     <Link key={c.id} href={`/suprimentos/cotacoes/${c.id}`}
+                      title={c.numero}
                       className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
-                      <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>
+                      {c.numeroCompra
+                        ? <span className="font-medium text-foreground group-hover:text-info">Cotação</span>
+                        : <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>}
                       <StatusBadge status={c.status} />
                     </Link>
                   ))}
@@ -960,8 +972,11 @@ export default function NecessidadeDetailPage() {
                   <CardContent className="flex flex-wrap gap-2">
                     {conferencias.map((c) => (
                       <Link key={c.id} href={`/suprimentos/conferencias/${c.id}`}
+                        title={c.numero}
                         className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
-                        <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>
+                        {c.numeroCompra
+                          ? <span className="font-medium text-foreground group-hover:text-info">Entrada</span>
+                          : <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>}
                         <StatusBadge status={c.status} />
                       </Link>
                     ))}
@@ -985,7 +1000,7 @@ export default function NecessidadeDetailPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground">Aprovar solicitação</p>
-                <p className="text-sm text-muted-foreground">{necessidade.numero}</p>
+                <p className="text-sm text-muted-foreground">{compraRotulo}</p>
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -1014,7 +1029,7 @@ export default function NecessidadeDetailPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground">Reprovar solicitação</p>
-                <p className="text-sm text-muted-foreground">{necessidade.numero}</p>
+                <p className="text-sm text-muted-foreground">{compraRotulo}</p>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -1044,7 +1059,7 @@ export default function NecessidadeDetailPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground">Cancelar solicitação</p>
-                <p className="text-sm text-muted-foreground">{necessidade.numero}</p>
+                <p className="text-sm text-muted-foreground">{compraRotulo}</p>
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -1078,7 +1093,7 @@ export default function NecessidadeDetailPage() {
               </div>
               <div>
                 <p className="font-semibold text-foreground">Excluir solicitação?</p>
-                <p className="text-sm text-muted-foreground mt-0.5">{necessidade.numero}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{compraRotulo}</p>
               </div>
             </div>
             <p className="text-sm text-muted-foreground mb-4">

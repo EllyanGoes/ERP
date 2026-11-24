@@ -136,7 +136,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
     const criado = new Date(sc.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
 
     if (sc.itens.length === 0) {
-      rows.push([sc.numero, filial, setor, "—", "—", "—", "—", prio, prazo, criado]);
+      rows.push([sc.numeroCompra ?? sc.numero, filial, setor, "—", "—", "—", "—", prio, prazo, criado]);
       continue;
     }
 
@@ -144,7 +144,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
       const unidade = it.item.unidade?.sigla || it.item.unidadeMedida || "UN";
       const qty = parseFloat(it.quantidade.toString()).toLocaleString("pt-BR", { maximumFractionDigits: 3 });
       rows.push([
-        idx === 0 ? sc.numero : "",            // SC (só primeira linha)
+        idx === 0 ? (sc.numeroCompra ?? sc.numero) : "",            // SC (só primeira linha)
         idx === 0 ? filial    : "",
         idx === 0 ? setor     : "",
         it.item.codigo,
@@ -161,7 +161,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
   autoTable(doc, {
     startY: 26,
     head: [[
-      "Solicitação", "Filial", "Setor",
+      "Compra", "Filial", "Setor",
       "Código", "Descrição do Produto", "Categoria",
       "Qtd.", "Prioridade", "Prazo Necessidade", "Criado em",
     ]],

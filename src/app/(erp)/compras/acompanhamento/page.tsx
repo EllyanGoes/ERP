@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, CheckCircle2, Clock, Loader2, MoreHorizontal, Plus, RefreshCw, Search, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, Loader2, MoreHorizontal, Plus, RefreshCw, Search, X } from "lucide-react";
 import StatusBadge from "@/components/shared/StatusBadge";
 import EmpresaTag from "@/components/shared/EmpresaTag";
 import SelectMenu from "@/components/shared/SelectMenu";
 import CreateDrawer from "@/components/shared/CreateDrawer";
 import SolicitacaoCreateForm from "@/components/compras/SolicitacaoCreateForm";
-import AcompanhamentoDetalheDialog, { type DocumentoRef } from "@/components/compras/AcompanhamentoDetalheDialog";
+import type { DocumentoRef } from "@/components/compras/AcompanhamentoDetalheDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AvatarUsuario } from "@/components/projetos/comum";
@@ -252,8 +252,8 @@ export default function AcompanhamentoComprasPage() {
 
   // Filtro de status por coluna (clique nos contadores do cabeçalho).
   const [filtroStatus, setFiltroStatus] = usePersistedState<Partial<Record<ColunaCompra, string>>>("compras:acompanhamento:status-coluna", {});
-  const [aberto, setAberto] = useState<DocumentoRef | null>(null);
   const [menuColuna, setMenuColuna] = useState<ColunaCompra | null>(null);
+  const [menuNova, setMenuNova] = useState(false);
 
   // Arrastar leva ao formulário do próximo documento (nada é criado aqui).
   const router = useRouter();
@@ -308,6 +308,12 @@ export default function AcompanhamentoComprasPage() {
   const colunas = concluidosDias === "0" ? COLUNAS.filter((c) => c.coluna !== "concluido") : COLUNAS;
   const totalAtrasados = (data?.cartoes ?? []).filter((c) => c.atrasado).length;
 
+  // Cartão abre a página única da compra, na aba do documento clicado.
+  function abrirCompra(c: Cartao, d: DocumentoRef) {
+    const qs = new URLSearchParams({ empresa: c.empresaId, aba: d.etapa, doc: d.id });
+    router.push(`/compras/compra/${encodeURIComponent(c.numero)}?${qs.toString()}`);
+  }
+
   function encerrarArraste() {
     setArrastadoId(null);
     setColunaAlvo(null);
@@ -329,9 +335,33 @@ export default function AcompanhamentoComprasPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-semibold text-foreground">Kanban de Compras</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => setNovaAberta(true)} className="h-9">
-            <Plus className="w-4 h-4 mr-1" />Nova compra
-          </Button>
+          <div className="relative flex">
+            <Button onClick={() => setNovaAberta(true)} className="h-9 rounded-r-none">
+              <Plus className="w-4 h-4 mr-1" />Nova compra
+            </Button>
+            <Button
+              onClick={() => setMenuNova((v) => !v)}
+              className="h-9 px-2 rounded-l-none border-l border-primary-foreground/20"
+              title="Outros lançamentos"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </Button>
+            {menuNova && (
+              <>
+                <div className="fixed inset-0 z-40" onMouseDown={() => setMenuNova(false)} />
+                <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-card border border-border rounded-xl shadow-xl text-sm overflow-hidden py-1">
+                  <Link href="/suprimentos/pedidos-compra/novo" className="block px-3 py-2 hover:bg-muted">
+                    <span className="font-medium text-foreground">Pedido avulso</span>
+                    <span className="block text-xs text-muted-foreground">Pedido direto, sem solicitação nem cotação</span>
+                  </Link>
+                  <Link href="/suprimentos/conferencias/novo" className="block px-3 py-2 hover:bg-muted">
+                    <span className="font-medium text-foreground">Entrada avulsa</span>
+                    <span className="block text-xs text-muted-foreground">Nota recebida sem pedido de compra</span>
+                  </Link>
+                </div>
+              </>
+            )}
+          </div>
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
@@ -513,7 +543,7 @@ export default function AcompanhamentoComprasPage() {
                       <CartaoProcesso
                         key={c.id}
                         c={c}
-                        onAbrir={setAberto}
+                        onAbrir={(d) => abrirCompra(c, d)}
                         arrastando={arrastadoId === c.id}
                         onArrastar={setArrastadoId}
                         onSoltar={encerrarArraste}
@@ -539,7 +569,6 @@ export default function AcompanhamentoComprasPage() {
         </div>
       )}
 
-      <AcompanhamentoDetalheDialog documento={aberto} onNavegar={setAberto} onClose={() => setAberto(null)} />
 
       <CreateDrawer open={novaAberta} onOpenChange={setNovaAberta} title="Nova compra" width="2xl" onCreated={load}>
         <SolicitacaoCreateForm modoCompra />

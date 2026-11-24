@@ -44,6 +44,8 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
   );
   const vencedor = respondidas.find((f) => f.melhorOpcao) ?? respondidas[0] ?? null;
   const ref = cot.nome || cot.necessidade?.numero || cot.numero;
+  // Número único da compra (PC-0430) é o identificador; o CT- fica de detalhe.
+  const numCompra = cot.numeroCompra ?? null;
 
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
@@ -65,7 +67,12 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
   doc.text("RESUMO DA COTAÇÃO", M, 10);
   doc.setFont("helvetica", "normal"); doc.setFontSize(9);
   const dataLabel = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-  doc.text(`Cotação: ${ref}   ·   Nº ${cot.numero}   ·   ${dataLabel}`, M, 16);
+  doc.text(
+    numCompra
+      ? `Compra ${numCompra}${cot.nome ? ` · ${cot.nome}` : ""}   ·   Cotação ${cot.numero}   ·   ${dataLabel}`
+      : `Cotação: ${ref}   ·   Nº ${cot.numero}   ·   ${dataLabel}`,
+    M, 16,
+  );
 
   let y = 28;
   doc.setTextColor(...TINTA); doc.setFont("helvetica", "bold"); doc.setFontSize(10);
@@ -84,7 +91,7 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
     const sc = cot.necessidade;
     const setorLabel = sc.setor ? [sc.setor.pai?.nome, sc.setor.nome].filter(Boolean).join(" / ") : null;
     const partes = [
-      `SC: ${sc.numero}`,
+      `Solicitação (${sc.numero})`,
       setorLabel ? `Setor: ${setorLabel}` : null,
       (sc.colaborador?.nome || sc.solicitante) ? `Solicitante: ${sc.colaborador?.nome || sc.solicitante}` : null,
       sc.motivo ? `Motivo: ${sc.motivo}` : null,
@@ -235,6 +242,8 @@ export async function buildCotacaoPDF(cotacaoId: string): Promise<{ buffer: Buff
   doc.text(`ERP — resumo gerado em ${dataLabel} para aprovação da cotação`, pageW / 2, doc.internal.pageSize.getHeight() - 6, { align: "center" });
 
   const buffer = Buffer.from(doc.output("arraybuffer"));
-  const filename = `cotacao-${(cot.numero || ref).toString().replace(/[^\w-]+/g, "_")}.pdf`;
+  const filename = numCompra
+    ? `compra-${numCompra.replace(/[^\w-]+/g, "_")}-cotacao.pdf`
+    : `cotacao-${(cot.numero || ref).toString().replace(/[^\w-]+/g, "_")}.pdf`;
   return { buffer, filename };
 }

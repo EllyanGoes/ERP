@@ -16,6 +16,7 @@ import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/a
 import { responderAprovacaoPedido } from "@/lib/aprovacao-pedido";
 import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
+import { rotuloCompra } from "@/lib/numero-compra";
 
 // Telegram sends POST with callback_query when user clicks inline keyboard button
 export async function POST(req: NextRequest) {
@@ -325,17 +326,21 @@ export async function POST(req: NextRequest) {
       }
       // 2) Notifica o solicitante in-app (aprovada/reprovada).
       if (aprovacao.solicitadoPor) {
-        const cot = await prisma.cotacaoCompra.findUnique({ where: { id: cotacaoId }, select: { nome: true, numero: true } });
-        const ref = cot?.nome || cot?.numero || "";
+        const cot = await prisma.cotacaoCompra.findUnique({ where: { id: cotacaoId }, select: { nome: true, numero: true, numeroCompra: true } });
+        const ref = rotuloCompra(cot, "Compra");
+        // O pedido leva o número da compra; só cita o dele quando difere (PC-0430/2).
+        const pedidoGerado = novoPedidoNumero && novoPedidoNumero !== cot?.numeroCompra
+          ? `pedido ${novoPedidoNumero} gerado`
+          : "pedido gerado";
         if (novoStatus === "APROVADO") {
           await notificarUsuario({
             usuarioId: aprovacao.solicitadoPor, tipo: "COTACAO_APROVADA", titulo: "Cotação aprovada",
-            mensagem: `Sua cotação ${ref} foi aprovada — Pedido ${novoPedidoNumero} gerado.`, link,
+            mensagem: `Sua ${ref} foi aprovada — ${pedidoGerado}.`, link,
           }).catch(() => {});
         } else {
           await notificarUsuario({
             usuarioId: aprovacao.solicitadoPor, tipo: "COTACAO_REPROVADA", titulo: "Cotação reprovada",
-            mensagem: `Sua cotação ${ref} foi reprovada.`, link,
+            mensagem: `Sua ${ref} foi reprovada.`, link,
           }).catch(() => {});
         }
       }

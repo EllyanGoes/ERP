@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
         id: true,
         empresaId: true,
         numero: true,
+        numeroCompra: true,
+        numeroAntigo: true,
         valorTotal: true,
         // Financeiro do pedido — usados na prévia de duplicatas do novo DE.
         condicaoPagamentoId: true,
@@ -78,10 +80,10 @@ export async function GET(req: NextRequest) {
       fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
       cotacao: {
         select: {
-          id: true, numero: true,
+          id: true, numero: true, numeroCompra: true,
           necessidade: {
             select: {
-              id: true, numero: true, solicitante: true,
+              id: true, numero: true, numeroCompra: true, solicitante: true,
               justificativa: true,
               centroCusto: { select: { nome: true } },
               localEstoque: { select: { nome: true } },
@@ -90,7 +92,7 @@ export async function GET(req: NextRequest) {
         },
       },
       _count: { select: { itens: true } },
-      conferencia: { select: { id: true, numero: true, status: true } },
+      conferencia: { select: { id: true, numero: true, numeroCompra: true, status: true } },
     },
     orderBy: { createdAt: "desc" },
   });

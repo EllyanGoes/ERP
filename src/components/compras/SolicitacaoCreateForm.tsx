@@ -27,7 +27,7 @@ type ConflictItem = {
   itemId: string;
   itemDescricao: string;
   itemCodigo: string;
-  processos: Array<{ tipo: "SC" | "PC"; numero: string; status: string; id: string }>;
+  processos: Array<{ tipo: "SC" | "PC"; numero: string; numeroCompra?: string | null; status: string; id: string }>;
 };
 
 type Filial        = { id: string; razaoSocial: string; nomeFantasia: string | null };
@@ -884,13 +884,19 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                       {c.processos.map((p, idx) => (
                         <li key={idx} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <span className="text-muted-foreground">→</span>
-                          <span className="font-mono font-semibold text-foreground">{p.numero}</span>
+                          {/* Pedido já usa o número da compra (PC-0430/2); na SC, compra em destaque e SC- discreto. */}
+                          <span className="font-mono font-semibold text-foreground">
+                            {p.tipo === "PC" ? p.numero : (p.numeroCompra ?? p.numero)}
+                          </span>
+                          {p.tipo === "SC" && p.numeroCompra && (
+                            <span className="font-mono text-[10px] text-muted-foreground">{p.numero}</span>
+                          )}
                           <span className={cn(
                             "px-1.5 py-0.5 rounded text-[10px] font-medium",
                             p.tipo === "SC"
                               ? "bg-info/15 text-info"
                               : "bg-purple-100 dark:bg-purple-500/25 text-purple-700 dark:text-purple-300"
-                          )}>{p.tipo}</span>
+                          )}>{p.tipo === "SC" ? "Solicitação" : "Pedido"}</span>
                           <span className="text-muted-foreground">{STATUS_PT[p.status] ?? p.status}</span>
                         </li>
                       ))}

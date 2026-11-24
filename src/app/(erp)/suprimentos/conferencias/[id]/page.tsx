@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import EscClose from "@/components/shared/EscClose";
@@ -24,6 +24,7 @@ import { useEscToClose } from "@/lib/use-esc-to-close";
 import DuplicatasTab, { type TituloResumo } from "@/components/suprimentos/DuplicatasTab";
 import ModoToggle from "@/components/suprimentos/ModoToggle";
 import { previewDuplicatasDE, type CondicaoFull, type ParcelaCustomRow } from "@/lib/duplicatas-preview";
+import { useDocumentoId } from "@/lib/compra-embutida";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -119,6 +120,7 @@ type Conferencia = {
   pedido: {
     id: string;
     numero: string;
+    numeroAntigo?: string | null;
     condicaoPagamentoId: string | null;
     condicoesPagamento: string | null;
     frete: unknown;
@@ -200,7 +202,7 @@ function getItemStatus(pedida: number, recebida: number): { label: string; cls: 
 }
 
 export default function DocumentoEntradaDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const id = useDocumentoId();
   const searchParams = useSearchParams();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
@@ -217,7 +219,7 @@ export default function DocumentoEntradaDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [autoVinculoMsg, setAutoVinculoMsg] = useState<string | null>(null);
-  const [scAtendidaMsg, setScAtendidaMsg] = useState<{ numero: string; status: string }[] | null>(null);
+  const [scAtendidaMsg, setScAtendidaMsg] = useState<{ numero: string; numeroCompra?: string | null; status: string }[] | null>(null);
 
   // Popup: novos vínculos antes de concluir
   type VinculoItem = { id: string; codigo: string; descricao: string };
@@ -1047,8 +1049,10 @@ export default function DocumentoEntradaDetailPage() {
               </p>
               <ul className="space-y-0.5">
                 {scAtendidaMsg.map((sc) => (
-                  <li key={sc.numero} className="flex items-center gap-2 text-blue-100">
-                    <span className="font-mono font-bold text-white">{sc.numero}</span>
+                  <li key={sc.numero} className="flex items-center gap-2 text-blue-100" title={sc.numero}>
+                    <span className="font-bold text-white">
+                      Solicitação{sc.numeroCompra && sc.numeroCompra !== conferencia.numeroCompra ? ` · ${sc.numeroCompra}` : ""}
+                    </span>
                     <span>→</span>
                     <span className={sc.status === "TOTALMENTE_ATENDIDA" ? "text-emerald-300 font-medium" : "text-amber-300 font-medium"}>
                       {sc.status === "TOTALMENTE_ATENDIDA" ? "Totalmente Atendida" : "Parcialmente Atendida"}
@@ -1199,7 +1203,7 @@ export default function DocumentoEntradaDetailPage() {
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Doc. de Entrada", href: "/suprimentos/conferencias" },
-          { label: conferencia.numero },
+          { label: conferencia.numeroCompra ?? conferencia.numero },
         ]}
         action={
           <div className="flex items-center gap-2">
@@ -1399,8 +1403,8 @@ export default function DocumentoEntradaDetailPage() {
 
             {/* Nº Documento (read-only) */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Nº Documento</Label>
-              <Input value={conferencia.numero} readOnly className="bg-muted font-mono text-xs" />
+              <Label className="text-xs text-muted-foreground">Nº interno da entrada</Label>
+              <Input value={conferencia.numero} readOnly className="bg-muted font-mono text-xs text-muted-foreground" />
             </div>
 
             {/* Data Conferência (read-only) */}
@@ -1425,9 +1429,12 @@ export default function DocumentoEntradaDetailPage() {
               {conferencia.pedido && (
                 <Link
                   href={`/suprimentos/pedidos-compra/${conferencia.pedido.id}`}
-                  className="text-xs text-info hover:underline font-mono"
+                  className="text-xs text-info hover:underline"
+                  title={conferencia.pedido.numeroAntigo && conferencia.pedido.numeroAntigo !== conferencia.pedido.numero ? `antes ${conferencia.pedido.numeroAntigo}` : undefined}
                 >
-                  Pedido vinculado: {conferencia.pedido.numero}
+                  {conferencia.pedido.numero.includes("/") || (conferencia.numeroCompra && conferencia.pedido.numero !== conferencia.numeroCompra)
+                    ? <>Ver pedido <span className="font-mono">{conferencia.pedido.numero}</span></>
+                    : "Ver pedido"}
                 </Link>
               )}
             </div>

@@ -9,6 +9,7 @@ const ACTIVE_PC_STATUSES = ["RASCUNHO", "ENVIADO", "CONFIRMADO", "EM_TRANSITO"] 
 type ConflictProcesso = {
   tipo: "SC" | "PC";
   numero: string;
+  numeroCompra: string | null;
   status: string;
   id: string;
 };
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
         select: {
           id: true,
           numero: true,
+          numeroCompra: true,
           status: true,
           itens: {
             where: { itemId: { in: itemIds } },
@@ -59,6 +61,7 @@ export async function POST(req: NextRequest) {
         select: {
           id: true,
           numero: true,
+          numeroCompra: true,
           status: true,
           itens: {
             where: { itemId: { in: itemIds } },
@@ -89,6 +92,7 @@ export async function POST(req: NextRequest) {
         conflictMap.get(scItem.itemId)!.processos.push({
           tipo: "SC",
           numero: sc.numero,
+          numeroCompra: sc.numeroCompra,
           status: sc.status,
           id: sc.id,
         });
@@ -107,6 +111,7 @@ export async function POST(req: NextRequest) {
         conflictMap.get(pcItem.itemId)!.processos.push({
           tipo: "PC",
           numero: pc.numero,
+          numeroCompra: pc.numeroCompra,
           status: pc.status,
           id: pc.id,
         });

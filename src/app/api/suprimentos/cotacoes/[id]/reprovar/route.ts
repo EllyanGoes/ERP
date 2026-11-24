@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { cotacaoId: params.id, status: "PENDENTE" },
       select: { id: true, solicitadoPor: true, aprovadorId: true, aprovador: { select: { nome: true } } },
     });
-    const cot = await prisma.cotacaoCompra.findUnique({ where: { id: params.id }, select: { nome: true, numero: true } });
+    const cot = await prisma.cotacaoCompra.findUnique({ where: { id: params.id }, select: { nome: true, numero: true, numeroCompra: true } });
 
     await prisma.$transaction(async (tx) => {
       await tx.cotacaoCompra.update({
@@ -58,12 +58,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Notificação in-app (toast) para o solicitante: cotação reprovada.
     if (pendencia?.solicitadoPor) {
-      const ref = cot?.nome || cot?.numero || "";
+      const ref = cot?.numeroCompra || cot?.nome || cot?.numero || "";
       await notificarUsuario({
         usuarioId: pendencia.solicitadoPor,
         tipo: "COTACAO_REPROVADA",
         titulo: "Cotação reprovada",
-        mensagem: `Sua cotação ${ref} foi reprovada${motivo ? `: ${motivo}` : "."}`,
+        mensagem: `Sua cotação da compra ${ref} foi reprovada${motivo ? `: ${motivo}` : "."}`,
         link: `/suprimentos/cotacoes/${params.id}`,
       });
     }

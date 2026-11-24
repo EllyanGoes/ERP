@@ -78,7 +78,8 @@ type LocalEstoque = {
 
 type PedidoOption = {
   id: string;
-  numero: string;
+  numero: string; // = número da compra (PC-0430, ou PC-0430/2)
+  numeroAntigo?: string | null;
   valorTotal?: unknown;
   // Financeiro do pedido (prévia de duplicatas)
   condicaoPagamentoId?: string | null;
@@ -1152,7 +1153,7 @@ export default function NovoDocumentoEntradaPage() {
               )}
             >
               <Link2 className="w-3.5 h-3.5" />
-              {vinculadoPedido ? vinculadoPedido.numero : "Vincular PC"}
+              {vinculadoPedido ? vinculadoPedido.numero : "Vincular pedido"}
               {vinculadoPedido && (
                 <span
                   role="button"
@@ -1175,7 +1176,7 @@ export default function NovoDocumentoEntradaPage() {
                       type="text"
                       value={pedidoSearch}
                       onChange={(e) => setPedidoSearch(e.target.value)}
-                      placeholder="Buscar PC… (ou escolha um abaixo)"
+                      placeholder="Buscar compra ou fornecedor… (ou escolha abaixo)"
                       className="w-full pl-8 pr-3 h-8 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -1276,9 +1277,6 @@ export default function NovoDocumentoEntradaPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono font-semibold text-foreground text-sm">{m.numero}</span>
-                      {m.necessidadeNumero && (
-                        <span className="text-xs text-muted-foreground">SC {m.necessidadeNumero}</span>
-                      )}
                       <span className="text-xs px-1.5 py-0.5 rounded bg-warning/15 text-warning">
                         {m.matchCount} de {m.totalItens} {m.totalItens === 1 ? "item" : "itens"} em comum
                       </span>
@@ -2158,7 +2156,7 @@ export default function NovoDocumentoEntradaPage() {
                       type="text"
                       value={pedidoSearch}
                       onChange={(e) => setPedidoSearch(e.target.value)}
-                      placeholder="Buscar PC… (ou escolha um abaixo)"
+                      placeholder="Buscar compra ou fornecedor… (ou escolha abaixo)"
                       className="w-full pl-8 pr-3 h-9 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -2251,7 +2249,12 @@ function PcLinkList({
                     onClick={() => onSelect(p)}
                     className="flex-1 flex items-center justify-between px-4 py-2.5 text-sm hover:bg-info/10 text-left transition-colors"
                   >
-                    <span className="font-mono font-semibold text-foreground">{p.numero}</span>
+                    <span className="flex flex-col items-start">
+                      <span className="font-mono font-semibold text-foreground">{p.numero}</span>
+                      {p.numeroAntigo && p.numeroAntigo !== p.numero && (
+                        <span className="font-mono text-[10px] text-muted-foreground">antes {p.numeroAntigo}</span>
+                      )}
+                    </span>
                     <span className="flex items-center gap-2 text-xs">
                       <span className="text-muted-foreground">
                         {p.itens.length} {p.itens.length === 1 ? "item" : "itens"}

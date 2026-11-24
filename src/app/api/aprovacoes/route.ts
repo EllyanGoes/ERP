@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             numero: true,
+            numeroCompra: true,
             status: true,
             prioridade: true,
             justificativa: true,
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest) {
         },
         pedidoCompra: {
           select: {
-            id: true, numero: true, status: true, valorTotal: true, createdAt: true,
+            id: true, numero: true, numeroCompra: true, status: true, valorTotal: true, createdAt: true,
             fornecedor: { select: { razaoSocial: true, nomeFantasia: true } },
             _count: { select: { itens: true } },
           },
@@ -67,9 +68,10 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             numero: true,
+            numeroCompra: true,
             nome: true,
             createdAt: true,
-            necessidade: { select: { numero: true } },
+            necessidade: { select: { numero: true, numeroCompra: true } },
             fornecedores: {
               // A indicada vem primeiro; as demais mostram ao aprovador o que foi comparado.
               where: { OR: [{ melhorOpcao: true }, { status: "RESPONDIDA" }] },

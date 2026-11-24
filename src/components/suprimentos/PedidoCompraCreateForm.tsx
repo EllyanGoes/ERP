@@ -79,6 +79,7 @@ type FormSnapshot = {
 type CotacaoMatch = {
   id: string;
   numero: string;
+  numeroCompra: string | null;
   nome: string | null;
   necessidadeNumero: string | null;
   matchCount: number;
@@ -90,6 +91,7 @@ type CotacaoMatch = {
 type ScEligible = {
   id: string;
   numero: string;
+  numeroCompra?: string | null;
   status: string;
   justificativa: string | null;
   cotacoes: {
@@ -222,7 +224,7 @@ export default function PedidoCompraCreateForm() {
   // Criar o PC direto, vinculado à SC (preenche itens da SC; libera o formulário).
   function criarDiretoNaSc(sc: ScEligible) {
     setNecessidadeId(sc.id);
-    setNecessidadeNumero(sc.numero);
+    setNecessidadeNumero(sc.numeroCompra ?? sc.numero);
     const rows = sc.itens
       .filter((it) => it.item)
       .map((it) => ({
@@ -549,10 +551,10 @@ export default function PedidoCompraCreateForm() {
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-semibold text-foreground text-sm">{m.numero}</span>
-                      {m.necessidadeNumero && (
-                        <span className="text-xs text-muted-foreground">SC {m.necessidadeNumero}</span>
-                      )}
+                      <span className="font-mono font-semibold text-foreground text-sm" title={`Cotação ${m.numero}`}>
+                        {m.numeroCompra ?? m.numero}
+                      </span>
+                      {m.nome && <span className="text-xs text-muted-foreground truncate">{m.nome}</span>}
                       <span className="text-xs px-1.5 py-0.5 rounded bg-warning/15 text-warning">
                         {m.matchCount} de {m.totalItens} {m.totalItens === 1 ? "item" : "itens"} em comum
                       </span>
@@ -596,7 +598,7 @@ export default function PedidoCompraCreateForm() {
 
         {necessidadeId ? (
           <div className="flex items-center justify-between bg-info/10 border border-info/30 rounded-lg px-3 py-2 text-xs text-info">
-            <span>Vinculado à Solicitação de Compras <span className="font-mono font-semibold">{necessidadeNumero}</span>.</span>
+            <span>Vinculado à solicitação da compra <span className="font-mono font-semibold">{necessidadeNumero}</span>.</span>
             <button
               type="button"
               onClick={() => {
@@ -1004,7 +1006,7 @@ export default function PedidoCompraCreateForm() {
                 {choiceStep === "choose"
                   ? "Como deseja criar este pedido de compra?"
                   : selectedSc
-                    ? `Solicitação ${selectedSc.numero}`
+                    ? `Solicitação · Compra ${selectedSc.numeroCompra ?? selectedSc.numero}`
                     : "Vincular a uma Solicitação de Compras"}
               </h2>
               {/* Sem escape "silencioso": no passo de escolha o X fecha o diálogo
@@ -1084,12 +1086,14 @@ export default function PedidoCompraCreateForm() {
                   <div className="p-5 space-y-3">
                     <div className="rounded-lg bg-muted border border-border px-3 py-2.5 text-sm space-y-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-semibold text-foreground">{selectedSc.numero}</span>
+                        <span className="font-mono font-semibold text-foreground">{selectedSc.numeroCompra ?? selectedSc.numero}</span>
+                        {selectedSc.numeroCompra && (
+                          <span className="font-mono text-[10px] text-muted-foreground">{selectedSc.numero}</span>
+                        )}
                         <span className="text-muted-foreground">· {nItens} {nItens === 1 ? "item" : "itens"}</span>
                         {cot ? (
-                          <span className="inline-flex items-center gap-1 text-xs">
+                          <span className="inline-flex items-center gap-1 text-xs" title={cot.numero}>
                             <span className="text-muted-foreground">cotação</span>
-                            <span className="font-mono text-muted-foreground">{cot.numero}</span>
                             <StatusBadge status={cot.status} />
                           </span>
                         ) : (
@@ -1197,11 +1201,13 @@ export default function PedidoCompraCreateForm() {
                   </div>
                 ) : (() => {
                   const q = scSearch.trim().toLowerCase();
-                  const lista = q ? scOptions.filter((sc) => sc.numero.toLowerCase().includes(q)) : scOptions;
+                  const lista = q
+                    ? scOptions.filter((sc) => sc.numero.toLowerCase().includes(q) || (sc.numeroCompra ?? "").toLowerCase().includes(q))
+                    : scOptions;
                   if (lista.length === 0) {
                     return (
                       <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                        {q ? "Nenhuma SC encontrada." : "Nenhuma Solicitação de Compras elegível."}
+                        {q ? "Nenhuma solicitação encontrada." : "Nenhuma Solicitação de Compras elegível."}
                       </div>
                     );
                   }
@@ -1220,11 +1226,14 @@ export default function PedidoCompraCreateForm() {
                               <FileText className="w-4 h-4 text-info shrink-0 mt-0.5" />
                               <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-mono font-semibold text-sm text-foreground">{sc.numero}</span>
+                                  <span className="font-mono font-semibold text-sm text-foreground">{sc.numeroCompra ?? sc.numero}</span>
+                                  {sc.numeroCompra && (
+                                    <span className="font-mono text-[10px] text-muted-foreground">{sc.numero}</span>
+                                  )}
                                   <span className="text-xs text-muted-foreground">{sc.itens.length} {sc.itens.length === 1 ? "item" : "itens"}</span>
                                   {cot ? (
-                                    <span className="inline-flex items-center gap-1 text-xs">
-                                      <span className="font-mono text-muted-foreground">{cot.numero}</span>
+                                    <span className="inline-flex items-center gap-1 text-xs" title={cot.numero}>
+                                      <span className="text-muted-foreground">cotação</span>
                                       <StatusBadge status={cot.status} />
                                     </span>
                                   ) : (

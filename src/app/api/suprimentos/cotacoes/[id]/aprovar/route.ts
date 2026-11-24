@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       select: { id: true, solicitadoPor: true, aprovadorId: true, aprovador: { select: { nome: true } } },
     });
     const numeroRef = (await prisma.cotacaoCompra.findUnique({
-      where: { id: params.id }, select: { nome: true, numero: true },
+      where: { id: params.id }, select: { nome: true, numero: true, numeroCompra: true },
     }));
 
     const result = await prisma.$transaction(async (tx) => {
@@ -73,12 +73,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Notificação in-app (toast) para o solicitante: cotação aprovada.
     if (pendencia?.solicitadoPor) {
-      const ref = numeroRef?.nome || numeroRef?.numero || "";
+      const ref = numeroRef?.numeroCompra || numeroRef?.nome || numeroRef?.numero || "";
       await notificarUsuario({
         usuarioId: pendencia.solicitadoPor,
         tipo: "COTACAO_APROVADA",
         titulo: "Cotação aprovada",
-        mensagem: `Sua cotação ${ref} foi aprovada — Pedido ${result.pedidoCompra.numero} gerado.`,
+        mensagem: `Sua cotação da compra ${ref} foi aprovada — Pedido ${result.pedidoCompra.numero} gerado.`,
         link: `/suprimentos/cotacoes/${params.id}`,
       });
     }

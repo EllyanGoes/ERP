@@ -80,7 +80,7 @@ export default function EditarPedidoCompraPage() {
   // Loading state
   const [loadingPedido, setLoadingPedido] = useState(true);
   const [pedidoNumero, setPedidoNumero]   = useState("");
-  useTabTitle(pedidoNumero || null);
+  useTabTitle(pedidoNumero ? `Compra ${pedidoNumero}` : null);
   const baselineRef = useRef<string | null>(null);
 
   // Fornecedor section
@@ -361,7 +361,7 @@ export default function EditarPedidoCompraPage() {
   return (
     <div>
       <PageHeader
-        title={`Editar ${pedidoNumero}`}
+        title={`Editar pedido · Compra ${pedidoNumero}`}
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Pedidos de Compra", href: "/suprimentos/pedidos-compra" },

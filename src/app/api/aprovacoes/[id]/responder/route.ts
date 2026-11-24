@@ -8,6 +8,7 @@ import { gerarPedidoDeCotacao, finalizarMensagemAprovacaoCotacao } from "@/lib/a
 import { gerarContasPagarAntecipadoDoPedido } from "@/lib/contas-pagar";
 import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notificacoes";
 import { responderAprovacaoPedido } from "@/lib/aprovacao-pedido";
+import { rotuloCompra } from "@/lib/numero-compra";
 
 export async function POST(
   req: NextRequest,
@@ -33,7 +34,7 @@ export async function POST(
       where: { id: params.id },
       include: {
         aprovador: true,
-        cotacao: { select: { id: true, numero: true, nome: true } },
+        cotacao: { select: { id: true, numero: true, numeroCompra: true, nome: true } },
       },
     });
 
@@ -125,16 +126,20 @@ export async function POST(
       await marcarNotificacoesLidasPorLink(aprovacao.aprovadorId, link, "COTACAO_APROVACAO_SOLICITADA").catch(() => {});
     }
     if (aprovacao.solicitadoPor) {
-      const ref = aprovacao.cotacao?.nome || aprovacao.cotacao?.numero || "";
+      const ref = rotuloCompra(aprovacao.cotacao, "Compra");
+      // O pedido leva o número da compra; só cita o dele quando difere (PC-0430/2).
+      const pedidoGerado = novoPedidoNumero && novoPedidoNumero !== aprovacao.cotacao?.numeroCompra
+        ? `pedido ${novoPedidoNumero} gerado`
+        : "pedido gerado";
       if (novoStatus === "APROVADO") {
         await notificarUsuario({
           usuarioId: aprovacao.solicitadoPor, tipo: "COTACAO_APROVADA", titulo: "Cotação aprovada",
-          mensagem: `Sua cotação ${ref} foi aprovada — Pedido ${novoPedidoNumero} gerado.`, link,
+          mensagem: `Sua ${ref} foi aprovada — ${pedidoGerado}.`, link,
         }).catch(() => {});
       } else {
         await notificarUsuario({
           usuarioId: aprovacao.solicitadoPor, tipo: "COTACAO_REPROVADA", titulo: "Cotação reprovada",
-          mensagem: `Sua cotação ${ref} foi reprovada${observacao ? `: ${observacao}` : "."}`, link,
+          mensagem: `Sua ${ref} foi reprovada${observacao ? `: ${observacao}` : "."}`, link,
         }).catch(() => {});
       }
     }

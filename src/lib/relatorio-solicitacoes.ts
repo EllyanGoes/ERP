@@ -108,7 +108,7 @@ type SCData = Awaited<ReturnType<typeof prisma.necessidadeCompra.findMany<{
   };
 }>>>;
 
-// Columns: SC · Status · Setor · Solicitante · Código · Descrição · Qtd. · Prioridade · Criado em · Cotação · Pedido
+// Columns: Compra · Status · Setor · Solicitante · Código · Descrição · Qtd. · Prioridade · Criado em · Cotação · Pedido
 const NUM_COLS = 11;
 
 async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
@@ -174,7 +174,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
       const statusMeta = STATUS_META[sc.status] ?? { label: sc.status, color: [100, 100, 100] as [number, number, number] };
 
       if (sc.itens.length === 0) {
-        rows.push([sc.numero, statusMeta.label, setor, solicitante, "—", "—", "—", prio, criado, cotacao, pedido]);
+        rows.push([sc.numeroCompra ?? sc.numero, statusMeta.label, setor, solicitante, "—", "—", "—", prio, criado, cotacao, pedido]);
         continue;
       }
 
@@ -182,7 +182,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
         const unidade = it.item.unidade?.sigla || it.item.unidadeMedida || "UN";
         const qty     = parseFloat(it.quantidade.toString()).toLocaleString("pt-BR", { maximumFractionDigits: 3 });
         rows.push([
-          idx === 0 ? sc.numero        : "",
+          idx === 0 ? (sc.numeroCompra ?? sc.numero)        : "",
           idx === 0 ? statusMeta.label : "",
           idx === 0 ? setor            : "",
           idx === 0 ? solicitante      : "",
@@ -200,7 +200,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
 
   autoTable(doc, {
     startY: 26,
-    head: [["Solicitação", "Status", "Setor", "Solicitante", "Código", "Descrição", "Qtd.", "Prioridade", "Criado em", "Cotação", "Pedido"]],
+    head: [["Compra", "Status", "Setor", "Solicitante", "Código", "Descrição", "Qtd.", "Prioridade", "Criado em", "Cotação", "Pedido"]],
     body: rows,
     styles: {
       fontSize: 7,
