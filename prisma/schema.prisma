@@ -599,6 +599,9 @@ model ConferenciaCompra {
   id                    String                  @id @default(cuid())
   empresaId             String                  @default("emp_tramontin")
   numero                String
+  // Número ÚNICO da compra (PC-0430): o mesmo em SC, CT, PC e DE do processo.
+  // Sai da sequência "PC"; o pedido de compras nasce com numero = numeroCompra.
+  numeroCompra          String?
   pedidoId              String?                 @unique
   status                StatusConferenciaCompra @default(PENDENTE)
   condicaoPagamentoId   String?
@@ -658,6 +661,7 @@ model ConferenciaCompra {
   @@index([status])
   @@index([fornecedorId])
   @@index([empresaId])
+  @@index([empresaId, numeroCompra])
 }
 
 model ConferenciaCompraItem {
@@ -1598,6 +1602,9 @@ model CotacaoCompra {
   id                   String              @id @default(cuid())
   empresaId            String              @default("emp_tramontin")
   numero               String
+  // Número ÚNICO da compra (PC-0430): o mesmo em SC, CT, PC e DE do processo.
+  // Sai da sequência "PC"; o pedido de compras nasce com numero = numeroCompra.
+  numeroCompra         String?
   necessidadeId        String?
   status               StatusCotacaoCompra @default(PENDENTE)
   dataLimiteResposta   DateTime?
@@ -1622,6 +1629,7 @@ model CotacaoCompra {
   @@unique([empresaId, numero])
   @@index([status])
   @@index([empresaId])
+  @@index([empresaId, numeroCompra])
 }
 
 model CotacaoFornecedor {
@@ -2331,6 +2339,9 @@ model NecessidadeCompra {
   id                    String                  @id @default(cuid())
   empresaId             String                  @default("emp_tramontin")
   numero                String
+  // Número ÚNICO da compra (PC-0430): o mesmo em SC, CT, PC e DE do processo.
+  // Sai da sequência "PC"; o pedido de compras nasce com numero = numeroCompra.
+  numeroCompra          String?
   status                StatusNecessidade       @default(RASCUNHO)
   solicitante           String?
   colaboradorId         String?
@@ -2371,6 +2382,7 @@ model NecessidadeCompra {
   @@unique([empresaId, numero])
   @@index([status])
   @@index([empresaId])
+  @@index([empresaId, numeroCompra])
 }
 
 model NecessidadeCompraItem {
@@ -2389,6 +2401,9 @@ model PedidoCompra {
   id                   String                 @id @default(cuid())
   empresaId            String                 @default("emp_tramontin")
   numero               String
+  // Número ÚNICO da compra (PC-0430): o mesmo em SC, CT, PC e DE do processo.
+  // Sai da sequência "PC"; o pedido de compras nasce com numero = numeroCompra.
+  numeroCompra         String?
   cotacaoId            String?
   necessidadeId        String?
   fornecedorId         String
@@ -2431,6 +2446,7 @@ model PedidoCompra {
   @@index([status])
   @@index([necessidadeId])
   @@index([empresaId])
+  @@index([empresaId, numeroCompra])
 }
 
 model PedidoCompraItem {
@@ -5276,18 +5292,18 @@ model SstEpi {
 }
 
 model SstEpiItem {
-  id      String  @id @default(cuid())
-  epiId   String
-  itemId  String
+  id         String    @id @default(cuid())
+  epiId      String
+  itemId     String
   // Tamanho ou cor (bota 38, capacete VERDE). Cada produto pode ter seu CA:
   // fabricante/modelo diferentes têm CAs diferentes. Vazio = vale o CA do EPI.
   tamanho    String?
   ca         String?
   caValidade DateTime?
   fabricante String?
-  ordem   Int     @default(0)
-  epi     SstEpi  @relation(fields: [epiId], references: [id], onDelete: Cascade)
-  item    Item    @relation("SstEpiItemTamanho", fields: [itemId], references: [id])
+  ordem      Int       @default(0)
+  epi        SstEpi    @relation(fields: [epiId], references: [id], onDelete: Cascade)
+  item       Item      @relation("SstEpiItemTamanho", fields: [itemId], references: [id])
 
   @@unique([epiId, itemId])
   @@index([itemId])

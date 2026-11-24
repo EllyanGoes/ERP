@@ -72,6 +72,7 @@ type SCItem = {
 type Cotacao = {
   id: string;
   numero: string;
+  numeroCompra?: string | null;
   nome: string | null;
   status: "PENDENTE" | "EM_ANALISE" | "AGUARDANDO_APROVACAO" | "CONCLUIDA";
   motivoReprovacao?: string | null;
@@ -294,7 +295,7 @@ export default function CotacaoDetailPage() {
   const pathname = usePathname();
   // Re-fetch quando a rota voltar para esta página (ex: retorno da proposta)
   useEffect(() => { load(); }, [load, pathname]);
-  useTabTitle(cotacao ? cotacao.numero : null);
+  useTabTitle(cotacao ? `Compra ${cotacao.numeroCompra ?? cotacao.numero}` : null);
 
   // ── Status transitions ────────────────────────────────────────────────────
   async function changeStatus(newStatus: string) {
@@ -468,7 +469,7 @@ export default function CotacaoDetailPage() {
   return (
     <div>
       <PageHeader
-        title={cotacao.numero}
+        title={cotacao.numeroCompra ? `Compra ${cotacao.numeroCompra} · Cotação` : cotacao.numero}
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Cotações", href: "/suprimentos/cotacoes" },

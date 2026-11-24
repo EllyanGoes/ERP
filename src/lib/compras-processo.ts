@@ -51,25 +51,27 @@ export function faseDoProcesso(d: DocumentosDoProcesso): { etapa: EtapaCompra; c
   return { etapa, concluido: true };
 }
 
-// ── Colunas do quadro: quem deve a próxima ação ───────────────────────────────
-export type ColunaCompra = "montagem" | "aprovacao" | "entrega" | "conferencia";
+// ── Colunas do quadro: uma por etapa, concluídos à parte ──────────────────────
+// A contagem de cada coluna responde "quantos processos estão nesta etapa".
+export type ColunaCompra = "montagem" | "aprovacao" | "entrega" | "conferencia" | "concluido";
 
-const ORDEM_COLUNAS: ColunaCompra[] = ["montagem", "aprovacao", "entrega", "conferencia"];
+const ORDEM_COLUNAS: ColunaCompra[] = ["montagem", "aprovacao", "entrega", "conferencia", "concluido"];
 const NOME_COLUNA: Record<ColunaCompra, string> = {
-  montagem: "Em montagem", aprovacao: "Aguardando aprovação", entrega: "Aguardando entrega", conferencia: "Em conferência",
+  montagem: "Solicitação de Compras", aprovacao: "Aguardando Aprovação", entrega: "Pedido de Compras",
+  conferencia: "Documento de Entrada", concluido: "Concluído",
 };
 
-export function colunaDoDocumento(etapa: EtapaCompra, status: string): ColunaCompra {
+export function colunaDoDocumento(etapa: EtapaCompra, status: string): Exclude<ColunaCompra, "concluido"> {
   if (etapa === "entrada") return "conferencia";
   if (etapa === "solicitacao") return "montagem";
   if (status === "AGUARDANDO_APROVACAO") return "aprovacao";
-  if (etapa === "cotacao" || status === "RASCUNHO") return "montagem";
+  if (etapa === "cotacao") return "montagem";
   return "entrega";
 }
 
-/** Concluída fica na última coluna, qualquer que seja o último documento. */
+/** Compra concluída sai das etapas e vai para a coluna Concluído. */
 export const colunaDoCartao = (etapa: EtapaCompra, status: string, concluido: boolean): ColunaCompra =>
-  concluido ? "conferencia" : colunaDoDocumento(etapa, status);
+  concluido ? "concluido" : colunaDoDocumento(etapa, status);
 
 /**
  * Desde quando o documento está na coluna atual. Só a última mudança de COLUNA
@@ -124,7 +126,17 @@ export function destinoDoArraste(
       ? { href: cotacao, acao: "Abrir cotação", aviso: "O pedido é gerado quando o aprovador aprova a cotação." }
       : { href: pedido, acao: "Abrir pedido", aviso: "O pedido editado precisa ser aprovado novamente." };
   }
-  return { href: `/suprimentos/conferencias/novo?pedidoId=${c.atual.id}` };
+  if (c.coluna === "entrega") {
+    if (c.status === "RASCUNHO") {
+      return { href: pedido, acao: "Abrir pedido", aviso: "Conclua o rascunho do pedido para seguir." };
+    }
+    return { href: `/suprimentos/conferencias/novo?pedidoId=${c.atual.id}` };
+  }
+  // Documento de Entrada → Concluído: a compra conclui quando a conferência é concluída.
+  return {
+    href: `/suprimentos/conferencias/${c.atual.id}`, acao: "Abrir documento de entrada",
+    aviso: "A compra é concluída ao concluir a conferência do documento de entrada.",
+  };
 }
 
 // ── Propostas da Nova compra ──────────────────────────────────────────────────

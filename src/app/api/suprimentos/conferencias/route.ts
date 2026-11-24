@@ -7,6 +7,7 @@ import { findMatchingPedidos } from "@/lib/pc-match";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { getSession } from "@/lib/auth";
 import { criarConferenciaDePedido } from "@/lib/pedido-compra-de";
+import { numeroCompraDaOrigem } from "@/lib/numero-compra";
 
 export async function GET() {
   const auth = await requireModulo("compras");
@@ -200,6 +201,8 @@ export async function POST(req: NextRequest) {
     const record = await tx.conferenciaCompra.create({
       data: {
         numero,
+        // Entrada de pedido herda o número da compra; avulsa abre uma compra nova.
+        numeroCompra: await numeroCompraDaOrigem(tx, empresaAlvo, { pedidoId: linkedPedidoId || null }),
         empresaId: empresaAlvo,
         status: "PENDENTE",
         fornecedorId,

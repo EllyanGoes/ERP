@@ -86,6 +86,7 @@ type FornecedorInfo = {
 type Conferencia = {
   id: string;
   numero: string;
+  numeroCompra?: string | null;
   status: string;
   dataConferencia: string | null;
   responsavel: string | null;
@@ -893,7 +894,7 @@ export default function DocumentoEntradaDetailPage() {
     }
   }
 
-  useTabTitle(conferencia ? `Doc. ${conferencia.numero}` : null);
+  useTabTitle(conferencia ? `Compra ${conferencia.numeroCompra ?? conferencia.numero}` : null);
 
   if (loading) return <div className="px-8 pt-8 text-muted-foreground">Carregando...</div>;
   if (!conferencia) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
@@ -1194,7 +1195,7 @@ export default function DocumentoEntradaDetailPage() {
       })()}
 
       <PageHeader
-        title={`Documento de Entrada ${conferencia.numero}`}
+        title={conferencia.numeroCompra ? `Compra ${conferencia.numeroCompra} · Documento de Entrada` : `Documento de Entrada ${conferencia.numero}`}
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Doc. de Entrada", href: "/suprimentos/conferencias" },

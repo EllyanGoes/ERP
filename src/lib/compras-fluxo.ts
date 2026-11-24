@@ -11,6 +11,7 @@ import { notificarUsuario, marcarNotificacoesLidasPorLink } from "@/lib/notifica
 import { buildCotacaoPDF } from "@/lib/pdf-cotacao";
 import { sendTelegramDM, sendTelegramDocument, sendTelegramMessage, escMD } from "@/lib/telegram";
 import { formatBRL } from "@/lib/utils";
+import { novoNumeroCompra } from "@/lib/numero-compra";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fluxo único de compras (docs/compras-fluxo-unico-prd.md). A "Nova compra" grava
@@ -106,14 +107,17 @@ export async function criarCompra(
 ) {
   const { empresaId, numeroSC, numeroCT, body, itens, propostas, vencedorFornecedorId } = dados;
 
+  // Número único da compra: nasce aqui e acompanha SC, CT, pedido e entrada.
+  const numeroCompra = await novoNumeroCompra(tx, empresaId);
   const sc = await tx.necessidadeCompra.create({
-    data: { ...dadosDaSolicitacao(body), numero: numeroSC, empresaId, status: "EM_COTACAO" },
+    data: { ...dadosDaSolicitacao(body), numero: numeroSC, numeroCompra, empresaId, status: "EM_COTACAO" },
   });
 
   const vencedor = vencedorDaCompra(itens, propostas, vencedorFornecedorId);
   const cotacao = await tx.cotacaoCompra.create({
     data: {
       numero: numeroCT,
+      numeroCompra,
       empresaId,
       necessidadeId: sc.id,
       nome: body.justificativa?.trim() || null,

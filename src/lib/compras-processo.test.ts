@@ -45,15 +45,16 @@ assert.deepEqual(fase({ sc: s("EM_PEDIDO"), pedidos: [pc("RECEBIDO", "CONCLUIDA"
 assert.equal(fase({ pedidos: [pc("EM_TRANSITO")] }).etapa, "pedido");
 assert.deepEqual(fase({ entradasAvulsas: [s("PENDENTE")] }), { etapa: "entrada", concluido: false });
 
-// Colunas por quem deve agir.
+// Colunas por etapa; concluídos à parte.
 assert.equal(colunaDoDocumento("solicitacao", "APROVADA"), "montagem");
 assert.equal(colunaDoDocumento("cotacao", "EM_ANALISE"), "montagem");
 assert.equal(colunaDoDocumento("cotacao", "AGUARDANDO_APROVACAO"), "aprovacao");
 assert.equal(colunaDoDocumento("pedido", "AGUARDANDO_APROVACAO"), "aprovacao");
-assert.equal(colunaDoDocumento("pedido", "RASCUNHO"), "montagem");
+assert.equal(colunaDoDocumento("pedido", "RASCUNHO"), "entrega");
 for (const st of ["AGUARDANDO_PAGAMENTO", "CONFIRMADO", "EM_TRANSITO", "ENVIADO"]) assert.equal(colunaDoDocumento("pedido", st), "entrega");
 assert.equal(colunaDoDocumento("entrada", "DIVERGENCIA"), "conferencia");
-assert.equal(colunaDoCartao("pedido", "RECEBIDO", true), "conferencia");
+assert.equal(colunaDoCartao("pedido", "RECEBIDO", true), "concluido");
+assert.equal(colunaDoCartao("entrada", "PENDENTE", false), "conferencia");
 
 // Tempo na coluna: só mudança de coluna conta.
 const d = (n: number) => new Date(2026, 0, n);
@@ -74,6 +75,11 @@ assert.ok("erro" in destinoDoArraste(cartao("pedido", "CONFIRMADO"), "montagem")
 assert.ok("erro" in destinoDoArraste(cartao("solicitacao", "APROVADA"), "entrega")!);
 assert.ok("erro" in destinoDoArraste(cartao("entrada", "CONCLUIDA", true), "entrega")!);
 assert.equal(destinoDoArraste(cartao("pedido", "CONFIRMADO"), "entrega"), null);
+const rascunho = destinoDoArraste(cartao("pedido", "RASCUNHO"), "conferencia")!;
+assert.ok("href" in rascunho && rascunho.href === "/suprimentos/pedidos-compra/X" && !!rascunho.aviso);
+const concluir = destinoDoArraste(cartao("entrada", "EM_CONFERENCIA"), "concluido")!;
+assert.ok("href" in concluir && concluir.href === "/suprimentos/conferencias/X" && !!concluir.aviso);
+assert.ok("erro" in destinoDoArraste(cartao("pedido", "CONFIRMADO"), "concluido")!);
 
 // Propostas.
 assert.equal(numeroDigitado("1.234,50"), 1234.5);

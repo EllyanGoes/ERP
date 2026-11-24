@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { EMPRESA_PADRAO_ID, proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { getSession } from "@/lib/auth";
+import { numeroCompraDaOrigem } from "@/lib/numero-compra";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     if (search) {
       where.OR = [
         { numero: { contains: search, mode: "insensitive" } },
+        { numeroCompra: { contains: search, mode: "insensitive" } },
         { nome: { contains: search, mode: "insensitive" } },
         { necessidade: { numero: { contains: search, mode: "insensitive" } } },
         { fornecedores: { some: { fornecedor: { razaoSocial: { contains: search, mode: "insensitive" } } } } },
@@ -134,6 +136,7 @@ export async function POST(req: NextRequest) {
     const record = await tx.cotacaoCompra.create({
       data: {
         numero: numeroCT,
+        numeroCompra: await numeroCompraDaOrigem(tx, empresaAlvo, { necessidadeId }),
         empresaId: empresaAlvo,
         nome: nome?.trim() || null,
         necessidadeId: necessidadeId || null,

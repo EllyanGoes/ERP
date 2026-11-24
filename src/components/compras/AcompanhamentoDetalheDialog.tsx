@@ -26,7 +26,7 @@ type ItemLinha = {
 type Elo = { etapa: EtapaCompra; id: string; numero: string; status: string };
 type Proposta = { fornecedor: string; status: string; total: number | null; escolhida: boolean };
 type Detalhe = {
-  etapa: EtapaCompra; id: string; numero: string; status: string; empresaId: string; href: string;
+  etapa: EtapaCompra; id: string; numero: string; numeroCompra: string | null; status: string; empresaId: string; href: string;
   campos: Campo[];
   itens: ItemLinha[];
   propostas?: Proposta[];
@@ -117,10 +117,13 @@ export default function AcompanhamentoDetalheDialog({
           <DialogTitle className="flex flex-wrap items-center gap-3 pr-40">
             {detalhe ? (
               <>
-                <span className="font-mono text-info">{detalhe.numero}</span>
+                <span className="font-mono text-info">{detalhe.numeroCompra ?? detalhe.numero}</span>
                 <StatusBadge status={detalhe.status} />
                 <EmpresaTag empresaId={detalhe.empresaId} />
-                <span className="text-xs font-normal text-muted-foreground">{ETAPA_LABEL[detalhe.etapa]}</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  {ETAPA_LABEL[detalhe.etapa]}
+                  {detalhe.numeroCompra && detalhe.numeroCompra !== detalhe.numero && ` · ${detalhe.numero}`}
+                </span>
               </>
             ) : (
               <span className="text-muted-foreground">{etapa ? ETAPA_LABEL[etapa] : ""}</span>

@@ -63,6 +63,7 @@ type ContaPagarMin = {
 type PedidoCompra = {
   id: string;
   numero: string;
+  numeroCompra?: string | null;
   status: string;
   statusFinanceiro?: string | null;
   contasPagar?: ContaPagarMin[];
@@ -499,7 +500,7 @@ async function openWAModal() {
     }, 0);
   }
 
-  useTabTitle(pedido ? pedido.numero : null);
+  useTabTitle(pedido ? `Compra ${pedido.numeroCompra ?? pedido.numero}` : null);
 
   if (loading) return (
     <div className="flex items-center justify-center py-24">
@@ -536,7 +537,7 @@ async function openWAModal() {
   return (
     <div>
       <PageHeader
-        title={`Pedido ${pedido.numero}`}
+        title={pedido.numeroCompra ? `Compra ${pedido.numeroCompra} · Pedido${pedido.numero !== pedido.numeroCompra ? ` ${pedido.numero}` : ""}` : `Pedido ${pedido.numero}`}
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Pedidos de Compra", href: "/suprimentos/pedidos-compra" },

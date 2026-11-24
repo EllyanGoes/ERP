@@ -1,8 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { generateSimpleDocNumber } from "@/lib/utils";
-import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { editTelegramMessage, escMD } from "@/lib/telegram";
+import { numeroCompraDaOrigem, numeroDoPedido } from "@/lib/numero-compra";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Aprovação da COTAÇÃO → geração do Pedido de Compras.
@@ -97,10 +96,9 @@ export async function gerarPedidoDeCotacao(
   await tx.cotacaoFornecedor.updateMany({ where: { cotacaoId }, data: { melhorOpcao: false } });
   await tx.cotacaoFornecedor.update({ where: { id: melhor.id }, data: { melhorOpcao: true } });
 
-  const numero = generateSimpleDocNumber(
-    "PC",
-    await proximaSequenciaDaEmpresa(cotacao.empresaId, "PC"),
-  );
+  // O pedido leva o número único da compra (o da SC/CT de origem).
+  const numeroCompra = await numeroCompraDaOrigem(tx, cotacao.empresaId, { cotacaoId: cotacao.id });
+  const numero = await numeroDoPedido(tx, cotacao.empresaId, numeroCompra);
 
   const itensComPreco = melhor.itens.filter((i) => i.precoUnitario != null);
   const parsedItens = itensComPreco.map((i) => {
@@ -125,6 +123,7 @@ export async function gerarPedidoDeCotacao(
   const pedidoCompra = await tx.pedidoCompra.create({
     data: {
       numero,
+      numeroCompra,
       // Aprovado → já entra em Aguardando Pagamento (não fica em rascunho).
       status: "AGUARDANDO_PAGAMENTO",
       empresaId: cotacao.empresaId,

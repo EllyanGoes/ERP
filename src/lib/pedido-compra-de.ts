@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { generateSimpleDocNumber } from "@/lib/utils";
+import { novoNumeroCompra } from "@/lib/numero-compra";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Criação do Documento de Entrada (ConferenciaCompra) a partir de um Pedido de
@@ -34,6 +35,7 @@ export async function criarConferenciaDePedido(
   return tx.conferenciaCompra.create({
     data: {
       numero,
+      numeroCompra: pedido.numeroCompra ?? (await novoNumeroCompra(tx, pedido.empresaId)),
       empresaId: pedido.empresaId,
       pedidoId,
       fornecedorId: pedido.fornecedorId ?? null,

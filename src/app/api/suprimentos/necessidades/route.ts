@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { generateSimpleDocNumber } from "@/lib/utils";
 import { proximaSequenciaDaEmpresa } from "@/lib/empresa";
 import { ErroCompras, dadosDaSolicitacao, empresaDoDocumento, erroDaSolicitacao } from "@/lib/compras-fluxo";
+import { novoNumeroCompra } from "@/lib/numero-compra";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
     const record = await tx.necessidadeCompra.create({
       data: {
         numero,
+        numeroCompra:         await novoNumeroCompra(tx, empresaAlvo),
         empresaId:            empresaAlvo,
         status:               "RASCUNHO",
         ...dadosDaSolicitacao(body),
