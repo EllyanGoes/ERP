@@ -387,13 +387,11 @@ export default function AcompanhamentoComprasPage() {
               <>
                 <div className="fixed inset-0 z-40" onMouseDown={() => setMenuNova(false)} />
                 <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-card border border-border rounded-xl shadow-xl text-sm overflow-hidden py-1">
-                  <Link href="/suprimentos/pedidos-compra/novo" className="block px-3 py-2 hover:bg-muted">
-                    <span className="font-medium text-foreground">Pedido avulso</span>
-                    <span className="block text-xs text-muted-foreground">Pedido direto, sem solicitação nem cotação</span>
-                  </Link>
+                  {/* Pedido avulso saiu: pulava a aprovação. Compra com fornecedor já
+                      definido = Nova compra com uma proposta só. */}
                   <Link href="/suprimentos/conferencias/novo" className="block px-3 py-2 hover:bg-muted">
-                    <span className="font-medium text-foreground">Entrada avulsa</span>
-                    <span className="block text-xs text-muted-foreground">Nota recebida sem pedido de compra</span>
+                    <span className="font-medium text-foreground">Lançar nota sem pedido</span>
+                    <span className="block text-xs text-muted-foreground">Compra já feita (balcão, urgência)</span>
                   </Link>
                 </div>
               </>
