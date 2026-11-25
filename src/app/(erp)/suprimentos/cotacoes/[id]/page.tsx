@@ -78,7 +78,7 @@ type Cotacao = {
   numero: string;
   numeroCompra?: string | null;
   nome: string | null;
-  status: "PENDENTE" | "EM_ANALISE" | "AGUARDANDO_APROVACAO" | "CONCLUIDA";
+  status: "PENDENTE" | "EM_ANALISE" | "AGUARDANDO_APROVACAO" | "CONCLUIDA" | "CANCELADA";
   motivoReprovacao?: string | null;
   dataLimiteResposta: string | null;
   observacoes: string | null;
@@ -127,6 +127,7 @@ const STATUS_COTACAO_BADGE: Record<string, { label: string; cls: string }> = {
   EM_ANALISE:           { label: "Em Análise",        cls: "bg-info/15 text-info" },
   AGUARDANDO_APROVACAO: { label: "Aguard. Aprovação", cls: "bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300" },
   CONCLUIDA:            { label: "Concluída",         cls: "bg-success/15 text-success" },
+  CANCELADA:            { label: "Cancelada",         cls: "bg-danger/15 text-danger" },
 };
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -474,7 +475,7 @@ export default function CotacaoDetailPage() {
   }
 
   const respondidas = cotacao.fornecedores.filter((cf) => cf.status === "RESPONDIDA");
-  const canEdit = isAdmin || cotacao.status !== "CONCLUIDA";
+  const canEdit = cotacao.status !== "CANCELADA" && (isAdmin || cotacao.status !== "CONCLUIDA");
   // Aprovador designado da pendência atual (além do ADMIN) pode aprovar/reprovar.
   const isAprovador = (cotacao.aprovacoes ?? []).some((a) => a.status === "PENDENTE" && a.aprovadorId === user?.id);
   const podeAprovar = isAdmin || isAprovador;

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   // e limita os resultados.
   if (search || formalizaveis) {
     const where: Prisma.CotacaoCompraWhereInput = {
-      status: { not: "CONCLUIDA" },
+      status: { notIn: ["CONCLUIDA", "CANCELADA"] },
       fornecedores: { some: { status: "RESPONDIDA" } },
     };
     if (search) {

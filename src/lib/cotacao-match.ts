@@ -32,7 +32,7 @@ export async function findMatchingCotacoes(
 
   const cotacoes = await prisma.cotacaoCompra.findMany({
     where: {
-      status: { not: "CONCLUIDA" },
+      status: { notIn: ["CONCLUIDA", "CANCELADA"] },
       fornecedores: {
         some: {
           fornecedorId,

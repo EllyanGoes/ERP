@@ -193,6 +193,7 @@ export async function submeterCotacaoParaAprovacao(params: {
   });
   if (!cotacao) throw new ErroCompras("Cotação não encontrada", 404);
   if (cotacao.status === "CONCLUIDA") throw new ErroCompras("Cotação já concluída");
+  if (cotacao.status === "CANCELADA") throw new ErroCompras("Cotação cancelada");
   const respondidas = cotacao.fornecedores.filter((f) => f.status === "RESPONDIDA");
   if (respondidas.length === 0) throw new ErroCompras("Nenhum fornecedor respondeu a cotação ainda");
 

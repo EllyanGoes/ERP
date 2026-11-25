@@ -3565,6 +3565,7 @@ enum StatusCotacaoCompra {
   EM_ANALISE
   AGUARDANDO_APROVACAO
   CONCLUIDA
+  CANCELADA
 }
 
 enum StatusNecessidade {

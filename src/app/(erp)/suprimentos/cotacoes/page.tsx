@@ -50,7 +50,7 @@ type CotacaoItem = {
   /** Número único da compra (PC-0430) — identificador do processo; CT- é detalhe. */
   numeroCompra?: string | null;
   nome: string | null;
-  status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA";
+  status: "PENDENTE" | "EM_ANALISE" | "CONCLUIDA" | "CANCELADA";
   createdAt: string;
   necessidade: { id: string; numero: string; numeroCompra?: string | null } | null;
   _count: { fornecedores: number };
@@ -73,6 +73,7 @@ const STATUS_OPTIONS = [
   { value: "EM_ANALISE", label: "Em Análise" },
   { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
   { value: "CONCLUIDA",  label: "Concluída" },
+  { value: "CANCELADA",  label: "Cancelada" },
 ];
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -80,6 +81,7 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   EM_ANALISE: { label: "Em Análise", cls: "bg-info/15 text-info" },
   AGUARDANDO_APROVACAO: { label: "Aguard. Aprovação", cls: "bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300" },
   CONCLUIDA:  { label: "Concluída",  cls: "bg-success/15 text-success" },
+  CANCELADA:  { label: "Cancelada",  cls: "bg-danger/15 text-danger" },
 };
 
 const SORT_OPTIONS = [

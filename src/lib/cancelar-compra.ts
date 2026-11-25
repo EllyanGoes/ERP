@@ -8,7 +8,7 @@
 //    parada no Fluxo de Compras (67 casos em prod em 24/11/2026).
 //  • cancelarCompra — "cancelar a compra inteira": pedidos vivos cancelados,
 //    cotação encerrada, aprovações pendentes resolvidas e SC CANCELADA com o
-//    motivo. Bloqueia se já houve entrada ou título a pagar, que têm estorno
+//    motivo (cotação aberta → CANCELADA). Bloqueia se já houve entrada ou título a pagar, que têm estorno
 //    próprio (estoque/contábil/financeiro) e não podem sumir em cascata.
 // As mudanças de status entram no CompraStatusLog pelos triggers do banco.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -97,7 +97,8 @@ export async function cancelarCompra(
   const scIds = scs.map((s) => s.id);
 
   await tx.pedidoCompra.updateMany({ where: { id: { in: pcIds }, status: { not: "CANCELADO" } }, data: { status: "CANCELADO" } });
-  await tx.cotacaoCompra.updateMany({ where: { id: { in: ctIds }, status: { not: "CONCLUIDA" } }, data: { status: "CONCLUIDA" } });
+  // Cotação ainda aberta vira CANCELADA (a já concluída fica como está: gerou pedido).
+  await tx.cotacaoCompra.updateMany({ where: { id: { in: ctIds }, status: { notIn: ["CONCLUIDA", "CANCELADA"] } }, data: { status: "CANCELADA" } });
   await tx.aprovacaoSC.updateMany({
     where: {
       status: "PENDENTE",

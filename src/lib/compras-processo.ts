@@ -21,7 +21,7 @@ export type DocumentosDoProcesso = {
   entradasAvulsas: ComStatus[];
 };
 
-export const cotacaoAberta = (c: ComStatus) => c.status !== "CONCLUIDA";
+export const cotacaoAberta = (c: ComStatus) => c.status !== "CONCLUIDA" && c.status !== "CANCELADA";
 export const entradaAberta = (e: ComStatus) => e.status !== "CONCLUIDA";
 export const pedidoVivo = (p: ComStatus) => p.status !== "CANCELADO";
 /** Pedido vivo aguardando o documento de entrada (o DE nasce no recebimento). */

@@ -136,7 +136,12 @@ function faceCT(ct: CT, vencido: Vencido): Face {
     resumo: ct.fornecedores.length > 0
       ? `${respondidas}/${ct.fornecedores.length} fornecedores responderam`
       : "Nenhum fornecedor convidado",
-    valor: num(escolhido?.totalCalculado),
+    // Escolhida a melhor proposta, vale ela; antes disso, a menor recebida.
+    valor:
+      num(escolhido?.totalCalculado) ??
+      ct.fornecedores
+        .filter((f) => f.status === "RESPONDIDA" && num(f.totalCalculado))
+        .reduce<number | null>((min, f) => Math.min(min ?? Infinity, num(f.totalCalculado)!), null),
     desde: ct.createdAt.toISOString(),
     prazo: ct.dataLimiteResposta?.toISOString() ?? null,
     prazoLabel: ct.dataLimiteResposta ? "Respostas até" : null,
@@ -278,7 +283,7 @@ export async function GET(req: NextRequest) {
           { status: { in: [...SC_ATIVAS] } },
           { status: "TOTALMENTE_ATENDIDA", updatedAt: { gte: corte } },
           // Cotação esquecida aberta em SC cancelada/rejeitada não é trabalho em andamento.
-          { status: { notIn: ["CANCELADA", "REJEITADA"] }, cotacoes: { some: { status: { not: "CONCLUIDA" } } } },
+          { status: { notIn: ["CANCELADA", "REJEITADA"] }, cotacoes: { some: { status: { notIn: ["CONCLUIDA", "CANCELADA"] } } } },
           { pedidosCompra: { some: pedidoEmAberto } },
           { pedidosCompra: { some: entradaEmAberto } },
           // Pedido gerado pela cotação costuma ligar à SC só por ela.
@@ -291,8 +296,10 @@ export async function GET(req: NextRequest) {
     prisma.cotacaoCompra.findMany({
       where: {
         necessidadeId: null,
+        // Cotação cancelada (compra cancelada) não volta ao quadro.
+        status: { not: "CANCELADA" },
         OR: [
-          { status: { not: "CONCLUIDA" } },
+          { status: { notIn: ["CONCLUIDA", "CANCELADA"] } },
           { updatedAt: { gte: corte } },
           { pedidos: { some: pedidoEmAberto } },
           { pedidos: { some: entradaEmAberto } },

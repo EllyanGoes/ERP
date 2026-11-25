@@ -18,6 +18,8 @@ import { destinoDoArraste, type ColunaCompra } from "@/lib/compras-processo";
 import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
 import { useRelatorioCache } from "@/lib/use-relatorio-cache";
 import { cn, formatBRL, formatDate } from "@/lib/utils";
+import CompraDetalhe from "@/components/compras/CompraDetalhe";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Etapa = "solicitacao" | "cotacao" | "pedido" | "entrada";
@@ -45,6 +47,8 @@ type Cartao = {
   documentos: { etapa: Etapa; id: string; numero: string; status: string }[];
   busca: string;
 };
+
+type CompraAberta = { numero: string; empresa: string; aba: string | null; doc: string | null };
 
 type Resposta = { cartoes: Cartao[]; concluidosDias: number; geradoEm: string };
 
@@ -220,6 +224,7 @@ export default function AcompanhamentoComprasPage() {
   const [arrastadoId, setArrastadoId] = useState<string | null>(null);
   const [colunaAlvo, setColunaAlvo] = useState<ColunaCompra | null>(null);
   const [novaAberta, setNovaAberta] = useState(false);
+  const [compraAberta, setCompraAberta] = useState<CompraAberta | null>(null);
   const [aviso, setAviso] = useState<{ texto: string; href?: string; acao?: string } | null>(null);
 
   // Volta para a tela sem spinner: mostra o último quadro e atualiza em 2º plano.
@@ -346,9 +351,14 @@ export default function AcompanhamentoComprasPage() {
   ];
 
   // Cartão abre a página única da compra, na aba do documento clicado.
+  // Cartão abre a compra num popup; "Abrir em aba" leva à página própria.
   function abrirCompra(c: Cartao, d: DocumentoRef) {
-    const qs = new URLSearchParams({ empresa: c.empresaId, aba: d.etapa, doc: d.id });
-    router.push(`/compras/compra/${encodeURIComponent(c.numero)}?${qs.toString()}`);
+    setCompraAberta({ numero: c.numero, empresa: c.empresaId, aba: d.etapa, doc: d.id });
+  }
+  function abrirEmAba(a: CompraAberta) {
+    const qs = new URLSearchParams({ empresa: a.empresa, ...(a.aba ? { aba: a.aba } : {}), ...(a.doc ? { doc: a.doc } : {}) });
+    setCompraAberta(null);
+    router.push(`/compras/compra/${encodeURIComponent(a.numero)}?${qs.toString()}`);
   }
 
   function encerrarArraste() {
@@ -633,6 +643,22 @@ export default function AcompanhamentoComprasPage() {
         </div>
       )}
 
+
+      <Dialog open={!!compraAberta} onOpenChange={(v) => { if (!v) { setCompraAberta(null); load(); } }}>
+        <DialogContent className="sm:max-w-[min(1280px,95vw)] w-[95vw] h-[90vh] p-0 gap-0 overflow-y-auto bg-background">
+          <DialogTitle className="sr-only">{compraAberta ? `Compra ${compraAberta.numero}` : "Compra"}</DialogTitle>
+          {compraAberta && (
+            <CompraDetalhe
+              numeroCompra={compraAberta.numero}
+              empresa={compraAberta.empresa}
+              abaParam={compraAberta.aba}
+              docParam={compraAberta.doc}
+              onNavegar={({ aba, doc }) => setCompraAberta((a) => (a ? { ...a, aba: aba ?? a.aba, doc: doc ?? null } : a))}
+              onAbrirEmAba={() => abrirEmAba(compraAberta)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <CreateDrawer open={novaAberta} onOpenChange={setNovaAberta} title="Nova compra" width="2xl" onCreated={load}>
         <SolicitacaoCreateForm modoCompra />

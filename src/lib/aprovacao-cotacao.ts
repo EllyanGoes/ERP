@@ -55,6 +55,7 @@ export async function gerarPedidoDeCotacao(
   });
   if (!cotacao) throw new Error("Cotação não encontrada");
   if (cotacao.status === "CONCLUIDA") throw new Error("Cotação já concluída");
+  if (cotacao.status === "CANCELADA") throw new Error("Cotação cancelada");
 
   // Impedir mais de um PC ativo para a mesma SC.
   if (cotacao.necessidadeId) {

@@ -101,6 +101,20 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
   const valorPedidos = vivos.reduce((s, p) => s + (num(p.valorTotal) ?? 0), 0);
   const valorEntradas = des.reduce((s, d) => s + (num(d.vrTotal) ?? 0), 0);
 
+  // Títulos a pagar da compra: do pedido (inclusive antecipado) e da entrada.
+  const titulos = pcs.length + des.length
+    ? await prisma.contaPagar.findMany({
+        where: { OR: [{ pedidoCompraId: { in: pcs.map((p) => p.id) } }, { conferenciaId: { in: des.map((d) => d.id) } }] },
+        orderBy: [{ dataVencimento: "asc" }, { parcelaNumero: "asc" }],
+        select: {
+          id: true, numero: true, descricao: true, status: true, antecipado: true,
+          parcelaNumero: true, parcelaTotal: true, dataVencimento: true, dataPagamento: true,
+          valorOriginal: true, valorPago: true, valorMulta: true, valorJuros: true,
+          formaPagamento: true, formaPagamentoPrevista: { select: { nome: true } },
+        },
+      })
+    : [];
+
   const ids = [...scs, ...cts, ...pcs, ...des].map((d) => d.id);
   const etapaDoId = new Map<string, { etapa: EtapaCompra; numero: string }>([
     ...scs.map((d) => [d.id, { etapa: "solicitacao" as const, numero: d.numero }] as const),
@@ -184,8 +198,14 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
     outrasEmpresas: empresas.filter((e) => e !== empresaId),
     etapa,
     concluido,
-    // Cancelada: solicitação cancelada/rejeitada e nenhum pedido vivo nem entrada.
-    cancelada: !!sc && ["CANCELADA", "REJEITADA"].includes(sc.status) && vivos.length === 0 && des.length === 0,
+    // Cancelada: nada vivo — SC cancelada/rejeitada (ou sem SC), cotações
+    // canceladas/concluídas sem pedido vivo, nenhuma entrada; e ao menos um
+    // documento de fato cancelado (senão é só compra vazia).
+    cancelada:
+      vivos.length === 0 && des.length === 0 &&
+      (!sc || ["CANCELADA", "REJEITADA"].includes(sc.status)) &&
+      cts.every((c) => c.status === "CANCELADA" || c.status === "CONCLUIDA") &&
+      (sc != null || cts.some((c) => c.status === "CANCELADA")),
     assunto:
       (sc ? resumoItens(sc.itens) : null) ??
       vivos.map((p) => p.descricao || resumoItens(p.itens)).find(Boolean) ??
@@ -206,6 +226,15 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
       pedido: pcs.map((d) => ({ id: d.id, numero: d.numero, numeroAntigo: d.numeroAntigo, status: d.status })),
       entrada: des.map((d) => ({ id: d.id, numero: d.numero, status: d.status, numeroNF: d.numeroNF })),
     },
+    pagamentos: titulos.map((t) => ({
+      id: t.id, numero: t.numero, descricao: t.descricao, status: t.status, antecipado: t.antecipado,
+      parcela: t.parcelaTotal ? `${t.parcelaNumero}/${t.parcelaTotal}` : null,
+      vencimento: t.dataVencimento?.toISOString() ?? null,
+      pagoEm: t.dataPagamento?.toISOString() ?? null,
+      valor: Number(t.valorOriginal) + Number(t.valorMulta) + Number(t.valorJuros),
+      pago: Number(t.valorPago),
+      forma: t.formaPagamento ?? t.formaPagamentoPrevista?.nome ?? null,
+    })),
     historico: logs.map((l) => ({
       id: l.id,
       etapa: etapaDoId.get(l.documentoId)?.etapa ?? null,
