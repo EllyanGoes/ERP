@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { sendWAMessage, validateWAConfig } from "@/lib/whatsapp";
 import { sendTelegramDM, escMD } from "@/lib/telegram";
+import { cancelarCompra, ErroCancelamento } from "@/lib/cancelar-compra";
 
 // CANCELADA é um cancelamento "soft" (não exclui registros): disponível em todos os
 // estados de trabalho, exceto nos terminais já atendidos. É um estado final.
@@ -137,7 +138,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const current = await prisma.necessidadeCompra.findUnique({
     where: { id: params.id },
-    select: { status: true },
+    select: { status: true, numeroCompra: true, empresaId: true },
   });
 
   if (!current) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
@@ -148,6 +149,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       { error: `Transição inválida: ${current.status} → ${status}` },
       { status: 422 }
     );
+  }
+
+  // Cancelar a SC = cancelar a compra inteira (cotação aberta, aprovações
+  // pendentes e pedidos sem entrada). Antes só a SC era cancelada e a cotação
+  // ficava "aguardando aprovação" com a aprovação pendente, fora do quadro.
+  if (status === "CANCELADA" && current.numeroCompra) {
+    try {
+      await prisma.$transaction((tx) =>
+        cancelarCompra(tx, {
+          empresaId: current.empresaId,
+          numeroCompra: current.numeroCompra!,
+          motivo: (motivoCancelamento || "").trim() || "Solicitação cancelada",
+        }),
+      );
+    } catch (e) {
+      if (e instanceof ErroCancelamento) return NextResponse.json({ error: e.message }, { status: 422 });
+      throw e;
+    }
+    const record = await prisma.necessidadeCompra.findUnique({ where: { id: params.id } });
+    return NextResponse.json({ data: record });
   }
 
   const updateData: Record<string, unknown> = { status };

@@ -17,7 +17,7 @@ import { Pencil, Trash2, Loader2, AlertTriangle, Plus, Save, X, ChevronDown, Che
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import EscClose from "@/components/shared/EscClose";
-import { useDocumentoId } from "@/lib/compra-embutida";
+import { useDocumentoId, useEmbutidoNaCompra } from "@/lib/compra-embutida";
 import SelectMenu from "@/components/shared/SelectMenu";
 import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 
@@ -209,6 +209,7 @@ function UnitSelect({ value, options, onChange, disabled }: {
 
 export default function NecessidadeDetailPage() {
   const id = useDocumentoId();
+  const embutido = useEmbutidoNaCompra();
   const router = useRouter();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
@@ -603,14 +604,15 @@ export default function NecessidadeDetailPage() {
               </Button>
             )}
 
-            {/* Cancelar SC — soft-cancel com motivo (não exclui registros); estado final */}
-            {canCancel && (
+            {/* Cancelar = cancela a compra inteira (SC, cotação, aprovações). Dentro da
+                página da compra quem faz isso é o "Cancelar compra" do cabeçalho. */}
+            {canCancel && !embutido && (
               <Button size="sm" variant="outline"
                 className="border-border text-muted-foreground hover:bg-muted gap-1.5"
                 onClick={() => { setShowCancelForm(true); setActionError(""); setMotivoCancelamento(""); }}
               >
                 <XCircle className="w-3.5 h-3.5" />
-                Cancelar SC
+                Cancelar compra
               </Button>
             )}
 
