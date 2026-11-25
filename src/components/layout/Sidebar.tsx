@@ -4,7 +4,6 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useDirtyFormContext } from "@/lib/dirty-form-context";
-import { usePollingVisivel } from "@/lib/use-polling-visivel";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -303,21 +302,6 @@ export default function Sidebar() {
 
   // ── Badge de aprovações pendentes (alimenta o item "Minhas Aprovações") ──
   // O sino/painel de notificações migrou p/ o topo (NotificationCenter no TabBar).
-  const [pendingAprov, setPendingAprov] = useState(0);
-
-  const fetchPending = useCallback(async () => {
-    try {
-      const [res, exc] = await Promise.all([
-        fetch("/api/aprovacoes?status=PENDENTE&limit=1"),
-        fetch("/api/aprovacoes/exclusoes?status=PENDENTE"),
-      ]);
-      const n1 = res.ok ? ((await res.json()).pendingCount ?? 0) : 0;
-      const n2 = exc.ok ? ((await exc.json()).pendingCount ?? 0) : 0;
-      setPendingAprov(n1 + n2);
-    } catch { /* ignore */ }
-  }, []);
-
-  usePollingVisivel(fetchPending, 60_000); // 60s, só com a aba visível
 
   // Visible main modules (exclude admin)
   // Investimentos: carteira PESSOAL — além do módulo, exige a allowlist de
@@ -653,11 +637,6 @@ export default function Sidebar() {
                           >
                             <Icon className={cn("w-4 h-4 shrink-0", active ? "text-primary" : "text-muted-foreground/70")} />
                             <span className="truncate flex-1 text-left">{item.label}</span>
-                            {item.href === "/aprovacoes" && pendingAprov > 0 && (
-                              <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
-                                {pendingAprov > 99 ? "99+" : pendingAprov}
-                              </span>
-                            )}
                           </button>
                         );
                       })}

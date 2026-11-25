@@ -42,7 +42,6 @@ import {
   GitBranch,
   UserCheck,
   Plug,
-  ThumbsUp,
   Factory,
   Workflow,
   Boxes,
@@ -234,12 +233,8 @@ export const mainModules: Module[] = [
     label: "Compras",
     icon: ShoppingBag,
     sections: [
-      {
-        kind: "Aprovações" as SubSection["kind"],
-        items: [
-          { href: "/aprovacoes", label: "Minhas Aprovações", icon: ThumbsUp },
-        ],
-      },
+      // Minhas Aprovações saiu daqui: é o botão 👍 no canto superior direito
+      // (components/layout/AprovacoesButton) e segue no ⌘K (route-registry).
       {
         kind: "Processos",
         items: [

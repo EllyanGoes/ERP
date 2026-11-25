@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import EmpresaSelector from "@/components/layout/EmpresaSelector";
 import NotificationCenter from "@/components/layout/NotificationCenter";
 import UserMenu from "@/components/layout/UserMenu";
+import AprovacoesButton from "@/components/layout/AprovacoesButton";
 
 type DropTarget = { id: string; side: "before" | "after" } | null;
 
@@ -159,6 +160,7 @@ export default function TabBar() {
         >
           <Search className="w-[18px] h-[18px]" />
         </button>
+        <AprovacoesButton />
         <InboxWidget />
         <NotificationCenter />
         <EmpresaSelector />
