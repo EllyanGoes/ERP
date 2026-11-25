@@ -44,7 +44,7 @@ export default function AprovacoesButton() {
     >
       <ThumbsUp className="w-[18px] h-[18px]" />
       {pendentes > 0 && (
-        <span className="absolute -top-1 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-amber-500 px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
+        <span className="absolute top-0.5 right-0.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-amber-500 px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
           {pendentes > 9 ? "9+" : pendentes}
         </span>
       )}

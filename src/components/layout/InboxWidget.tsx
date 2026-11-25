@@ -107,7 +107,7 @@ export default function InboxWidget() {
       >
         <Inbox className="w-[18px] h-[18px]" />
         {abertos > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-info px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
+          <span className="absolute top-0.5 right-0.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-info px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
             {abertos > 9 ? "9+" : abertos}
           </span>
         )}

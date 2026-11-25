@@ -414,7 +414,12 @@ export default function CompraDetalhe({
     m = href.match(/^\/suprimentos\/(pedidos-compra|cotacoes)\/([^/?#]+)$/);
     if (m && compra) {
       const etapa: EtapaCompra = m[1] === "cotacoes" ? "cotacao" : "pedido";
-      if (compra.documentos[etapa].some((d) => d.id === m![2])) {
+      // Documento desta compra — inclusive o pedido que acabou de nascer da
+      // aprovação (ainda não está na lista carregada): troca de aba e recarrega.
+      const conhecido = compra.documentos[etapa].some((d) => d.id === m![2]);
+      const recemCriado = etapa === "pedido" && compra.documentos.pedido.length === 0
+        || etapa === "pedido" && !conhecido && compra.etapa === "cotacao";
+      if (conhecido || recemCriado) {
         setSubTela(null);
         irPara(etapa, m[2]);
         load();

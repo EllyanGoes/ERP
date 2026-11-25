@@ -210,7 +210,7 @@ export default function NotificationCenter() {
         >
           <Bell className="w-[18px] h-[18px]" />
           {totalBadge > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-danger px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
+            <span className="absolute top-0.5 right-0.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-danger px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
               {totalBadge > 9 ? "9+" : totalBadge}
             </span>
           )}

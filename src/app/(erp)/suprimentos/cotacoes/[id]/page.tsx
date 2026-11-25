@@ -342,7 +342,8 @@ export default function CotacaoDetailPage() {
       const json = await res.json();
       if (!res.ok) { setActionError(json.error || "Erro ao gerar pedido"); return; }
       const pedidoId = json.data?.pedidoCompra?.id;
-      if (pedidoId) router.push(`/suprimentos/pedidos-compra/${pedidoId}`);
+      // Dentro da compra vira troca de aba (Pedido); fora dela, navega.
+      if (pedidoId) nav.ir(`/suprimentos/pedidos-compra/${pedidoId}`);
       else await load();
     } catch {
       setActionError("Erro de conexão");
