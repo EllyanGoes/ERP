@@ -6,7 +6,6 @@ import CommandPalette from "@/components/layout/CommandPalette";
 import HelpPanel from "@/components/layout/HelpPanel";
 import EnterFieldNavigation from "@/components/layout/EnterFieldNavigation";
 import ColumnResizer from "@/components/shared/ColumnResizer";
-import IconesAnimados from "@/components/layout/IconesAnimados";
 import { TabsProvider } from "@/lib/tabs-context";
 import { SessionProvider } from "@/lib/session-context";
 import { DirtyFormProvider } from "@/lib/dirty-form-context";
@@ -61,7 +60,6 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
           <HelpPanel />
           <EnterFieldNavigation />
           <ColumnResizer />
-          <IconesAnimados />
         </DirtyFormProvider>
       </TabsProvider>
       </ShortcutsProvider>

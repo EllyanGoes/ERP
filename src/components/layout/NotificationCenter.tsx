@@ -204,11 +204,11 @@ export default function NotificationCenter() {
         <button
           ref={btnRef}
           onClick={() => { pedirPermissaoNativa(); setOpen((o) => !o); if (!open && naoLidas) poll(); }}
-          className="anim-gatilho relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title="Notificações"
           aria-label="Notificações"
         >
-          <Bell className="anim-balancar w-[18px] h-[18px]" />
+          <Bell className="w-[18px] h-[18px]" />
           {totalBadge > 0 && (
             <span className="absolute top-0.5 right-0.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-danger px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
               {totalBadge > 9 ? "9+" : totalBadge}

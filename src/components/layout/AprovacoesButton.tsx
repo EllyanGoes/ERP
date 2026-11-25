@@ -36,13 +36,13 @@ export default function AprovacoesButton() {
       type="button"
       onClick={() => attemptNavigate(() => router.push("/aprovacoes"))}
       className={cn(
-        "anim-gatilho relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+        "relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
         ativo ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
       title={pendentes > 0 ? `Minhas aprovações · ${pendentes} pendente${pendentes > 1 ? "s" : ""}` : "Minhas aprovações"}
       aria-label="Minhas aprovações"
     >
-      <ThumbsUp className="anim-pular w-[18px] h-[18px]" />
+      <ThumbsUp className="w-[18px] h-[18px]" />
       {pendentes > 0 && (
         <span className="absolute top-0.5 right-0.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-amber-500 px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
           {pendentes > 9 ? "9+" : pendentes}

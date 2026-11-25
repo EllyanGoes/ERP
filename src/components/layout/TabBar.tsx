@@ -154,11 +154,11 @@ export default function TabBar() {
       <div className="flex items-center gap-1 pr-1.5 pb-1 shrink-0">
         <button
           onClick={() => window.dispatchEvent(new Event("command-palette:open"))}
-          className="anim-gatilho flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           title="Buscar (⌘K)"
           aria-label="Buscar"
         >
-          <Search className="anim-lupa w-[18px] h-[18px]" />
+          <Search className="w-[18px] h-[18px]" />
         </button>
         <AprovacoesButton />
         <InboxWidget />

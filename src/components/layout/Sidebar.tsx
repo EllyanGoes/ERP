@@ -64,11 +64,11 @@ function SeletorModulo({
       type="button"
       onClick={() => escolher(m.id)}
       className={cn(
-        "anim-gatilho w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left rounded-md hover:bg-muted",
+        "w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left rounded-md hover:bg-muted",
         m.id === atual.id ? "font-medium text-foreground" : "text-foreground",
       )}
     >
-      <m.icon className={cn("anim-desenhar w-4 h-4 shrink-0", corDoModulo(m.id))} />
+      <m.icon className={cn("w-4 h-4 shrink-0", corDoModulo(m.id))} />
       <span className="flex-1 truncate">{m.label}</span>
       {m.id === atual.id
         ? <Check className="w-3.5 h-3.5 text-primary" />
@@ -537,7 +537,7 @@ export default function Sidebar() {
                   <button
                     onClick={() => (isOpen ? setOpenId(null) : escolherModulo(mod.id))}
                     className={cn(
-                      "anim-gatilho relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
+                      "relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
                       isOpen
                         ? "bg-gray-700 text-white"
                         : isActive
@@ -545,7 +545,7 @@ export default function Sidebar() {
                         : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
                     )}
                   >
-                    <mod.icon className={cn("anim-desenhar w-4 h-4", (isOpen || isActive) && corDoModuloFundoEscuro(mod.id))} />
+                    <mod.icon className={cn("w-4 h-4", (isOpen || isActive) && corDoModuloFundoEscuro(mod.id))} />
                     {isActive && !isOpen && (
                       <span className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
                     )}
