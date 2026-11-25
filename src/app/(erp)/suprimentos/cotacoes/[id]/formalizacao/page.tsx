@@ -6,6 +6,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { formatBRL, decimalToNumber } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
+import {
+  EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, EtapaResumo, EtapaRodapeAcoes,
+} from "@/components/compras/etapa/EtapaUI";
 
 type CotacaoFornecedor = {
   id: string;
@@ -89,130 +92,100 @@ export default function FormalizacaoPage() {
   const seguro = decimalToNumber(cf.seguro);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Breadcrumb */}
-      <nav className="text-sm text-muted-foreground mb-4 flex items-center gap-1">
-        <Link href="/suprimentos/cotacoes" className="hover:text-foreground">Cotações</Link>
-        <span>›</span>
-        <Link href={`/suprimentos/cotacoes/${id}/analise`} className="hover:text-foreground">Análise da cotação</Link>
-        <span>›</span>
-        <span className="text-foreground">Formalização</span>
-      </nav>
+    <div className="max-w-6xl">
+      <div className="px-8 pt-6 pb-5">
+        {/* Breadcrumb */}
+        <nav className="text-sm text-muted-foreground mb-4 flex items-center gap-1">
+          <Link href="/suprimentos/cotacoes" className="hover:text-foreground">Cotações</Link>
+          <span>›</span>
+          <Link href={`/suprimentos/cotacoes/${id}/analise`} className="hover:text-foreground">Análise da cotação</Link>
+          <span>›</span>
+          <span className="text-foreground">Formalização</span>
+        </nav>
 
-      <h1 className="text-2xl font-bold text-foreground mb-6">
-        Formalização da proposta - {cotacao.numeroCompra ? `Compra ${cotacao.numeroCompra}` : cotacao.numero}
-        {cotacao.numeroCompra && (
-          <span className="ml-2 align-middle font-mono text-sm font-normal text-muted-foreground">{cotacao.numero}</span>
-        )}
-      </h1>
-
-      <div className="bg-card border rounded-lg p-6 space-y-6">
-        {/* Tipo do documento */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Tipo do documento</h3>
-          <div className="flex gap-6">
-            {[
-              { value: "pedido", label: "Pedido de compras" },
-              { value: "contrato", label: "Contrato" },
-            ].map(opt => (
-              <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  value={opt.value}
-                  checked={tipoDoc === opt.value}
-                  onChange={() => setTipoDoc(opt.value as "pedido" | "contrato")}
-                  className="accent-red-600"
-                />
-                <span className="text-sm text-foreground">{opt.label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <hr />
-
-        {/* Fornecedor */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Fornecedor</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Código fornecedor</p>
-              <p className="font-medium text-foreground">{cf.fornecedor.id.slice(-8).toUpperCase()}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Loja</p>
-              <p className="font-medium text-foreground">0001</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Razão social</p>
-              <p className="font-medium text-foreground">{cf.fornecedor.razaoSocial}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">CNPJ</p>
-              <p className="font-medium text-foreground">{cf.fornecedor.cpfCnpj || "—"}</p>
-            </div>
-          </div>
-        </div>
-
-        <hr />
-
-        {/* Produtos */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Produtos</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Moeda</p>
-              <p className="font-medium text-foreground">REAL</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Valor ICMS</p>
-              <p className="font-medium text-foreground">0,00</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Valor IPI</p>
-              <p className="font-medium text-foreground">0,00</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Descontos</p>
-              <p className="font-medium text-foreground">{formatBRL(desconto)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Total Frete</p>
-              <p className="font-medium text-foreground">{formatBRL(frete)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground text-xs mb-0.5">Total da cotação</p>
-              <p className="font-semibold text-foreground text-base">{formatBRL(total)}</p>
-            </div>
-          </div>
-          {(despesas > 0 || seguro > 0) && (
-            <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs mb-0.5">Despesas</p>
-                <p className="font-medium text-foreground">{formatBRL(despesas)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs mb-0.5">Seguro</p>
-                <p className="font-medium text-foreground">{formatBRL(seguro)}</p>
-              </div>
-            </div>
+        <h1 className="text-2xl font-bold text-foreground">
+          Formalização da proposta - {cotacao.numeroCompra ? `Compra ${cotacao.numeroCompra}` : cotacao.numero}
+          {cotacao.numeroCompra && (
+            <span className="ml-2 align-middle font-mono text-sm font-normal text-muted-foreground">{cotacao.numero}</span>
           )}
-        </div>
+        </h1>
       </div>
 
-      {error && <p className="text-danger text-sm mt-4">{error}</p>}
+      <EtapaLayout
+        className="pb-3"
+        lateral={
+          <EtapaSecao titulo="Totais">
+            <EtapaResumo
+              linhas={[
+                { rotulo: "Moeda", valor: "REAL" },
+                { rotulo: "Valor ICMS", valor: "0,00" },
+                { rotulo: "Valor IPI", valor: "0,00" },
+                { rotulo: "Descontos", valor: formatBRL(desconto) },
+                { rotulo: "Total frete", valor: formatBRL(frete) },
+                ...(despesas > 0 || seguro > 0
+                  ? [
+                      { rotulo: "Despesas", valor: formatBRL(despesas) },
+                      { rotulo: "Seguro", valor: formatBRL(seguro) },
+                    ]
+                  : []),
+                { rotulo: "Total da cotação", valor: formatBRL(total), destaque: true },
+              ]}
+            />
+          </EtapaSecao>
+        }
+      >
+        <EtapaSecao titulo="Documento">
+          <EtapaCampos colunas={2}>
+            <EtapaCampoForm rotulo="Tipo do documento" obrigatorio span={2}>
+              <div className="flex gap-6 pt-1">
+                {[
+                  { value: "pedido", label: "Pedido de compras" },
+                  { value: "contrato", label: "Contrato" },
+                ].map(opt => (
+                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value={opt.value}
+                      checked={tipoDoc === opt.value}
+                      onChange={() => setTipoDoc(opt.value as "pedido" | "contrato")}
+                      className="accent-red-600"
+                    />
+                    <span className="text-sm text-foreground">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </EtapaCampoForm>
+          </EtapaCampos>
+        </EtapaSecao>
 
-      {/* Footer */}
-      <div className="flex justify-end gap-3 mt-6">
-        <Button variant="outline" onClick={() => router.back()}>Voltar</Button>
-        <Button
-          className="bg-red-600 hover:bg-red-700 text-white"
-          onClick={handleGerarDocumentos}
-          disabled={submitting}
-        >
-          {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          Enviar para aprovação
-        </Button>
+        <EtapaSecao titulo="Fornecedor">
+          <EtapaCampos>
+            <EtapaCampo rotulo="Código fornecedor">
+              <span className="font-mono">{cf.fornecedor.id.slice(-8).toUpperCase()}</span>
+            </EtapaCampo>
+            <EtapaCampo rotulo="Loja">0001</EtapaCampo>
+            <EtapaCampo rotulo="Razão social">{cf.fornecedor.razaoSocial}</EtapaCampo>
+            <EtapaCampo rotulo="CNPJ">{cf.fornecedor.cpfCnpj}</EtapaCampo>
+          </EtapaCampos>
+        </EtapaSecao>
+
+      </EtapaLayout>
+
+      {/* Rodapé fora da grade: ocupa a largura toda (a lateral tem os totais). */}
+      <div className="px-8 pb-8">
+        {error && <p className="text-danger text-sm mb-2">{error}</p>}
+
+        <EtapaRodapeAcoes>
+          <Button variant="outline" onClick={() => router.back()}>Voltar</Button>
+          <Button
+            className="bg-red-600 hover:bg-red-700 text-white"
+            onClick={handleGerarDocumentos}
+            disabled={submitting}
+          >
+            {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Enviar para aprovação
+          </Button>
+        </EtapaRodapeAcoes>
       </div>
     </div>
   );

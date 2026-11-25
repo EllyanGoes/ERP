@@ -17,21 +17,11 @@ import ModalPortal from "@/components/shared/ModalPortal";
 import DatePicker from "@/components/shared/DatePicker";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, FileInput, Link2, FileText, Pencil } from "lucide-react";
+import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, FileInput, Link2, FileText, Pencil, Truck, XCircle } from "lucide-react";
 import { useDocumentoId } from "@/lib/compra-embutida";
 import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaResumo, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 import CancelarCompraDialog from "@/components/compras/CancelarCompraDialog";
 
-const STATUS_FLOW: { value: string; label: string }[] = [
-  { value: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação" },
-  { value: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento" },
-  { value: "EM_TRANSITO",          label: "Em Trânsito"       },
-  { value: "RECEBIDO",             label: "Recebido"          },
-  { value: "CANCELADO",            label: "Cancelado"         },
-];
 
 type WAUser = { id: string; nome: string; telefone: string | null };
 
@@ -837,27 +827,27 @@ async function openWAModal() {
                 <Pencil className="w-3.5 h-3.5" /> Editar
               </Button>
             )}
-            {/* Status inline selector */}
-            <Select
-              value={pedido.status}
-              onValueChange={(v) => {
-                // Cancelar pergunta: só o pedido (compra continua) ou a compra inteira.
-                if (v === "CANCELADO" && pedido.numeroCompra) setCancelarAberto(true);
-                else changeStatus(v);
-              }}
-              disabled={actioning || ["CANCELADO", "RECEBIDO", "AGUARDANDO_APROVACAO"].includes(pedido.status)}
-            >
-              <SelectTrigger className="h-8 w-48 text-xs font-medium">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_FLOW.map((s) => (
-                  <SelectItem key={s.value} value={s.value} className="text-xs">
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Status por ação (o seletor permitia "Recebido" sem entrada e
+                "Aguard. aprovação" à mão). Recebido vem da entrada da nota. */}
+            {["RASCUNHO", "ENVIADO"].includes(pedido.status) && (
+              <Button size="sm" variant="outline" disabled={actioning} onClick={() => changeStatus("AGUARDANDO_PAGAMENTO")}>
+                Emitir pedido
+              </Button>
+            )}
+            {["AGUARDANDO_PAGAMENTO", "CONFIRMADO"].includes(pedido.status) && (
+              <Button size="sm" variant="outline" className="gap-1.5" disabled={actioning} onClick={() => changeStatus("EM_TRANSITO")}>
+                <Truck className="w-3.5 h-3.5" /> Marcar em trânsito
+              </Button>
+            )}
+            {!["CANCELADO", "RECEBIDO"].includes(pedido.status) && (
+              <Button
+                size="sm" variant="outline" disabled={actioning}
+                className="gap-1.5 text-danger hover:bg-danger/10"
+                onClick={() => (pedido.numeroCompra ? setCancelarAberto(true) : changeStatus("CANCELADO"))}
+              >
+                <XCircle className="w-3.5 h-3.5" /> Cancelar
+              </Button>
+            )}
 
             {/* WhatsApp */}
             <Button size="sm" variant="outline"
@@ -870,7 +860,7 @@ async function openWAModal() {
             {!pedido.conferencia && pedido.status !== "CANCELADO" && (
               <Button size="sm" className="gap-1.5" onClick={() => router.push(`/suprimentos/conferencias/novo?pedidoId=${id}`)}>
                 <FileInput className="w-3.5 h-3.5" />
-                Gerar Entrada
+                Dar entrada
               </Button>
             )}
           </div>

@@ -125,7 +125,7 @@ export async function gerarPedidoDeCotacao(
     data: {
       numero,
       numeroCompra,
-      // Aprovado → já entra em Aguardando Pagamento (não fica em rascunho).
+      // Aprovado → já entra como Emitido (AGUARDANDO_PAGAMENTO; não fica em rascunho).
       status: "AGUARDANDO_PAGAMENTO",
       empresaId: cotacao.empresaId,
       cotacaoId: cotacao.id,

@@ -76,26 +76,6 @@ const OPCOES_CONCLUIDOS = [
   { value: "90", label: "Concluídos: 90 dias" },
 ];
 
-// Cor por STATUS (mesmos tons do StatusBadge): faixa lateral do cartão e os
-// contadores clicáveis no cabeçalho da coluna.
-const STATUS_INFO: Record<string, { label: string; cor: string }> = {
-  RASCUNHO:              { label: "Rascunho",          cor: "bg-gray-400" },
-  AGUARDANDO_APROVACAO:  { label: "Aguard. aprovação", cor: "bg-amber-500" },
-  APROVADA:              { label: "Aprovada",          cor: "bg-green-500" },
-  EM_COTACAO:            { label: "Em cotação",        cor: "bg-blue-500" },
-  EM_PEDIDO:             { label: "Em pedido",         cor: "bg-indigo-500" },
-  PARCIALMENTE_ATENDIDA: { label: "Parc. atendida",    cor: "bg-orange-500" },
-  PENDENTE:              { label: "Pendente",          cor: "bg-amber-500" },
-  EM_ANALISE:            { label: "Em análise",        cor: "bg-blue-500" },
-  AGUARDANDO_PAGAMENTO:  { label: "Aguard. pagamento", cor: "bg-yellow-500" },
-  EM_TRANSITO:           { label: "Em trânsito",       cor: "bg-amber-500" },
-  CONFIRMADO:            { label: "Confirmado",        cor: "bg-blue-500" },
-  ENVIADO:               { label: "Enviado",           cor: "bg-blue-500" },
-  EM_CONFERENCIA:        { label: "Em conferência",    cor: "bg-blue-500" },
-  DIVERGENCIA:           { label: "Divergência",       cor: "bg-red-500" },
-  CONCLUIDA:             { label: "Concluída",         cor: "bg-green-500" },
-};
-const statusInfo = (s: string) => STATUS_INFO[s] ?? { label: s, cor: "bg-gray-400" };
 
 // Parado há mais que isto na mesma etapa → contador em destaque.
 const DIAS_ALERTA = 7;
@@ -112,6 +92,55 @@ function normalizar(s: string): string {
 // Enxuto de propósito: a coluna já diz a etapa e o status, e os documentos
 // SC·CT·PC·DE ficam na página da compra. No cartão: o que se compra, de quem,
 // quanto, até quando e quem pediu.
+
+// ── Situação da compra (filtro das colunas) ────────────────────────────────────
+// Em vez do status cru de cada documento (a coluna Solicitação misturava 7
+// status de SC e de cotação), o que a compra está esperando, em linguagem de
+// processo.
+type Situacao =
+  | "rascunho" | "a_cotar" | "cotando" | "saldo" | "revisar"
+  | "aguardando_aprovacao"
+  | "emitido" | "em_transito" | "pedido_rascunho"
+  | "aguardando_conferencia" | "em_conferencia" | "divergencia"
+  | "concluida";
+
+const SITUACOES: Record<Situacao, { label: string; cor: string }> = {
+  rascunho:               { label: "Rascunho",               cor: "bg-gray-400" },
+  a_cotar:                { label: "A cotar",                cor: "bg-amber-500" },
+  cotando:                { label: "Cotando",                cor: "bg-orange-500" },
+  saldo:                  { label: "Saldo a comprar",        cor: "bg-orange-600" },
+  revisar:                { label: "Revisar (sem cotação/pedido)", cor: "bg-red-500" },
+  aguardando_aprovacao:   { label: "Aguardando aprovação",   cor: "bg-amber-500" },
+  emitido:                { label: "Emitido",                cor: "bg-blue-500" },
+  em_transito:            { label: "Em trânsito",            cor: "bg-indigo-500" },
+  pedido_rascunho:        { label: "Pedido em rascunho",     cor: "bg-gray-400" },
+  aguardando_conferencia: { label: "Aguardando conferência", cor: "bg-violet-400" },
+  em_conferencia:         { label: "Em conferência",         cor: "bg-violet-600" },
+  divergencia:            { label: "Divergência",            cor: "bg-red-500" },
+  concluida:              { label: "Concluída",              cor: "bg-green-500" },
+};
+
+function situacaoDe(c: { etapa: Etapa; status: string; concluido: boolean; coluna: ColunaCompra }): Situacao {
+  if (c.concluido) return "concluida";
+  if (c.coluna === "aprovacao") return "aguardando_aprovacao";
+  switch (c.etapa) {
+    case "solicitacao":
+      if (c.status === "RASCUNHO") return "rascunho";
+      if (c.status === "PARCIALMENTE_ATENDIDA") return "saldo";
+      if (c.status === "EM_COTACAO" || c.status === "EM_PEDIDO") return "revisar";
+      return "a_cotar";
+    case "cotacao":
+      return "cotando";
+    case "pedido":
+      if (c.status === "EM_TRANSITO") return "em_transito";
+      if (c.status === "RASCUNHO" || c.status === "ENVIADO") return "pedido_rascunho";
+      return "emitido";
+    case "entrada":
+      if (c.status === "DIVERGENCIA") return "divergencia";
+      if (c.status === "EM_CONFERENCIA") return "em_conferencia";
+      return "aguardando_conferencia";
+  }
+}
 
 const ORDEM_VISUAL: ColunaCompra[] = ["montagem", "aprovacao", "entrega", "conferencia", "concluido"];
 
@@ -497,11 +526,11 @@ export default function AcompanhamentoComprasPage() {
             const todos = porColuna[col.coluna];
             // Contagem por status (antes do filtro de status da coluna).
             const porStatus = new Map<string, number>();
-            for (const c of todos) porStatus.set(c.status, (porStatus.get(c.status) ?? 0) + 1);
+            for (const c of todos) { const k = situacaoDe(c); porStatus.set(k, (porStatus.get(k) ?? 0) + 1); }
             const statusAtivo = filtroStatus[col.coluna] && porStatus.has(filtroStatus[col.coluna]!)
               ? filtroStatus[col.coluna]!
               : null;
-            const cartoes = statusAtivo ? todos.filter((c) => c.status === statusAtivo) : todos;
+            const cartoes = statusAtivo ? todos.filter((c) => situacaoDe(c) === statusAtivo) : todos;
             const ehConcluido = col.coluna === "concluido";
             const atrasados = cartoes.filter((c) => c.atrasado).length;
             const valor = cartoes.reduce((s, c) => s + (c.valor ?? 0), 0);
@@ -565,7 +594,7 @@ export default function AcompanhamentoComprasPage() {
                         </div>
                         {porStatus.size > 0 && (
                           <>
-                            <div className="px-3 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground">Filtrar por status</div>
+                            <div className="px-3 pt-2 pb-1 text-[11px] font-semibold text-muted-foreground">Filtrar por situação</div>
                             <div className="pb-1.5">
                               <button
                                 type="button"
@@ -592,8 +621,8 @@ export default function AcompanhamentoComprasPage() {
                                     }}
                                     className={cn("w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted", ativo && "font-semibold")}
                                   >
-                                    <span className={cn("w-2 h-2 rounded-full shrink-0", statusInfo(status).cor)} />
-                                    <span className="flex-1 truncate">{statusInfo(status).label}</span>
+                                    <span className={cn("w-2 h-2 rounded-full shrink-0", SITUACOES[status as Situacao]?.cor ?? "bg-gray-400")} />
+                                    <span className="flex-1 truncate">{SITUACOES[status as Situacao]?.label ?? status}</span>
                                     <span className="text-xs text-muted-foreground">{qtd}</span>
                                     {ativo && <Check className="w-3.5 h-3.5 text-primary" />}
                                   </button>

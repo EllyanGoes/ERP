@@ -8,12 +8,13 @@ import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import SelectMenu from "@/components/shared/SelectMenu";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { Plus, Trash2, Loader2, Save, CheckCircle2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
+import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, EtapaResumo, EtapaRodapeAcoes, tabela } from "@/components/compras/etapa/EtapaUI";
 
 type Fornecedor = {
   id: string; razaoSocial: string; nomeFantasia: string | null;
@@ -358,6 +359,32 @@ export default function EditarPedidoCompraPage() {
     );
   }
 
+
+  const fmtQtd = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+
+  const lateral = (
+    <EtapaSecao titulo="Valores">
+      <EtapaResumo
+        linhas={[
+          { rotulo: "Total itens", valor: fmtQtd(totalItensQtd) },
+          { rotulo: "Subtotal", valor: formatBRL(subtotalItens) },
+          ...(descontoTotalItens > 0 ? [{
+            rotulo: "Desconto nos itens",
+            valor: <span className="text-danger">− {formatBRL(descontoTotalItens)}</span>,
+          }] : []),
+          ...(vrDescontoCalc > 0 ? [{
+            rotulo: `Desconto${descontoVal > 0 ? ` (${descontoVal.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%)` : ""}`,
+            valor: <span className="text-danger">− {formatBRL(vrDescontoCalc)}</span>,
+          }] : []),
+          ...(freteVal > 0 ? [{ rotulo: "Frete", valor: `+ ${formatBRL(freteVal)}` }] : []),
+          ...(despesasVal > 0 ? [{ rotulo: "Despesas", valor: `+ ${formatBRL(despesasVal)}` }] : []),
+          ...(seguroVal > 0 ? [{ rotulo: "Seguro", valor: `+ ${formatBRL(seguroVal)}` }] : []),
+          { rotulo: "Total", valor: formatBRL(totalCotacao), destaque: true },
+        ]}
+      />
+    </EtapaSecao>
+  );
+
   return (
     <div>
       <PageHeader
@@ -368,50 +395,74 @@ export default function EditarPedidoCompraPage() {
           { label: pedidoNumero, href: `/suprimentos/pedidos-compra/${id}` },
           { label: "Editar" },
         ]}
-        action={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => replaceCurrentTab(`/suprimentos/pedidos-compra/${id}`)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              {saving ? "Salvando..." : "Salvar Alterações"}
-            </Button>
-          </div>
-        }
       />
 
-      <div className="px-8 pb-8 max-w-5xl space-y-6">
-        {exigeReaprovacao && (
-          <div className="bg-orange-500/10 border border-orange-300 text-orange-800 dark:text-orange-200 px-4 py-3 rounded-lg text-sm">
-            Este pedido já foi aprovado. Ao salvar as alterações ele volta para <strong>Aguardando Aprovação</strong> e o aprovador precisa decidir de novo.
-          </div>
-        )}
+      <EtapaLayout lateral={lateral} className="pb-4">
         {error && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{error}</div>
         )}
 
-        {/* Seção Fornecedor */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Fornecedor</h2>
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Código fornecedor</Label>
-              <Input value={codigoForn || "—"} readOnly className="font-mono bg-muted" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Loja</Label>
-              <Input value="01" readOnly className="bg-muted" />
-            </div>
-            <div className="space-y-1 md:col-span-1">
-              <Label className="text-xs text-muted-foreground">Nome Fornecedor</Label>
-              <Input value={fornNome || "—"} readOnly className="bg-muted" />
-            </div>
+        {/* ── Dados do pedido ─────────────────────────────────────────────── */}
+        <EtapaSecao titulo="Dados do pedido">
+          <EtapaCampos>
+            <EtapaCampoForm rotulo="Entrega prevista">
+              <DatePicker value={dataEntregaPrevista} onChange={(v) => setDataEntregaPrevista(v)} />
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Condição de pagamento">
+              <SelectMenu
+                value={condicoesPagamento}
+                onChange={setCondicoesPagamento}
+                placeholder="Selecionar condição..."
+                options={[
+                  { value: "", label: "— Nenhuma —" },
+                  ...condicoesList.map((c) => ({ value: c.nome, label: c.nome })),
+                ]}
+              />
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Tipo de frete">
+              <SelectMenu
+                value={tipoFrete}
+                onChange={setTipoFrete}
+                placeholder="Selecionar"
+                options={[{ value: "", label: "Selecionar" }, ...TIPO_FRETE_OPTIONS]}
+              />
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Frete (R$)">
+              <Input
+                type="number" step="0.01" min="0"
+                value={frete} onChange={(e) => setFrete(e.target.value)}
+                placeholder="0,00" className="text-right"
+              />
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="% Desconto" ajuda={vrDescontoCalc > 0 ? `= ${formatBRL(vrDescontoCalc)}` : undefined}>
+              <Input
+                type="number" step="0.01" min="0" max="100"
+                value={desconto}
+                onChange={(e) => setDesconto(e.target.value)}
+                placeholder="0,00" className="text-right"
+              />
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Despesas (R$)">
+              <Input
+                type="number" step="0.01" min="0"
+                value={despesas} onChange={(e) => setDespesas(e.target.value)}
+                placeholder="0,00" className="text-right"
+              />
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Seguro (R$)">
+              <Input
+                type="number" step="0.01" min="0"
+                value={seguro} onChange={(e) => setSeguro(e.target.value)}
+                placeholder="0,00" className="text-right"
+              />
+            </EtapaCampoForm>
+          </EtapaCampos>
+        </EtapaSecao>
 
-            <div className="space-y-1 md:col-span-3">
-              <Label className="text-xs text-muted-foreground">Fornecedor <span className="text-red-500">*</span></Label>
+        {/* ── Fornecedor ──────────────────────────────────────────────────── */}
+        <EtapaSecao titulo="Fornecedor">
+          <EtapaCampos>
+            <EtapaCampoForm rotulo="Fornecedor" obrigatorio span={4}>
               <ComboboxWithCreate
                 options={fornecedores.map((f) => ({ value: f.id, label: f.nomeFantasia || f.razaoSocial }))}
                 value={fornecedorId}
@@ -422,137 +473,45 @@ export default function EditarPedidoCompraPage() {
                 createParam="nome"
                 createLabel="fornecedor"
               />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Contato</Label>
+            </EtapaCampoForm>
+            <EtapaCampo rotulo="Nome" span={2}>{fornNome}</EtapaCampo>
+            <EtapaCampo rotulo="Código">{codigoForn ? <span className="font-mono">{codigoForn}</span> : null}</EtapaCampo>
+            <EtapaCampo rotulo="Loja / Proposta"><span className="font-mono">01 · PROPOSTA 01</span></EtapaCampo>
+            <EtapaCampoForm rotulo="Contato" span={2}>
               <Input value={contato} onChange={(e) => setContato(e.target.value)} placeholder="Nome do contato" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">E-mail</Label>
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="E-mail" span={2}>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@fornecedor.com" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Proposta</Label>
-              <Input value="PROPOSTA 01" readOnly className="bg-muted font-mono" />
-            </div>
-          </div>
-        </div>
+            </EtapaCampoForm>
+          </EtapaCampos>
+        </EtapaSecao>
 
-        {/* Seção Financeiro */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Cotação</h2>
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Total itens</Label>
-              <Input
-                value={totalItensQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                readOnly className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Total Cotação</Label>
-              <Input value={formatBRL(totalCotacao)} readOnly className="bg-muted text-right font-semibold" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">% Desconto</Label>
-              <Input
-                type="number" step="0.01" min="0" max="100"
-                value={desconto}
-                onChange={(e) => setDesconto(e.target.value)}
-                placeholder="0,00" className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Vr Desconto</Label>
-              <Input value={formatBRL(vrDescontoCalc)} readOnly className="bg-muted text-right" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Frete</Label>
-              <Input
-                type="number" step="0.01" min="0"
-                value={frete} onChange={(e) => setFrete(e.target.value)}
-                placeholder="0,00" className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Tipo Frete</Label>
-              <Select value={tipoFrete || "__none__"} onValueChange={(v) => setTipoFrete(v === "__none__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Selecionar</SelectItem>
-                  {TIPO_FRETE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Condição pagamento</Label>
-              <Select
-                value={condicoesPagamento || "__none__"}
-                onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Selecionar condição..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
-                  {condicoesList.map((c) => (
-                    <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Despesas</Label>
-              <Input
-                type="number" step="0.01" min="0"
-                value={despesas} onChange={(e) => setDespesas(e.target.value)}
-                placeholder="0,00" className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Seguro</Label>
-              <Input
-                type="number" step="0.01" min="0"
-                value={seguro} onChange={(e) => setSeguro(e.target.value)}
-                placeholder="0,00" className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Entrega Prevista</Label>
-              <DatePicker value={dataEntregaPrevista} onChange={(v) => setDataEntregaPrevista(v)} />
-            </div>
-          </div>
-        </div>
-
-        {/* Itens */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted flex items-center justify-between">
-            <h2 className="font-semibold text-sm text-foreground">Itens da cotação</h2>
+        {/* ── Itens ───────────────────────────────────────────────────────── */}
+        <EtapaSecao
+          titulo="Itens"
+          semPadding
+          acoes={
             <Button type="button" size="sm" variant="outline" onClick={addRow}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Item
+              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar item
             </Button>
-          </div>
+          }
+        >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
+            <table className={tabela.table}>
+              <thead className={tabela.thead}>
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Produto</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Descrição</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Quantidade</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-36">Preço Unitário</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-24">% Desc.</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Total Item</th>
+                  <th className={tabela.th}>Produto</th>
+                  <th className={tabela.th}>Descrição</th>
+                  <th className={tabela.th}>Un</th>
+                  <th className={cn(tabela.th, "w-36")}>Situação</th>
+                  <th className={cn(tabela.thNum, "w-28")}>Qtd</th>
+                  <th className={cn(tabela.thNum, "w-36")}>Preço</th>
+                  <th className={cn(tabela.thNum, "w-24")}>% Desc.</th>
+                  <th className={cn(tabela.thNum, "w-28")}>Total</th>
                   <th className="w-10" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {itens.map((row, i) => {
                   const opt    = itemOptions.find((o) => o.id === row.itemId);
                   const preco  = parseFloat(row.precoUnitario) || 0;
@@ -563,7 +522,7 @@ export default function EditarPedidoCompraPage() {
                   const isNao  = row.situacao === "NAO_CONSIDERA";
 
                   return (
-                    <tr key={i} className={cn("hover:bg-muted", isNao && "opacity-50")}>
+                    <tr key={i} className={cn(tabela.tr, "hover:bg-muted/50", isNao && "opacity-50")}>
                       <td className="px-4 py-2 w-44">
                         <ComboboxWithCreate
                           options={itemOptions.map((o) => ({ value: o.id, label: `[${o.codigo}] ${o.descricao}` }))}
@@ -585,36 +544,30 @@ export default function EditarPedidoCompraPage() {
                           const qtdBase = (parseFloat(row.quantidade) || 0) * sel.fator;
                           return (
                             <div className="flex flex-col gap-0.5">
-                              <select
+                              <SelectMenu
                                 value={row.unidadeId ?? ""}
-                                onChange={(e) => updateRow(i, "unidadeId", e.target.value)}
-                                className="h-8 rounded border border-border bg-card px-1 text-xs"
+                                onChange={(v) => updateRow(i, "unidadeId", v)}
                                 title="Unidade da compra"
-                              >
-                                {uns.map((u) => (
-                                  <option key={u.unidadeId || "base"} value={u.unidadeId}>{u.sigla}{u.base ? "" : ` (×${u.fator})`}</option>
-                                ))}
-                              </select>
+                                triggerClassName="h-8 text-xs"
+                                options={uns.map((u) => ({ value: u.unidadeId, label: `${u.sigla}${u.base ? "" : ` (×${u.fator})`}` }))}
+                              />
                               {!sel.base && (
-                                <span className="text-[10px] text-muted-foreground">= {qtdBase.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {uns[0].sigla}</span>
+                                <span className="text-[10px] text-muted-foreground">= {fmtQtd(qtdBase)} {uns[0].sigla}</span>
                               )}
                             </div>
                           );
                         })()}
                       </td>
                       <td className="px-4 py-2">
-                        <Select
+                        <SelectMenu
                           value={row.situacao}
-                          onValueChange={(v) => updateRow(i, "situacao", v as ItemRow["situacao"])}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="CONSIDERA">Considera</SelectItem>
-                            <SelectItem value="NAO_CONSIDERA">Não Considera</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          onChange={(v) => updateRow(i, "situacao", v as ItemRow["situacao"])}
+                          triggerClassName="h-8 text-xs"
+                          options={[
+                            { value: "CONSIDERA", label: "Considera" },
+                            { value: "NAO_CONSIDERA", label: "Não Considera" },
+                          ]}
+                        />
                       </td>
                       <td className="px-4 py-2">
                         <Input
@@ -647,7 +600,7 @@ export default function EditarPedidoCompraPage() {
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-right font-medium text-foreground">
+                      <td className={cn(tabela.tdNum, "font-medium")}>
                         {isNao ? "—" : formatBRL(total)}
                       </td>
                       <td className="px-4 py-2 text-center">
@@ -665,67 +618,65 @@ export default function EditarPedidoCompraPage() {
                   );
                 })}
               </tbody>
-              <tfoot className="border-t-2 border-border bg-muted">
+              <tfoot className={tabela.tfoot}>
                 {descontoTotalItens > 0 && (
-                  <tr className="text-sm">
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
-                      Desconto Total Itens
-                    </td>
-                    <td />
-                    <td className="px-4 py-1.5 text-right text-danger font-medium">
-                      -{formatBRL(descontoTotalItens)}
-                    </td>
+                  <tr className="font-normal">
+                    <td colSpan={7} className={cn(tabela.td, "text-right text-muted-foreground")}>Desconto total itens</td>
+                    <td className={cn(tabela.tdNum, "text-danger")}>-{formatBRL(descontoTotalItens)}</td>
                     <td />
                   </tr>
                 )}
                 {vrDescontoCalc > 0 && (
-                  <tr className="text-sm">
-                    <td colSpan={6} className="px-4 py-1.5 text-right text-muted-foreground">
-                      Desconto Global Total
-                    </td>
-                    <td />
-                    <td className="px-4 py-1.5 text-right text-danger font-medium">
-                      -{formatBRL(vrDescontoCalc)}
-                    </td>
+                  <tr className="font-normal">
+                    <td colSpan={7} className={cn(tabela.td, "text-right text-muted-foreground")}>Desconto global</td>
+                    <td className={cn(tabela.tdNum, "text-danger")}>-{formatBRL(vrDescontoCalc)}</td>
                     <td />
                   </tr>
                 )}
                 <tr>
-                  <td colSpan={6} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
-                    Total da cotação
-                  </td>
-                  <td />
-                  <td className="px-4 py-2 text-right font-bold text-foreground">{formatBRL(totalCotacao)}</td>
+                  <td colSpan={7} className={cn(tabela.td, "text-right")}>Total</td>
+                  <td className={tabela.tdNum}>{formatBRL(totalCotacao)}</td>
                   <td />
                 </tr>
               </tfoot>
             </table>
           </div>
-        </div>
-
-        {/* Observações */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Observações</h2>
+          <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 text-success bg-success/10 border border-success/30 rounded px-2 py-0.5">
+              <CheckCircle2 className="w-3 h-3" /> Considera
+            </span>
+            <span>— item incluído no total</span>
           </div>
-          <div className="p-4">
-            <textarea
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Observações do pedido..."
-              rows={3}
-              className="w-full text-sm rounded-md border border-border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
-          </div>
-        </div>
+        </EtapaSecao>
 
-        {/* Situação badge legend */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1 text-success bg-success/10 border border-success/30 rounded px-2 py-0.5">
-            <CheckCircle2 className="w-3 h-3" /> Considera
-          </span>
-          <span>— item incluído no total</span>
-        </div>
+        {/* ── Observações ─────────────────────────────────────────────────── */}
+        <EtapaSecao titulo="Observações">
+          <Textarea
+            value={observacoes}
+            onChange={(e) => setObservacoes(e.target.value)}
+            placeholder="Observações do pedido..."
+            rows={3}
+            className="resize-none"
+          />
+        </EtapaSecao>
+      </EtapaLayout>
+
+      <div className="px-8">
+        <EtapaRodapeAcoes
+          info={exigeReaprovacao ? (
+            <span className="text-warning">
+              Pedido já aprovado: ao salvar ele volta para <strong>Aguardando Aprovação</strong>.
+            </span>
+          ) : undefined}
+        >
+          <Button variant="outline" onClick={() => replaceCurrentTab(`/suprimentos/pedidos-compra/${id}`)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            {saving ? "Salvando..." : "Salvar alterações"}
+          </Button>
+        </EtapaRodapeAcoes>
       </div>
     </div>
   );

@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Autoria } from "@/components/shared/Autoria";
 import { formatDate, decimalToNumber, cn } from "@/lib/utils";
@@ -19,7 +18,8 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import EscClose from "@/components/shared/EscClose";
 import { useDocumentoId } from "@/lib/compra-embutida";
-import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
+import SelectMenu from "@/components/shared/SelectMenu";
+import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, EtapaRodapeAcoes, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,6 +88,12 @@ const PRIORIDADES = [
   { value: 1, label: "1 - Muito Baixa" }, { value: 2, label: "2 - Baixa" },
   { value: 3, label: "3 - Média" },       { value: 4, label: "4 - Alta" },
   { value: 5, label: "5 - Crítica" },
+];
+
+const TIPOS_COMPRA = [
+  { value: "", label: "Selecione..." },
+  { value: "SGA", label: "SGA" }, { value: "OPEX", label: "OPEX" },
+  { value: "CAPEX", label: "CAPEX" }, { value: "ESTOQUE", label: "ESTOQUE" },
 ];
 
 // ── SelectField ───────────────────────────────────────────────────────────────
@@ -453,146 +459,137 @@ export default function NecessidadeDetailPage() {
           ]}
         />
 
-        <form onSubmit={handleSaveEdit} className="px-8 pb-8 space-y-5 max-w-5xl">
-          {editError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{editError}</div>}
+        <form onSubmit={handleSaveEdit}>
+          <EtapaLayout>
+            {editError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{editError}</div>}
 
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">Informações</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-
-              <div className="space-y-1.5">
-                <Label>Filial <span className="text-red-500">*</span></Label>
-                <SelectField options={filiais} value={eFilialId}
-                  onChange={(v) => { setEFilialId(v); setELocalEstoqueId(""); }}
-                  placeholder="Selecionar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial} />
-              </div>
-
-              <div className="grid grid-cols-12 gap-4">
-                <div className="col-span-6 space-y-1.5">
-                  <Label>Descrição <span className="text-red-500">*</span></Label>
-                  <Input value={eDescricao} onChange={(e) => setEDescricao(e.target.value)} placeholder="Descreva o que está sendo solicitado..." />
-                </div>
-                <div className="col-span-3 space-y-1.5">
-                  <Label>Prioridade <span className="text-red-500">*</span></Label>
-                  <select value={ePrioridade} onChange={(e) => setEPrioridade(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
-                    {PRIORIDADES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
-                </div>
-                <div className="col-span-3 space-y-1.5">
-                  <Label>Entrega desejada</Label>
+            <EtapaSecao titulo="Dados da solicitação">
+              <EtapaCampos>
+                <EtapaCampoForm rotulo="Filial" obrigatorio span={2}>
+                  <SelectField options={filiais} value={eFilialId}
+                    onChange={(v) => { setEFilialId(v); setELocalEstoqueId(""); }}
+                    placeholder="Selecionar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial} />
+                </EtapaCampoForm>
+                <EtapaCampoForm rotulo="Prioridade" obrigatorio>
+                  <SelectMenu value={String(ePrioridade)} onChange={(v) => setEPrioridade(Number(v))}
+                    options={PRIORIDADES.map((p) => ({ value: String(p.value), label: p.label }))} className="w-full" />
+                </EtapaCampoForm>
+                <EtapaCampoForm rotulo="Entrega desejada">
                   <DatePicker value={eEntregaDesejada} onChange={(v) => setEEntregaDesejada(v)} />
-                </div>
-              </div>
+                </EtapaCampoForm>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Solicitante <span className="text-red-500">*</span></Label>
+                <EtapaCampoForm rotulo="Descrição" obrigatorio span={4}>
+                  <Input value={eDescricao} onChange={(e) => setEDescricao(e.target.value)} placeholder="Descreva o que está sendo solicitado..." />
+                </EtapaCampoForm>
+
+                <EtapaCampoForm rotulo="Solicitante" obrigatorio>
                   <Input value={eSolicitante} onChange={(e) => setESolicitante(e.target.value)} placeholder="Nome do solicitante" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Tipo de compra</Label>
-                  <select value={eTipoCompra} onChange={(e) => setETipoCompra(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
-                    <option value="">Selecione...</option>
-                    <option value="SGA">SGA</option><option value="OPEX">OPEX</option>
-                    <option value="CAPEX">CAPEX</option><option value="ESTOQUE">ESTOQUE</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Motivo <span className="text-red-500">*</span></Label>
+                </EtapaCampoForm>
+                <EtapaCampoForm rotulo="Tipo de compra">
+                  <SelectMenu value={eTipoCompra} onChange={setETipoCompra} options={TIPOS_COMPRA}
+                    placeholder="Selecione..." className="w-full" />
+                </EtapaCampoForm>
+                <EtapaCampoForm rotulo="Motivo" obrigatorio span={2}>
                   <Input value={eMotivo} onChange={(e) => setEMotivo(e.target.value)} placeholder="Motivo da solicitação..." />
-                </div>
-              </div>
+                </EtapaCampoForm>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Local de Estoque <span className="text-red-500">*</span></Label>
+                <EtapaCampoForm rotulo="Local de estoque" obrigatorio span={2}>
                   <SelectField options={locaisEstoque} value={eLocalEstoqueId} onChange={setELocalEstoqueId}
                     placeholder={eFilialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Selecionar local...") : "Selecione a filial primeiro"}
                     getLabel={(l) => l.nome} disabled={!eFilialId} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Centro de Custo</Label>
+                </EtapaCampoForm>
+                <EtapaCampoForm rotulo="Centro de custo" span={2}>
                   <SelectField options={centrosCusto} value={eCentroCustoId} onChange={setECentroCustoId}
                     placeholder="Selecionar centro de custo..." getLabel={(c) => `${c.codigo} - ${c.nome}`} />
-                </div>
+                </EtapaCampoForm>
+
+                <EtapaCampoForm rotulo="Categoria">
+                  <Input value={eCategoria} onChange={(e) => setECategoria(e.target.value)} placeholder="Ex: Material de escritório..." />
+                </EtapaCampoForm>
+                <EtapaCampoForm rotulo="Projeto">
+                  <Input value={eProjeto} onChange={(e) => setEProjeto(e.target.value)} placeholder="Nome do projeto..." />
+                </EtapaCampoForm>
+                <EtapaCampoForm rotulo="Classificação auxiliar" span={2}>
+                  <Input value={eClassificacaoAuxiliar} onChange={(e) => setEClassificacaoAuxiliar(e.target.value)} placeholder="Classificação adicional..." />
+                </EtapaCampoForm>
+
+                <EtapaCampoForm rotulo="Observação" span={4}>
+                  <Textarea value={eObservacoes} onChange={(e) => setEObservacoes(e.target.value)} placeholder="Informações adicionais..." rows={3} />
+                </EtapaCampoForm>
+              </EtapaCampos>
+            </EtapaSecao>
+
+            <EtapaSecao
+              titulo="Itens"
+              semPadding
+              acoes={<Button type="button" size="sm" variant="outline" onClick={addERow}><Plus className="w-4 h-4 mr-1" />Adicionar item</Button>}
+            >
+              <div className="overflow-x-auto">
+                <table className={tabela.table}>
+                  <thead className={tabela.thead}>
+                    <tr>
+                      <th className={tabela.th}>Produto</th>
+                      <th className={cn(tabela.th, "w-36")}>Quantidade</th>
+                      <th className={cn(tabela.th, "w-32")}>Unidade</th>
+                      <th className={cn(tabela.th, "w-56")}>Observação</th>
+                      <th className={cn(tabela.th, "w-12")} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {eItens.map((row, i) => {
+                      const units = itemUnidades.get(row.itemId) ?? [];
+                      return (
+                        <tr key={i} className={tabela.tr}>
+                          <td className="px-4 py-2 min-w-[18rem]">
+                            <ComboboxWithCreate
+                              options={itemOptions.map((opt) => {
+                                const saldo = (opt.estoqueItems ?? []).reduce(
+                                  (sum, ei) => sum + parseFloat(String(ei.quantidadeAtual ?? 0)), 0
+                                );
+                                return { value: opt.id, label: `[${opt.codigo}] ${opt.descricao}`, code: opt.codigo, saldo };
+                              })}
+                              value={row.itemId}
+                              onChange={(v) => handleItemChange(i, v)}
+                              allowNone={false}
+                              placeholder="Selecionar produto..."
+                              createHref="/suprimentos/produtos/novo"
+                              createParam="descricao"
+                              createLabel="produto"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <Input type="number" step="0.001" min="0.001" value={row.quantidade} onChange={(e) => updateERow(i, "quantidade", e.target.value)} />
+                          </td>
+                          <td className="px-4 py-2">
+                            <UnitSelect value={row.unidade} options={units} onChange={(v) => updateERow(i, "unidade", v)} disabled={!row.itemId} />
+                          </td>
+                          <td className="px-4 py-2">
+                            <Input value={row.observacao} onChange={(e) => updateERow(i, "observacao", e.target.value)} placeholder="Opcional..." />
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            {eItens.length > 1 && (
+                              <Button type="button" variant="ghost" size="sm" className="text-red-500" onClick={() => removeERow(i)} title="Remover item">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
+            </EtapaSecao>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1.5"><Label>Categoria</Label><Input value={eCategoria} onChange={(e) => setECategoria(e.target.value)} placeholder="Ex: Material de escritório..." /></div>
-                <div className="space-y-1.5"><Label>Projeto</Label><Input value={eProjeto} onChange={(e) => setEProjeto(e.target.value)} placeholder="Nome do projeto..." /></div>
-                <div className="space-y-1.5"><Label>Classificação auxiliar</Label><Input value={eClassificacaoAuxiliar} onChange={(e) => setEClassificacaoAuxiliar(e.target.value)} placeholder="Classificação adicional..." /></div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Observação</Label>
-                <Textarea value={eObservacoes} onChange={(e) => setEObservacoes(e.target.value)} placeholder="Informações adicionais..." rows={3} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base">Itens Solicitados</CardTitle>
-              <Button type="button" size="sm" variant="outline" onClick={addERow}><Plus className="w-4 h-4 mr-1" />Adicionar Item</Button>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {eItens.map((row, i) => {
-                const units = itemUnidades.get(row.itemId) ?? [];
-                return (
-                  <div key={i} className="grid grid-cols-12 gap-3 items-end">
-                    <div className="col-span-5 space-y-1.5">
-                      {i === 0 && <Label>Produto</Label>}
-                      <ComboboxWithCreate
-                        options={itemOptions.map((opt) => {
-                          const saldo = (opt.estoqueItems ?? []).reduce(
-                            (sum, ei) => sum + parseFloat(String(ei.quantidadeAtual ?? 0)), 0
-                          );
-                          return { value: opt.id, label: `[${opt.codigo}] ${opt.descricao}`, code: opt.codigo, saldo };
-                        })}
-                        value={row.itemId}
-                        onChange={(v) => handleItemChange(i, v)}
-                        allowNone={false}
-                        placeholder="Selecionar produto..."
-                        createHref="/suprimentos/produtos/novo"
-                        createParam="descricao"
-                        createLabel="produto"
-                      />
-                    </div>
-                    <div className="col-span-2 space-y-1.5">
-                      {i === 0 && <Label>Quantidade</Label>}
-                      <Input type="number" step="0.001" min="0.001" value={row.quantidade} onChange={(e) => updateERow(i, "quantidade", e.target.value)} />
-                    </div>
-                    <div className="col-span-2 space-y-1.5">
-                      {i === 0 && <Label>Unidade</Label>}
-                      <UnitSelect value={row.unidade} options={units} onChange={(v) => updateERow(i, "unidade", v)} disabled={!row.itemId} />
-                    </div>
-                    <div className="col-span-2 space-y-1.5">
-                      {i === 0 && <Label>Observação</Label>}
-                      <Input value={row.observacao} onChange={(e) => updateERow(i, "observacao", e.target.value)} placeholder="Opcional..." />
-                    </div>
-                    <div className="col-span-1 flex justify-center">
-                      {eItens.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" className="text-red-500" onClick={() => removeERow(i)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          <div className="flex gap-3 justify-end">
-            <Button type="button" variant="outline" onClick={exitEditMode}>
-              <X className="w-4 h-4 mr-1" />Cancelar
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Salvar Alterações</>}
-            </Button>
-          </div>
+            <EtapaRodapeAcoes info={<>Campos com <span className="text-danger">*</span> são obrigatórios.</>}>
+              <Button type="button" variant="outline" onClick={exitEditMode}>
+                <X className="w-4 h-4 mr-1" />Cancelar
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Salvar Alterações</>}
+              </Button>
+            </EtapaRodapeAcoes>
+          </EtapaLayout>
         </form>
       </div>
     );

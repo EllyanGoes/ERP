@@ -71,7 +71,7 @@ const STATUS_COLS: { key: string; label: string; color: string; bg: string; bord
   { key: "RASCUNHO",             label: "Rascunho",          color: "text-muted-foreground",   bg: "bg-muted",    border: "border-border"   },
   { key: "ENVIADO",              label: "Enviado",            color: "text-info",   bg: "bg-info/10",    border: "border-info/30"   },
   { key: "AGUARDANDO_APROVACAO", label: "Aguard. Aprovação", color: "text-orange-600", bg: "bg-orange-500/10", border: "border-orange-300" },
-  { key: "AGUARDANDO_PAGAMENTO", label: "Aguard. Pagamento", color: "text-warning", bg: "bg-warning/10",  border: "border-yellow-200" },
+  { key: "AGUARDANDO_PAGAMENTO", label: "Emitido", color: "text-warning", bg: "bg-warning/10",  border: "border-yellow-200" },
   { key: "EM_TRANSITO",          label: "Em Trânsito",       color: "text-warning",  bg: "bg-warning/10",   border: "border-warning/30"  },
   { key: "RECEBIDO",             label: "Recebido",          color: "text-success",bg: "bg-success/10", border: "border-success/30"},
   { key: "CANCELADO",            label: "Cancelado",         color: "text-red-500",    bg: "bg-danger/10",     border: "border-danger/30"    },

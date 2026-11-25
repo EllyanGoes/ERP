@@ -15,7 +15,6 @@ import {
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn, formatBRL, formatDate, decimalToNumber } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import DatePicker from "@/components/shared/DatePicker";
 import {
@@ -27,7 +26,7 @@ import PropostaForm from "@/components/suprimentos/PropostaForm";
 import EscClose from "@/components/shared/EscClose";
 import { useDocumentoId } from "@/lib/compra-embutida";
 import {
-  EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaResumo, ForaDaCompra, tabela,
+  EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, EtapaResumo, ForaDaCompra, tabela,
 } from "@/components/compras/etapa/EtapaUI";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1131,63 +1130,55 @@ export default function CotacaoDetailPage() {
               </div>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="text-muted-foreground hover:text-muted-foreground"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Body */}
-            <div className="px-6 py-5 space-y-5 overflow-y-auto">
-              {/* Nome */}
-              <div className="space-y-1.5">
-                <Label>
-                  Apelido da cotação <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  value={editNome}
-                  onChange={(e) => setEditNome(e.target.value)}
-                  placeholder="Ex.: Compras materiais elétricos Abril/2026"
-                  className={cn(!editNome.trim() && editError ? "border-red-400" : "")}
-                />
-              </div>
+            <div className="px-6 py-5 space-y-4 overflow-y-auto">
+              <EtapaCampos colunas={2}>
+                <EtapaCampoForm rotulo="Apelido da cotação" obrigatorio span={2}>
+                  <Input
+                    value={editNome}
+                    onChange={(e) => setEditNome(e.target.value)}
+                    placeholder="Ex.: Compras materiais elétricos Abril/2026"
+                    className={cn(!editNome.trim() && editError ? "border-red-400" : "")}
+                  />
+                </EtapaCampoForm>
 
-              {/* Prazo */}
-              <div className="space-y-1.5">
-                <Label>
-                  Prazo de recebimento <span className="text-red-500">*</span>
-                </Label>
-                <DatePicker
-                  value={editDataLimite}
-                  onChange={(v) => setEditDataLimite(v)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Prazo limite para os fornecedores enviarem suas propostas.
-                </p>
-              </div>
+                <EtapaCampoForm
+                  rotulo="Prazo de recebimento"
+                  obrigatorio
+                  span={2}
+                  ajuda="Prazo limite para os fornecedores enviarem suas propostas."
+                >
+                  <DatePicker
+                    value={editDataLimite}
+                    onChange={(v) => setEditDataLimite(v)}
+                  />
+                </EtapaCampoForm>
 
-              {/* Info entrega */}
-              <div className="space-y-1.5">
-                <Label>Informações de entrega</Label>
-                <Textarea
-                  value={editInfoEntrega}
-                  onChange={(e) => setEditInfoEntrega(e.target.value)}
-                  rows={4}
-                  className="font-mono text-sm"
-                  placeholder="Endereço de entrega, instruções especiais..."
-                />
-              </div>
+                <EtapaCampoForm rotulo="Informações de entrega" span={2}>
+                  <Textarea
+                    value={editInfoEntrega}
+                    onChange={(e) => setEditInfoEntrega(e.target.value)}
+                    rows={4}
+                    className="font-mono text-sm"
+                    placeholder="Endereço de entrega, instruções especiais..."
+                  />
+                </EtapaCampoForm>
 
-              {/* Observações */}
-              <div className="space-y-1.5">
-                <Label>Observações</Label>
-                <Textarea
-                  value={editObservacoes}
-                  onChange={(e) => setEditObservacoes(e.target.value)}
-                  rows={3}
-                  placeholder="Observações gerais da cotação..."
-                />
-              </div>
+                <EtapaCampoForm rotulo="Observações" span={2}>
+                  <Textarea
+                    value={editObservacoes}
+                    onChange={(e) => setEditObservacoes(e.target.value)}
+                    rows={3}
+                    placeholder="Observações gerais da cotação..."
+                  />
+                </EtapaCampoForm>
+              </EtapaCampos>
 
               {editError && (
                 <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
@@ -1248,24 +1239,28 @@ export default function CotacaoDetailPage() {
                       : "Selecione os fornecedores que participarão da cotação"}
                   </p>
                 </div>
-                <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-muted-foreground">
+                <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-foreground">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Search */}
               <div className="px-6 pt-4 pb-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={searchForn}
-                    onChange={(e) => setSearchForn(e.target.value)}
-                    placeholder="Buscar por nome, fantasia ou CNPJ..."
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    autoFocus
-                  />
-                </div>
+                <EtapaCampos colunas={2}>
+                  <EtapaCampoForm rotulo="Fornecedores" span={2}>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={searchForn}
+                        onChange={(e) => setSearchForn(e.target.value)}
+                        placeholder="Buscar por nome, fantasia ou CNPJ..."
+                        className="w-full pl-9 pr-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        autoFocus
+                      />
+                    </div>
+                  </EtapaCampoForm>
+                </EtapaCampos>
               </div>
 
               {/* List */}

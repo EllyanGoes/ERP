@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -26,6 +25,9 @@ import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { Loader2, ChevronDown, Save, X, Plus, Paperclip } from "lucide-react";
 import AnexosSection from "@/components/shared/AnexosSection";
 import EscClose from "@/components/shared/EscClose";
+import {
+  EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampoForm, EtapaResumo, EtapaRodapeAcoes, tabela,
+} from "@/components/compras/etapa/EtapaUI";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ItemForm = {
@@ -440,6 +442,7 @@ export default function PropostaForm({
   const codigoForn = data.fornecedor.id.slice(-8).toUpperCase();
   const propostaLabel = `PROPOSTA ${String(data.propostaNumero).padStart(2, "0")}`;
 
+  // Atalhos do topo (Outras ações + anexos); Cancelar/Confirmar ficam no rodapé.
   const actionButtons = (
     <div className="flex items-center gap-2">
       {mode === "page" && (
@@ -464,15 +467,12 @@ export default function PropostaForm({
       >
         <Paperclip className="w-4 h-4" />
       </Button>
-      <Button variant="outline" onClick={onClose}>
-        <X className="w-4 h-4 mr-2" />
-        Cancelar
-      </Button>
-      <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
-        {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-        Confirmar
-      </Button>
     </div>
+  );
+
+  // Campo numérico com sufixo "%" (mesmo visual nas linhas e no rodapé).
+  const sufixoPct = (
+    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
   );
 
   return (
@@ -489,7 +489,7 @@ export default function PropostaForm({
           action={actionButtons}
         />
       ) : (
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-4 px-6 py-4 border-b border-border bg-card rounded-t-2xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-4 px-8 py-4 border-b border-border bg-card rounded-t-2xl">
           <div className="min-w-0">
             <h2 className="font-semibold text-foreground truncate">
               Proposta — {fornNome}
@@ -502,75 +502,63 @@ export default function PropostaForm({
         </div>
       )}
 
-      <div className={cn("space-y-6", mode === "page" ? "px-8 pb-8 max-w-7xl" : "px-6 py-5")}>
+      <EtapaLayout className={mode === "page" ? "max-w-7xl" : "pt-5 pb-0"}>
         {saveError && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{saveError}</div>
         )}
 
-        {/* ── Seção Fornecedor ─────────────────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Fornecedor</h2>
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Código fornecedor</Label>
+        {/* ── Fornecedor ───────────────────────────────────────────────── */}
+        <EtapaSecao titulo="Fornecedor">
+          <EtapaCampos colunas={3}>
+            <EtapaCampoForm rotulo="Código fornecedor">
               <Input value={codigoForn} readOnly className="font-mono bg-muted" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Loja</Label>
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Loja">
               <Input value="01" readOnly className="bg-muted" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Nome Fornecedor</Label>
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Nome fornecedor">
               <Input value={fornNome} readOnly className="bg-muted" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Contato</Label>
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Contato">
               <Input
                 value={contato}
                 onChange={(e) => setContato(e.target.value)}
                 placeholder="Nome do contato"
               />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">E-mail</Label>
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="E-mail">
               <Input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="email@fornecedor.com"
               />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Proposta</Label>
+            </EtapaCampoForm>
+            <EtapaCampoForm rotulo="Proposta">
               <Input value={propostaLabel} readOnly className="bg-muted font-mono" />
-            </div>
-          </div>
-        </div>
+            </EtapaCampoForm>
+          </EtapaCampos>
+        </EtapaSecao>
 
-        {/* ── Itens da cotação ──────────────────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Itens da cotação</h2>
-          </div>
+        {/* ── Itens e preços ───────────────────────────────────────────── */}
+        <EtapaSecao titulo="Itens e preços" semPadding>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
+            <table className={tabela.table}>
+              <thead className={tabela.thead}>
                 <tr>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Produto</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">Descrição</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground">U.M.</th>
-                  <th className="text-left px-4 py-2 font-medium text-muted-foreground w-36">Situação</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Quantidade</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-36">Preço Unitário</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-28">Vlr ICMS ST</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-20">IPI %</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-20">ICMS %</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground w-24">% Desc.</th>
-                  <th className="text-right px-4 py-2 font-medium text-muted-foreground">Total Item</th>
+                  <th className={tabela.th}>Produto</th>
+                  <th className={tabela.th}>Descrição</th>
+                  <th className={tabela.th}>U.M.</th>
+                  <th className={cn(tabela.th, "w-36")}>Situação</th>
+                  <th className={tabela.thNum}>Quantidade</th>
+                  <th className={cn(tabela.thNum, "w-36")}>Preço unitário</th>
+                  <th className={cn(tabela.thNum, "w-28")}>Vlr ICMS ST</th>
+                  <th className={cn(tabela.thNum, "w-20")}>IPI %</th>
+                  <th className={cn(tabela.thNum, "w-20")}>ICMS %</th>
+                  <th className={cn(tabela.thNum, "w-24")}>% Desc.</th>
+                  <th className={tabela.thNum}>Total item</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody>
                 {itens.map((item, idx) => {
                   const preco = parseFloat(item.precoUnitario) || 0;
                   const pctDesc = parseFloat(item.desconto) || 0;
@@ -582,11 +570,11 @@ export default function PropostaForm({
                   const isNaoConsidera = item.situacao === "NAO_CONSIDERA";
 
                   return (
-                    <tr key={item.id} className={cn("hover:bg-muted", isNaoConsidera && "opacity-50")}>
-                      <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{item.item.codigo}</td>
-                      <td className="px-4 py-2 text-foreground">{item.item.descricao}</td>
-                      <td className="px-4 py-2 text-muted-foreground">{item.item.unidadeMedida}</td>
-                      <td className="px-4 py-2">
+                    <tr key={item.id} className={cn(tabela.tr, "hover:bg-muted/50", isNaoConsidera && "opacity-50")}>
+                      <td className={tabela.tdCodigo}>{item.item.codigo}</td>
+                      <td className={tabela.td}>{item.item.descricao}</td>
+                      <td className={cn(tabela.td, "text-muted-foreground")}>{item.item.unidadeMedida}</td>
+                      <td className={tabela.td}>
                         <Select
                           value={item.situacao}
                           onValueChange={(v) =>
@@ -604,10 +592,10 @@ export default function PropostaForm({
                           </SelectContent>
                         </Select>
                       </td>
-                      <td className="px-4 py-2 text-right text-foreground">
+                      <td className={tabela.tdNum}>
                         {item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
                       </td>
-                      <td className="px-4 py-2">
+                      <td className={tabela.td}>
                         <Input
                           type="number"
                           step="0.01"
@@ -625,7 +613,7 @@ export default function PropostaForm({
                           placeholder="0,00"
                         />
                       </td>
-                      <td className="px-4 py-2">
+                      <td className={tabela.td}>
                         <Input
                           type="number"
                           step="0.01"
@@ -643,7 +631,7 @@ export default function PropostaForm({
                           placeholder="0,00"
                         />
                       </td>
-                      <td className="px-4 py-2">
+                      <td className={tabela.td}>
                         <div className="relative">
                           <Input
                             type="number"
@@ -662,10 +650,10 @@ export default function PropostaForm({
                             className="text-right h-8 pr-6"
                             placeholder="0"
                           />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                          {sufixoPct}
                         </div>
                       </td>
-                      <td className="px-4 py-2">
+                      <td className={tabela.td}>
                         <div className="relative">
                           <Input
                             type="number"
@@ -685,10 +673,10 @@ export default function PropostaForm({
                             placeholder="0"
                             title="Informativo — já embutido no preço"
                           />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                          {sufixoPct}
                         </div>
                       </td>
-                      <td className="px-4 py-2">
+                      <td className={tabela.td}>
                         <div className="relative">
                           <Input
                             type="number"
@@ -707,10 +695,10 @@ export default function PropostaForm({
                             className="text-right h-8 pr-6"
                             placeholder="0"
                           />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                          {sufixoPct}
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-right font-medium text-foreground">
+                      <td className={cn(tabela.tdNum, "font-medium")}>
                         {isNaoConsidera ? "—" : formatBRL(totalItem)}
                       </td>
                     </tr>
@@ -724,186 +712,187 @@ export default function PropostaForm({
                   </tr>
                 )}
               </tbody>
-              <tfoot className="border-t-2 border-border bg-muted">
+              <tfoot className={tabela.tfoot}>
                 {descontoTotalItens > 0 && (
-                  <tr className="text-sm">
-                    <td colSpan={9} className="px-4 py-1.5 text-right text-muted-foreground">
-                      Desconto Total Itens
+                  <tr className="font-normal">
+                    <td colSpan={10} className="px-4 py-1.5 text-right text-muted-foreground">
+                      Desconto total itens
                     </td>
-                    <td />
-                    <td className="px-4 py-1.5 text-right text-danger font-medium">
+                    <td className="px-4 py-1.5 text-right tabular-nums text-danger font-medium">
                       -{formatBRL(descontoTotalItens)}
                     </td>
                   </tr>
                 )}
                 {impostosTotalItens > 0 && (
-                  <tr className="text-sm">
-                    <td colSpan={9} className="px-4 py-1.5 text-right text-muted-foreground">
+                  <tr className="font-normal">
+                    <td colSpan={10} className="px-4 py-1.5 text-right text-muted-foreground">
                       Impostos (IPI + ICMS ST)
                     </td>
-                    <td />
-                    <td className="px-4 py-1.5 text-right text-foreground font-medium">
+                    <td className="px-4 py-1.5 text-right tabular-nums text-foreground font-medium">
                       +{formatBRL(impostosTotalItens)}
                     </td>
                   </tr>
                 )}
                 {vrDescontoCalc > 0 && (
-                  <tr className="text-sm">
-                    <td colSpan={9} className="px-4 py-1.5 text-right text-muted-foreground">
-                      Desconto Global Total
+                  <tr className="font-normal">
+                    <td colSpan={10} className="px-4 py-1.5 text-right text-muted-foreground">
+                      Desconto global total
                     </td>
-                    <td />
-                    <td className="px-4 py-1.5 text-right text-danger font-medium">
+                    <td className="px-4 py-1.5 text-right tabular-nums text-danger font-medium">
                       -{formatBRL(vrDescontoCalc)}
                     </td>
                   </tr>
                 )}
                 <tr>
-                  <td colSpan={9} className="px-4 py-2 text-right font-semibold text-foreground text-sm">
+                  <td colSpan={10} className="px-4 py-2.5 text-right text-foreground">
                     Total da cotação
                   </td>
-                  <td />
-                  <td className="px-4 py-2 text-right font-bold text-foreground">
+                  <td className="px-4 py-2.5 text-right tabular-nums font-bold text-foreground whitespace-nowrap">
                     {formatBRL(totalCotacao)}
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
-        </div>
+        </EtapaSecao>
 
-        {/* ── Seção Cotação ─────────────────────────────────────────────── */}
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-4 py-3 border-b border-border bg-muted">
-            <h2 className="font-semibold text-sm text-foreground">Cotação</h2>
-          </div>
-          <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Total itens</Label>
-              <Input
-                value={totalItens.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}
-                readOnly
-                className="bg-muted text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Total Cotação</Label>
-              <Input
-                value={formatBRL(totalCotacao)}
-                readOnly
-                className="bg-muted text-right font-semibold"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">% Desconto</Label>
-              <div className="relative">
+        {/* ── Condições + Totais ───────────────────────────────────────── */}
+        <div className="grid gap-5 items-start lg:grid-cols-3">
+          <EtapaSecao titulo="Condições" className="lg:col-span-2">
+            <EtapaCampos colunas={3}>
+              <EtapaCampoForm
+                rotulo="Condição de pagamento"
+                obrigatorio
+                ajuda={
+                  <button
+                    type="button"
+                    onClick={() => { setShowNovaCondicao(true); setNovaCondicaoNome(""); setNovaCondicaoDesc(""); setErroCondicao(""); }}
+                    className="inline-flex items-center gap-0.5 text-xs text-info hover:underline font-medium"
+                    title="Nova condição de pagamento"
+                  >
+                    <Plus className="w-3 h-3" /> Nova condição
+                  </button>
+                }
+              >
+                <Select
+                  value={condicoesPagamento || "__none__"}
+                  onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger className={cn("h-9 text-sm", !condicoesPagamento && saveError ? "border-red-400" : "")}>
+                    <SelectValue placeholder="Selecionar condição..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Nenhuma —</SelectItem>
+                    {condicoesList.map((c) => (
+                      <SelectItem key={c.id} value={c.nome}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Tipo de frete">
+                <Select value={tipoFrete} onValueChange={setTipoFrete}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPO_FRETE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Frete">
                 <Input
                   type="number"
                   step="0.01"
                   min="0"
-                  max="100"
-                  value={desconto}
-                  onChange={(e) => handleDescontoPctChange(e.target.value)}
+                  value={frete}
+                  onChange={(e) => setFrete(e.target.value)}
                   placeholder="0,00"
-                  className="text-right pr-7"
+                  className="text-right"
                 />
-                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Vr Desconto</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={vrDescontoInput}
-                onChange={(e) => handleVrDescontoChange(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Frete</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={frete}
-                onChange={(e) => setFrete(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Tipo Frete</Label>
-              <Select value={tipoFrete} onValueChange={setTipoFrete}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPO_FRETE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Condição pagamento <span className="text-red-500">*</span></Label>
-                <button
-                  type="button"
-                  onClick={() => { setShowNovaCondicao(true); setNovaCondicaoNome(""); setNovaCondicaoDesc(""); setErroCondicao(""); }}
-                  className="flex items-center gap-0.5 text-xs text-info hover:text-info font-medium"
-                  title="Nova condição de pagamento"
-                >
-                  <Plus className="w-3 h-3" /> Nova
-                </button>
-              </div>
-              <Select
-                value={condicoesPagamento || "__none__"}
-                onValueChange={(v) => setCondicoesPagamento(v === "__none__" ? "" : v)}
-              >
-                <SelectTrigger className={cn("h-9 text-sm", !condicoesPagamento && saveError ? "border-red-400" : "")}>
-                  <SelectValue placeholder="Selecionar condição..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
-                  {condicoesList.map((c) => (
-                    <SelectItem key={c.id} value={c.nome}>
-                      {c.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Despesas</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={despesas}
-                onChange={(e) => setDespesas(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Seguro</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={seguro}
-                onChange={(e) => setSeguro(e.target.value)}
-                placeholder="0,00"
-                className="text-right"
-              />
-            </div>
-          </div>
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="% Desconto">
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={desconto}
+                    onChange={(e) => handleDescontoPctChange(e.target.value)}
+                    placeholder="0,00"
+                    className="text-right pr-7"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                </div>
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Vr desconto">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={vrDescontoInput}
+                  onChange={(e) => handleVrDescontoChange(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Despesas">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={despesas}
+                  onChange={(e) => setDespesas(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Seguro">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={seguro}
+                  onChange={(e) => setSeguro(e.target.value)}
+                  placeholder="0,00"
+                  className="text-right"
+                />
+              </EtapaCampoForm>
+            </EtapaCampos>
+          </EtapaSecao>
+
+          <EtapaSecao titulo="Totais">
+            <EtapaResumo
+              linhas={[
+                { rotulo: "Total itens (qtd.)", valor: totalItens.toLocaleString("pt-BR", { maximumFractionDigits: 3 }) },
+                { rotulo: "Subtotal dos itens", valor: formatBRL(subtotalItens) },
+                ...(descontoTotalItens > 0 ? [{ rotulo: "Desconto nos itens", valor: <span className="text-danger">-{formatBRL(descontoTotalItens)}</span> }] : []),
+                ...(impostosTotalItens > 0 ? [{ rotulo: "Impostos (IPI + ICMS ST)", valor: `+${formatBRL(impostosTotalItens)}` }] : []),
+                ...(vrDescontoCalc > 0 ? [{ rotulo: "Desconto global", valor: <span className="text-danger">-{formatBRL(vrDescontoCalc)}</span> }] : []),
+                { rotulo: "Frete", valor: formatBRL(freteVal) },
+                { rotulo: "Despesas", valor: formatBRL(despesasVal) },
+                { rotulo: "Seguro", valor: formatBRL(seguroVal) },
+                { rotulo: "Total da cotação", valor: formatBRL(totalCotacao), destaque: true },
+              ]}
+            />
+          </EtapaSecao>
         </div>
 
-      </div>
+        <EtapaRodapeAcoes info={<>Campos com <span className="text-danger">*</span> são obrigatórios.</>}>
+          <Button variant="outline" onClick={onClose}>
+            <X className="w-4 h-4 mr-2" />
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            Confirmar
+          </Button>
+        </EtapaRodapeAcoes>
+      </EtapaLayout>
 
       {/* ── Modal Documentos da Proposta (anexos) ────────────────────────────── */}
       {showAnexos && (
@@ -941,7 +930,7 @@ export default function PropostaForm({
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
               <h2 className="font-semibold text-foreground">Nova Condição de Pagamento</h2>
-              <button onClick={() => setShowNovaCondicao(false)} className="text-muted-foreground hover:text-muted-foreground">
+              <button onClick={() => setShowNovaCondicao(false)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -951,24 +940,24 @@ export default function PropostaForm({
               {erroCondicao && (
                 <p className="text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">{erroCondicao}</p>
               )}
-              <div className="space-y-1.5">
-                <Label>Nome <span className="text-red-500">*</span></Label>
-                <Input
-                  autoFocus
-                  value={novaCondicaoNome}
-                  onChange={(e) => setNovaCondicaoNome(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCriarCondicao()}
-                  placeholder="Ex: 30/60/90 dias"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-muted-foreground">Descrição <span className="text-muted-foreground text-xs font-normal">(opcional)</span></Label>
-                <Input
-                  value={novaCondicaoDesc}
-                  onChange={(e) => setNovaCondicaoDesc(e.target.value)}
-                  placeholder="Detalhes da condição..."
-                />
-              </div>
+              <EtapaCampos colunas={2}>
+                <EtapaCampoForm rotulo="Nome" obrigatorio span={2}>
+                  <Input
+                    autoFocus
+                    value={novaCondicaoNome}
+                    onChange={(e) => setNovaCondicaoNome(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleCriarCondicao()}
+                    placeholder="Ex: 30/60/90 dias"
+                  />
+                </EtapaCampoForm>
+                <EtapaCampoForm rotulo="Descrição" span={2} ajuda="Opcional.">
+                  <Input
+                    value={novaCondicaoDesc}
+                    onChange={(e) => setNovaCondicaoDesc(e.target.value)}
+                    placeholder="Detalhes da condição..."
+                  />
+                </EtapaCampoForm>
+              </EtapaCampos>
             </div>
 
             {/* Footer */}

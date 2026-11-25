@@ -85,7 +85,7 @@ export async function submeterPedidoParaAprovacao(pedidoId: string, solicitadoPo
         `• *Fornecedor:* ${escMD(forn)}`,
         `• *Total:* ${escMD(total)}`,
         ``,
-        `Aprovar devolve o pedido para Aguardando Pagamento\.`,
+        `Aprovar devolve o pedido para Emitido\.`,
       ].join("\n");
       const colab = await prisma.colaborador.findFirst({ where: { usuarioId: aprovador.aprovadorId }, select: { telegramChatId: true } });
       if (colab?.telegramChatId) {
@@ -165,7 +165,7 @@ export async function responderAprovacaoPedido(opts: {
       tipo: novoStatus === "APROVADO" ? "PEDIDO_APROVADO" : "PEDIDO_REPROVADO",
       titulo: novoStatus === "APROVADO" ? "Pedido de compras aprovado" : "Pedido de compras reprovado",
       mensagem: novoStatus === "APROVADO"
-        ? `O pedido da Compra ${compraDoPedido(pedido)} foi aprovado e voltou para Aguardando Pagamento.`
+        ? `O pedido da Compra ${compraDoPedido(pedido)} foi aprovado e voltou para Emitido.`
         : `O pedido da Compra ${compraDoPedido(pedido)} foi reprovado${observacao ? `: ${observacao}` : "."} Ele voltou para rascunho.`,
       link: linkPedido(pedidoId),
     }).catch(() => {});

@@ -162,7 +162,7 @@ function AprovacaoCard({
         <div className="mt-1 text-xs text-muted-foreground">
           {item.solicitadoPorNome ? <>Alterado por <span className="font-medium text-foreground">{item.solicitadoPorNome}</span> em </> : <>Alterado em </>}
           {new Date(item.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-          <> — o pedido já tinha sido aprovado; aprovar devolve para Aguardando Pagamento.</>
+          <> — o pedido já tinha sido aprovado; aprovar devolve para Emitido.</>
         </div>
 
         {showObs && isPendente && (
@@ -187,7 +187,7 @@ function AprovacaoCard({
           </div>
         ) : (
           <div className="mt-3 text-xs font-medium text-muted-foreground">
-            {effectiveStatus === "APROVADO" ? "✅ Aprovado — pedido em Aguardando Pagamento" : "❌ Reprovado — pedido voltou para rascunho"}
+            {effectiveStatus === "APROVADO" ? "✅ Aprovado — pedido emitido" : "❌ Reprovado — pedido voltou para rascunho"}
             {item.observacao && <> · {item.observacao}</>}
           </div>
         )}

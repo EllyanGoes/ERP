@@ -110,3 +110,38 @@ export function EtapaResumo({ linhas }: { linhas: { rotulo: ReactNode; valor: Re
 export function ForaDaCompra({ children }: { children: ReactNode }) {
   return useEmbutidoNaCompra() ? null : <>{children}</>;
 }
+
+// ── Formulários (telas de edição) ────────────────────────────────────────────
+
+/** Campo editável: mesmo rótulo do EtapaCampo, com marca de obrigatório e ajuda/erro. */
+export function EtapaCampoForm({
+  rotulo, obrigatorio, ajuda, erro, span, children, className,
+}: {
+  rotulo: ReactNode;
+  obrigatorio?: boolean;
+  ajuda?: ReactNode;
+  erro?: ReactNode;
+  span?: 2 | 3 | 4;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("min-w-0", span === 2 && "col-span-2", span === 3 && "col-span-2 md:col-span-3", span === 4 && "col-span-2 md:col-span-4", className)}>
+      <label className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-1.5">
+        {rotulo}{obrigatorio && <span className="text-danger ml-0.5">*</span>}
+      </label>
+      {children}
+      {erro ? <p className="mt-1 text-xs text-danger">{erro}</p> : ajuda ? <p className="mt-1 text-xs text-muted-foreground">{ajuda}</p> : null}
+    </div>
+  );
+}
+
+/** Barra de ações do formulário, presa ao rodapé da área de rolagem. */
+export function EtapaRodapeAcoes({ children, info }: { children: ReactNode; info?: ReactNode }) {
+  return (
+    <div className="sticky bottom-0 z-10 -mx-8 mt-2 px-8 py-3 border-t border-border bg-card/95 backdrop-blur flex items-center gap-3">
+      <div className="text-xs text-muted-foreground min-w-0 truncate">{info}</div>
+      <div className="ml-auto flex items-center gap-2">{children}</div>
+    </div>
+  );
+}
