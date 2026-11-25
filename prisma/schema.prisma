@@ -2943,6 +2943,9 @@ model Usuario {
   updatedAt                DateTime              @updatedAt
   perfilAcessoId           String?
   telefone                 String?
+  // Preferências de interface (tema, barra de módulos…): acompanham a conta em
+  // qualquer navegador. Ver lib/ui-prefs.ts.
+  preferencias             Json?
   aprovacaoEtapas          AprovacaoEtapa[]
   aprovacoesSC             AprovacaoSC[]
   colaborador              Colaborador?

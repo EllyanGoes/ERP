@@ -40,7 +40,6 @@ const ROUTE_TITLES: Record<string, string> = {
   "/suprimentos/locais-estoque": "Locais de Estoque",
   "/suprimentos/locais-estoque/novo": "Novo Local",
   "/suprimentos/movimentacoes": "Movimentações",
-  "/compras/acompanhamento": "Acompanhamento de Compras",
   "/compras/necessidades": "Solicitações de Compras",
   "/compras/necessidades/nova": "Nova Solicitação",
   "/empresa/filiais": "Filiais",
@@ -79,8 +78,15 @@ function titleize(seg: string): string {
 }
 
 function guessTitle(href: string): string {
-  // Exact match
+  // 1º o nome oficial da tela (menu + ⌘K): é o que o usuário vê no menu e não
+  // desatualiza quando a tela muda de nome (ex.: "Fluxo de Compras").
+  const exata = findRoute(href);
+  if (exata && exata.href === href) return exata.label;
+  // Telas fora do menu (Nova …, Novo …) e nomes próprios.
   if (ROUTE_TITLES[href]) return ROUTE_TITLES[href];
+  // Página da compra: o número está no próprio endereço.
+  const compra = href.match(/^\/compras\/compra\/([^/]+)$/);
+  if (compra) return `Compra ${decodeURIComponent(compra[1])}`;
 
   // Pattern matches for dynamic routes
   const patterns: Array<[RegExp, string]> = [
@@ -106,8 +112,10 @@ function guessTitle(href: string): string {
   for (const [regex, title] of patterns) {
     if (regex.test(href)) return title;
   }
-  // Fallback: NUNCA mostra um id — se o último segmento é id-like (ou "editar"
-  // após um id), usa o segmento do recurso (o pai) titleizado.
+  // Fallback: tela pai do menu (com acento e nome oficial), senão o segmento
+  // do endereço. NUNCA mostra um id — se o último segmento é id-like (ou
+  // "editar" após um id), usa o segmento do recurso (o pai) titleizado.
+  if (exata) return exata.label;
   const segs = href.split("/").filter(Boolean);
   let last = segs.pop() ?? "Página";
   if (last === "editar" || last === "novo" || last === "nova") {
@@ -185,7 +193,7 @@ function loadTabs(): Tab[] {
     return data
       .map((t) => ({ ...t, href: t.href.split("?")[0] }))
       .filter((t) => t.href && t.href.startsWith("/"))
-      .map((t) => ({ ...t, icon: findRoute(t.href)?.icon }));
+      .map((t) => ({ ...t, title: guessTitle(t.href), icon: findRoute(t.href)?.icon }));
   } catch {
     // Clear corrupted data
     try { localStorage.removeItem(TABS_STORAGE_KEY); } catch { /* ignore */ }

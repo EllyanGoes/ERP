@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+import { useTemaConta } from "@/lib/ui-prefs";
 import { ChevronRight, HelpCircle, LogOut, Monitor, Moon, Settings, ShieldCheck, Sun, User } from "lucide-react";
 import { useDirtyFormContext } from "@/lib/dirty-form-context";
 import { useSession } from "@/lib/session-context";
@@ -26,7 +27,8 @@ export default function UserMenu() {
   const onConfiguracoes = () => window.dispatchEvent(new Event("sidebar:abrir-configuracoes"));
   const onAtalhos = openShortcuts;
 
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolvedTheme } = useTheme();
+  const [, setTemaConta] = useTemaConta();
   const escuro = resolvedTheme === "dark";
   const btnRef   = useRef<HTMLButtonElement>(null);
   const dropRef  = useRef<HTMLDivElement>(null);
@@ -141,7 +143,7 @@ export default function UserMenu() {
               Configurações
             </button>
             <button
-              onClick={() => setTheme(escuro ? "light" : "dark")}
+              onClick={() => setTemaConta(escuro ? "light" : "dark")}
               className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
             >
               {escuro ? <Sun className="w-4 h-4 text-muted-foreground" /> : <Moon className="w-4 h-4 text-muted-foreground" />}

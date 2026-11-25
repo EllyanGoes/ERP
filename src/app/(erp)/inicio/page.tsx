@@ -10,6 +10,8 @@ import { useSession } from "@/lib/session-context";
 import { mainModules, type Module } from "@/lib/nav-menu";
 import { podeAcessarInvestimentos } from "@/lib/investimentos-acesso";
 import { useTabTitle } from "@/lib/tabs-context";
+import { corDoModulo } from "@/lib/modulo-cores";
+import { cn } from "@/lib/utils";
 
 function saudacao(h: number) {
   if (h < 12) return "Bom dia";
@@ -60,10 +62,10 @@ export default function InicioPage() {
       <div className="grid gap-4 md:grid-cols-2">
         <Link
           href="/aprovacoes"
-          className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 shadow-sm hover:border-primary/40 transition-colors"
+          className="anim-gatilho group flex items-center gap-4 rounded-xl border border-border bg-card p-5 shadow-sm hover:border-primary/40 transition-colors"
         >
           <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-warning/15 text-warning">
-            <ThumbsUp className="w-5 h-5" />
+            <ThumbsUp className="anim-pular w-5 h-5" />
           </span>
           <span className="flex-1 min-w-0">
             <span className="block font-medium text-foreground">Minhas aprovações</span>
@@ -77,10 +79,10 @@ export default function InicioPage() {
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("command-palette:open"))}
-          className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40 transition-colors"
+          className="anim-gatilho group flex items-center gap-4 rounded-xl border border-border bg-card p-5 text-left shadow-sm hover:border-primary/40 transition-colors"
         >
           <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Search className="w-5 h-5" />
+            <Search className="anim-lupa w-5 h-5" />
           </span>
           <span className="flex-1 min-w-0">
             <span className="block font-medium text-foreground">Buscar no sistema</span>
@@ -98,9 +100,9 @@ export default function InicioPage() {
               <Link
                 key={m.id}
                 href={href}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm hover:border-primary/40 hover:bg-muted/40 transition-colors"
+                className="anim-gatilho flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm hover:border-primary/40 hover:bg-muted/40 transition-colors"
               >
-                <m.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                <m.icon className={cn("anim-desenhar w-4 h-4 shrink-0", corDoModulo(m.id))} />
                 <span className="text-sm font-medium text-foreground truncate">{m.label}</span>
               </Link>
             ))}

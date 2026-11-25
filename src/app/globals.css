@@ -123,3 +123,37 @@ input[type="number"] {
   background-clip: padding-box;
 }
 .gantt-scroll::-webkit-scrollbar-thumb:hover { background-color: hsl(var(--muted-foreground) / 0.5); }
+
+/* ── Ícones animados (hover) ─────────────────────────────────────────────────
+   Estilo "lucide-animated": o traço do ícone se redesenha ao passar o mouse no
+   elemento com .anim-gatilho. Variações para os ícones do topo. Sem animação
+   para quem pediu ao sistema menos movimento. */
+@keyframes icone-desenhar { from { stroke-dashoffset: 64; } to { stroke-dashoffset: 0; } }
+@keyframes icone-balancar {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(14deg); } 40% { transform: rotate(-12deg); }
+  60% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); }
+}
+@keyframes icone-pular {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  35% { transform: translateY(-3px) rotate(-10deg); }
+  65% { transform: translateY(0) rotate(4deg); }
+}
+@keyframes icone-lupa {
+  0%, 100% { transform: scale(1) rotate(0); }
+  50% { transform: scale(1.12) rotate(-12deg); }
+}
+@keyframes icone-cair {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(2px); } 70% { transform: translateY(-1px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .anim-gatilho:hover .anim-desenhar :is(path, circle, rect, line, polyline, polygon, ellipse) {
+    stroke-dasharray: 64;
+    animation: icone-desenhar 0.7s ease-out;
+  }
+  .anim-gatilho:hover .anim-balancar { transform-origin: 50% 10%; animation: icone-balancar 0.7s ease-in-out; }
+  .anim-gatilho:hover .anim-pular { transform-origin: 50% 90%; animation: icone-pular 0.55s ease-out; }
+  .anim-gatilho:hover .anim-lupa { animation: icone-lupa 0.5s ease-in-out; }
+  .anim-gatilho:hover .anim-cair { animation: icone-cair 0.5s ease-out; }
+}

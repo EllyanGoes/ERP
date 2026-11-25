@@ -23,6 +23,7 @@ import { useSession } from "@/lib/session-context";
 import { podeAcessarInvestimentos } from "@/lib/investimentos-acesso";
 import { mainModules, configModule, allModules, type NavItem, type SubSection, type Module } from "@/lib/nav-menu";
 import { useBarraModulos } from "@/lib/ui-prefs";
+import { corDoModulo, corDoModuloFundoEscuro } from "@/lib/modulo-cores";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { ProgressoCirculo } from "@/components/projetos/comum";
 
@@ -40,6 +41,12 @@ function SeletorModulo({
 }) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
+  // ⌘. (Ctrl+. no Windows) abre a lista de qualquer lugar.
+  useEffect(() => {
+    const abrir = () => setAberto(true);
+    window.addEventListener("modulos:abrir-seletor", abrir);
+    return () => window.removeEventListener("modulos:abrir-seletor", abrir);
+  }, []);
   const [recentes] = usePersistedState<string[]>("ui:modulos-recentes", []);
   const termo = busca.trim().toLowerCase();
   const filtrados = modulos.filter((m) => !termo || m.label.toLowerCase().includes(termo));
@@ -49,18 +56,23 @@ function SeletorModulo({
     .slice(0, 3);
 
   const escolher = (id: string) => { setAberto(false); setBusca(""); onEscolher(id); };
+  // Ordem exibida (recentes primeiro): os 9 primeiros ganham o atalho 1–9.
+  const ordem = [...listaRecentes, ...filtrados.filter((m) => !listaRecentes.includes(m))];
+  const atalho = (m: Module) => { const i = ordem.indexOf(m); return i >= 0 && i < 9 ? i + 1 : null; };
   const Item = ({ m }: { m: Module }) => (
     <button
       type="button"
       onClick={() => escolher(m.id)}
       className={cn(
-        "w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left rounded-md hover:bg-muted",
-        m.id === atual.id ? "text-primary font-medium" : "text-foreground",
+        "anim-gatilho w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left rounded-md hover:bg-muted",
+        m.id === atual.id ? "font-medium text-foreground" : "text-foreground",
       )}
     >
-      <m.icon className="w-4 h-4 shrink-0 text-muted-foreground" />
+      <m.icon className={cn("anim-desenhar w-4 h-4 shrink-0", corDoModulo(m.id))} />
       <span className="flex-1 truncate">{m.label}</span>
-      {m.id === atual.id && <Check className="w-3.5 h-3.5" />}
+      {m.id === atual.id
+        ? <Check className="w-3.5 h-3.5 text-primary" />
+        : atalho(m) && <kbd className="text-[10px] text-muted-foreground/70 font-sans">{atalho(m)}</kbd>}
     </button>
   );
 
@@ -70,11 +82,12 @@ function SeletorModulo({
         type="button"
         onClick={() => setAberto((v) => !v)}
         className="flex items-center gap-2 max-w-full rounded-md px-1.5 py-1 -mx-1.5 hover:bg-muted"
-        title="Trocar de módulo"
+        title="Trocar de módulo (⌘. / Ctrl+.)"
       >
-        <atual.icon className="w-4 h-4 text-primary shrink-0" />
+        <atual.icon className={cn("w-4 h-4 shrink-0", corDoModulo(atual.id))} />
         <span className="font-semibold text-foreground text-sm truncate">{atual.label}</span>
         <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform", aberto && "rotate-180")} />
+        <kbd className="ml-1 hidden sm:inline text-[10px] text-muted-foreground/60 font-sans">{typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘." : "Ctrl ."}</kbd>
       </button>
       {aberto && (
         <>
@@ -90,6 +103,11 @@ function SeletorModulo({
                 onKeyDown={(e) => {
                   if (e.key === "Escape") setAberto(false);
                   if (e.key === "Enter" && filtrados[0]) escolher(filtrados[0].id);
+                  // Números escolhem direto (com a busca vazia).
+                  if (!busca && /^[1-9]$/.test(e.key) && ordem[Number(e.key) - 1]) {
+                    e.preventDefault();
+                    escolher(ordem[Number(e.key) - 1].id);
+                  }
                 }}
                 placeholder="Buscar módulo…"
                 className="w-full h-8 pl-8 pr-2 rounded-md bg-muted/60 text-sm outline-none focus:ring-1 focus:ring-ring"
@@ -420,6 +438,19 @@ export default function Sidebar() {
     window.addEventListener("mouseup", onUp);
   }, [panelWidth]);
 
+  // ⌘. / Ctrl+. abre a lista de módulos (reabre a barra/painel se preciso).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== ".") return;
+      e.preventDefault();
+      setStripCollapsed(false);
+      setOpenId((id) => id ?? (allModules.find((m) => moduleIsActive(m, window.location.pathname))?.id ?? mainModules[0]?.id ?? null));
+      setTimeout(() => window.dispatchEvent(new Event("modulos:abrir-seletor")), 0);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // O menu do usuário (topo) pede para abrir o painel de Configurações.
   useEffect(() => {
     const abrir = () => { setStripCollapsed(false); setOpenId("configuracoes"); };
@@ -506,7 +537,7 @@ export default function Sidebar() {
                   <button
                     onClick={() => (isOpen ? setOpenId(null) : escolherModulo(mod.id))}
                     className={cn(
-                      "relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
+                      "anim-gatilho relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
                       isOpen
                         ? "bg-gray-700 text-white"
                         : isActive
@@ -514,7 +545,7 @@ export default function Sidebar() {
                         : "text-gray-500 hover:bg-gray-800 hover:text-gray-200"
                     )}
                   >
-                    <mod.icon className="w-4 h-4" />
+                    <mod.icon className={cn("anim-desenhar w-4 h-4", (isOpen || isActive) && corDoModuloFundoEscuro(mod.id))} />
                     {isActive && !isOpen && (
                       <span className="absolute right-1.5 top-1.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
                     )}
@@ -568,12 +599,7 @@ export default function Sidebar() {
               <>
                 {/* Panel header */}
                 <div className="relative flex items-center gap-2.5 px-4 h-16 border-b border-border shrink-0">
-                  {barraModulos ? (
-                    <>
-                      <openModule.icon className="w-4 h-4 text-primary shrink-0" />
-                      <span className="font-semibold text-foreground text-sm">{openModule.label}</span>
-                    </>
-                  ) : (
+                  {(
                     <>
                       <SeletorModulo
                         atual={openModule}
@@ -582,14 +608,14 @@ export default function Sidebar() {
                         onEscolher={escolherModulo}
                         onDashboard={() => attemptNavigate(() => router.push("/dashboard"))}
                       />
-                      <button
+                      {!barraModulos && <button
                         type="button"
                         onClick={() => setStripCollapsed(true)}
                         title={`Recolher (${modKey}B)`}
                         className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         <PanelLeftClose className="w-4 h-4" />
-                      </button>
+                      </button>}
                     </>
                   )}
                 </div>
@@ -600,8 +626,10 @@ export default function Sidebar() {
                 <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-3">
                   {openModule.sections.map((section) => (
                     <div key={section.kind} className="mb-3">
-                      {/* Seção de um item só dispensa título: o próprio item já diz. */}
-                      {section.items.length > 1 && (
+                      {/* Título só some quando a seção é a única do módulo (aí o
+                          próprio nome do módulo já diz); com outras seções ao lado
+                          ele situa o item (ex.: "Processos" acima de Fluxo de Compras). */}
+                      {openModule.sections.length > 1 && (
                         <p className="text-[11px] font-medium text-muted-foreground/70 px-2 mb-1">
                           {section.kind}
                         </p>

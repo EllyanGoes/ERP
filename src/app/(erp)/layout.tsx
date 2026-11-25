@@ -13,6 +13,8 @@ import { ShortcutsProvider } from "@/lib/shortcuts-context";
 import { getSession } from "@/lib/auth";
 import { getUserModulos } from "@/lib/permissions";
 import { empresasParaSessao } from "@/lib/empresa";
+import { prisma } from "@/lib/prisma";
+import { UiPrefsProvider, type UiPrefs } from "@/lib/ui-prefs";
 
 export default async function ErpLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -30,9 +32,14 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
         activeEmpresaId: empresaSessao?.activeEmpresaId,
       }
     : null;
+  // Preferências de interface da conta (tema, barra de módulos) já no 1º render.
+  const preferencias = session
+    ? ((await prisma.usuario.findUnique({ where: { id: session.sub }, select: { preferencias: true } }))?.preferencias as UiPrefs | null) ?? null
+    : null;
 
   return (
     <SessionProvider initial={user}>
+      <UiPrefsProvider initial={preferencias}>
       <ShortcutsProvider>
       <TabsProvider>
         <DirtyFormProvider>
@@ -56,6 +63,7 @@ export default async function ErpLayout({ children }: { children: React.ReactNod
         </DirtyFormProvider>
       </TabsProvider>
       </ShortcutsProvider>
+      </UiPrefsProvider>
     </SessionProvider>
   );
 }

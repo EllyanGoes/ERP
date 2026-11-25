@@ -101,11 +101,11 @@ export default function InboxWidget() {
       <button
         ref={btnRef}
         onClick={() => { setOpen((o) => !o); if (!open) load(); }}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        className="anim-gatilho relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
         title="Caixa de Entrada"
         aria-label="Caixa de Entrada"
       >
-        <Inbox className="w-[18px] h-[18px]" />
+        <Inbox className="anim-cair w-[18px] h-[18px]" />
         {abertos > 0 && (
           <span className="absolute top-0.5 right-0.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-info px-[3px] text-[9px] font-bold leading-none text-white ring-1 ring-background tabular-nums">
             {abertos > 9 ? "9+" : abertos}

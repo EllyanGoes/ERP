@@ -24,8 +24,8 @@ export const MODULOS: ModuloDef[] = [
   },
   {
     key: "empresa",
-    label: "Empresa",
-    group: "Empresa",
+    label: "Cadastros",
+    group: "Cadastros",
     recursos: [
       // Empresa
       { key: "filiais",             label: "Filiais",             acoes: ["ver", "inserir", "editar", "excluir"] },

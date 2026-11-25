@@ -1,14 +1,13 @@
 "use client";
 
 // Minha Conta: dados do usuário e preferências de interface (tema e barra de
-// módulos). As preferências valem por usuário, neste navegador.
+// módulos). As preferências ficam salvas na conta: valem em qualquer navegador.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useTheme } from "next-themes";
 import { ChevronRight, LayoutPanelLeft, Monitor, Moon, PanelLeft, Sun } from "lucide-react";
 import PageHeader from "@/components/shared/PageHeader";
 import { useSession } from "@/lib/session-context";
-import { useBarraModulos } from "@/lib/ui-prefs";
+import { useBarraModulos, useTemaConta } from "@/lib/ui-prefs";
 import { cn } from "@/lib/utils";
 
 function Opcoes<T extends string>({
@@ -43,7 +42,7 @@ function Opcoes<T extends string>({
 
 export default function MinhaContaPage() {
   const { user } = useSession();
-  const { theme, setTheme } = useTheme();
+  const [tema, setTema] = useTemaConta();
   const [barraModulos, setBarraModulos] = useBarraModulos();
   const [montado, setMontado] = useState(false);
   useEffect(() => setMontado(true), []);
@@ -80,8 +79,8 @@ export default function MinhaContaPage() {
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">Tema</p>
               {montado && (
                 <Opcoes
-                  valor={(theme as "light" | "dark" | "system") ?? "system"}
-                  onChange={setTheme}
+                  valor={tema}
+                  onChange={setTema}
                   opcoes={[
                     { v: "light", label: "Claro", icon: Sun },
                     { v: "dark", label: "Escuro", icon: Moon },

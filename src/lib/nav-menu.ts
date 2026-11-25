@@ -107,8 +107,9 @@ export interface Module {
 
 export const mainModules: Module[] = [
   {
+    // id "empresa" mantido (permissões); o módulo reúne os cadastros do sistema.
     id: "empresa",
-    label: "Empresa",
+    label: "Cadastros",
     icon: Building2,
     sections: [
       {
