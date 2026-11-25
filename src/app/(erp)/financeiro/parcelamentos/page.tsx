@@ -37,7 +37,8 @@ type Parcelamento = {
   empresaId: string;
   fornecedor: string | null;
   descricao: string;
-  origem: { label: string; ref: string | null; deId: string | null };
+  // Compra: label "Compra" + ref (número da compra) + href p/ a aba Pagamentos.
+  origem: { label: string; ref: string | null; href: string | null; nf: string | null };
   totalParcelas: number;
   parcelasPagas: number;
   valorTotal: number;
@@ -114,7 +115,7 @@ export default function ParcelamentosPage() {
       if (situacao !== "TODAS" && p.situacao !== situacao) return false;
       if (!passaMes(p)) return false;
       if (!q) return true;
-      return (p.fornecedor ?? "").toLowerCase().includes(q) || p.descricao.toLowerCase().includes(q);
+      return [p.fornecedor, p.descricao, p.origem.ref, p.origem.nf].some((v) => (v ?? "").toLowerCase().includes(q));
     });
   }, [parcelamentos, busca, situacao, mes]);
 
@@ -177,16 +178,19 @@ export default function ParcelamentosPage() {
     } },
     { id: "origem", header: "Origem", accessorFn: (p) => p.origem.label, cell: ({ row }) => {
       const o = row.original.origem;
-      if (o.deId) {
+      if (o.href && o.ref) {
         return (
-          <button type="button" className="font-mono text-xs font-semibold text-info hover:underline"
-            onClick={(e) => { e.stopPropagation(); router.push(`/suprimentos/conferencias/${o.deId}`); }}
-            title="Abrir o Documento de Entrada">
-            {o.ref}
-          </button>
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs">
+            <button type="button" className="text-info hover:underline"
+              onClick={(e) => { e.stopPropagation(); router.push(o.href!); }}
+              title="Abrir a compra (aba Pagamentos)">
+              {o.label} <span className="font-mono font-semibold">{o.ref}</span>
+            </button>
+            {o.nf && <span className="text-muted-foreground">· NF {o.nf}</span>}
+          </span>
         );
       }
-      return <span className="text-muted-foreground">{o.ref ?? o.label}</span>;
+      return <span className="text-muted-foreground">{o.ref ? `${o.label} ${o.ref}` : o.label}</span>;
     } },
     { id: "valorTotal", header: "Valor total", accessorFn: (p) => p.valorTotal, meta: { className: "text-right" },
       cell: ({ row }) => <span className="tabular-nums">{formatBRL(row.original.valorTotal)}</span> },
@@ -329,15 +333,17 @@ export default function ParcelamentosPage() {
               <p className="text-sm text-muted-foreground">
                 {detalhe.descricao} · {detalhe.parcelasPagas}/{detalhe.totalParcelas} pagas · saldo {formatBRL(detalhe.saldo)}
                 {" · "}Origem: {detalhe.origem.label}
-                {detalhe.origem.deId ? (
+                {detalhe.origem.href && detalhe.origem.ref ? (
                   <>
                     {" "}
                     <button type="button" className="font-mono text-xs font-semibold text-info hover:underline align-baseline"
-                      onClick={() => router.push(`/suprimentos/conferencias/${detalhe.origem.deId}`)}>
+                      onClick={() => router.push(detalhe.origem.href!)}
+                      title="Abrir a compra (aba Pagamentos)">
                       {detalhe.origem.ref}
                     </button>
                   </>
-                ) : detalhe.origem.ref ? ` · ${detalhe.origem.ref}` : null}
+                ) : detalhe.origem.ref ? ` ${detalhe.origem.ref}` : null}
+                {detalhe.origem.nf ? ` · NF ${detalhe.origem.nf}` : null}
               </p>
             )}
           </DialogHeader>

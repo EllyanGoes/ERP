@@ -45,8 +45,8 @@ export async function GET() {
       fornecedor: { select: { razaoSocial: true } },
       // Origem do parcelamento (como no CP): DE direto, DE do pedido ou pedido.
       recorrenciaId: true,
-      conferencia: { select: { id: true, numero: true } },
-      pedidoCompra: { select: { id: true, numero: true, conferencia: { select: { id: true, numero: true } } } },
+      conferencia: { select: { id: true, numero: true, numeroCompra: true, numeroNF: true, empresaId: true } },
+      pedidoCompra: { select: { id: true, numero: true, numeroCompra: true, empresaId: true, conferencia: { select: { id: true, numero: true, numeroCompra: true, numeroNF: true, empresaId: true } } } },
     },
     orderBy: [{ parcelaNumero: "asc" }, { dataVencimento: "asc" }],
   });
@@ -93,16 +93,24 @@ export async function GET() {
 
     const situacao = emAberto.length === 0 ? "QUITADO" : vencidasEmAberto > 0 ? "COM_VENCIDAS" : "EM_DIA";
 
-    // Origem (mesma precedência da tela de CP): DE vinculado (direto ou via
-    // pedido) → clicável na tela; senão pedido/recorrência/manual.
+    // Origem (mesma regra da tela de CP): título de compra vira "Compra PC-0430"
+    // (número único da compra) e abre a aba Pagamentos da compra; sem
+    // numeroCompra (raro), cai no link antigo do DE/pedido (redireciona).
     const conf = primeira.conferencia ?? primeira.pedidoCompra?.conferencia ?? null;
-    const origem = conf
-      ? { label: "Documento de Entrada", ref: conf.numero, deId: conf.id }
-      : primeira.pedidoCompra
-      ? { label: "Pedido de Compra", ref: primeira.pedidoCompra.numero, deId: null }
-      : primeira.recorrenciaId
-      ? { label: "Recorrência", ref: null, deId: null }
-      : { label: "Manual", ref: null, deId: null };
+    const ped = primeira.pedidoCompra;
+    let origem: { label: string; ref: string | null; href: string | null; nf: string | null };
+    if (conf || ped) {
+      const numeroCompra = conf?.numeroCompra ?? ped?.numeroCompra ?? null;
+      const empresaDoc = primeira.empresaId ?? conf?.empresaId ?? ped?.empresaId ?? null;
+      const href = numeroCompra
+        ? `/compras/compra/${encodeURIComponent(numeroCompra)}?${empresaDoc ? `empresa=${encodeURIComponent(empresaDoc)}&` : ""}aba=pagamentos`
+        : conf ? `/suprimentos/conferencias/${conf.id}`
+        : ped ? `/suprimentos/pedidos-compra/${ped.id}`
+        : null;
+      origem = { label: "Compra", ref: numeroCompra ?? ped?.numero ?? conf?.numero ?? null, href, nf: conf?.numeroNF ?? null };
+    } else {
+      origem = { label: primeira.recorrenciaId ? "Recorrência" : "Manual", ref: null, href: null, nf: null };
+    }
 
     const parcelasOut: ParcelaOut[] = parcelas.map((p) => ({
       id: p.id,

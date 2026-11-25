@@ -19,24 +19,29 @@ export async function GET(req: NextRequest) {
     where: {
       status: { in: ["CONCLUIDA", "DIVERGENCIA"] },
       contasPagar: { none: {} },
-      OR: [{ pedidoId: null }, { pedido: { contasPagar: { none: {} } } }],
       ...(fornecedorId ? { fornecedorId } : {}),
-      ...(search
-        ? {
-            OR: [
-              { numero: { contains: search, mode: "insensitive" } },
-              { numeroNF: { contains: search, mode: "insensitive" } },
-              { fornecedor: { razaoSocial: { contains: search, mode: "insensitive" } } },
-              { fornecedor: { nomeFantasia: { contains: search, mode: "insensitive" } } },
-            ],
-          }
-        : {}),
+      // Os dois OR juntos num AND: antes o OR da busca sobrescrevia o filtro
+      // "pedido sem título" e entradas já faturadas apareciam como candidatas.
+      AND: [
+        { OR: [{ pedidoId: null }, { pedido: { contasPagar: { none: {} } } }] },
+        ...(search
+          ? [{
+              OR: [
+                { numero: { contains: search, mode: "insensitive" as const } },
+                { numeroCompra: { contains: search, mode: "insensitive" as const } },
+                { numeroNF: { contains: search, mode: "insensitive" as const } },
+                { fornecedor: { razaoSocial: { contains: search, mode: "insensitive" as const } } },
+                { fornecedor: { nomeFantasia: { contains: search, mode: "insensitive" as const } } },
+              ],
+            }]
+          : []),
+      ],
     },
     select: {
-      id: true, numero: true, numeroNF: true, dtEmissao: true, status: true,
+      id: true, numero: true, numeroCompra: true, numeroNF: true, dtEmissao: true, status: true,
       empresaId: true, vrTotal: true,
       fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } },
-      pedido: { select: { numero: true, fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } } },
+      pedido: { select: { numero: true, numeroCompra: true, fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } } },
       itens: { select: { vlrTotal: true } },
     },
     orderBy: { dtEmissao: "desc" },
@@ -53,6 +58,8 @@ export async function GET(req: NextRequest) {
     empresaId: r.empresaId,
     fornecedor: r.fornecedor ?? r.pedido?.fornecedor ?? null,
     pedido: r.pedido?.numero ?? null,
+    // Número único da compra (o que a tela mostra no lugar do DE-).
+    numeroCompra: r.numeroCompra ?? r.pedido?.numeroCompra ?? null,
     valor: Math.round((num(r.vrTotal) || r.itens.reduce((s, i) => s + num(i.vlrTotal), 0)) * 100) / 100,
   }));
 

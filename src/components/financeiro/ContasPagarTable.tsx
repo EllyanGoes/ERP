@@ -68,13 +68,15 @@ type ContaRow = {
   // Natureza única do título (legado sem split) — com código/nome p/ coluna/filtro.
   naturezaFinanceira?: { id: string; codigo: string | null; nome: string } | null;
   pedidoCompra?: {
-    id: string; numero: string; conferencia?: { id: string; numero: string; dtEmissao?: Date | string | null } | null;
+    id: string; numero: string; numeroCompra?: string | null; empresaId?: string | null;
+    conferencia?: { id: string; numero: string; dtEmissao?: Date | string | null; numeroCompra?: string | null; numeroNF?: string | null; empresaId?: string | null } | null;
     itens?: ItemOrigem[];
   } | null;
   // Documento de Entrada de origem (pedido OU avulsa) — link clicável e fonte
   // preferida do TES/centro (normalizado no server: direto ?? DE do pedido).
   conferencia?: {
     id: string; numero: string; dtEmissao?: Date | string | null;
+    numeroCompra?: string | null; numeroNF?: string | null; empresaId?: string | null;
     itens?: ItemOrigem[];
   } | null;
   // Conta analítica de passivo do fornecedor (2.1.1.x) — link p/ o razão dele.
@@ -110,16 +112,29 @@ function tesEcentroDoTitulo(c: ContaRow): { tes: string; centro: string } {
   return { tes, centro };
 }
 
-// Documento de ORIGEM do título a pagar: de onde ele veio (documento de entrada,
-// pedido antecipado, folha, encontro de contas, recorrência, intragrupo) ou avulso.
-function origemPagar(c: ContaRow): { label: string; ref: string | null; confId?: string | null } {
-  if (c.pedidoCompra) {
-    if (c.antecipado) return { label: "Pedido de Compra (PA)", ref: c.pedidoCompra.numero };
-    const conf = c.conferencia ?? c.pedidoCompra.conferencia;
-    return { label: "Documento de Entrada", ref: conf?.numero ?? c.pedidoCompra.numero, confId: conf?.id ?? null };
+// Documento de ORIGEM do título a pagar: de onde ele veio (compra — pedido,
+// antecipado ou entrada avulsa —, folha, encontro de contas, recorrência,
+// intragrupo) ou avulso. Título de compra aparece como "Compra PC-0430" (número
+// único da compra) e abre a aba Pagamentos da compra; os números internos
+// antigos (DE-/SC-/CT-) não aparecem mais. Sem numeroCompra (raro), cai no link
+// antigo do DE/pedido, que redireciona.
+type OrigemPagar = {
+  label: string; ref: string | null;
+  href?: string | null; nf?: string | null; antecipado?: boolean;
+};
+function origemPagar(c: ContaRow): OrigemPagar {
+  if (c.pedidoCompra || c.conferencia) {
+    const conf = c.conferencia ?? c.pedidoCompra?.conferencia ?? null;
+    const numeroCompra = conf?.numeroCompra ?? c.pedidoCompra?.numeroCompra ?? null;
+    const ref = numeroCompra ?? c.pedidoCompra?.numero ?? conf?.numero ?? null;
+    const empresaId = c.empresaId ?? conf?.empresaId ?? c.pedidoCompra?.empresaId ?? null;
+    const href = numeroCompra
+      ? `/compras/compra/${encodeURIComponent(numeroCompra)}?${empresaId ? `empresa=${encodeURIComponent(empresaId)}&` : ""}aba=pagamentos`
+      : conf ? `/suprimentos/conferencias/${conf.id}`
+      : c.pedidoCompra ? `/suprimentos/pedidos-compra/${c.pedidoCompra.id}`
+      : null;
+    return { label: "Compra", ref, href, nf: conf?.numeroNF ?? null, antecipado: !!c.antecipado };
   }
-  // Entrada AVULSA: sem pedido, mas com DE — mesma origem clicável.
-  if (c.conferencia) return { label: "Documento de Entrada", ref: c.conferencia.numero, confId: c.conferencia.id };
   if (c.folhaId) return { label: "Folha de Pagamento", ref: null };
   if (c.compensacaoOrigemId) return { label: "Encontro de Contas", ref: null };
   if (c.recorrenciaId) return { label: "Recorrência", ref: null };
@@ -339,7 +354,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       if (!passaData(c)) return false;
       if (!q) return true;
       const o = origemPagar(c);
-      return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
+      return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label, o.nf]
         .some((v) => v?.toLowerCase().includes(q));
     });
   }, [contas, empresasSel, naturezaFiltro, fornecedorFiltro, busca, periodo, mes]);
@@ -363,7 +378,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         if (!passaData(c)) return false;
         if (!q) return true;
         const o = origemPagar(c);
-        return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label]
+        return [c.numero, c.fornecedor?.razaoSocial, c.descricao, o.ref, o.label, o.nf]
           .some((v) => v?.toLowerCase().includes(q));
       })
       .map((c) => ({
@@ -412,7 +427,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   );
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
-  // Vínculo de título manual com Documento de Entrada (modal de candidatos).
+  // Vínculo de título manual com a entrada de uma compra (modal de candidatos).
   const [vincular, setVincular] = useState<ContaRow | null>(null);
   const [editar, setEditar] = useState<ContaRow | null>(null);
 
@@ -572,12 +587,14 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
 
   // Ações da linha num menu de 3 pontinhos ao fim da linha (Pagar/Editar).
   // Reusadas na tabela e na visão agrupada.
-  // Título manual (sem pedido/folha/encontro) pode ganhar/perder vínculo com DE.
+  // Título manual (sem pedido/folha/encontro) pode ganhar/perder vínculo com a
+  // ENTRADA de uma compra (o vínculo continua sendo pelo conferenciaId).
   const podeVincularDe = (c: ContaRow) =>
     c.status !== "CANCELADA" && !c.pedidoCompra && !c.folhaId && !c.compensacaoOrigemId;
 
   async function desvincularDe(c: ContaRow) {
-    if (!confirm(`Desvincular ${c.numero} do Documento de Entrada ${c.conferencia?.numero}? O título volta a provisionar como lançamento manual.`)) return;
+    const ref = origemPagar(c).ref ?? c.conferencia?.numero;
+    if (!confirm(`Desvincular ${c.numero} da compra ${ref}? O título volta a provisionar como lançamento manual.`)) return;
     const res = await fetch(`/api/contas-pagar/${c.id}/vincular-de`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -604,12 +621,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             )}
             {podeVincularDe(c) && !c.conferencia && (
               <DropdownMenuItem onClick={comGuardaEmpresa(c, () => setVincular(c))}>
-                <Link2 className="w-4 h-4 text-info" /> Vincular a Doc. de Entrada
+                <Link2 className="w-4 h-4 text-info" /> Vincular a uma compra
               </DropdownMenuItem>
             )}
             {isAdmin && podeVincularDe(c) && c.conferencia && (
               <DropdownMenuItem onClick={comGuardaEmpresa(c, () => desvincularDe(c))}>
-                <Link2 className="w-4 h-4 text-danger" /> Desvincular do DE
+                <Link2 className="w-4 h-4 text-danger" /> Desvincular da compra
               </DropdownMenuItem>
             )}
             {isAdmin && (
@@ -674,23 +691,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     { accessorKey: "descricao", header: "Descrição", meta: { thClass: "w-full", tdClass: "max-w-0" }, cell: ({ row }) => (
       <div className="truncate text-muted-foreground" title={row.original.descricao}>{row.original.descricao}</div>
     ) },
-    // Só o CÓDIGO do documento de origem (o nome do processo fica no tooltip);
-    // sem código (manual, folha, recorrência…), mostra o rótulo mesmo.
+    // Compra: "Compra PC-0430" clicável (abre a aba Pagamentos da compra) + NF
+    // em texto secundário; sem código (manual, folha, recorrência…), o rótulo.
     { id: "origem", header: "Origem", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => {
       const o = origemPagar(row.original);
       if (!o.ref) return <span className="text-xs text-muted-foreground">{o.label}</span>;
-      return o.confId ? (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); router.push(`/suprimentos/conferencias/${o.confId}`); }}
-          className="font-mono text-xs text-info hover:underline"
-          title={`${o.label} — abrir`}
-        >
-          {o.ref}
-        </button>
-      ) : (
-        <span className="font-mono text-xs text-muted-foreground" title={o.label}>{o.ref}</span>
-      );
+      return <OrigemCompraRef o={o} onOpen={(href) => router.push(href)} compact />;
     } },
     {
       id: "natureza",
@@ -1195,29 +1201,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
               }]
             : (contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + ") }] : [])),
           // ── Origem ───────────────────────────────────────────────────────
-          { label: "Origem", valor: org.label },
-          // Documento de entrada clicável (igual ao pedido) — abre a conferência.
-          ...(conf ? [{
-            label: "Documento de Entrada",
-            valor: (
-              <button type="button" onClick={() => router.push(`/suprimentos/conferencias/${conf.id}`)}
-                className="inline-flex items-center gap-1 text-info hover:underline font-medium">
-                <ExternalLink className="w-3.5 h-3.5" /> {conf.numero}
-              </button>
-            ),
-          }] : []),
-          ...(detalhe.pedidoCompra ? [{
-            label: "Pedido de compra",
-            valor: (
-              <button
-                type="button"
-                onClick={() => router.push(`/suprimentos/pedidos-compra/${detalhe.pedidoCompra!.id}`)}
-                className="inline-flex items-center gap-1 text-info hover:underline font-medium"
-              >
-                <ExternalLink className="w-3.5 h-3.5" /> {detalhe.pedidoCompra.numero}
-              </button>
-            ),
-          }] : []),
+          // Compra: UM link "Compra PC-0430" (+ NF) — abre a aba Pagamentos.
+          { label: "Origem", valor: org.ref
+            ? <OrigemCompraRef o={org} onOpen={(href) => { setDetalhe(null); router.push(href); }} />
+            : org.label },
           ...(detalhe.observacoes ? [{ label: "Observações", valor: detalhe.observacoes, full: true }] : []),
         ];
         const podeEstornar = detalhe.status === "PAGA" || detalhe.status === "PARCIAL";
@@ -1225,7 +1212,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           ...(podePagar ? [{ label: "Pagar", tone: "primary" as const, icon: <Wallet className="w-4 h-4" />, onClick: () => abrir(detalhe) }] : []),
           ...(podeEstornar ? [{ label: "Reabrir", tone: "danger" as const, icon: <RotateCcw className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); estornar(r); } }] : []),
           ...(podeVincularDe(detalhe) && !detalhe.conferencia
-            ? [{ label: "Vincular a DE", icon: <Link2 className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setVincular(r); } }]
+            ? [{ label: "Vincular a compra", icon: <Link2 className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setVincular(r); } }]
             : []),
           ...(isAdmin ? [{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: () => { const r = detalhe; setDetalhe(null); setEditar(r); } }] : []),
         ];
@@ -1436,7 +1423,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         onSaved={() => router.refresh()}
       />
 
-      {/* Vincular título manual a um Documento de Entrada. */}
+      {/* Vincular título manual à entrada de uma compra. */}
       {vincular && (
         <VincularDeDialog
           titulo={vincular}
@@ -1448,14 +1435,14 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   );
 }
 
-// ── Modal: vincular título manual a um Documento de Entrada ──────────────────
-// Lista DEs concluídos SEM título (rota candidatas-cp), pré-filtrados pelo
+// ── Modal: vincular título manual a uma compra (entrada) ─────────────────────
+// Lista entradas concluídas SEM título (rota candidatas-cp), pré-filtradas pelo
 // fornecedor do título; valor divergente é aviso, não bloqueio — a validação
 // dura (empresa, fornecedor, duplicidade) fica no servidor.
 type DeCandidata = {
   id: string; numero: string; numeroNF: string | null; dtEmissao: string | null;
   status: string; fornecedor: { id: string; razaoSocial: string; nomeFantasia: string | null } | null;
-  pedido: string | null; valor: number;
+  pedido: string | null; numeroCompra: string | null; valor: number;
 };
 
 function VincularDeDialog({ titulo, onClose, onVinculado }: {
@@ -1497,23 +1484,23 @@ function VincularDeDialog({ titulo, onClose, onVinculado }: {
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Link2 className="w-4 h-4 text-info" /> Vincular {titulo.numero} a um Documento de Entrada
+            <Link2 className="w-4 h-4 text-info" /> Vincular {titulo.numero} a uma compra (entrada)
           </DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground -mt-2">
-          Documentos concluídos sem título vinculado{titulo.fornecedor ? <> do fornecedor <b>{titulo.fornecedor.razaoSocial}</b></> : null}.
-          Ao vincular, a provisão contábil do título passa a ser a entrada do documento (sem crédito em dobro ao fornecedor).
+          Compras com entrada concluída e sem título vinculado{titulo.fornecedor ? <> do fornecedor <b>{titulo.fornecedor.razaoSocial}</b></> : null}.
+          Ao vincular, a provisão contábil do título passa a ser a entrada da compra (sem crédito em dobro ao fornecedor).
         </p>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por número do DE, NF ou fornecedor…" value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-9" />
+          <Input placeholder="Buscar por número da compra, NF ou fornecedor…" value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-9" />
         </div>
         {erro && <p className="text-sm text-danger">{erro}</p>}
         <div className="max-h-80 overflow-y-auto rounded-lg border border-border divide-y divide-border">
           {rows === null ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>
           ) : rows.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Nenhum documento de entrada sem título encontrado.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma compra com entrada sem título encontrada.</p>
           ) : rows.map((de) => {
             const difere = Math.abs(de.valor - saldoTitulo) > 0.005;
             return (
@@ -1524,11 +1511,14 @@ function VincularDeDialog({ titulo, onClose, onVinculado }: {
                 onClick={() => vincular(de)}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted transition-colors disabled:opacity-60"
               >
-                <span className="font-mono text-xs text-info shrink-0 w-20">{de.numero}</span>
+                <span className="shrink-0 w-28 text-xs">
+                  <span className="block text-[10px] text-muted-foreground">Compra</span>
+                  <span className="block font-mono text-info">{de.numeroCompra ?? de.pedido ?? de.numero}</span>
+                </span>
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm truncate">{de.fornecedor?.nomeFantasia || de.fornecedor?.razaoSocial || "—"}</span>
                   <span className="block text-[11px] text-muted-foreground">
-                    {de.dtEmissao ? formatDate(de.dtEmissao) : "—"}{de.numeroNF ? ` · NF ${de.numeroNF}` : ""}{de.pedido ? ` · ${de.pedido}` : ""}
+                    {de.numeroNF ? `NF ${de.numeroNF} · ` : ""}{de.dtEmissao ? formatDate(de.dtEmissao) : "—"}
                   </span>
                 </span>
                 <span className="text-right shrink-0">
@@ -1544,5 +1534,37 @@ function VincularDeDialog({ titulo, onClose, onVinculado }: {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Referência de origem "Compra PC-0430" (+ selo antecipado + NF) — clicável
+// quando há link. Usada na coluna Origem e no detalhe do título.
+function OrigemCompraRef({ o, onOpen, compact }: { o: OrigemPagar; onOpen: (href: string) => void; compact?: boolean }) {
+  const conteudo = (
+    <>
+      {!compact && o.href && <ExternalLink className="w-3.5 h-3.5" />}
+      <span className={compact ? undefined : "font-medium"}>{o.label}</span>
+      <span className="font-mono">{o.ref}</span>
+    </>
+  );
+  return (
+    <span className={cn("inline-flex items-center gap-1.5", compact && "text-xs")}>
+      {o.href ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onOpen(o.href!); }}
+          className="inline-flex items-center gap-1 text-info hover:underline"
+          title="Abrir a compra (aba Pagamentos)"
+        >
+          {conteudo}
+        </button>
+      ) : (
+        <span className="inline-flex items-center gap-1 text-muted-foreground">{conteudo}</span>
+      )}
+      {o.antecipado && (
+        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground" title="Pagamento antecipado">antecipado</span>
+      )}
+      {o.nf && <span className="text-muted-foreground">· NF {o.nf}</span>}
+    </span>
   );
 }
