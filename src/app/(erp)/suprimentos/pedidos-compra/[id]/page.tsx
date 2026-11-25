@@ -18,7 +18,7 @@ import DatePicker from "@/components/shared/DatePicker";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, FileInput, Link2, FileText, Pencil, Truck, XCircle } from "lucide-react";
-import { useDocumentoId } from "@/lib/compra-embutida";
+import { useDocumentoId, useNavegacaoCompra } from "@/lib/compra-embutida";
 import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaResumo, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 import CancelarCompraDialog from "@/components/compras/CancelarCompraDialog";
 
@@ -116,6 +116,7 @@ const TIPO_FRETE_LABEL: Record<string, string> = {
 
 export default function PedidoCompraDetailPage() {
   const id = useDocumentoId();
+  const nav = useNavegacaoCompra();
   const router  = useRouter();
   const { user } = useSession();
   const isAdmin  = user?.perfil === "ADMIN";
@@ -588,6 +589,10 @@ async function openWAModal() {
         </EtapaSecao>
       )}
 
+      {/* Vínculos SC/CT: dentro da compra as abas já mostram solicitação e
+          cotação, e desvincular partiria a compra (o pedido seguiria com o
+          número dela, mas sem a SC/CT). Só aparecem na tela própria do pedido. */}
+      <ForaDaCompra>
       {/* ── Solicitação de Compras ────────────────────────────────────── */}
       <EtapaSecao
         titulo="Solicitação"
@@ -801,6 +806,7 @@ async function openWAModal() {
           <p className="text-sm text-muted-foreground italic">Nenhuma cotação vinculada.</p>
         )}
       </EtapaSecao>
+      </ForaDaCompra>
     </>
   );
 
@@ -823,7 +829,7 @@ async function openWAModal() {
             {/* Editar: itens, preços, encargos… Depois de aprovado, salvar
                 devolve o pedido para aprovação. */}
             {!["RECEBIDO", "CANCELADO"].includes(pedido.status) && (
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => router.push(`/suprimentos/pedidos-compra/${id}/editar`)}>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => nav.ir(`/suprimentos/pedidos-compra/${id}/editar`)}>
                 <Pencil className="w-3.5 h-3.5" /> Editar
               </Button>
             )}

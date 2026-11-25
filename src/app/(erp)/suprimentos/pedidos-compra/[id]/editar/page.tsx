@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "next/navigation";
 import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
-import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
+import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +14,7 @@ import { Plus, Trash2, Loader2, Save, CheckCircle2 } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import DatePicker from "@/components/shared/DatePicker";
 import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, EtapaResumo, EtapaRodapeAcoes, tabela } from "@/components/compras/etapa/EtapaUI";
+import { useDocumentoId, useNavegacaoCompra } from "@/lib/compra-embutida";
 
 type Fornecedor = {
   id: string; razaoSocial: string; nomeFantasia: string | null;
@@ -69,8 +69,8 @@ const TIPO_FRETE_OPTIONS = [
 ];
 
 export default function EditarPedidoCompraPage() {
-  const { id } = useParams<{ id: string }>();
-  const { replaceCurrentTab } = useTabsContext();
+  const id = useDocumentoId();
+  const nav = useNavegacaoCompra();
   const { save: saveForm, load: loadForm, clear: clearForm } = useFormPersist<FormSnapshot>(`pc:edit:${id}`);
 
   // Data
@@ -344,7 +344,7 @@ export default function EditarPedidoCompraPage() {
     if (validItens.length === 0) { setError("Adicione pelo menos um item"); return; }
     try {
       await handleSaveOnly();
-      replaceCurrentTab(`/suprimentos/pedidos-compra/${id}`);
+      nav.substituir(`/suprimentos/pedidos-compra/${id}`);
     } catch {
       // error already set inside handleSaveOnly; set fallback only if still empty
       setError((prev) => prev || "Erro de conexão. Tente novamente.");
@@ -669,7 +669,7 @@ export default function EditarPedidoCompraPage() {
             </span>
           ) : undefined}
         >
-          <Button variant="outline" onClick={() => replaceCurrentTab(`/suprimentos/pedidos-compra/${id}`)}>
+          <Button variant="outline" onClick={() => nav.substituir(`/suprimentos/pedidos-compra/${id}`)}>
             Cancelar
           </Button>
           <Button onClick={handleSave} disabled={saving}>

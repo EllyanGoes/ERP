@@ -24,7 +24,7 @@ import {
 import { useSession } from "@/lib/session-context";
 import PropostaForm from "@/components/suprimentos/PropostaForm";
 import EscClose from "@/components/shared/EscClose";
-import { useDocumentoId } from "@/lib/compra-embutida";
+import { useDocumentoId, useNavegacaoCompra } from "@/lib/compra-embutida";
 import {
   EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, EtapaResumo, ForaDaCompra, tabela,
 } from "@/components/compras/etapa/EtapaUI";
@@ -132,6 +132,7 @@ const STATUS_COTACAO_BADGE: Record<string, { label: string; cls: string }> = {
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function CotacaoDetailPage() {
   const id = useDocumentoId();
+  const nav = useNavegacaoCompra();
   const router = useRouter();
   const { user } = useSession();
   const isAdmin = user?.perfil === "ADMIN";
@@ -504,7 +505,7 @@ export default function CotacaoDetailPage() {
                     setShowSemPropostaModal(true);
                     return;
                   }
-                  router.push(`/suprimentos/cotacoes/${id}/analise`);
+                  nav.ir(`/suprimentos/cotacoes/${id}/analise`);
                 }}
                 disabled={actioning}
                 className="bg-blue-600 hover:bg-blue-700"

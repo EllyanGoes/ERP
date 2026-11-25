@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import EscClose from "@/components/shared/EscClose";
 import { cn, formatBRL, decimalToNumber } from "@/lib/utils";
 import { Loader2, ChevronDown, ChevronRight, BarChart3, Sparkles, Search, Download } from "lucide-react";
+import { useDocumentoId, useNavegacaoCompra } from "@/lib/compra-embutida";
 
 // Types
 type CotacaoFornecedorItem = {
@@ -63,8 +63,8 @@ function formatDate(dateStr: string) {
 }
 
 export default function AnaliseCotacaoPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const id = useDocumentoId();
+  const nav = useNavegacaoCompra();
 
   const [cotacao, setCotacao] = useState<Cotacao | null>(null);
   const [loading, setLoading] = useState(true);
@@ -210,7 +210,7 @@ export default function AnaliseCotacaoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ melhorOpcao: true }),
       });
-      router.push(`/suprimentos/cotacoes/${id}/formalizacao?cfId=${selectedCfId}`);
+      nav.ir(`/suprimentos/cotacoes/${id}/formalizacao?cfId=${selectedCfId}`);
     } catch {
       setGenError("Erro ao processar. Tente novamente.");
       setGenerating(false);
@@ -727,7 +727,7 @@ export default function AnaliseCotacaoPage() {
 
       {/* Footer actions */}
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button variant="outline" onClick={() => router.push(`/suprimentos/cotacoes/${id}`)}>
+        <Button variant="outline" onClick={() => nav.ir(`/suprimentos/cotacoes/${id}`)}>
           Cancelar
         </Button>
         <Button

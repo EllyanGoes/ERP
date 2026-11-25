@@ -19,7 +19,8 @@ import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
 import { useRelatorioCache } from "@/lib/use-relatorio-cache";
 import { cn, formatBRL, formatDate } from "@/lib/utils";
 import CompraDetalhe from "@/components/compras/CompraDetalhe";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import ModalPortal from "@/components/shared/ModalPortal";
+import EscClose from "@/components/shared/EscClose";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type Etapa = "solicitacao" | "cotacao" | "pedido" | "entrada";
@@ -384,6 +385,10 @@ export default function AcompanhamentoComprasPage() {
   function abrirCompra(c: Cartao, d: DocumentoRef) {
     setCompraAberta({ numero: c.numero, empresa: c.empresaId, aba: d.etapa, doc: d.id });
   }
+  function fecharCompra() {
+    setCompraAberta(null);
+    load(); // o que foi feito no popup aparece no quadro
+  }
   function abrirEmAba(a: CompraAberta) {
     const qs = new URLSearchParams({ empresa: a.empresa, ...(a.aba ? { aba: a.aba } : {}), ...(a.doc ? { doc: a.doc } : {}) });
     setCompraAberta(null);
@@ -673,21 +678,41 @@ export default function AcompanhamentoComprasPage() {
       )}
 
 
-      <Dialog open={!!compraAberta} onOpenChange={(v) => { if (!v) { setCompraAberta(null); load(); } }}>
-        <DialogContent className="sm:max-w-[min(1280px,95vw)] w-[95vw] h-[90vh] p-0 gap-0 overflow-y-auto bg-background">
-          <DialogTitle className="sr-only">{compraAberta ? `Compra ${compraAberta.numero}` : "Compra"}</DialogTitle>
-          {compraAberta && (
-            <CompraDetalhe
-              numeroCompra={compraAberta.numero}
-              empresa={compraAberta.empresa}
-              abaParam={compraAberta.aba}
-              docParam={compraAberta.doc}
-              onNavegar={({ aba, doc }) => setCompraAberta((a) => (a ? { ...a, aba: aba ?? a.aba, doc: doc ?? null } : a))}
-              onAbrirEmAba={() => abrirEmAba(compraAberta)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Popup da compra. Sem Dialog/transform de propósito: um ancestral com
+          transform vira a referência dos "fixed" internos e o escurecido dos
+          modais das abas (ex.: Editar cotação) ficava cortado no popup. */}
+      {compraAberta && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-[9000] flex items-center justify-center bg-black/40 p-[2.5vh]"
+            onMouseDown={(e) => { if (e.target === e.currentTarget) fecharCompra(); }}
+          >
+            <EscClose onClose={fecharCompra} />
+            <div
+              role="dialog"
+              aria-label={`Compra ${compraAberta.numero}`}
+              className="relative w-[min(1280px,95vw)] h-[95vh] overflow-y-auto rounded-xl bg-background shadow-2xl ring-1 ring-foreground/10"
+            >
+              <button
+                type="button"
+                onClick={fecharCompra}
+                title="Fechar (Esc)"
+                className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <CompraDetalhe
+                numeroCompra={compraAberta.numero}
+                empresa={compraAberta.empresa}
+                abaParam={compraAberta.aba}
+                docParam={compraAberta.doc}
+                onNavegar={({ aba, doc }) => setCompraAberta((a) => (a ? { ...a, aba: aba ?? a.aba, doc: doc ?? null } : a))}
+                onAbrirEmAba={() => abrirEmAba(compraAberta)}
+              />
+            </div>
+          </div>
+        </ModalPortal>
+      )}
 
       <CreateDrawer open={novaAberta} onOpenChange={setNovaAberta} title="Nova compra" width="2xl" onCreated={load}>
         <SolicitacaoCreateForm modoCompra />

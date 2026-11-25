@@ -24,6 +24,8 @@ import SolicitacaoTela from "@/app/(erp)/compras/necessidades/[id]/page";
 import CotacaoTela from "@/app/(erp)/suprimentos/cotacoes/[id]/page";
 import PedidoTela from "@/app/(erp)/suprimentos/pedidos-compra/[id]/page";
 import EntradaTela from "@/app/(erp)/suprimentos/conferencias/[id]/page";
+import EditarPedidoTela from "@/app/(erp)/suprimentos/pedidos-compra/[id]/editar/page";
+import AnaliseCotacaoTela from "@/app/(erp)/suprimentos/cotacoes/[id]/analise/page";
 import CancelarCompraDialog from "@/components/compras/CancelarCompraDialog";
 import { EtapaSecao, tabela } from "@/components/compras/etapa/EtapaUI";
 
@@ -375,7 +377,33 @@ export default function CompraDetalhe({
     return compra.docAtual[etapa];
   }, [compra, aba, docParam]);
 
-  const irPara = useCallback((nova: Aba, doc?: string) => onNavegar({ aba: nova, doc: doc ?? null }), [onNavegar]);
+
+  // Telas auxiliares (editar pedido, analisar cotação) abrem aqui mesmo, sem
+  // sair da compra; ao salvar/voltar, retornam à aba do documento.
+  const [subTela, setSubTela] = useState<{ tipo: "editar-pedido" | "analise-cotacao"; id: string } | null>(null);
+  // Trocar de aba fecha a tela auxiliar aberta.
+  const irPara = useCallback((nova: Aba, doc?: string) => {
+    setSubTela(null);
+    onNavegar({ aba: nova, doc: doc ?? null });
+  }, [onNavegar]);
+  const abrir = useCallback((href: string): boolean => {
+    let m = href.match(/^\/suprimentos\/pedidos-compra\/([^/?#]+)\/editar$/);
+    if (m) { setSubTela({ tipo: "editar-pedido", id: m[1] }); return true; }
+    m = href.match(/^\/suprimentos\/cotacoes\/([^/?#]+)\/analise$/);
+    if (m) { setSubTela({ tipo: "analise-cotacao", id: m[1] }); return true; }
+    // Documento desta mesma compra: troca de aba em vez de navegar.
+    m = href.match(/^\/suprimentos\/(pedidos-compra|cotacoes)\/([^/?#]+)$/);
+    if (m && compra) {
+      const etapa: EtapaCompra = m[1] === "cotacoes" ? "cotacao" : "pedido";
+      if (compra.documentos[etapa].some((d) => d.id === m![2])) {
+        setSubTela(null);
+        irPara(etapa, m[2]);
+        load();
+        return true;
+      }
+    }
+    return false;
+  }, [compra, irPara, load]);
 
   if (erro) {
     return (
@@ -402,7 +430,7 @@ export default function CompraDetalhe({
   return (
     <div>
       {/* Cabeçalho da compra */}
-      <div className="px-8 pt-6 pb-4 border-b border-border space-y-3">
+      <div className={cn("px-8 pt-6 pb-4 border-b border-border space-y-3", onAbrirEmAba && "pr-16")}>
         {!onAbrirEmAba && (
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <Link href="/compras/acompanhamento" className="flex items-center gap-1 hover:text-foreground">
@@ -572,12 +600,28 @@ export default function CompraDetalhe({
         </div>
       )}
 
-      {aba === "pagamentos" ? (
+      {subTela ? (
+        <>
+          <div className="px-8 pt-4">
+            <button
+              type="button"
+              onClick={() => setSubTela(null)}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              {subTela.tipo === "editar-pedido" ? "Voltar ao pedido" : "Voltar à cotação"}
+            </button>
+          </div>
+          <CompraEmbutidaProvider key={`${subTela.tipo}:${subTela.id}`} docId={subTela.id} abrir={abrir}>
+            {subTela.tipo === "editar-pedido" ? <EditarPedidoTela /> : <AnaliseCotacaoTela />}
+          </CompraEmbutidaProvider>
+        </>
+      ) : aba === "pagamentos" ? (
         <Pagamentos compra={compra} />
       ) : aba === "timeline" ? (
         <Timeline compra={compra} />
       ) : docId && Tela ? (
-        <CompraEmbutidaProvider key={docId} docId={docId}>
+        <CompraEmbutidaProvider key={docId} docId={docId} abrir={abrir}>
           <Tela />
         </CompraEmbutidaProvider>
       ) : (
