@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, Kanban, LayoutList, Loader2, MoreHorizontal, Plus, RefreshCw, Search, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, Kanban, LayoutList, Loader2, MoreHorizontal, Plus, RefreshCw, Search, Wallet, X } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import DataTable from "@/components/shared/DataTable";
 import EmpresaTag from "@/components/shared/EmpresaTag";
@@ -43,6 +43,9 @@ type Cartao = {
   concluido: boolean;
   prioridade: number | null;
   assunto: string;
+  pagamento: "sem_titulo" | "pendente" | "pago";
+  aPagar: number;
+  pagamentoVencido: boolean;
   solicitante: string | null;
   setor: string | null;
   documentos: { etapa: Etapa; id: string; numero: string; status: string }[];
@@ -69,12 +72,43 @@ function medianaDias(dias: number[]): number {
   return ordem.length % 2 ? ordem[meio] : Math.round((ordem[meio - 1] + ordem[meio]) / 2);
 }
 
+// Filtro do financeiro: situação de pagamento da compra (títulos do pedido
+// antecipado + da entrada).
+const OPCOES_PAGAMENTO = [
+  { value: "todos",      label: "Pagamento: todos" },
+  { value: "pendente",   label: "Pagamento pendente" },
+  { value: "vencido",    label: "Pagamento vencido" },
+  { value: "pago",       label: "Pagos" },
+  { value: "sem_titulo", label: "Sem título a pagar" },
+];
+
+function SeloPagamento({ c }: { c: { pagamento: string; aPagar: number; pagamentoVencido: boolean } }) {
+  if (c.pagamento === "pago") return <span className="rounded px-1.5 py-px text-[10px] font-semibold bg-success/15 text-success">Pago</span>;
+  if (c.pagamento === "sem_titulo") return <span className="rounded px-1.5 py-px text-[10px] font-medium bg-muted text-muted-foreground">Sem título</span>;
+  return (
+    <span className={cn("rounded px-1.5 py-px text-[10px] font-semibold", c.pagamentoVencido ? "bg-danger/15 text-danger" : "bg-warning/15 text-warning")}>
+      {c.pagamentoVencido ? "Vencido" : "A pagar"} {formatBRL(c.aPagar)}
+    </span>
+  );
+}
+
+// No cartão, só um ícone (sem poluir): cor = situação; detalhe no tooltip.
+function IconePagamento({ c }: { c: { pagamento: string; aPagar: number; pagamentoVencido: boolean } }) {
+  const [cor, titulo] =
+    c.pagamento === "pago" ? ["text-success", "Pagamento: pago"]
+    : c.pagamento === "sem_titulo" ? ["text-muted-foreground/50", "Sem título a pagar"]
+    : c.pagamentoVencido ? ["text-danger", `Pagamento vencido · ${formatBRL(c.aPagar)} em aberto`]
+    : ["text-warning", `A pagar · ${formatBRL(c.aPagar)}`];
+  return <Wallet className={cn("w-3.5 h-3.5 shrink-0", cor)} aria-label={titulo}><title>{titulo}</title></Wallet>;
+}
+
 const OPCOES_CONCLUIDOS = [
   { value: "0",  label: "Ocultar concluídos" },
   { value: "7",  label: "Concluídos: 7 dias" },
   { value: "15", label: "Concluídos: 15 dias" },
   { value: "30", label: "Concluídos: 30 dias" },
   { value: "90", label: "Concluídos: 90 dias" },
+  { value: "-1", label: "Concluídos: todos" },
 ];
 
 
@@ -154,9 +188,10 @@ const STATUS_DE_ALERTA: Record<string, string> = {
   REJEITADA: "Reprovada",
 };
 
-function CartaoProcesso({ c, mostrarEmpresa, onAbrir, arrastando, onArrastar, onSoltar }: {
+function CartaoProcesso({ c, mostrarEmpresa, mostrarPagamento, onAbrir, arrastando, onArrastar, onSoltar }: {
   c: Cartao;
   mostrarEmpresa: boolean;
+  mostrarPagamento: boolean;
   onAbrir: () => void;
   arrastando: boolean;
   onArrastar: (id: string) => void;
@@ -230,6 +265,7 @@ function CartaoProcesso({ c, mostrarEmpresa, onAbrir, arrastando, onArrastar, on
           <span className={cn(dias >= DIAS_ALERTA && "text-warning")} title={tempo}>{dias === 0 ? "hoje" : `${dias} d`}</span>
         )}
         <span className="ml-auto flex items-center gap-2">
+          {mostrarPagamento && <IconePagamento c={c} />}
           {c.valor != null && c.valor > 0 && <span className="font-semibold text-foreground">{formatBRL(c.valor)}</span>}
           {c.solicitante && <AvatarUsuario nome={c.solicitante} size="sm" title={`Solicitante: ${c.solicitante}`} />}
         </span>
@@ -242,6 +278,7 @@ function CartaoProcesso({ c, mostrarEmpresa, onAbrir, arrastando, onArrastar, on
 export default function AcompanhamentoComprasPage() {
   const [busca, setBusca] = useSessionState<string>("compras:acompanhamento:busca", "");
   const [concluidosDias, setConcluidosDias] = usePersistedState<string>("compras:acompanhamento:concluidos-dias", "7");
+  const [filtroPagamento, setFiltroPagamento] = usePersistedState<string>("compras:acompanhamento:pagamento", "todos");
   const [visao, setVisao] = usePersistedState<"quadro" | "lista">("compras:acompanhamento:visao", "quadro");
 
   // Filtro de status por coluna (clique nos contadores do cabeçalho).
@@ -265,6 +302,8 @@ export default function AcompanhamentoComprasPage() {
   const porColuna = useMemo(() => {
     const mapa: Record<ColunaCompra, Cartao[]> = { montagem: [], aprovacao: [], entrega: [], conferencia: [], concluido: [] };
     for (const c of data?.cartoes ?? []) {
+      if (filtroPagamento === "vencido" ? !(c.pagamento === "pendente" && c.pagamentoVencido)
+        : filtroPagamento !== "todos" && c.pagamento !== filtroPagamento) continue;
       if (termo) {
         const alvo = normalizar(
           [c.numero, c.titulo, c.resumo, c.busca, ...c.documentos.map((d) => d.numero)].filter(Boolean).join(" "),
@@ -282,7 +321,7 @@ export default function AcompanhamentoComprasPage() {
     }
     mapa.concluido.sort((a, b) => (b.prazo ?? "").localeCompare(a.prazo ?? ""));
     return mapa;
-  }, [data, termo]);
+  }, [data, termo, filtroPagamento]);
 
   const colunas = concluidosDias === "0" ? COLUNAS.filter((c) => c.coluna !== "concluido") : COLUNAS;
   // Visão em lista: os mesmos cartões (com a busca aplicada), na ordem das etapas.
@@ -292,6 +331,11 @@ export default function AcompanhamentoComprasPage() {
   const variasEmpresas = new Set((data?.cartoes ?? []).map((c) => c.empresaId)).size > 1;
 
   const colunasLista: ColumnDef<Cartao>[] = [
+    {
+      id: "pagamento", header: "Pagamento",
+      accessorFn: (c) => (c.pagamento === "pendente" ? (c.pagamentoVencido ? 0 : 1) : c.pagamento === "pago" ? 3 : 2),
+      cell: ({ row: { original: c } }) => <SeloPagamento c={c} />,
+    },
     {
       id: "numero", header: "Compra", accessorKey: "numero",
       cell: ({ row: { original: c } }) => (
@@ -475,6 +519,13 @@ export default function AcompanhamentoComprasPage() {
             ))}
           </div>
           <SelectMenu
+            value={filtroPagamento}
+            options={OPCOES_PAGAMENTO}
+            onChange={setFiltroPagamento}
+            triggerClassName="h-9 text-sm"
+            title="Filtrar pela situação de pagamento da compra"
+          />
+          <SelectMenu
             value={concluidosDias}
             options={OPCOES_CONCLUIDOS}
             onChange={setConcluidosDias}
@@ -592,7 +643,7 @@ export default function AcompanhamentoComprasPage() {
                       <div className="absolute right-2 top-full mt-1 z-50 w-64 bg-card border border-border rounded-xl shadow-xl text-sm overflow-hidden">
                         <div className="px-3 pt-2.5 pb-2 space-y-0.5 text-xs text-muted-foreground border-b border-border/60">
                           {col.dono && <p>Próxima ação: <span className="text-foreground">{col.dono}</span></p>}
-                          {ehConcluido && <p>Concluídas nos últimos {concluidosDias} dias</p>}
+                          {ehConcluido && <p>{concluidosDias === "-1" ? "Todas as concluídas" : `Concluídas nos últimos ${concluidosDias} dias`}</p>}
                           {valor > 0 && <p>Valor: <span className="text-foreground font-medium">{formatBRL(valor)}</span></p>}
                           {!ehConcluido && cartoes.length > 0 && <p>Mediana na etapa: <span className="text-foreground">{medianaDias(idades)} d</span></p>}
                           {!ehConcluido && acima30 > 0 && <p className="text-warning font-semibold">{acima30} há mais de 30 dias</p>}
@@ -651,6 +702,7 @@ export default function AcompanhamentoComprasPage() {
                         key={c.id}
                         c={c}
                         mostrarEmpresa={variasEmpresas}
+                        mostrarPagamento={filtroPagamento !== "todos"}
                         onAbrir={() => abrirCompra(c, c.atual)}
                         arrastando={arrastadoId === c.id}
                         onArrastar={setArrastadoId}

@@ -22,6 +22,10 @@ type Documento = { etapa: Etapa; id: string; numero: string; status: string };
 
 type Cartao = {
   id: string;
+  /** Pagamento da compra pelos títulos a pagar (pedido antecipado + entrada). */
+  pagamento: "sem_titulo" | "pendente" | "pago";
+  aPagar: number;
+  pagamentoVencido: boolean;
   etapa: Etapa;
   coluna: ColunaCompra;
   numero: string;
@@ -54,6 +58,11 @@ const DE_SELECT = {
   numeroNF: true, vrTotal: true, dataConferencia: true,
   fornecedor: FORNECEDOR,
   itens: ITENS,
+  // Títulos a pagar (pagamento da compra); cancelados não contam.
+  contasPagar: {
+    where: { status: { not: "CANCELADA" as const } },
+    select: { id: true, status: true, valorOriginal: true, valorPago: true, valorMulta: true, valorJuros: true, dataVencimento: true },
+  },
 } as const;
 
 const PC_SELECT = {
@@ -62,6 +71,11 @@ const PC_SELECT = {
   fornecedor: FORNECEDOR,
   itens: ITENS,
   conferencia: { select: DE_SELECT },
+  // Títulos a pagar (pagamento da compra); cancelados não contam.
+  contasPagar: {
+    where: { status: { not: "CANCELADA" as const } },
+    select: { id: true, status: true, valorOriginal: true, valorPago: true, valorMulta: true, valorJuros: true, dataVencimento: true },
+  },
 } as const;
 
 const CT_SELECT = {
@@ -179,6 +193,30 @@ function faceDE(de: DE, pc: PC | null): Face {
 
 function montarCartao(p: Processo, corte: Date, vencido: Vencido): Cartao | null {
   const vivos = p.pcs.filter(pedidoVivo);
+  // Situação do pagamento: títulos do pedido (antecipado) e da entrada — um
+  // título pode estar ligado aos dois, então conta uma vez só (por id).
+  const situacaoPagamento = () => {
+    const titulos = new Map<string, { status: string; valor: number; pago: number; venc: Date | null }>();
+    const todos = [
+      ...vivos.flatMap((pc) => [...pc.contasPagar, ...(pc.conferencia?.contasPagar ?? [])]),
+      ...(p.avulsa?.contasPagar ?? []),
+    ];
+    for (const t of todos) {
+      titulos.set(t.id, {
+        status: t.status,
+        valor: Number(t.valorOriginal) + Number(t.valorMulta) + Number(t.valorJuros),
+        pago: Number(t.valorPago),
+        venc: t.dataVencimento,
+      });
+    }
+    const lista = Array.from(titulos.values());
+    const abertos = lista.filter((t) => t.status !== "PAGA");
+    return {
+      pagamento: (lista.length === 0 ? "sem_titulo" : abertos.length === 0 ? "pago" : "pendente") as Cartao["pagamento"],
+      aPagar: Math.round(abertos.reduce((s, t) => s + Math.max(0, t.valor - t.pago), 0) * 100) / 100,
+      pagamentoVencido: abertos.some((t) => vencido(t.venc)),
+    };
+  };
   const entradas = [
     ...vivos.flatMap((pc) => (pc.conferencia ? [{ de: pc.conferencia, pc: pc as PC | null }] : [])),
     ...(p.avulsa ? [{ de: p.avulsa, pc: null as PC | null }] : []),
@@ -238,6 +276,7 @@ function montarCartao(p: Processo, corte: Date, vencido: Vencido): Cartao | null
       vivos.find((d) => d.numeroCompra)?.numeroCompra ?? entradas.find(({ de }) => de.numeroCompra)?.de.numeroCompra ??
       documentos[0].numero,
     concluido,
+    ...situacaoPagamento(),
     prioridade: p.sc?.prioridade ?? null,
     assunto:
       (p.sc ? resumoItens(p.sc.itens) : null) ??
@@ -266,11 +305,12 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const diasParam = parseInt(searchParams.get("concluidosDias") ?? "7", 10);
-  const concluidosDias = Number.isFinite(diasParam) ? Math.min(Math.max(diasParam, 0), 90) : 7;
+  // -1 = todos os concluídos (sem corte de data).
+  const concluidosDias = !Number.isFinite(diasParam) ? 7 : diasParam === -1 ? -1 : Math.min(Math.max(diasParam, 0), 90);
 
   const agora = new Date();
   const hoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-  const corte = new Date(agora.getTime() - concluidosDias * 86_400_000);
+  const corte = concluidosDias === -1 ? new Date(0) : new Date(agora.getTime() - concluidosDias * 86_400_000);
   const vencido: Vencido = (d) => !!d && d < hoje;
 
   const pedidoEmAberto: Prisma.PedidoCompraWhereInput = { status: { notIn: ["CANCELADO", "RECEBIDO"] }, conferencia: { is: null } };
