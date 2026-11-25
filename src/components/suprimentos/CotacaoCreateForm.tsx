@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
@@ -13,9 +12,14 @@ import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
 import DatePicker from "@/components/shared/DatePicker";
 import EscClose from "@/components/shared/EscClose";
+import PageHeader from "@/components/shared/PageHeader";
+import SelectMenu from "@/components/shared/SelectMenu";
+import {
+  EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampoForm, EtapaResumo, EtapaRodapeAcoes, tabela,
+} from "@/components/compras/etapa/EtapaUI";
 import {
   CheckSquare, Square, ChevronRight, Loader2, Search,
-  X, Building2, AlertTriangle, SlidersHorizontal, EyeOff,
+  X, Building2, AlertTriangle, EyeOff,
   Plus, RefreshCw,
 } from "lucide-react";
 
@@ -66,7 +70,7 @@ const STEPS = [
 
 function StepBar({ current }: { current: number }) {
   return (
-    <div className="flex items-center gap-0 mb-8">
+    <div className="flex items-center gap-0 flex-wrap">
       {STEPS.map((s, i) => (
         <div key={s.n} className="flex items-center">
           <div className="flex items-center gap-2">
@@ -99,7 +103,6 @@ function StepBar({ current }: { current: number }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function CotacaoCreateForm() {
-  const router = useRouter();
   const drawer = useCreateDrawer();
   const voltar = useVoltarCriacao("/suprimentos/cotacoes");
   const searchParams = useSearchParams();
@@ -457,420 +460,430 @@ export default function CotacaoCreateForm() {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const itensSelecionados = scItems.filter((i) => selectedItemIds.has(i.id));
+  const selectedScNumeros = Array.from(new Set(itensSelecionados.map((i) => i.scNumero)));
+  const selectedFornNomes = Array.from(selectedFornIds).map((fid) => {
+    const f = allFornecedores.find((x) => x.id === fid) ?? ultFornecedores.find((x) => x.id === fid);
+    return { id: fid, nome: f?.nomeFantasia ?? f?.razaoSocial ?? fid };
+  });
+
+  const contagemItens = selectedItemIds.size > 0 && (
+    <span className="inline-flex items-center gap-1.5 text-info">
+      <CheckSquare className="w-3.5 h-3.5" />
+      {selectedItemIds.size} {selectedItemIds.size === 1 ? "registro selecionado" : "registros selecionados"}
+    </span>
+  );
+
+  const resumo = (
+    <EtapaSecao titulo="Resumo">
+      <EtapaResumo
+        linhas={[
+          { rotulo: "Itens", valor: `${selectedItemIds.size} item(s)` },
+          { rotulo: "Solicitações", valor: selectedScNumeros.length > 0 ? selectedScNumeros.join(", ") : "—" },
+          ...(step >= 2 && nome ? [{ rotulo: "Apelido", valor: nome }] : []),
+          ...(step >= 2 ? [{ rotulo: "Prazo", valor: dataLimite ? new Date(dataLimite + "T12:00:00").toLocaleDateString("pt-BR") : "—" }] : []),
+          ...(step === 3 ? [{ rotulo: "Fornecedores", valor: `${selectedFornIds.size} fornecedor(es)`, destaque: true }] : []),
+        ]}
+      />
+    </EtapaSecao>
+  );
+
   return (
-    <div className="max-w-6xl">
+    <div>
       {!drawer && (
-        <>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-            <span className="hover:text-blue-500 cursor-pointer" onClick={() => router.push("/suprimentos/cotacoes")}>Cotações de Compra</span>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-foreground font-medium">Nova Cotação</span>
-          </div>
-          <h1 className="text-xl font-bold text-foreground mb-6">Nova Cotação de Compra</h1>
-        </>
+        <PageHeader
+          title="Nova Cotação de Compra"
+          breadcrumbs={[
+            { label: "Suprimentos" },
+            { label: "Cotações de Compra", href: "/suprimentos/cotacoes" },
+            { label: "Nova Cotação" },
+          ]}
+        />
       )}
 
-      <StepBar current={step} />
+      <EtapaLayout
+        className={drawer ? "px-2 pb-0" : "max-w-7xl"}
+        lateral={step === 1 ? undefined : (
+          <>
+            {resumo}
+            {/* Selected summary */}
+            {step === 3 && selectedFornIds.size > 0 && (
+              <EtapaSecao titulo="Fornecedores / Participantes selecionados">
+                <div className="flex flex-wrap gap-2">
+                  {selectedFornNomes.map((f) => (
+                    <span key={f.id}
+                      className="inline-flex items-center gap-1 bg-info/10 border border-info/30 text-info text-xs px-2.5 py-1 rounded-full">
+                      <Building2 className="w-3 h-3" />
+                      {f.nome}
+                      <button type="button" onClick={() => toggleForn(f.id)} className="ml-1 hover:text-red-500">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </EtapaSecao>
+            )}
+          </>
+        )}
+      >
+        <StepBar current={step} />
 
-      {/* ── STEP 1 — Necessidades ─────────────────────────────────────────── */}
-      {step === 1 && (
-        <div>
-          <div className="mb-4">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h2 className="text-base font-semibold text-foreground">Necessidade de Compra</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Selecione os itens que deseja incluir nesta cotação.</p>
-              </div>
-              {/* Active filter count badge */}
-              {hasFilters && (
+        {/* ── STEP 1 — Necessidades ─────────────────────────────────────────── */}
+        {step === 1 && (
+          <>
+            <EtapaSecao
+              titulo="Itens"
+              semPadding
+              acoes={hasFilters ? (
                 <button onClick={clearFilters}
                   className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-info bg-info/10 border border-info/30 rounded-full hover:bg-info/15 transition-colors">
                   <X className="w-3 h-3" /> Limpar filtros
                 </button>
-              )}
-            </div>
+              ) : undefined}
+            >
+              <div className="px-5 py-3 border-b border-border space-y-3">
+                <p className="text-xs text-muted-foreground">Selecione os itens da necessidade de compra que deseja incluir nesta cotação.</p>
 
-            {/* Filter bar */}
-            <div className="flex flex-wrap gap-2 items-center">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[200px] max-w-xs">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                <input type="text" value={itemSearch} onChange={(e) => setItemSearch(e.target.value)}
-                  placeholder="Buscar por item, código ou SC..."
-                  className="w-full pl-8 pr-8 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                {itemSearch && (
-                  <button onClick={() => setItemSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
-                    <X className="w-3.5 h-3.5" />
+                {/* Filter bar */}
+                <div className="flex flex-wrap gap-2 items-center">
+                  {/* Search */}
+                  <div className="relative flex-1 min-w-[200px] max-w-xs">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <Input type="text" value={itemSearch} onChange={(e) => setItemSearch(e.target.value)}
+                      placeholder="Buscar por item, código ou SC..."
+                      className="h-8 pl-8 pr-8" />
+                    {itemSearch && (
+                      <button onClick={() => setItemSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Solicitação filter */}
+                  {scOptions.length > 1 && (
+                    <SelectMenu
+                      value={filterScIds.length === 1 ? filterScIds[0] : ""}
+                      onChange={(v) => setFilterScIds(v ? [v] : [])}
+                      options={[
+                        { value: "", label: "Todas as SCs" },
+                        ...scOptions.map((sc) => ({ value: sc.id, label: sc.numero })),
+                      ]}
+                      className="w-44"
+                      triggerClassName={cn("h-8", filterScIds.length > 0 && "border-blue-400 text-info bg-info/10")}
+                    />
+                  )}
+
+                  {/* Categoria filter */}
+                  {catOptions.length > 0 && (
+                    <SelectMenu
+                      value={filterCats.length === 1 ? filterCats[0] : ""}
+                      onChange={(v) => setFilterCats(v ? [v] : [])}
+                      options={[
+                        { value: "", label: "Todas as categorias" },
+                        ...catOptions.map((c) => ({ value: c, label: c })),
+                      ]}
+                      className="w-52"
+                      triggerClassName={cn("h-8", filterCats.length > 0 && "border-blue-400 text-info bg-info/10")}
+                    />
+                  )}
+
+                  {/* Hide Em Cotação toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setHideEmCotacao((p) => !p)}
+                    className={cn(
+                      "flex items-center gap-1.5 h-8 px-3 text-sm border rounded-lg transition-colors cursor-pointer select-none",
+                      hideEmCotacao
+                        ? "border-amber-400 bg-warning/10 text-warning"
+                        : "border-border bg-card text-muted-foreground hover:border-border"
+                    )}
+                  >
+                    <EyeOff className="w-3.5 h-3.5" />
+                    Ocultar Em Cotação
                   </button>
-                )}
+
+                  {/* Result count */}
+                  {hasFilters && !loadingItems && (
+                    <span className="text-xs text-muted-foreground ml-1">
+                      {filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Solicitação filter */}
-              {scOptions.length > 1 && (
-                <div className="relative">
-                  <select
-                    value={filterScIds.length === 1 ? filterScIds[0] : ""}
-                    onChange={(e) => setFilterScIds(e.target.value ? [e.target.value] : [])}
-                    className={cn(
-                      "h-8 pl-3 pr-7 text-sm border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer appearance-none",
-                      filterScIds.length > 0 ? "border-blue-400 text-info bg-info/10" : "border-border text-muted-foreground"
-                    )}
-                  >
-                    <option value="">Todas as SCs</option>
-                    {scOptions.map((sc) => (
-                      <option key={sc.id} value={sc.id}>{sc.numero}</option>
-                    ))}
-                  </select>
-                  <SlidersHorizontal className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              {loadingItems ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
-              )}
-
-              {/* Categoria filter */}
-              {catOptions.length > 0 && (
-                <div className="relative">
-                  <select
-                    value={filterCats.length === 1 ? filterCats[0] : ""}
-                    onChange={(e) => setFilterCats(e.target.value ? [e.target.value] : [])}
-                    className={cn(
-                      "h-8 pl-3 pr-7 text-sm border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer appearance-none",
-                      filterCats.length > 0 ? "border-blue-400 text-info bg-info/10" : "border-border text-muted-foreground"
-                    )}
-                  >
-                    <option value="">Todas as categorias</option>
-                    {catOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <SlidersHorizontal className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                </div>
-              )}
-
-              {/* Hide Em Cotação toggle */}
-              <button
-                type="button"
-                onClick={() => setHideEmCotacao((p) => !p)}
-                className={cn(
-                  "flex items-center gap-1.5 h-8 px-3 text-sm border rounded-lg transition-colors cursor-pointer select-none",
-                  hideEmCotacao
-                    ? "border-amber-400 bg-warning/10 text-warning"
-                    : "border-border bg-card text-muted-foreground hover:border-border"
-                )}
-              >
-                <EyeOff className="w-3.5 h-3.5" />
-                Ocultar Em Cotação
-              </button>
-
-              {/* Result count */}
-              {hasFilters && !loadingItems && (
-                <span className="text-xs text-muted-foreground ml-1">
-                  {filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {loadingItems ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="bg-card rounded-xl border border-border overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-muted border-b border-border">
-                  <tr>
-                    <th className="px-4 py-3 w-10">
-                      <button type="button" onClick={toggleAllVisible} className="text-muted-foreground hover:text-blue-500">
-                        {allVisibleSelected
-                          ? <CheckSquare className="w-4 h-4 text-blue-500" />
-                          : <Square className="w-4 h-4" />}
-                      </button>
-                    </th>
-                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-28">Solicitação</th>
-                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-16">Item</th>
-                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-36">Código</th>
-                    <th className="text-left px-3 py-3 font-medium text-muted-foreground">Descrição do produto</th>
-                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-40">Grupo / Categoria</th>
-                    <th className="text-right px-3 py-3 font-medium text-muted-foreground w-28">Qtd</th>
-                    <th className="text-left px-3 py-3 font-medium text-muted-foreground w-32">Data necessidade</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {filteredItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="text-center py-12 text-muted-foreground italic">
-                        {scItems.length === 0
-                          ? "Nenhuma solicitação aprovada encontrada."
-                          : "Nenhum resultado para a busca."}
-                      </td>
-                    </tr>
-                  ) : filteredItems.map((item) => {
-                    const checked = selectedItemIds.has(item.id);
-                    return (
-                      <tr key={item.id}
-                        onClick={() => toggleItem(item.id)}
-                        className={cn(
-                          "cursor-pointer transition-colors",
-                          checked ? "bg-info/10 hover:bg-info/15" : "hover:bg-muted"
-                        )}>
-                        <td className="px-4 py-3">
-                          {checked
-                            ? <CheckSquare className="w-4 h-4 text-blue-500" />
-                            : <Square className="w-4 h-4 text-muted-foreground/60" />}
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); toggleSC(item.scId); }}
-                              title="Selecionar/deselecionar todos itens desta SC"
-                              className="font-mono text-xs text-foreground hover:text-info hover:underline cursor-pointer"
-                            >
-                              {item.scNumero}
-                            </button>
-                            {scTagMap.get(item.scId) && (
-                              <span className={cn(
-                                "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border shrink-0",
-                                scTagMap.get(item.scId)!.color
-                              )}>
-                                {scTagMap.get(item.scId)!.label}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-center text-muted-foreground">{String(item.ordem).padStart(4, "0")}</td>
-                        <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{item.codigo}</td>
-                        <td className="px-3 py-3 font-medium text-foreground">{item.descricao}</td>
-                        <td className="px-3 py-3 text-muted-foreground text-xs">{item.categoria ?? <span className="text-muted-foreground/60">—</span>}</td>
-                        <td className="px-3 py-3 text-right text-foreground">
-                          {item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {item.unidade}
-                        </td>
-                        <td className="px-3 py-3 text-xs text-muted-foreground">
-                          {item.dataNecessidade
-                            ? new Date(item.dataNecessidade).toLocaleDateString("pt-BR")
-                            : <span className="text-muted-foreground/60">—</span>}
-                        </td>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className={tabela.table}>
+                    <thead className={tabela.thead}>
+                      <tr>
+                        <th className={cn(tabela.th, "w-10")}>
+                          <button type="button" onClick={toggleAllVisible} className="text-muted-foreground hover:text-blue-500">
+                            {allVisibleSelected
+                              ? <CheckSquare className="w-4 h-4 text-blue-500" />
+                              : <Square className="w-4 h-4" />}
+                          </button>
+                        </th>
+                        <th className={cn(tabela.th, "w-28")}>Solicitação</th>
+                        <th className={cn(tabela.th, "w-16")}>Item</th>
+                        <th className={cn(tabela.th, "w-36")}>Código</th>
+                        <th className={tabela.th}>Descrição do produto</th>
+                        <th className={cn(tabela.th, "w-40")}>Grupo / Categoria</th>
+                        <th className={cn(tabela.thNum, "w-28")}>Qtd</th>
+                        <th className={cn(tabela.th, "w-32")}>Data necessidade</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* Bottom bar */}
-          <div className="mt-6 flex items-center justify-between">
-            <Button type="button" variant="outline" onClick={() => { clearForm(); voltar(); }}>Cancelar</Button>
-            <div className="flex items-center gap-4">
-              {selectedItemIds.size > 0 && (
-                <div className="flex items-center gap-1.5 bg-info/10 border border-info/30 text-info text-sm px-3 py-1.5 rounded-full">
-                  <CheckSquare className="w-3.5 h-3.5" />
-                  {selectedItemIds.size} {selectedItemIds.size === 1 ? "registro selecionado" : "registros selecionados"}
+                    </thead>
+                    <tbody>
+                      {filteredItems.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center py-12 text-muted-foreground italic">
+                            {scItems.length === 0
+                              ? "Nenhuma solicitação aprovada encontrada."
+                              : "Nenhum resultado para a busca."}
+                          </td>
+                        </tr>
+                      ) : filteredItems.map((item) => {
+                        const checked = selectedItemIds.has(item.id);
+                        return (
+                          <tr key={item.id}
+                            onClick={() => toggleItem(item.id)}
+                            className={cn(
+                              tabela.tr,
+                              "cursor-pointer transition-colors",
+                              checked ? "bg-info/10 hover:bg-info/15" : "hover:bg-muted"
+                            )}>
+                            <td className={tabela.td}>
+                              {checked
+                                ? <CheckSquare className="w-4 h-4 text-blue-500" />
+                                : <Square className="w-4 h-4 text-muted-foreground/60" />}
+                            </td>
+                            <td className={tabela.td}>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); toggleSC(item.scId); }}
+                                  title="Selecionar/deselecionar todos itens desta SC"
+                                  className="font-mono text-xs text-foreground hover:text-info hover:underline cursor-pointer"
+                                >
+                                  {item.scNumero}
+                                </button>
+                                {scTagMap.get(item.scId) && (
+                                  <span className={cn(
+                                    "inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border shrink-0",
+                                    scTagMap.get(item.scId)!.color
+                                  )}>
+                                    {scTagMap.get(item.scId)!.label}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className={cn(tabela.td, "text-muted-foreground tabular-nums")}>{String(item.ordem).padStart(4, "0")}</td>
+                            <td className={tabela.tdCodigo}>{item.codigo}</td>
+                            <td className={cn(tabela.td, "font-medium")}>{item.descricao}</td>
+                            <td className={cn(tabela.td, "text-muted-foreground text-xs")}>{item.categoria ?? <span className="text-muted-foreground/60">—</span>}</td>
+                            <td className={tabela.tdNum}>
+                              {item.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} {item.unidade}
+                            </td>
+                            <td className={cn(tabela.td, "text-xs text-muted-foreground whitespace-nowrap")}>
+                              {item.dataNecessidade
+                                ? new Date(item.dataNecessidade).toLocaleDateString("pt-BR")
+                                : <span className="text-muted-foreground/60">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
+            </EtapaSecao>
+
+            <EtapaRodapeAcoes info={contagemItens}>
+              <Button type="button" variant="outline" onClick={() => { clearForm(); voltar(); }}>Cancelar</Button>
               <Button onClick={goStep2} disabled={selectedItemIds.size === 0 || checkingItems}
                 className="gap-1.5">
                 {checkingItems ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Iniciar cotação <ChevronRight className="w-4 h-4" />
               </Button>
-            </div>
-          </div>
-        </div>
-      )}
+            </EtapaRodapeAcoes>
+          </>
+        )}
 
-      {/* ── STEP 2 — Dados da cotação ──────────────────────────────────────── */}
-      {step === 2 && (
-        <div className="max-w-2xl">
-          <h2 className="text-base font-semibold text-foreground mb-6">Solicitação de cotação</h2>
+        {/* ── STEP 2 — Dados da cotação ──────────────────────────────────────── */}
+        {step === 2 && (
+          <>
+            <EtapaSecao titulo="Dados da cotação">
+              <div className="space-y-5">
+                <EtapaCampos colunas={2}>
+                  <EtapaCampoForm rotulo="Apelido do grupo de cotações" obrigatorio span={2}>
+                    <Input
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value)}
+                      placeholder="Ex.: Compras materiais elétricos Abril/2026"
+                      className={cn("focus-visible:ring-blue-400", !nome && step2Error && "border-red-400")}
+                    />
+                  </EtapaCampoForm>
 
-          <div className="bg-card rounded-xl border border-border p-6 space-y-5">
-            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-3">Dados da cotação</h3>
+                  <EtapaCampoForm
+                    rotulo="Recebimento cotação"
+                    obrigatorio
+                    ajuda="Prazo limite para os fornecedores enviarem suas propostas."
+                  >
+                    <DatePicker
+                      value={dataLimite}
+                      onChange={(v) => setDataLimite(v)}
+                      invalid={!dataLimite && !!step2Error}
+                    />
+                  </EtapaCampoForm>
 
-            <div className="space-y-1.5">
-              <Label className="required">
-                Apelido do grupo de cotações <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Ex.: Compras materiais elétricos Abril/2026"
-                className={cn("focus-visible:ring-blue-400", !nome && step2Error && "border-red-400")}
-              />
-            </div>
+                  <EtapaCampoForm
+                    rotulo="Informações de entrega"
+                    span={2}
+                    ajuda="Preenchido automaticamente com os dados da empresa. Você pode editar."
+                  >
+                    <Textarea
+                      value={infoEntrega}
+                      onChange={(e) => setInfoEntrega(e.target.value)}
+                      rows={4}
+                      className="font-mono text-sm focus-visible:ring-blue-400"
+                      placeholder="Endereço de entrega, instruções especiais..."
+                    />
+                  </EtapaCampoForm>
+                </EtapaCampos>
 
-            <div className="space-y-1.5">
-              <Label>
-                Recebimento cotação <span className="text-red-500">*</span>
-              </Label>
-              <DatePicker
-                value={dataLimite}
-                onChange={(v) => setDataLimite(v)}
-                invalid={!dataLimite && !!step2Error}
-              />
-              <p className="text-xs text-muted-foreground">Prazo limite para os fornecedores enviarem suas propostas.</p>
-            </div>
-
-            <div className="border-t border-border pt-5">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Informações de entrega</h3>
-              <Textarea
-                value={infoEntrega}
-                onChange={(e) => setInfoEntrega(e.target.value)}
-                rows={4}
-                className="font-mono text-sm focus-visible:ring-blue-400"
-                placeholder="Endereço de entrega, instruções especiais..."
-              />
-              <p className="text-xs text-muted-foreground mt-1">Preenchido automaticamente com os dados da empresa. Você pode editar.</p>
-            </div>
-
-            {step2Error && (
-              <div className="flex items-center gap-2 text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" /> {step2Error}
+                {step2Error && (
+                  <div className="flex items-center gap-2 text-sm text-danger bg-danger/10 border border-danger/30 rounded-lg px-3 py-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {step2Error}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </EtapaSecao>
 
-          <div className="mt-6 flex items-center justify-between">
-            <Button type="button" variant="outline" onClick={() => setStep(1)}>← Voltar</Button>
-            <Button onClick={goStep3} className="gap-1.5">
-              Próximo passo <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      )}
+            <EtapaRodapeAcoes info={<>Campos com <span className="text-danger">*</span> são obrigatórios.</>}>
+              <Button type="button" variant="outline" onClick={() => setStep(1)}>← Voltar</Button>
+              <Button onClick={goStep3} className="gap-1.5">
+                Próximo passo <ChevronRight className="w-4 h-4" />
+              </Button>
+            </EtapaRodapeAcoes>
+          </>
+        )}
 
-      {/* ── STEP 3 — Seleção de Fornecedores ─────────────────────────────── */}
-      {step === 3 && (
-        <div>
-          <h2 className="text-base font-semibold text-foreground mb-1">Seleção de Fornecedores / Participantes</h2>
-          <p className="text-xs text-muted-foreground mb-5">Selecione os fornecedores que receberão a solicitação de cotação.</p>
+        {/* ── STEP 3 — Seleção de Fornecedores ─────────────────────────────── */}
+        {step === 3 && (
+          <>
+            <EtapaSecao
+              titulo="Fornecedores convidados"
+              semPadding
+              acoes={
+                <>
+                  {/* Novo Fornecedor — opens in new tab so the user keeps their progress */}
+                  <a
+                    href="/suprimentos/fornecedores/novo"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-info border border-info/30 bg-info/10 hover:bg-info/15 rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Novo Fornecedor
+                  </a>
+                  {/* Refresh list */}
+                  <button
+                    type="button"
+                    onClick={() => loadFornecedores(true)}
+                    disabled={refreshingForn}
+                    title="Atualizar lista"
+                    className="flex items-center justify-center w-8 h-8 border border-border rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn("w-3.5 h-3.5", refreshingForn && "animate-spin")} />
+                  </button>
+                </>
+              }
+            >
+              {/* Tabs + Search */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5">
+                <div className="flex gap-0">
+                  {(["ultimos", "todos"] as const).map((t) => (
+                    <button key={t} type="button" onClick={() => { setTab(t); setFornSearch(""); }}
+                      className={cn(
+                        "px-4 py-3.5 text-sm font-medium border-b-2 transition-colors",
+                        tab === t ? "border-blue-500 text-info" : "border-transparent text-muted-foreground hover:text-foreground"
+                      )}>
+                      {t === "ultimos" ? "Últimos fornecedores" : "Todos os fornecedores"}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative w-64 py-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <Input type="text" value={fornSearch} onChange={(e) => setFornSearch(e.target.value)}
+                    placeholder="Busque por CNPJ, nome fantasia, razão social..."
+                    className="h-8 pl-8 pr-3" />
+                </div>
+              </div>
 
-          {/* Selected summary */}
-          {selectedFornIds.size > 0 && (
-            <div className="bg-card rounded-xl border border-border p-4 mb-5">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Fornecedores / Participantes selecionados
+              <p className="px-5 py-2 text-xs text-muted-foreground bg-muted border-b border-border">
+                Selecione os fornecedores que receberão a solicitação de cotação.
+                {tab === "ultimos" && " Os últimos fornecedores são listados conforme cotações anteriores para os produtos selecionados."}
               </p>
-              <div className="flex flex-wrap gap-2">
-                {Array.from(selectedFornIds).map((fid) => {
-                  const f = allFornecedores.find((x) => x.id === fid) ?? ultFornecedores.find((x) => x.id === fid);
+
+              <div className="divide-y divide-border">
+                {loadingForn ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : fornListForTab().length === 0 ? (
+                  <div className="text-center py-10 text-sm text-muted-foreground italic">
+                    {tab === "ultimos"
+                      ? "Nenhum fornecedor encontrado para os itens selecionados."
+                      : "Nenhum fornecedor cadastrado."}
+                  </div>
+                ) : fornListForTab().map((f) => {
+                  const checked = selectedFornIds.has(f.id);
                   return (
-                    <span key={fid}
-                      className="inline-flex items-center gap-1 bg-info/10 border border-info/30 text-info text-xs px-2.5 py-1 rounded-full">
-                      <Building2 className="w-3 h-3" />
-                      {f?.nomeFantasia ?? f?.razaoSocial ?? fid}
-                      <button type="button" onClick={() => toggleForn(fid)} className="ml-1 hover:text-red-500">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
+                    <div key={f.id}
+                      onClick={() => toggleForn(f.id)}
+                      className={cn(
+                        "flex items-start gap-3 px-5 py-3.5 cursor-pointer transition-colors",
+                        checked ? "bg-info/10" : "hover:bg-muted"
+                      )}>
+                      <div className={cn(
+                        "mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                        checked ? "bg-blue-500 border-blue-500" : "border-border"
+                      )}>
+                        {checked && <span className="text-white text-xs font-bold">✓</span>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn("font-medium text-sm", checked ? "text-info" : "text-foreground")}>
+                          {f.nomeFantasia || f.razaoSocial}
+                        </p>
+                        <div className="flex flex-wrap gap-x-6 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+                          {f.cpfCnpj && (
+                            <span>{f.cpfCnpj.length === 14 ? "CNPJ" : "CPF"}: {f.cpfCnpj}</span>
+                          )}
+                          {f.email   && <span>E-mail: {f.email}</span>}
+                          {f.telefone && <span>Tel: {f.telefone}</span>}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            </EtapaSecao>
 
-          {/* Tabs + Search */}
-          <div className="bg-card rounded-xl border border-border overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border px-4">
-              <div className="flex gap-0">
-                {(["ultimos", "todos"] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => { setTab(t); setFornSearch(""); }}
-                    className={cn(
-                      "px-4 py-3.5 text-sm font-medium border-b-2 transition-colors",
-                      tab === t ? "border-blue-500 text-info" : "border-transparent text-muted-foreground hover:text-foreground"
-                    )}>
-                    {t === "ultimos" ? "Últimos fornecedores" : "Todos os fornecedores"}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2 py-2">
-                {/* Novo Fornecedor — opens in new tab so the user keeps their progress */}
-                <a
-                  href="/suprimentos/fornecedores/novo"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-info border border-info/30 bg-info/10 hover:bg-info/15 rounded-lg transition-colors whitespace-nowrap"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Novo Fornecedor
-                </a>
-                {/* Refresh list */}
-                <button
-                  type="button"
-                  onClick={() => loadFornecedores(true)}
-                  disabled={refreshingForn}
-                  title="Atualizar lista"
-                  className="flex items-center justify-center w-8 h-8 border border-border rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={cn("w-3.5 h-3.5", refreshingForn && "animate-spin")} />
-                </button>
-                {/* Search */}
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                  <input type="text" value={fornSearch} onChange={(e) => setFornSearch(e.target.value)}
-                    placeholder="Busque por CNPJ, nome fantasia, razão social..."
-                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                </div>
-              </div>
-            </div>
-
-            {tab === "ultimos" && (
-              <p className="px-4 py-2 text-xs text-muted-foreground bg-muted border-b border-border">
-                Os últimos fornecedores são listados conforme cotações anteriores para os produtos selecionados.
-              </p>
-            )}
-
-            <div className="divide-y divide-border">
-              {loadingForn ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : fornListForTab().length === 0 ? (
-                <div className="text-center py-10 text-sm text-muted-foreground italic">
-                  {tab === "ultimos"
-                    ? "Nenhum fornecedor encontrado para os itens selecionados."
-                    : "Nenhum fornecedor cadastrado."}
-                </div>
-              ) : fornListForTab().map((f) => {
-                const checked = selectedFornIds.has(f.id);
-                return (
-                  <div key={f.id}
-                    onClick={() => toggleForn(f.id)}
-                    className={cn(
-                      "flex items-start gap-3 px-4 py-4 cursor-pointer transition-colors",
-                      checked ? "bg-info/10" : "hover:bg-muted"
-                    )}>
-                    <div className={cn(
-                      "mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                      checked ? "bg-blue-500 border-blue-500" : "border-border"
-                    )}>
-                      {checked && <span className="text-white text-xs font-bold">✓</span>}
-                    </div>
-                    <div className="flex-1">
-                      <p className={cn("font-medium text-sm", checked ? "text-info" : "text-foreground")}>
-                        {f.nomeFantasia || f.razaoSocial}
-                      </p>
-                      <div className="flex flex-wrap gap-x-6 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-                        {f.cpfCnpj && (
-                          <span>{f.cpfCnpj.length === 14 ? "CNPJ" : "CPF"}: {f.cpfCnpj}</span>
-                        )}
-                        {f.email   && <span>E-mail: {f.email}</span>}
-                        {f.telefone && <span>Tel: {f.telefone}</span>}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-6 flex items-center justify-between">
-            <Button type="button" variant="outline" onClick={() => setStep(2)}>← Voltar</Button>
-            <Button
-              onClick={() => setShowConfirm(true)}
-              disabled={selectedFornIds.size === 0}
-              className="gap-1.5 bg-blue-600 hover:bg-blue-700">
-              Gerar cotação
-            </Button>
-          </div>
-        </div>
-      )}
+            <EtapaRodapeAcoes info={selectedFornIds.size > 0 ? `${selectedFornIds.size} fornecedor(es) selecionado(s)` : "Selecione ao menos um fornecedor."}>
+              <Button type="button" variant="outline" onClick={() => setStep(2)}>← Voltar</Button>
+              <Button
+                onClick={() => setShowConfirm(true)}
+                disabled={selectedFornIds.size === 0}
+                className="gap-1.5 bg-blue-600 hover:bg-blue-700">
+                Gerar cotação
+              </Button>
+            </EtapaRodapeAcoes>
+          </>
+        )}
+      </EtapaLayout>
 
       {/* ── Item-in-cotação warning modal ─────────────────────────────────── */}
       {showItemWarning && (

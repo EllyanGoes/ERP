@@ -7,9 +7,7 @@ import { useFormPersist } from "@/lib/form-persist";
 import { useDirtyForm } from "@/lib/dirty-form-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2, ChevronDown, Loader2, Save, Send, X, AlertTriangle } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import PropostasCompraGrid, { paraProposta, type PropostaForm } from "@/components/compras/PropostasCompraGrid";
@@ -18,7 +16,11 @@ import ProdutoQuickModal from "@/components/compras/ProdutoQuickModal";
 import EscClose from "@/components/shared/EscClose";
 import DatePicker from "@/components/shared/DatePicker";
 import { useCreateFlow } from "@/components/shared/useCreateFlow";
-import { useVoltarCriacao } from "@/components/shared/CreateDrawer";
+import { useVoltarCriacao, useCreateDrawer } from "@/components/shared/CreateDrawer";
+import SelectMenu from "@/components/shared/SelectMenu";
+import {
+  EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampoForm, EtapaRodapeAcoes, tabela,
+} from "@/components/compras/etapa/EtapaUI";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -69,6 +71,12 @@ const PRIORIDADES = [
   { value: 3, label: "3 - Média" },
   { value: 4, label: "4 - Alta" },
   { value: 5, label: "5 - Crítica" },
+];
+
+const TIPOS_COMPRA = [
+  { value: "", label: "Selecione..." },
+  { value: "SGA", label: "SGA" }, { value: "OPEX", label: "OPEX" },
+  { value: "CAPEX", label: "CAPEX" }, { value: "ESTOQUE", label: "ESTOQUE" },
 ];
 
 // ── SearchableSelect ──────────────────────────────────────────────────────────
@@ -364,6 +372,7 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
   modoCompra?: boolean;
 }) {
   const voltar   = useVoltarCriacao("/compras/necessidades");
+  const noDrawer = !!useCreateDrawer();
   const { user } = useSession();
   const { confirmCreated, dialog } = useCreateFlow({
     entity: modoCompra ? "compra" : "solicitação",
@@ -618,20 +627,19 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
   }
 
   const variasEmpresas = (user?.empresas?.length ?? 0) > 1;
-  const colunaLocal = variasEmpresas ? "col-span-3" : "col-span-4";
 
   return (
     <div>
-      <form onSubmit={handleSubmit} className={cn("space-y-5", !modoCompra && "max-w-5xl")}>
-        {serverError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{serverError}</div>}
+      <form onSubmit={handleSubmit}>
+        {/* Os dois lugares onde o form mora (CreateDrawer e /nova) já dão o
+            respiro lateral; o EtapaLayout aqui só empilha as seções. */}
+        <EtapaLayout className={cn("px-0 pb-0", !modoCompra && "max-w-5xl")}>
+          {serverError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{serverError}</div>}
 
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-base">Informações</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-12 gap-x-4 gap-y-3">
+          <EtapaSecao titulo={modoCompra ? "Dados da compra" : "Dados da solicitação"}>
+            <EtapaCampos>
               {variasEmpresas && (
-                <div className="col-span-3 space-y-1.5">
-                  <Label>Empresa</Label>
+                <EtapaCampoForm rotulo="Empresa">
                   <ComboboxWithCreate
                     value={empresaId || user?.activeEmpresaId || ""}
                     onChange={(v) => setEmpresaId(v)}
@@ -639,63 +647,42 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                     triggerClassName="h-9 rounded-lg"
                     options={user!.empresas!.map((e) => ({ value: e.id, label: e.nome }))}
                   />
-                </div>
+                </EtapaCampoForm>
               )}
 
-              <div className={cn(colunaLocal, "space-y-1.5")}>
-                <Label>Filial <span className="text-red-500">*</span></Label>
+              <EtapaCampoForm rotulo="Filial" obrigatorio erro={submitted && !filialId ? "Filial é obrigatória" : undefined}>
                 <SearchableSelect options={filiais} value={filialId}
                   onChange={(v) => { setFilialId(v); setLocalEstoqueId(""); }}
                   placeholder="Filtrar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial}
                   error={submitted && !filialId} />
-                {submitted && !filialId && <p className="text-xs text-red-500">Filial é obrigatória</p>}
-              </div>
+              </EtapaCampoForm>
 
-              <div className={cn(colunaLocal, "space-y-1.5")}>
-                <Label>Local de Estoque <span className="text-red-500">*</span></Label>
+              <EtapaCampoForm rotulo="Local de estoque" obrigatorio
+                erro={submitted && !!filialId && !localEstoqueId ? "Local de Estoque é obrigatório" : undefined}>
                 <SearchableSelect options={locaisEstoque} value={localEstoqueId} onChange={setLocalEstoqueId}
                   placeholder={filialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Filtrar local...") : "Selecione a filial primeiro"}
                   getLabel={(l) => l.nome} disabled={!filialId}
                   error={submitted && !!filialId && !localEstoqueId} />
-                {submitted && !!filialId && !localEstoqueId && (
-                  <p className="text-xs text-red-500">Local de Estoque é obrigatório</p>
-                )}
-              </div>
+              </EtapaCampoForm>
 
-              <div className={cn(colunaLocal, "space-y-1.5")}>
-                <Label>Centro de Custo</Label>
+              <EtapaCampoForm rotulo="Centro de custo" span={variasEmpresas ? undefined : 2}>
                 <SelectField options={centrosCusto} value={centroCustoId} onChange={setCentroCustoId}
                   placeholder="Selecionar centro de custo..." getLabel={(c) => `${c.codigo} - ${c.nome}`} />
-              </div>
+              </EtapaCampoForm>
 
-              <div className="col-span-4 space-y-1.5">
-                <Label>Descrição <span className="text-red-500">*</span></Label>
+              <EtapaCampoForm rotulo="Descrição" obrigatorio span={2}>
                 <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="O que está sendo solicitado..." />
-              </div>
-              <div className="col-span-4 space-y-1.5">
-                <Label>Motivo <span className="text-red-500">*</span></Label>
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Motivo" obrigatorio span={2} erro={submitted && !motivo.trim() ? "Motivo é obrigatório" : undefined}>
                 <Input
                   value={motivo}
                   onChange={(e) => setMotivo(e.target.value)}
                   placeholder="Motivo da solicitação..."
                   className={submitted && !motivo.trim() ? "border-red-400 focus-visible:ring-red-200" : ""}
                 />
-                {submitted && !motivo.trim() && <p className="text-xs text-red-500">Motivo é obrigatório</p>}
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label>Prioridade <span className="text-red-500">*</span></Label>
-                <select value={prioridade} onChange={(e) => setPrioridade(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
-                  {PRIORIDADES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label>Entrega desejada</Label>
-                <DatePicker value={entregaDesejada} onChange={(v) => setEntregaDesejada(v)} />
-              </div>
+              </EtapaCampoForm>
 
-              <div className="col-span-3 space-y-1.5">
-                <Label>Solicitante <span className="text-red-500">*</span></Label>
+              <EtapaCampoForm rotulo="Solicitante" obrigatorio erro={submitted && !colaboradorId ? "Solicitante é obrigatório" : undefined}>
                 <SearchableSelect
                   options={colaboradores}
                   value={colaboradorId}
@@ -709,10 +696,8 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                   getLabel={(c) => c.nome}
                   error={submitted && !colaboradorId}
                 />
-                {submitted && !colaboradorId && <p className="text-xs text-red-500">Solicitante é obrigatório</p>}
-              </div>
-              <div className="col-span-3 space-y-1.5">
-                <Label>Setor <span className="text-red-500">*</span></Label>
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Setor" obrigatorio erro={submitted && !setorId ? "Setor é obrigatório" : undefined}>
                 <SelectField
                   options={setores.filter((s) => s.ativo)}
                   value={setorId}
@@ -720,19 +705,20 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                   placeholder="Selecionar setor..."
                   getLabel={(s) => s.nome}
                 />
-                {submitted && !setorId && <p className="text-xs text-red-500">Setor é obrigatório</p>}
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label>Tipo de compra</Label>
-                <select value={tipoCompra} onChange={(e) => setTipoCompra(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-1 focus:ring-blue-400">
-                  <option value="">Selecione...</option>
-                  <option value="SGA">SGA</option><option value="OPEX">OPEX</option>
-                  <option value="CAPEX">CAPEX</option><option value="ESTOQUE">ESTOQUE</option>
-                </select>
-              </div>
-              <div className="col-span-4 space-y-1.5">
-                <Label>Observação</Label>
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Prioridade" obrigatorio>
+                <SelectMenu value={String(prioridade)} onChange={(v) => setPrioridade(Number(v))}
+                  options={PRIORIDADES.map((p) => ({ value: String(p.value), label: p.label }))} className="w-full" />
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Entrega desejada">
+                <DatePicker value={entregaDesejada} onChange={(v) => setEntregaDesejada(v)} />
+              </EtapaCampoForm>
+
+              <EtapaCampoForm rotulo="Tipo de compra">
+                <SelectMenu value={tipoCompra} onChange={setTipoCompra} options={TIPOS_COMPRA}
+                  placeholder="Selecione..." className="w-full" />
+              </EtapaCampoForm>
+              <EtapaCampoForm rotulo="Observação" span={3}>
                 <Textarea
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
@@ -740,88 +726,95 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                   rows={1}
                   className="min-h-9 resize-y"
                 />
-              </div>
+              </EtapaCampoForm>
+            </EtapaCampos>
+          </EtapaSecao>
+
+          {/* ── Itens ── */}
+          <EtapaSecao
+            titulo="Itens"
+            semPadding
+            acoes={<Button type="button" size="sm" variant="outline" onClick={addRow}><Plus className="w-4 h-4 mr-1" />Adicionar item</Button>}
+          >
+            <div className="overflow-x-auto">
+              <table className={tabela.table}>
+                <thead className={tabela.thead}>
+                  <tr>
+                    <th className={tabela.th}>Produto</th>
+                    <th className={cn(tabela.th, "w-36")}>Quantidade</th>
+                    <th className={cn(tabela.th, "w-32")}>Unidade</th>
+                    <th className={cn(tabela.th, "w-56")}>Observação</th>
+                    <th className={cn(tabela.th, "w-12")} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {itens.map((row, i) => {
+                    const units = itemUnidades.get(row.itemId) ?? [];
+                    return (
+                      <tr key={i} className={tabela.tr}>
+                        <td className="px-4 py-2 min-w-[18rem]">
+                          <ComboboxWithCreate
+                            options={itemOptions.map((opt) => {
+                              const saldo = (opt.estoqueItems ?? []).reduce(
+                                (sum, ei) => sum + parseFloat(String(ei.quantidadeAtual ?? 0)), 0
+                              );
+                              return { value: opt.id, label: `[${opt.codigo}] ${opt.descricao}`, code: opt.codigo, saldo };
+                            })}
+                            value={row.itemId}
+                            onChange={(v) => handleItemChange(i, v)}
+                            allowNone={false}
+                            triggerClassName="h-9 rounded-lg"
+                            placeholder="Selecionar produto..."
+                            createHref="/suprimentos/produtos/novo"
+                            createParam="descricao"
+                            createLabel="produto"
+                            renderCreateModal={({ initialValue, onCreated, onClose }) => (
+                              <ProdutoQuickModal
+                                initialValue={initialValue}
+                                onCreated={(novo) => {
+                                  setItemOptions((prev) => [...prev, novo]);
+                                  onCreated(novo.id, `[${novo.codigo}] ${novo.descricao}`);
+                                }}
+                                onClose={onClose}
+                              />
+                            )}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <Input inputMode="decimal" value={row.quantidade} onChange={(e) => updateRow(i, "quantidade", e.target.value.replace(/[^0-9.,]/g, ""))} />
+                        </td>
+                        <td className="px-4 py-2">
+                          <UnitSelect
+                            value={row.unidade}
+                            options={units}
+                            onChange={(v) => updateRow(i, "unidade", v)}
+                            disabled={!row.itemId}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <Input value={row.observacao} onChange={(e) => updateRow(i, "observacao", e.target.value)} placeholder="Opcional..." />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          {itens.length > 1 && (
+                            <Button type="button" variant="ghost" size="sm" className="text-red-500" onClick={() => removeRow(i)} title="Remover item">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </CardContent>
-        </Card>
+          </EtapaSecao>
 
-        {/* ── Itens ── */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Itens Solicitados</CardTitle>
-            <Button type="button" size="sm" variant="outline" onClick={addRow}><Plus className="w-4 h-4 mr-1" />Adicionar Item</Button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {itens.map((row, i) => {
-              const units = itemUnidades.get(row.itemId) ?? [];
-              return (
-                <div key={i} className="grid grid-cols-12 gap-3 items-end">
-                  <div className="col-span-5 space-y-1.5">
-                    {i === 0 && <Label>Produto</Label>}
-                    <ComboboxWithCreate
-                      options={itemOptions.map((opt) => {
-                        const saldo = (opt.estoqueItems ?? []).reduce(
-                          (sum, ei) => sum + parseFloat(String(ei.quantidadeAtual ?? 0)), 0
-                        );
-                        return { value: opt.id, label: `[${opt.codigo}] ${opt.descricao}`, code: opt.codigo, saldo };
-                      })}
-                      value={row.itemId}
-                      onChange={(v) => handleItemChange(i, v)}
-                      allowNone={false}
-                      triggerClassName="h-9 rounded-lg"
-                      placeholder="Selecionar produto..."
-                      createHref="/suprimentos/produtos/novo"
-                      createParam="descricao"
-                      createLabel="produto"
-                      renderCreateModal={({ initialValue, onCreated, onClose }) => (
-                        <ProdutoQuickModal
-                          initialValue={initialValue}
-                          onCreated={(novo) => {
-                            setItemOptions((prev) => [...prev, novo]);
-                            onCreated(novo.id, `[${novo.codigo}] ${novo.descricao}`);
-                          }}
-                          onClose={onClose}
-                        />
-                      )}
-                    />
-                  </div>
-                  <div className="col-span-2 space-y-1.5">
-                    {i === 0 && <Label>Quantidade</Label>}
-                    <Input inputMode="decimal" value={row.quantidade} onChange={(e) => updateRow(i, "quantidade", e.target.value.replace(/[^0-9.,]/g, ""))} />
-                  </div>
-                  <div className="col-span-2 space-y-1.5">
-                    {i === 0 && <Label>Unidade</Label>}
-                    <UnitSelect
-                      value={row.unidade}
-                      options={units}
-                      onChange={(v) => updateRow(i, "unidade", v)}
-                      disabled={!row.itemId}
-                    />
-                  </div>
-                  <div className={cn(itens.length > 1 ? "col-span-2" : "col-span-3", "space-y-1.5")}>
-                    {i === 0 && <Label>Observação</Label>}
-                    <Input value={row.observacao} onChange={(e) => updateRow(i, "observacao", e.target.value)} placeholder="Opcional..." />
-                  </div>
-                  {itens.length > 1 && (
-                    <div className="col-span-1 flex justify-center">
-                      <Button type="button" variant="ghost" size="sm" className="text-red-500" onClick={() => removeRow(i)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        {modoCompra && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Fornecedores e preços</CardTitle>
-              <p className="text-xs text-muted-foreground">Um fornecedor já basta. O aprovador vê as propostas recebidas e pode pedir mais comparação.</p>
-            </CardHeader>
-            <CardContent>
+          {modoCompra && (
+            <EtapaSecao
+              titulo="Propostas dos fornecedores"
+              semPadding
+              acoes={<span className="hidden md:inline text-xs text-muted-foreground">Um fornecedor já basta. O aprovador vê as propostas recebidas e pode pedir mais comparação.</span>}
+            >
               <PropostasCompraGrid
                 itens={itensDaCompra}
                 nomeItem={nomeItem}
@@ -831,27 +824,32 @@ export default function SolicitacaoCreateForm({ modoCompra = false }: {
                 vencedorId={vencedorId}
                 onVencedor={setVencedorId}
               />
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="flex gap-3 justify-end">
-          <Button type="button" variant="outline" onClick={voltar}>Cancelar</Button>
-          {modoCompra ? (
-            <>
-              <Button type="submit" variant="outline" disabled={saving} onClick={() => { enviarAprovacaoRef.current = false; }}>
-                <Save className="w-4 h-4 mr-1" />Salvar rascunho
-              </Button>
-              <Button type="submit" disabled={saving} onClick={() => { enviarAprovacaoRef.current = true; }}>
-                {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Send className="w-4 h-4 mr-1" />Salvar e enviar para aprovação</>}
-              </Button>
-            </>
-          ) : (
-            <Button type="submit" disabled={saving}>
-              {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Criar Solicitação</>}
-            </Button>
+            </EtapaSecao>
           )}
-        </div>
+
+          {/* A barra do molde sangra -mx-8 (padding da página); no drawer o
+              padding é px-6/py-5, então reajusta aqui. `contents` mantém o
+              sticky preso à coluna do layout. */}
+          <div className={cn("contents", noDrawer && "[&>div]:-mx-6 [&>div]:px-6 [&>div]:-mb-5")}>
+            <EtapaRodapeAcoes info={<>Campos com <span className="text-danger">*</span> são obrigatórios.</>}>
+              <Button type="button" variant="outline" onClick={voltar}>Cancelar</Button>
+              {modoCompra ? (
+                <>
+                  <Button type="submit" variant="outline" disabled={saving} onClick={() => { enviarAprovacaoRef.current = false; }}>
+                    <Save className="w-4 h-4 mr-1" />Salvar rascunho
+                  </Button>
+                  <Button type="submit" disabled={saving} onClick={() => { enviarAprovacaoRef.current = true; }}>
+                    {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Send className="w-4 h-4 mr-1" />Salvar e enviar para aprovação</>}
+                  </Button>
+                </>
+              ) : (
+                <Button type="submit" disabled={saving}>
+                  {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Criar Solicitação</>}
+                </Button>
+              )}
+            </EtapaRodapeAcoes>
+          </div>
+        </EtapaLayout>
       </form>
 
       {/* ── Duplicate Warning Modal ──────────────────────────────────────────── */}

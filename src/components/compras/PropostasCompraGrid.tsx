@@ -8,6 +8,7 @@ import { Check, Plus, X } from "lucide-react";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { tabela } from "@/components/compras/etapa/EtapaUI";
 import {
   numeroDigitado, propostaCompleta, subtotalDaProposta, totalDaProposta, vencedorDaCompra,
   type ItemCompra, type PropostaCompra,
@@ -45,6 +46,10 @@ export function paraProposta(p: PropostaForm): PropostaCompra {
 const MAX_FORNECEDORES = 5;
 // Produto e rótulos ficam visíveis quando a grade rola para o lado.
 const COLUNA_FIXA = "sticky left-0 z-10 bg-card w-[260px] min-w-[260px] max-w-[260px]";
+// Células da grade no molde da tabela de etapa (EtapaUI.tabela), mais baixas
+// porque levam inputs.
+const CELULA_ROTULO = "px-4 py-2 text-foreground";
+const CELULA_INPUT = "px-2 py-1.5";
 const soNumero = (v: string) => v.replace(/[^0-9.,]/g, "");
 
 export default function PropostasCompraGrid({
@@ -65,14 +70,14 @@ export default function PropostasCompraGrid({
     onChange(propostas.map((p) => (p.chave === chave ? { ...p, ...mudanca } : p)));
 
   if (itens.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4 text-center">Escolha os produtos acima para informar os preços.</p>;
+    return <p className="text-sm text-muted-foreground px-5 py-6 text-center">Escolha os produtos acima para informar os preços.</p>;
   }
 
   const linhaCampo = (rotulo: string, campo: "frete" | "vrDesconto" | "condicoesPagamento" | "prazoEntregaDias", numerico = true) => (
-    <tr className="border-t border-border">
-      <td className={cn(COLUNA_FIXA, "py-1.5 pr-3 text-muted-foreground")}>{rotulo}</td>
+    <tr className={tabela.tr}>
+      <td className={cn(COLUNA_FIXA, CELULA_ROTULO, "text-muted-foreground")}>{rotulo}</td>
       {propostas.map((p) => (
-        <td key={p.chave} className="py-1.5 px-1">
+        <td key={p.chave} className={CELULA_INPUT}>
           <Input
             aria-label={rotulo}
             inputMode={numerico ? "decimal" : undefined}
@@ -88,12 +93,12 @@ export default function PropostasCompraGrid({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left">
-            <th className={cn(COLUNA_FIXA, "pb-2 pr-3 font-medium text-muted-foreground")}>Produto</th>
+      <table className={tabela.table}>
+        <thead className={tabela.thead}>
+          <tr>
+            <th className={cn(COLUNA_FIXA, tabela.th, "bg-muted")}>Produto</th>
             {propostas.map((p) => (
-              <th key={p.chave} className="pb-2 px-1 font-normal min-w-[170px]">
+              <th key={p.chave} className="px-2 py-2 font-normal min-w-[170px]">
                 <div className="flex items-center gap-1">
                   <div className="flex-1 min-w-0">
                     <ComboboxWithCreate
@@ -116,7 +121,7 @@ export default function PropostasCompraGrid({
                 </div>
               </th>
             ))}
-            <th className="pb-2 pl-2 w-10">
+            <th className="px-2 py-2 w-10">
               {propostas.length > 0 && propostas.length < MAX_FORNECEDORES && (
                 <Button type="button" variant="outline" size="sm" title="Adicionar fornecedor" onClick={() => onChange([...propostas, novaPropostaForm()])}>
                   <Plus className="w-4 h-4" />
@@ -127,15 +132,15 @@ export default function PropostasCompraGrid({
         </thead>
         <tbody>
           {itens.map((i) => (
-            <tr key={i.itemId} className="border-t border-border">
-              <td className={cn(COLUNA_FIXA, "py-1.5 pr-3")} title={nomeItem(i.itemId)}>
+            <tr key={i.itemId} className={tabela.tr}>
+              <td className={cn(COLUNA_FIXA, CELULA_ROTULO)} title={nomeItem(i.itemId)}>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="truncate">{nomeItem(i.itemId)}</span>
                   <span className="shrink-0 text-xs text-muted-foreground tabular-nums">× {i.quantidade.toLocaleString("pt-BR")}</span>
                 </div>
               </td>
               {propostas.map((p) => (
-                <td key={p.chave} className="py-1.5 px-1">
+                <td key={p.chave} className={CELULA_INPUT}>
                   <Input
                     aria-label={`Preço unitário de ${nomeItem(i.itemId)}`}
                     inputMode="decimal"
@@ -155,45 +160,49 @@ export default function PropostasCompraGrid({
               {linhaCampo("Desconto (R$)", "vrDesconto")}
               {linhaCampo("Condição de pagamento", "condicoesPagamento", false)}
               {linhaCampo("Prazo de entrega (dias)", "prazoEntregaDias")}
-              <tr className="border-t border-border font-semibold">
-                <td className={cn(COLUNA_FIXA, "py-2 pr-3")}>Total</td>
-                {calculadas.map((p, idx) => (
-                  <td key={propostas[idx].chave} className="py-2 px-1 text-right tabular-nums">
-                    {subtotalDaProposta(itens, p) > 0 ? formatBRL(totalDaProposta(itens, p)) : "—"}
-                  </td>
-                ))}
-                <td />
-              </tr>
-              <tr>
-                <td className={cn(COLUNA_FIXA, "py-1.5 pr-3 text-muted-foreground")}>Fornecedor indicado</td>
-                {calculadas.map((p, idx) => {
-                  const completa = !!p.fornecedorId && propostaCompleta(itens, p);
-                  const indicado = completa && p.fornecedorId === vencedor;
-                  return (
-                    <td key={propostas[idx].chave} className="py-1.5 px-1">
-                      <button
-                        type="button"
-                        disabled={!completa}
-                        onClick={() => onVencedor(p.fornecedorId)}
-                        className={cn(
-                          "w-full h-8 rounded-lg border text-xs font-medium inline-flex items-center justify-center gap-1 transition-colors disabled:opacity-40",
-                          indicado ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:bg-muted",
-                        )}
-                      >
-                        {indicado && <Check className="w-3.5 h-3.5" />}
-                        {indicado ? "Indicado" : "Indicar"}
-                      </button>
-                    </td>
-                  );
-                })}
-                <td />
-              </tr>
             </>
           )}
         </tbody>
+        {propostas.length > 0 && (
+          <tfoot className={cn(tabela.tfoot, "bg-card")}>
+            <tr className={tabela.tr}>
+              <td className={cn(COLUNA_FIXA, CELULA_ROTULO)}>Total</td>
+              {calculadas.map((p, idx) => (
+                <td key={propostas[idx].chave} className="px-2 py-2.5 text-right tabular-nums text-foreground whitespace-nowrap">
+                  {subtotalDaProposta(itens, p) > 0 ? formatBRL(totalDaProposta(itens, p)) : "—"}
+                </td>
+              ))}
+              <td />
+            </tr>
+            <tr className="font-normal">
+              <td className={cn(COLUNA_FIXA, CELULA_ROTULO, "text-muted-foreground")}>Fornecedor indicado</td>
+              {calculadas.map((p, idx) => {
+                const completa = !!p.fornecedorId && propostaCompleta(itens, p);
+                const indicado = completa && p.fornecedorId === vencedor;
+                return (
+                  <td key={propostas[idx].chave} className={CELULA_INPUT}>
+                    <button
+                      type="button"
+                      disabled={!completa}
+                      onClick={() => onVencedor(p.fornecedorId)}
+                      className={cn(
+                        "w-full h-8 rounded-lg border text-xs font-medium inline-flex items-center justify-center gap-1 transition-colors disabled:opacity-40",
+                        indicado ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      {indicado && <Check className="w-3.5 h-3.5" />}
+                      {indicado ? "Indicado" : "Indicar"}
+                    </button>
+                  </td>
+                );
+              })}
+              <td />
+            </tr>
+          </tfoot>
+        )}
       </table>
       {propostas.length === 0 && (
-        <div className="flex justify-center py-3">
+        <div className="flex justify-center py-4">
           <Button type="button" variant="outline" size="sm" onClick={() => onChange([novaPropostaForm()])}>
             <Plus className="w-4 h-4 mr-1" />Adicionar fornecedor
           </Button>

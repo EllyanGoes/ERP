@@ -8,7 +8,8 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EtapaLayout, EtapaSecao, EtapaRodapeAcoes } from "@/components/compras/etapa/EtapaUI";
+import SelectMenu from "@/components/shared/SelectMenu";
 import { decimalToNumber, formatBRL } from "@/lib/utils";
 import { useTabTitle, useTabsContext } from "@/lib/tabs-context";
 import { useSession } from "@/lib/session-context";
@@ -22,6 +23,9 @@ import ModoToggle from "@/components/suprimentos/ModoToggle";
 import DuplicatasTab from "@/components/suprimentos/DuplicatasTab";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { previewDuplicatasDE, type CondicaoFull, type ParcelaCustomRow } from "@/lib/duplicatas-preview";
+
+/** Rótulo de campo no padrão das telas de etapa da compra (EtapaCampo). */
+const ROTULO = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
 
 const UF_LIST = [
   "AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT",
@@ -1216,7 +1220,7 @@ export default function NovoDocumentoEntradaPage() {
         }
       />
 
-      <div className="px-6 pb-6 space-y-4">
+      <EtapaLayout>
         {error && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">
             {error}
@@ -1339,28 +1343,26 @@ export default function NovoDocumentoEntradaPage() {
         )}
 
         {/* ── Dados do Documento ───────────────────────────────────────────── */}
-        <Card size="sm">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-base">Dados do Documento</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2.5">
+        <EtapaSecao titulo="Dados da nota">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
 
             {/* Tipo de Documento */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Tipo de Documento</Label>
-              <select
+              <Label className={ROTULO}>Tipo de Documento</Label>
+              <SelectMenu
                 value={tipoDocumento}
-                onChange={(e) => setTipoDocumento(e.target.value as "NF" | "SN")}
-                className="w-full h-9 px-3 border border-border rounded-md text-sm bg-card focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="NF">NF — Nota Fiscal</option>
-                <option value="SN">CI — Controle Interno</option>
-              </select>
+                onChange={(v) => setTipoDocumento(v as "NF" | "SN")}
+                triggerClassName="w-full h-9"
+                options={[
+                  { value: "NF", label: "NF — Nota Fiscal" },
+                  { value: "SN", label: "CI — Controle Interno" },
+                ]}
+              />
             </div>
 
             {/* Número NF */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
+              <Label className={cn(ROTULO, isSN && "text-muted-foreground/60")}>
                 Número NF
                 {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
@@ -1375,7 +1377,7 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* Série */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
+              <Label className={cn(ROTULO, isSN && "text-muted-foreground/60")}>
                 Série
                 {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
@@ -1390,7 +1392,7 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* DT Emissão */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">DT Emissão</Label>
+              <Label className={ROTULO}>DT Emissão</Label>
               <DatePicker
                 value={dtEmissao}
                 onChange={(v) => setDtEmissao(v)}
@@ -1399,7 +1401,7 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* Espécie de Documento */}
             <div className="space-y-1.5">
-              <Label className={cn("text-xs", isSN ? "text-muted-foreground/60" : "text-muted-foreground")}>
+              <Label className={cn(ROTULO, isSN && "text-muted-foreground/60")}>
                 Espécie de Documento
                 {isSN && <span className="ml-1 text-[10px] italic">(não obrigatório)</span>}
               </Label>
@@ -1414,7 +1416,7 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* UF Origem */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">UF Origem</Label>
+              <Label className={ROTULO}>UF Origem</Label>
               <ComboboxWithCreate
                 value={ufOrigem}
                 onChange={(v) => setUfOrigem(v)}
@@ -1427,21 +1429,17 @@ export default function NovoDocumentoEntradaPage() {
 
             {/* Loja (read-only) */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Loja</Label>
+              <Label className={ROTULO}>Loja</Label>
               <Input value="01" readOnly className="bg-muted" />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </EtapaSecao>
 
         {/* ── Fornecedor ───────────────────────────────────────────────────── */}
-        <Card size="sm">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-base">Fornecedor</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-x-4 gap-y-2.5">
+        <EtapaSecao titulo="Fornecedor">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-x-6 gap-y-4">
               <div className="space-y-1.5 md:col-span-2">
-                <Label className="text-xs text-muted-foreground">
+                <Label className={ROTULO}>
                   Fornecedor <span className="text-red-500">*</span>
                 </Label>
                 <ComboboxWithCreate
@@ -1460,7 +1458,7 @@ export default function NovoDocumentoEntradaPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">CNPJ / CPF</Label>
+                <Label className={ROTULO}>CNPJ / CPF</Label>
                 <Input
                   value={selectedFornecedor?.cpfCnpj ?? "—"}
                   readOnly
@@ -1468,15 +1466,20 @@ export default function NovoDocumentoEntradaPage() {
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </EtapaSecao>
 
         {/* ── Items Table ──────────────────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center gap-x-4 gap-y-2 flex-wrap">
-            <CardTitle className="text-base">Itens</CardTitle>
-
-            <div className="ml-auto flex items-center gap-x-4 gap-y-2 flex-wrap">
+        <EtapaSecao
+          titulo="Itens"
+          semPadding
+          acoes={
+            <Button type="button" size="sm" variant="outline" onClick={addRow}>
+              <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Item
+            </Button>
+          }
+        >
+          <div className="px-5 py-3 border-b border-border">
+            <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
               {/* TES — modo Global/Por Item */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">TES:</span>
@@ -1549,13 +1552,8 @@ export default function NovoDocumentoEntradaPage() {
                   </div>
                 )}
               </div>
-
-              <Button type="button" size="sm" variant="outline" onClick={addRow}>
-                <Plus className="w-3.5 h-3.5 mr-1.5" /> Adicionar Item
-              </Button>
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
+          </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted border-b border-border">
@@ -1710,20 +1708,15 @@ export default function NovoDocumentoEntradaPage() {
                         <td className="px-2 py-1.5">
                           {unidadesItem && unidadesItem.length > 1 ? (
                             <div className="flex flex-col gap-0.5">
-                              <select
+                              <SelectMenu
                                 value={row.unidadeId}
-                                onChange={(e) => updateItem(row._key, "unidadeId", e.target.value)}
-                                className={cn(
-                                  "h-7 px-1.5 text-xs border rounded bg-card",
-                                  !unidadeSel?.base && "border-info text-info font-medium",
-                                )}
-                              >
-                                {unidadesItem.map((u) => (
-                                  <option key={u.unidadeId || "_base"} value={u.unidadeId}>
-                                    {u.base ? u.sigla : `${u.sigla} (×${u.fator})`}
-                                  </option>
-                                ))}
-                              </select>
+                                options={unidadesItem.map((u) => ({
+                                  value: u.unidadeId,
+                                  label: u.base ? u.sigla : `${u.sigla} (×${u.fator})`,
+                                }))}
+                                onChange={(v) => updateItem(row._key, "unidadeId", v)}
+                                triggerClassName={cn("h-7 text-xs", !unidadeSel?.base && "border-info text-info font-medium")}
+                              />
                               {!unidadeSel?.base && qtdRecebida > 0 && (
                                 <span className="text-[10px] text-muted-foreground leading-tight">
                                   = {(qtdRecebida * fatorSel).toLocaleString("pt-BR")} {baseSigla}
@@ -1863,8 +1856,7 @@ export default function NovoDocumentoEntradaPage() {
                 </tbody>
               </table>
             </div>
-          </CardContent>
-        </Card>
+        </EtapaSecao>
 
         {/* ── Abas (rodapé estilo Protheus): Duplicatas | Totais | Local | Outros ── */}
         <div className="bg-card rounded-xl border border-border overflow-hidden">
@@ -1908,7 +1900,7 @@ export default function NovoDocumentoEntradaPage() {
                   <>
                     <div className="space-y-1">
                       <span className="flex items-center gap-1.5">
-                        <Label className="text-xs text-muted-foreground">Condição de Pagamento</Label>
+                        <Label className={ROTULO}>Condição de Pagamento</Label>
                         <InfoHint>A condição estrutura o <b>prazo</b> do negócio (à vista, parcelado, sem vencimento).</InfoHint>
                       </span>
                       <ComboboxWithCreate
@@ -1921,7 +1913,7 @@ export default function NovoDocumentoEntradaPage() {
                     </div>
                     <div className="space-y-1">
                       <span className="flex items-center gap-1.5">
-                        <Label className="text-xs text-muted-foreground">Forma de Pagamento (prevista)</Label>
+                        <Label className={ROTULO}>Forma de Pagamento (prevista)</Label>
                         <InfoHint>A forma é o <b>meio de quitação</b> (PIX, dinheiro, permuta…) — <b>permuta</b> substitui dinheiro por bens/serviços, total ou parcialmente.</InfoHint>
                       </span>
                       <ComboboxWithCreate
@@ -1934,7 +1926,7 @@ export default function NovoDocumentoEntradaPage() {
                     </div>
                     <div className="space-y-1">
                       <span className="flex items-center gap-1.5">
-                        <Label className="text-xs text-muted-foreground">Natureza Financeira (prevista)</Label>
+                        <Label className={ROTULO}>Natureza Financeira (prevista)</Label>
                         <InfoHint>
                           Em compras de <b>estoque</b>, a natureza é só classificação gerencial (default do título; pode ser rateada na baixa) — a contabilização da entrada vem do <b>estoque/local</b>.
                         </InfoHint>
@@ -1964,17 +1956,17 @@ export default function NovoDocumentoEntradaPage() {
                 </span>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Valor pago</Label>
+                    <Label className={ROTULO}>Valor pago</Label>
                     <Input type="number" step="0.01" min="0" value={valorPagoAntecipado}
                       onChange={(e) => setValorPagoAntecipado(e.target.value)}
                       placeholder="0,00" className="h-9 text-right" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Data do pagamento</Label>
+                    <Label className={ROTULO}>Data do pagamento</Label>
                     <DatePicker value={dataPagoAntecipado} onChange={setDataPagoAntecipado} triggerClassName="h-9" />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Forma</Label>
+                    <Label className={ROTULO}>Forma</Label>
                     <ComboboxWithCreate
                       value={formaPagoAntecipadoId}
                       onChange={setFormaPagoAntecipadoId}
@@ -1985,7 +1977,7 @@ export default function NovoDocumentoEntradaPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Conta de saída</Label>
+                    <Label className={ROTULO}>Conta de saída</Label>
                     <ComboboxWithCreate
                       value={contaPagoAntecipadoId}
                       onChange={setContaPagoAntecipadoId}
@@ -2009,27 +2001,27 @@ export default function NovoDocumentoEntradaPage() {
             {aba === "totais" && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Vlr. Mercadoria</Label>
+                  <Label className={ROTULO}>Vlr. Mercadoria</Label>
                   <Input value={formatBRL(vlrMercadoria)} readOnly className="bg-muted text-right font-medium" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Frete</Label>
+                  <Label className={ROTULO}>Frete</Label>
                   <Input type="number" step="0.01" min="0" value={frete} onChange={(e) => setFrete(e.target.value)} placeholder="0,00" className="text-right" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Seguro</Label>
+                  <Label className={ROTULO}>Seguro</Label>
                   <Input type="number" step="0.01" min="0" value={seguro} onChange={(e) => setSeguro(e.target.value)} placeholder="0,00" className="text-right" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Despesas</Label>
+                  <Label className={ROTULO}>Despesas</Label>
                   <Input type="number" step="0.01" min="0" value={despesas} onChange={(e) => setDespesas(e.target.value)} placeholder="0,00" className="text-right" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Desconto</Label>
+                  <Label className={ROTULO}>Desconto</Label>
                   <Input type="number" step="0.01" min="0" value={desconto} onChange={(e) => setDesconto(e.target.value)} placeholder="0,00" className="text-right" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Vlr. Bruto</Label>
+                  <Label className={ROTULO}>Vlr. Bruto</Label>
                   <Input value={formatBRL(vlrBruto)} readOnly className="bg-info/10 text-right font-bold text-blue-900 border-info/30" />
                 </div>
               </div>
@@ -2038,7 +2030,7 @@ export default function NovoDocumentoEntradaPage() {
             {/* ── Aba Outros ──────────────────────────────────────────────── */}
             {aba === "outros" && (
               <div className="space-y-1.5 max-w-xs">
-                <Label>
+                <Label className={ROTULO}>
                   Responsável pela Conferência <span className="text-red-500">*</span>
                 </Label>
                 <ComboboxWithCreate
@@ -2058,15 +2050,15 @@ export default function NovoDocumentoEntradaPage() {
         </div>
 
         {/* ── Actions ──────────────────────────────────────────────────────── */}
-        <div className="flex gap-3">
+        <EtapaRodapeAcoes>
           <Button variant="outline" asChild>
             <Link href="/suprimentos/conferencias">Cancelar</Link>
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
             {submitting ? "Incluindo..." : "Incluir"}
           </Button>
-        </div>
-      </div>
+        </EtapaRodapeAcoes>
+      </EtapaLayout>
 
       {/* ── Popup de escolha (vincular PC ou avulso) ──────────────────────── */}
       {choiceOpen && (

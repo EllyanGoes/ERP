@@ -5,9 +5,6 @@ import { useTabTitle } from "@/lib/tabs-context";
 
 export default function NovaCotacaoPage() {
   useTabTitle("Nova Cotação");
-  return (
-    <div className="px-8 py-6">
-      <CotacaoCreateForm />
-    </div>
-  );
+  // Cabeçalho, grade e rodapé de ações vêm do próprio formulário (molde EtapaUI).
+  return <CotacaoCreateForm />;
 }
