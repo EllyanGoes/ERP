@@ -571,149 +571,9 @@ export default function CotacaoDetailPage() {
       />
 
       <EtapaLayout
-        lateral={
+        // Tabela larga na largura toda (sem rolagem lateral ao lado da lateral).
+        abaixo={
           <>
-            <EtapaSecao titulo="Fornecedores">
-              {cotacao.fornecedores.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum fornecedor vinculado.</p>
-              ) : (
-                <EtapaResumo
-                  linhas={[
-                    ...cotacao.fornecedores.map((cf) => {
-                      const badge = STATUS_RESP_BADGE[cf.status] ?? { label: cf.status, cls: "bg-muted text-muted-foreground" };
-                      const total = decimalToNumber(cf.totalCalculado);
-                      const melhor = cf.melhorOpcao && cf.status === "RESPONDIDA";
-                      return {
-                        rotulo: (
-                          <span className={cn("block truncate max-w-[12rem]", melhor && "text-success font-medium")} title={cf.fornecedor.razaoSocial}>
-                            {cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial}
-                          </span>
-                        ),
-                        valor: cf.status === "RESPONDIDA" && total > 0
-                          ? <span className={cn(melhor && "text-success font-semibold")}>{formatBRL(total)}</span>
-                          : <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap", badge.cls)}>{badge.label}</span>,
-                      };
-                    }),
-                    { rotulo: "Propostas registradas", valor: `${respondidas.length}/${cotacao.fornecedores.length}`, destaque: true },
-                    ...(melhorOpcao ? [{
-                      rotulo: "Melhor opção",
-                      valor: <span className="text-success">{melhorOpcao.fornecedor.nomeFantasia || melhorOpcao.fornecedor.razaoSocial}</span>,
-                    }] : []),
-                  ]}
-                />
-              )}
-            </EtapaSecao>
-
-            {(aprovacoes.length > 0 || pedidosGerados.length > 0) && (
-              <EtapaSecao titulo="Aprovação">
-                {aprovacoes.length > 0 && (
-                  <ul className="space-y-2 text-sm">
-                    {aprovacoes.map((a) => {
-                      const nome = a.aprovador?.nome ?? "Aprovador";
-                      const quando = a.respondidoEm ?? a.createdAt;
-                      const data = quando ? new Date(quando).toLocaleString("pt-BR") : "—";
-                      if (a.status === "APROVADO") return (
-                        <li key={a.id} className="flex items-start gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <p className="text-foreground"><b className="font-semibold">Aprovada</b> por {nome}</p>
-                            <p className="text-xs text-muted-foreground">{data}</p>
-                          </div>
-                        </li>
-                      );
-                      if (a.status === "REPROVADO") return (
-                        <li key={a.id} className="flex items-start gap-2">
-                          <XCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <p className="text-foreground"><b className="font-semibold">Reprovada</b> por {nome}{a.observacao ? ` — ${a.observacao}` : ""}</p>
-                            <p className="text-xs text-muted-foreground">{data}</p>
-                          </div>
-                        </li>
-                      );
-                      return (
-                        <li key={a.id} className="flex items-start gap-2">
-                          <Clock className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <p className="text-foreground">Aguardando aprovação de {nome}</p>
-                            <p className="text-xs text-muted-foreground">desde {data}</p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {pedidosGerados.length > 0 && (
-                  <div className={cn("flex items-center gap-2 text-sm text-success font-medium", aprovacoes.length > 0 && "mt-3 pt-3 border-t border-border")}>
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span>
-                      Pedido gerado:{" "}
-                      {pedidosGerados.map((p) => (
-                        <Link
-                          key={p.id}
-                          href={`/suprimentos/pedidos-compra/${p.id}`}
-                          className="underline hover:text-green-900 ml-1"
-                        >
-                          {p.numero}
-                        </Link>
-                      ))}
-                    </span>
-                  </div>
-                )}
-              </EtapaSecao>
-            )}
-          </>
-        }
-      >
-        {actionError && (
-          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
-        )}
-
-        <EtapaSecao titulo="Dados da cotação">
-          <EtapaCampos>
-            <EtapaCampo rotulo="Apelido">{cotacao.nome}</EtapaCampo>
-            <EtapaCampo rotulo="Criação">{cotacao.createdAt ? formatDate(cotacao.createdAt) : null}</EtapaCampo>
-            <EtapaCampo rotulo="Prazo de respostas">{cotacao.dataLimiteResposta ? formatDate(cotacao.dataLimiteResposta) : null}</EtapaCampo>
-            <EtapaCampo rotulo="Informações de entrega" span={2}>
-              {cotacao.infoEntrega && <span className="whitespace-pre-wrap">{cotacao.infoEntrega}</span>}
-            </EtapaCampo>
-            <EtapaCampo rotulo="Observações" span={2}>
-              {cotacao.observacoes && <span className="whitespace-pre-wrap">{cotacao.observacoes}</span>}
-            </EtapaCampo>
-            {/* Status no selo da barra de ações; melhor opção na lateral "Fornecedores". */}
-          </EtapaCampos>
-
-          {/* Dados da solicitação (SC) — na página da compra a aba Solicitação já mostra. */}
-          {cotacao.necessidade && (
-            <ForaDaCompra>
-              <div className="mt-4 pt-4 border-t border-border">
-                <EtapaCampos>
-                  <EtapaCampo rotulo="Solicitação vinculada">
-                    <Link
-                      href={`/compras/necessidades/${cotacao.necessidade.id}`}
-                      className="font-mono font-semibold text-info hover:underline"
-                    >
-                      {cotacao.numeroCompra ?? cotacao.necessidade.numero}
-                    </Link>
-                  </EtapaCampo>
-                  <EtapaCampo rotulo="Setor">
-                    {cotacao.necessidade.setor
-                      ? [cotacao.necessidade.setor.pai?.nome, cotacao.necessidade.setor.nome].filter(Boolean).join(" / ")
-                      : null}
-                  </EtapaCampo>
-                  <EtapaCampo rotulo="Solicitante">
-                    {cotacao.necessidade.colaborador?.nome || cotacao.necessidade.solicitante}
-                  </EtapaCampo>
-                  <EtapaCampo rotulo="Motivo">{cotacao.necessidade.motivo}</EtapaCampo>
-                  <EtapaCampo rotulo="Descrição" span={4}>
-                    {cotacao.necessidade.justificativa && <span className="whitespace-pre-wrap">{cotacao.necessidade.justificativa}</span>}
-                  </EtapaCampo>
-                </EtapaCampos>
-              </div>
-            </ForaDaCompra>
-          )}
-          <Autoria criadoPor={cotacao.criadoPor} atualizadoPor={cotacao.atualizadoPor} className="mt-4" />
-        </EtapaSecao>
-
         {/* ── Propostas: itens da cotação × propostas dos fornecedores (matriz) ── */}
         <EtapaSecao
           titulo="Propostas"
@@ -1103,6 +963,151 @@ export default function CotacaoDetailPage() {
             </p>
           )}
         </EtapaSecao>
+          </>
+        }
+        lateral={
+          <>
+            <EtapaSecao titulo="Fornecedores">
+              {cotacao.fornecedores.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum fornecedor vinculado.</p>
+              ) : (
+                <EtapaResumo
+                  linhas={[
+                    ...cotacao.fornecedores.map((cf) => {
+                      const badge = STATUS_RESP_BADGE[cf.status] ?? { label: cf.status, cls: "bg-muted text-muted-foreground" };
+                      const total = decimalToNumber(cf.totalCalculado);
+                      const melhor = cf.melhorOpcao && cf.status === "RESPONDIDA";
+                      return {
+                        rotulo: (
+                          <span className={cn("block truncate max-w-[12rem]", melhor && "text-success font-medium")} title={cf.fornecedor.razaoSocial}>
+                            {cf.fornecedor.nomeFantasia || cf.fornecedor.razaoSocial}
+                          </span>
+                        ),
+                        valor: cf.status === "RESPONDIDA" && total > 0
+                          ? <span className={cn(melhor && "text-success font-semibold")}>{formatBRL(total)}</span>
+                          : <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap", badge.cls)}>{badge.label}</span>,
+                      };
+                    }),
+                    { rotulo: "Propostas registradas", valor: `${respondidas.length}/${cotacao.fornecedores.length}`, destaque: true },
+                    ...(melhorOpcao ? [{
+                      rotulo: "Melhor opção",
+                      valor: <span className="text-success">{melhorOpcao.fornecedor.nomeFantasia || melhorOpcao.fornecedor.razaoSocial}</span>,
+                    }] : []),
+                  ]}
+                />
+              )}
+            </EtapaSecao>
+
+            {(aprovacoes.length > 0 || pedidosGerados.length > 0) && (
+              <EtapaSecao titulo="Aprovação">
+                {aprovacoes.length > 0 && (
+                  <ul className="space-y-2 text-sm">
+                    {aprovacoes.map((a) => {
+                      const nome = a.aprovador?.nome ?? "Aprovador";
+                      const quando = a.respondidoEm ?? a.createdAt;
+                      const data = quando ? new Date(quando).toLocaleString("pt-BR") : "—";
+                      if (a.status === "APROVADO") return (
+                        <li key={a.id} className="flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-foreground"><b className="font-semibold">Aprovada</b> por {nome}</p>
+                            <p className="text-xs text-muted-foreground">{data}</p>
+                          </div>
+                        </li>
+                      );
+                      if (a.status === "REPROVADO") return (
+                        <li key={a.id} className="flex items-start gap-2">
+                          <XCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-foreground"><b className="font-semibold">Reprovada</b> por {nome}{a.observacao ? ` — ${a.observacao}` : ""}</p>
+                            <p className="text-xs text-muted-foreground">{data}</p>
+                          </div>
+                        </li>
+                      );
+                      return (
+                        <li key={a.id} className="flex items-start gap-2">
+                          <Clock className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-foreground">Aguardando aprovação de {nome}</p>
+                            <p className="text-xs text-muted-foreground">desde {data}</p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {pedidosGerados.length > 0 && (
+                  <div className={cn("flex items-center gap-2 text-sm text-success font-medium", aprovacoes.length > 0 && "mt-3 pt-3 border-t border-border")}>
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>
+                      Pedido gerado:{" "}
+                      {pedidosGerados.map((p) => (
+                        <Link
+                          key={p.id}
+                          href={`/suprimentos/pedidos-compra/${p.id}`}
+                          className="underline hover:text-green-900 ml-1"
+                        >
+                          {p.numero}
+                        </Link>
+                      ))}
+                    </span>
+                  </div>
+                )}
+              </EtapaSecao>
+            )}
+          </>
+        }
+      >
+        {actionError && (
+          <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
+        )}
+
+        <EtapaSecao titulo="Dados da cotação">
+          <EtapaCampos>
+            <EtapaCampo rotulo="Apelido">{cotacao.nome}</EtapaCampo>
+            <EtapaCampo rotulo="Criação">{cotacao.createdAt ? formatDate(cotacao.createdAt) : null}</EtapaCampo>
+            <EtapaCampo rotulo="Prazo de respostas">{cotacao.dataLimiteResposta ? formatDate(cotacao.dataLimiteResposta) : null}</EtapaCampo>
+            <EtapaCampo rotulo="Informações de entrega" span={2}>
+              {cotacao.infoEntrega && <span className="whitespace-pre-wrap">{cotacao.infoEntrega}</span>}
+            </EtapaCampo>
+            <EtapaCampo rotulo="Observações" span={2}>
+              {cotacao.observacoes && <span className="whitespace-pre-wrap">{cotacao.observacoes}</span>}
+            </EtapaCampo>
+            {/* Status no selo da barra de ações; melhor opção na lateral "Fornecedores". */}
+          </EtapaCampos>
+
+          {/* Dados da solicitação (SC) — na página da compra a aba Solicitação já mostra. */}
+          {cotacao.necessidade && (
+            <ForaDaCompra>
+              <div className="mt-4 pt-4 border-t border-border">
+                <EtapaCampos>
+                  <EtapaCampo rotulo="Solicitação vinculada">
+                    <Link
+                      href={`/compras/necessidades/${cotacao.necessidade.id}`}
+                      className="font-mono font-semibold text-info hover:underline"
+                    >
+                      {cotacao.numeroCompra ?? cotacao.necessidade.numero}
+                    </Link>
+                  </EtapaCampo>
+                  <EtapaCampo rotulo="Setor">
+                    {cotacao.necessidade.setor
+                      ? [cotacao.necessidade.setor.pai?.nome, cotacao.necessidade.setor.nome].filter(Boolean).join(" / ")
+                      : null}
+                  </EtapaCampo>
+                  <EtapaCampo rotulo="Solicitante">
+                    {cotacao.necessidade.colaborador?.nome || cotacao.necessidade.solicitante}
+                  </EtapaCampo>
+                  <EtapaCampo rotulo="Motivo">{cotacao.necessidade.motivo}</EtapaCampo>
+                  <EtapaCampo rotulo="Descrição" span={4}>
+                    {cotacao.necessidade.justificativa && <span className="whitespace-pre-wrap">{cotacao.necessidade.justificativa}</span>}
+                  </EtapaCampo>
+                </EtapaCampos>
+              </div>
+            </ForaDaCompra>
+          )}
+          <Autoria criadoPor={cotacao.criadoPor} atualizadoPor={cotacao.atualizadoPor} className="mt-4" />
+        </EtapaSecao>
+
       </EtapaLayout>
 
       {/* ── Edit cotação modal ─────────────────────────────────────────────────── */}

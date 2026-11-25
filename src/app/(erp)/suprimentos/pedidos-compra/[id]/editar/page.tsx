@@ -397,7 +397,175 @@ export default function EditarPedidoCompraPage() {
         ]}
       />
 
-      <EtapaLayout lateral={lateral} className="pb-4">
+      <EtapaLayout
+        lateral={lateral}
+        className="pb-4"
+        // Itens na largura toda: a tabela tem muitas colunas e ficava com rolagem lateral.
+        abaixo={
+          <>
+        {/* ── Itens ───────────────────────────────────────────────────────── */}
+        <EtapaSecao
+          titulo="Itens"
+          semPadding
+          acoes={
+            <Button type="button" size="sm" variant="outline" onClick={addRow}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar item
+            </Button>
+          }
+        >
+          <div className="overflow-x-auto">
+            <table className={tabela.table}>
+              <thead className={tabela.thead}>
+                <tr>
+                  <th className={tabela.th}>Produto</th>
+                  <th className={tabela.th}>Un</th>
+                  <th className={cn(tabela.th, "w-36")}>Situação</th>
+                  <th className={cn(tabela.thNum, "w-28")}>Qtd</th>
+                  <th className={cn(tabela.thNum, "w-36")}>Preço</th>
+                  <th className={cn(tabela.thNum, "w-24")}>% Desc.</th>
+                  <th className={cn(tabela.thNum, "w-28")}>Total</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {itens.map((row, i) => {
+                  const opt    = itemOptions.find((o) => o.id === row.itemId);
+                  const preco  = parseFloat(row.precoUnitario) || 0;
+                  const qtd    = parseFloat(row.quantidade)    || 0;
+                  const pctDesc = parseFloat(row.desconto)     || 0;
+                  const bruto  = preco * qtd;
+                  const total  = row.situacao === "CONSIDERA" ? bruto - (bruto * pctDesc) / 100 : 0;
+                  const isNao  = row.situacao === "NAO_CONSIDERA";
+
+                  return (
+                    <tr key={i} className={cn(tabela.tr, "hover:bg-muted/50", isNao && "opacity-50")}>
+                      <td className="px-4 py-2 min-w-[22rem]">
+                        <ComboboxWithCreate
+                          options={itemOptions.map((o) => ({ value: o.id, label: `[${o.codigo}] ${o.descricao}` }))}
+                          value={row.itemId}
+                          onChange={(v) => updateRow(i, "itemId", v)}
+                          allowNone={false}
+                          placeholder="Produto..."
+                          createHref="/suprimentos/produtos/novo"
+                          createParam="descricao"
+                          createLabel="produto"
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-muted-foreground text-xs">
+                        {(() => {
+                          const uns = unidadesDoItem(opt);
+                          if (uns.length <= 1) return <span>{opt?.unidade?.sigla ?? opt?.unidadeMedida ?? "—"}</span>;
+                          const sel = uns.find((u) => u.unidadeId === (row.unidadeId ?? "")) ?? uns[0];
+                          const qtdBase = (parseFloat(row.quantidade) || 0) * sel.fator;
+                          return (
+                            <div className="flex flex-col gap-0.5">
+                              <SelectMenu
+                                value={row.unidadeId ?? ""}
+                                onChange={(v) => updateRow(i, "unidadeId", v)}
+                                title="Unidade da compra"
+                                triggerClassName="h-8 text-xs"
+                                options={uns.map((u) => ({ value: u.unidadeId, label: `${u.sigla}${u.base ? "" : ` (×${u.fator})`}` }))}
+                              />
+                              {!sel.base && (
+                                <span className="text-[10px] text-muted-foreground">= {fmtQtd(qtdBase)} {uns[0].sigla}</span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td className="px-4 py-2">
+                        <SelectMenu
+                          value={row.situacao}
+                          onChange={(v) => updateRow(i, "situacao", v as ItemRow["situacao"])}
+                          triggerClassName="h-8 text-xs"
+                          options={[
+                            { value: "CONSIDERA", label: "Considera" },
+                            { value: "NAO_CONSIDERA", label: "Não Considera" },
+                          ]}
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <Input
+                          type="number" step="0.001" min="0"
+                          value={row.quantidade}
+                          onChange={(e) => updateRow(i, "quantidade", e.target.value)}
+                          className="text-right h-8 w-24 ml-auto"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <Input
+                          type="number" step="0.01" min="0"
+                          disabled={isNao}
+                          value={row.precoUnitario}
+                          onChange={(e) => updateRow(i, "precoUnitario", e.target.value)}
+                          placeholder="0,00"
+                          className="text-right h-8"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="relative">
+                          <Input
+                            type="number" step="0.01" min="0" max="100"
+                            disabled={isNao}
+                            value={row.desconto}
+                            onChange={(e) => updateRow(i, "desconto", e.target.value)}
+                            placeholder="0"
+                            className="text-right h-8 pr-6"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                        </div>
+                      </td>
+                      <td className={cn(tabela.tdNum, "font-medium")}>
+                        {isNao ? "—" : formatBRL(total)}
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        {itens.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeRow(i)}
+                            className="p-1 text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 rounded transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className={tabela.tfoot}>
+                {descontoTotalItens > 0 && (
+                  <tr className="font-normal">
+                    <td colSpan={6} className={cn(tabela.td, "text-right text-muted-foreground")}>Desconto total itens</td>
+                    <td className={cn(tabela.tdNum, "text-danger")}>-{formatBRL(descontoTotalItens)}</td>
+                    <td />
+                  </tr>
+                )}
+                {vrDescontoCalc > 0 && (
+                  <tr className="font-normal">
+                    <td colSpan={6} className={cn(tabela.td, "text-right text-muted-foreground")}>Desconto global</td>
+                    <td className={cn(tabela.tdNum, "text-danger")}>-{formatBRL(vrDescontoCalc)}</td>
+                    <td />
+                  </tr>
+                )}
+                <tr>
+                  <td colSpan={6} className={cn(tabela.td, "text-right")}>Total</td>
+                  <td className={tabela.tdNum}>{formatBRL(totalCotacao)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 text-success bg-success/10 border border-success/30 rounded px-2 py-0.5">
+              <CheckCircle2 className="w-3 h-3" /> Considera
+            </span>
+            <span>— item incluído no total</span>
+          </div>
+        </EtapaSecao>
+          </>
+        }
+      >
         {error && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{error}</div>
         )}
@@ -484,169 +652,6 @@ export default function EditarPedidoCompraPage() {
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@fornecedor.com" />
             </EtapaCampoForm>
           </EtapaCampos>
-        </EtapaSecao>
-
-        {/* ── Itens ───────────────────────────────────────────────────────── */}
-        <EtapaSecao
-          titulo="Itens"
-          semPadding
-          acoes={
-            <Button type="button" size="sm" variant="outline" onClick={addRow}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar item
-            </Button>
-          }
-        >
-          <div className="overflow-x-auto">
-            <table className={tabela.table}>
-              <thead className={tabela.thead}>
-                <tr>
-                  <th className={tabela.th}>Produto</th>
-                  <th className={tabela.th}>Descrição</th>
-                  <th className={tabela.th}>Un</th>
-                  <th className={cn(tabela.th, "w-36")}>Situação</th>
-                  <th className={cn(tabela.thNum, "w-28")}>Qtd</th>
-                  <th className={cn(tabela.thNum, "w-36")}>Preço</th>
-                  <th className={cn(tabela.thNum, "w-24")}>% Desc.</th>
-                  <th className={cn(tabela.thNum, "w-28")}>Total</th>
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {itens.map((row, i) => {
-                  const opt    = itemOptions.find((o) => o.id === row.itemId);
-                  const preco  = parseFloat(row.precoUnitario) || 0;
-                  const qtd    = parseFloat(row.quantidade)    || 0;
-                  const pctDesc = parseFloat(row.desconto)     || 0;
-                  const bruto  = preco * qtd;
-                  const total  = row.situacao === "CONSIDERA" ? bruto - (bruto * pctDesc) / 100 : 0;
-                  const isNao  = row.situacao === "NAO_CONSIDERA";
-
-                  return (
-                    <tr key={i} className={cn(tabela.tr, "hover:bg-muted/50", isNao && "opacity-50")}>
-                      <td className="px-4 py-2 w-44">
-                        <ComboboxWithCreate
-                          options={itemOptions.map((o) => ({ value: o.id, label: `[${o.codigo}] ${o.descricao}` }))}
-                          value={row.itemId}
-                          onChange={(v) => updateRow(i, "itemId", v)}
-                          allowNone={false}
-                          placeholder="Produto..."
-                          createHref="/suprimentos/produtos/novo"
-                          createParam="descricao"
-                          createLabel="produto"
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-muted-foreground text-xs">{opt?.descricao ?? "—"}</td>
-                      <td className="px-4 py-2 text-muted-foreground text-xs">
-                        {(() => {
-                          const uns = unidadesDoItem(opt);
-                          if (uns.length <= 1) return <span>{opt?.unidade?.sigla ?? opt?.unidadeMedida ?? "—"}</span>;
-                          const sel = uns.find((u) => u.unidadeId === (row.unidadeId ?? "")) ?? uns[0];
-                          const qtdBase = (parseFloat(row.quantidade) || 0) * sel.fator;
-                          return (
-                            <div className="flex flex-col gap-0.5">
-                              <SelectMenu
-                                value={row.unidadeId ?? ""}
-                                onChange={(v) => updateRow(i, "unidadeId", v)}
-                                title="Unidade da compra"
-                                triggerClassName="h-8 text-xs"
-                                options={uns.map((u) => ({ value: u.unidadeId, label: `${u.sigla}${u.base ? "" : ` (×${u.fator})`}` }))}
-                              />
-                              {!sel.base && (
-                                <span className="text-[10px] text-muted-foreground">= {fmtQtd(qtdBase)} {uns[0].sigla}</span>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-4 py-2">
-                        <SelectMenu
-                          value={row.situacao}
-                          onChange={(v) => updateRow(i, "situacao", v as ItemRow["situacao"])}
-                          triggerClassName="h-8 text-xs"
-                          options={[
-                            { value: "CONSIDERA", label: "Considera" },
-                            { value: "NAO_CONSIDERA", label: "Não Considera" },
-                          ]}
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <Input
-                          type="number" step="0.001" min="0"
-                          value={row.quantidade}
-                          onChange={(e) => updateRow(i, "quantidade", e.target.value)}
-                          className="text-right h-8 w-24 ml-auto"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <Input
-                          type="number" step="0.01" min="0"
-                          disabled={isNao}
-                          value={row.precoUnitario}
-                          onChange={(e) => updateRow(i, "precoUnitario", e.target.value)}
-                          placeholder="0,00"
-                          className="text-right h-8"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <div className="relative">
-                          <Input
-                            type="number" step="0.01" min="0" max="100"
-                            disabled={isNao}
-                            value={row.desconto}
-                            onChange={(e) => updateRow(i, "desconto", e.target.value)}
-                            placeholder="0"
-                            className="text-right h-8 pr-6"
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
-                        </div>
-                      </td>
-                      <td className={cn(tabela.tdNum, "font-medium")}>
-                        {isNao ? "—" : formatBRL(total)}
-                      </td>
-                      <td className="px-4 py-2 text-center">
-                        {itens.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeRow(i)}
-                            className="p-1 text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 rounded transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className={tabela.tfoot}>
-                {descontoTotalItens > 0 && (
-                  <tr className="font-normal">
-                    <td colSpan={7} className={cn(tabela.td, "text-right text-muted-foreground")}>Desconto total itens</td>
-                    <td className={cn(tabela.tdNum, "text-danger")}>-{formatBRL(descontoTotalItens)}</td>
-                    <td />
-                  </tr>
-                )}
-                {vrDescontoCalc > 0 && (
-                  <tr className="font-normal">
-                    <td colSpan={7} className={cn(tabela.td, "text-right text-muted-foreground")}>Desconto global</td>
-                    <td className={cn(tabela.tdNum, "text-danger")}>-{formatBRL(vrDescontoCalc)}</td>
-                    <td />
-                  </tr>
-                )}
-                <tr>
-                  <td colSpan={7} className={cn(tabela.td, "text-right")}>Total</td>
-                  <td className={tabela.tdNum}>{formatBRL(totalCotacao)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1 text-success bg-success/10 border border-success/30 rounded px-2 py-0.5">
-              <CheckCircle2 className="w-3 h-3" /> Considera
-            </span>
-            <span>— item incluído no total</span>
-          </div>
         </EtapaSecao>
 
         {/* ── Observações ─────────────────────────────────────────────────── */}

@@ -834,7 +834,9 @@ async function openWAModal() {
             <FinanceiroCompraBadge status={pedido.statusFinanceiro} />
             {/* Editar: itens, preços, encargos… Depois de aprovado, salvar
                 devolve o pedido para aprovação. */}
-            {!["RECEBIDO", "CANCELADO"].includes(pedido.status) && (
+            {/* Pedido concluído (recebido ou com entrada concluída): só o administrador edita. */}
+            {pedido.status !== "CANCELADO" &&
+              (user?.perfil === "ADMIN" || (pedido.status !== "RECEBIDO" && pedido.conferencia?.status !== "CONCLUIDA")) && (
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditando(true)}>
                 <Pencil className="w-3.5 h-3.5" /> Editar
               </Button>
@@ -879,7 +881,65 @@ async function openWAModal() {
         }
       />
 
-      <EtapaLayout lateral={lateral}>
+      <EtapaLayout
+        // Tabela larga na largura toda (sem rolagem lateral ao lado da lateral).
+        abaixo={
+          <>
+        {/* ── Itens do Pedido ───────────────────────────────────────────── */}
+        <EtapaSecao titulo="Itens" semPadding>
+          <div className="overflow-x-auto">
+            <table className={tabela.table}>
+              <thead className={tabela.thead}>
+                <tr>
+                  <th className={tabela.th}>Código</th>
+                  <th className={tabela.th}>Descrição</th>
+                  <th className={tabela.thNum}>Qtd</th>
+                  <th className={tabela.th}>Un</th>
+                  <th className={tabela.thNum}>Preço</th>
+                  <th className={tabela.thNum}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pedido.itens.map((item) => {
+                  const qtd    = decimalToNumber(item.quantidade);
+                  const preco  = decimalToNumber(item.precoUnitario);
+                  const vlItem = decimalToNumber(item.valorTotal) || qtd * preco;
+                  return (
+                    <tr key={item.id} className={tabela.tr}>
+                      <td className={tabela.tdCodigo}>{item.item.codigo}</td>
+                      <td className={tabela.td}>{item.item.descricao}</td>
+                      <td className={tabela.tdNum}>
+                        {qtd.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                      </td>
+                      <td className={cn(tabela.td, "text-muted-foreground")}>{item.item.unidadeMedida}</td>
+                      <td className={tabela.tdNum}>{formatBRL(preco)}</td>
+                      <td className={cn(tabela.tdNum, "font-medium")}>{formatBRL(vlItem)}</td>
+                    </tr>
+                  );
+                })}
+                {pedido.itens.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-4 text-center text-muted-foreground text-sm">
+                      Nenhum item no pedido
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              {pedido.itens.length > 0 && (
+                <tfoot className={tabela.tfoot}>
+                  <tr>
+                    <td colSpan={2} className={tabela.td}>Total bruto</td>
+                    <td className={tabela.tdNum}>{totalItensQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</td>
+                    <td colSpan={2} />
+                    <td className={tabela.tdNum}>{formatBRL(subtotalVal)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </EtapaSecao>
+          </>
+        } lateral={lateral}>
         {actionError && (
           <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{actionError}</div>
         )}
@@ -1011,59 +1071,6 @@ async function openWAModal() {
           </EtapaCampos>
         </EtapaSecao>
 
-        {/* ── Itens do Pedido ───────────────────────────────────────────── */}
-        <EtapaSecao titulo="Itens" semPadding>
-          <div className="overflow-x-auto">
-            <table className={tabela.table}>
-              <thead className={tabela.thead}>
-                <tr>
-                  <th className={tabela.th}>Código</th>
-                  <th className={tabela.th}>Descrição</th>
-                  <th className={tabela.thNum}>Qtd</th>
-                  <th className={tabela.th}>Un</th>
-                  <th className={tabela.thNum}>Preço</th>
-                  <th className={tabela.thNum}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pedido.itens.map((item) => {
-                  const qtd    = decimalToNumber(item.quantidade);
-                  const preco  = decimalToNumber(item.precoUnitario);
-                  const vlItem = decimalToNumber(item.valorTotal) || qtd * preco;
-                  return (
-                    <tr key={item.id} className={tabela.tr}>
-                      <td className={tabela.tdCodigo}>{item.item.codigo}</td>
-                      <td className={tabela.td}>{item.item.descricao}</td>
-                      <td className={tabela.tdNum}>
-                        {qtd.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
-                      </td>
-                      <td className={cn(tabela.td, "text-muted-foreground")}>{item.item.unidadeMedida}</td>
-                      <td className={tabela.tdNum}>{formatBRL(preco)}</td>
-                      <td className={cn(tabela.tdNum, "font-medium")}>{formatBRL(vlItem)}</td>
-                    </tr>
-                  );
-                })}
-                {pedido.itens.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-4 text-center text-muted-foreground text-sm">
-                      Nenhum item no pedido
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {pedido.itens.length > 0 && (
-                <tfoot className={tabela.tfoot}>
-                  <tr>
-                    <td colSpan={2} className={tabela.td}>Total bruto</td>
-                    <td className={tabela.tdNum}>{totalItensQtd.toLocaleString("pt-BR", { maximumFractionDigits: 3 })}</td>
-                    <td colSpan={2} />
-                    <td className={tabela.tdNum}>{formatBRL(subtotalVal)}</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </EtapaSecao>
 
         {pedido.observacoes && (
           <EtapaSecao titulo="Observações">

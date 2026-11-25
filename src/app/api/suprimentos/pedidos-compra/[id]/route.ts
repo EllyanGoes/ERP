@@ -109,12 +109,25 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.edit === true) {
     // Pedido já recebido ou cancelado não se edita; editado DEPOIS de aprovado
     // volta para aprovação (abaixo).
-    const atual = await prisma.pedidoCompra.findUnique({ where: { id: pedidoId }, select: { status: true } });
+    const atual = await prisma.pedidoCompra.findUnique({
+      where: { id: pedidoId },
+      select: { status: true, conferencia: { select: { status: true } } },
+    });
     if (!atual) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-    if (!(STATUS_PEDIDO_EDITAVEL as readonly string[]).includes(atual.status)) {
-      return NextResponse.json({ error: `Pedido ${atual.status === "RECEBIDO" ? "já recebido" : "cancelado"} não pode ser editado.` }, { status: 400 });
+    if (atual.status === "CANCELADO") {
+      return NextResponse.json({ error: "Pedido cancelado não pode ser editado." }, { status: 400 });
     }
-    const exigeReaprovacao = (STATUS_PEDIDO_APROVADO as readonly string[]).includes(atual.status);
+    // Compra concluída (pedido recebido ou com entrada concluída): só o
+    // administrador edita — correção de cadastro, sem voltar para aprovação e
+    // sem refazer a entrada (estoque/custo/títulos já lançados ficam como estão).
+    const concluido = atual.status === "RECEBIDO" || atual.conferencia?.status === "CONCLUIDA";
+    if (concluido && auth.session.perfil !== "ADMIN") {
+      return NextResponse.json({ error: "Compra concluída: só o administrador pode editar o pedido." }, { status: 403 });
+    }
+    if (!concluido && !(STATUS_PEDIDO_EDITAVEL as readonly string[]).includes(atual.status)) {
+      return NextResponse.json({ error: "Pedido não pode ser editado neste status." }, { status: 400 });
+    }
+    const exigeReaprovacao = !concluido && (STATUS_PEDIDO_APROVADO as readonly string[]).includes(atual.status);
     // Full edit mode: delete all existing items, create new ones, update all fields
     const itens: Array<{
       itemId: string; quantidade: number; precoUnitario: number; desconto?: number | null;

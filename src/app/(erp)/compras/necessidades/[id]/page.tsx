@@ -636,6 +636,55 @@ export default function NecessidadeDetailPage() {
       {/* Formulário da edição no lugar (o botão Salvar fica na barra de ações, via form=). */}
       <form id="sc-edicao" onSubmit={handleSaveEdit} />
       <EtapaLayout
+        // Tabela larga na largura toda (sem rolagem lateral ao lado da lateral).
+        abaixo={
+          <>
+        <EtapaSecao
+          titulo="Itens"
+          semPadding
+          acoes={editMode ? <Button type="button" size="sm" variant="outline" onClick={addERow}><Plus className="w-4 h-4 mr-1" />Adicionar item</Button> : undefined}
+        >
+          {editMode ? itensEdicao : (
+          <div className="overflow-x-auto">
+            <table className={tabela.table}>
+              <thead className={tabela.thead}>
+                <tr>
+                  <th className={tabela.th}>Código</th>
+                  <th className={tabela.th}>Descrição</th>
+                  <th className={tabela.thNum}>Qtd.</th>
+                  <th className={tabela.th}>Un.</th>
+                  {necessidade.status === "APROVADA" && (
+                    <th className={tabela.thNum}>Aprov.</th>
+                  )}
+                  <th className={tabela.th}>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {necessidade.itens.map((item) => (
+                  <tr key={item.id} className={tabela.tr}>
+                    <td className={tabela.tdCodigo}>{item.item.codigo}</td>
+                    <td className={tabela.td}>{item.item.descricao}</td>
+                    <td className={tabela.tdNum}>
+                      {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                    </td>
+                    <td className={cn(tabela.td, "text-muted-foreground")}>
+                      {item.unidade ?? item.item.unidade?.sigla ?? item.item.unidadeMedida}
+                    </td>
+                    {necessidade.status === "APROVADA" && (
+                      <td className={cn(tabela.tdNum, "text-success font-medium")}>
+                        {item.quantidadeAprovada ? decimalToNumber(item.quantidadeAprovada).toLocaleString("pt-BR") : "—"}
+                      </td>
+                    )}
+                    <td className={cn(tabela.td, "text-muted-foreground text-xs")}>{item.observacao || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          )}
+        </EtapaSecao>
+          </>
+        }
         lateral={
           <>
             {/* ── Histórico de Aprovações ───────────────────────────────────── */}
@@ -835,50 +884,6 @@ export default function NecessidadeDetailPage() {
           )}
         </EtapaSecao>
 
-        <EtapaSecao
-          titulo="Itens"
-          semPadding
-          acoes={editMode ? <Button type="button" size="sm" variant="outline" onClick={addERow}><Plus className="w-4 h-4 mr-1" />Adicionar item</Button> : undefined}
-        >
-          {editMode ? itensEdicao : (
-          <div className="overflow-x-auto">
-            <table className={tabela.table}>
-              <thead className={tabela.thead}>
-                <tr>
-                  <th className={tabela.th}>Código</th>
-                  <th className={tabela.th}>Descrição</th>
-                  <th className={tabela.thNum}>Qtd.</th>
-                  <th className={tabela.th}>Un.</th>
-                  {necessidade.status === "APROVADA" && (
-                    <th className={tabela.thNum}>Aprov.</th>
-                  )}
-                  <th className={tabela.th}>Obs.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {necessidade.itens.map((item) => (
-                  <tr key={item.id} className={tabela.tr}>
-                    <td className={tabela.tdCodigo}>{item.item.codigo}</td>
-                    <td className={tabela.td}>{item.item.descricao}</td>
-                    <td className={tabela.tdNum}>
-                      {decimalToNumber(item.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
-                    </td>
-                    <td className={cn(tabela.td, "text-muted-foreground")}>
-                      {item.unidade ?? item.item.unidade?.sigla ?? item.item.unidadeMedida}
-                    </td>
-                    {necessidade.status === "APROVADA" && (
-                      <td className={cn(tabela.tdNum, "text-success font-medium")}>
-                        {item.quantidadeAprovada ? decimalToNumber(item.quantidadeAprovada).toLocaleString("pt-BR") : "—"}
-                      </td>
-                    )}
-                    <td className={cn(tabela.td, "text-muted-foreground text-xs")}>{item.observacao || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          )}
-        </EtapaSecao>
       </EtapaLayout>
 
       {/* Approve modal */}

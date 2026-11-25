@@ -17,11 +17,20 @@ import { cn } from "@/lib/utils";
 import { useEmbutidoNaCompra } from "@/lib/compra-embutida";
 
 /** Grade da tela: conteúdo principal à esquerda, contexto da etapa à direita. */
-export function EtapaLayout({ children, lateral, className }: { children: ReactNode; lateral?: ReactNode; className?: string }) {
+export function EtapaLayout({
+  children, lateral, abaixo, className,
+}: {
+  children: ReactNode;
+  lateral?: ReactNode;
+  /** Largura total, depois da grade (ex.: tabela de itens larga, sem rolagem lateral). */
+  abaixo?: ReactNode;
+  className?: string;
+}) {
   return (
     <div className={cn("px-8 pb-8 grid gap-5 items-start", lateral ? "lg:grid-cols-3" : "", className)}>
       <div className={cn("space-y-5 min-w-0", lateral && "lg:col-span-2")}>{children}</div>
       {lateral && <div className="space-y-5 min-w-0">{lateral}</div>}
+      {abaixo && <div className={cn("space-y-5 min-w-0", lateral && "lg:col-span-3")}>{abaixo}</div>}
     </div>
   );
 }
