@@ -10,6 +10,7 @@ import { useEmbutidoNaCompra } from "@/lib/compra-embutida";
 
 // ── Route title map ──────────────────────────────────────────────────────────
 const ROUTE_TITLES: Record<string, string> = {
+  "/inicio": "Início",
   "/dashboard": "Dashboard",
   "/clientes": "Clientes",
   "/clientes/novo": "Novo Cliente",

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   }
 
   const redirectUri = `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/api/auth/google/callback`;
-  const next = req.nextUrl.searchParams.get("next") ?? "/dashboard";
+  const next = req.nextUrl.searchParams.get("next") ?? "/inicio";
 
   const params = new URLSearchParams({
     client_id:     clientId,

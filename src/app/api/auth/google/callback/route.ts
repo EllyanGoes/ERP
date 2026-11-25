@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
 
   // O state carrega o caminho de retorno. Só aceita caminho interno ("/...",
   // mas não "//host"), senão um link malicioso redirecionaria para outro site.
-  const rawState = searchParams.get("state") ?? "/dashboard";
-  const state = rawState.startsWith("/") && !rawState.startsWith("//") ? rawState : "/dashboard";
+  const rawState = searchParams.get("state") ?? "/inicio";
+  const state = rawState.startsWith("/") && !rawState.startsWith("//") ? rawState : "/inicio";
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 

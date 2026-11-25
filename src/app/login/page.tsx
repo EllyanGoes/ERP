@@ -16,7 +16,7 @@ const OAUTH_ERRORS: Record<string, string> = {
 function LoginForm() {
   const router      = useRouter();
   const searchParams = useSearchParams();
-  const next        = searchParams.get("next") ?? "/dashboard";
+  const next        = searchParams.get("next") ?? "/inicio";
   const oauthError  = searchParams.get("error");
 
   const [email,    setEmail]    = useState("");

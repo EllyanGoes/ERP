@@ -483,9 +483,14 @@ export default function Sidebar() {
         >
           {/* Logo */}
           <div className="flex items-center justify-center h-16 border-b border-gray-800 shrink-0">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => attemptNavigate(() => router.push("/inicio"))}
+              title="Início"
+              className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center hover:bg-blue-400 transition-colors"
+            >
               <Building2 className="w-4 h-4 text-white" />
-            </div>
+            </button>
           </div>
 
           {/* Dashboard */}

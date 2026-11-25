@@ -81,6 +81,7 @@ export type RouteEntry = {
 
 // ── Registry ──────────────────────────────────────────────────────────────────
 const ROTAS_MANUAIS: RouteEntry[] = [
+  { href: "/inicio",                               label: "Início",                  group: "Início",         section: "Geral",            icon: LayoutDashboard, keywords: "boas-vindas home inicio" },
   { href: "/",                                     label: "Dashboard",               group: "Início",         section: "Geral",            icon: LayoutDashboard },
 
   { href: "/empresa/filiais",                      label: "Filiais",                 group: "Empresa",        section: "Geral",            icon: GitBranch },
