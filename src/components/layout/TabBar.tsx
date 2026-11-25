@@ -10,6 +10,7 @@ import { routeColor } from "@/lib/route-registry";
 import { cn } from "@/lib/utils";
 import EmpresaSelector from "@/components/layout/EmpresaSelector";
 import NotificationCenter from "@/components/layout/NotificationCenter";
+import UserMenu from "@/components/layout/UserMenu";
 
 type DropTarget = { id: string; side: "before" | "after" } | null;
 
@@ -161,6 +162,7 @@ export default function TabBar() {
         <InboxWidget />
         <NotificationCenter />
         <EmpresaSelector />
+        <UserMenu />
       </div>
     </div>
   );

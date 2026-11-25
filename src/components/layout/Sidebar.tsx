@@ -9,29 +9,128 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Building2,
-  Settings,
   CircleDot,
   PanelLeftClose,
   PanelLeftOpen,
   GripVertical,
-  LogOut,
-  ShieldCheck,
-  HelpCircle,
-  User,
   ChevronRight,
   ChevronDown,
-  Monitor,
-  Sun,
-  Moon,
+  Search,
+  Settings,
+  Check,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSession } from "@/lib/session-context";
-import { useShortcuts } from "@/lib/shortcuts-context";
 import { podeAcessarInvestimentos } from "@/lib/investimentos-acesso";
 import { mainModules, configModule, allModules, type NavItem, type SubSection, type Module } from "@/lib/nav-menu";
+import { useBarraModulos } from "@/lib/ui-prefs";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { ProgressoCirculo } from "@/components/projetos/comum";
-import { useTheme } from "next-themes";
+
+// ── Seletor de módulo (barra de módulos oculta) ───────────────────────────────
+// O nome do módulo no topo do painel abre a lista: busca, recentes, todos e
+// Configurações. Substitui a faixa de ícones para quem preferir ocultá-la.
+function SeletorModulo({
+  atual, modulos, config, onEscolher, onDashboard,
+}: {
+  atual: Module;
+  modulos: Module[];
+  config: Module | null;
+  onEscolher: (id: string) => void;
+  onDashboard: () => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [recentes] = usePersistedState<string[]>("ui:modulos-recentes", []);
+  const termo = busca.trim().toLowerCase();
+  const filtrados = modulos.filter((m) => !termo || m.label.toLowerCase().includes(termo));
+  const listaRecentes = termo ? [] : recentes
+    .map((id) => modulos.find((m) => m.id === id))
+    .filter((m): m is Module => !!m && m.id !== atual.id)
+    .slice(0, 3);
+
+  const escolher = (id: string) => { setAberto(false); setBusca(""); onEscolher(id); };
+  const Item = ({ m }: { m: Module }) => (
+    <button
+      type="button"
+      onClick={() => escolher(m.id)}
+      className={cn(
+        "w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left rounded-md hover:bg-muted",
+        m.id === atual.id ? "text-primary font-medium" : "text-foreground",
+      )}
+    >
+      <m.icon className="w-4 h-4 shrink-0 text-muted-foreground" />
+      <span className="flex-1 truncate">{m.label}</span>
+      {m.id === atual.id && <Check className="w-3.5 h-3.5" />}
+    </button>
+  );
+
+  return (
+    <div className="relative flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex items-center gap-2 max-w-full rounded-md px-1.5 py-1 -mx-1.5 hover:bg-muted"
+        title="Trocar de módulo"
+      >
+        <atual.icon className="w-4 h-4 text-primary shrink-0" />
+        <span className="font-semibold text-foreground text-sm truncate">{atual.label}</span>
+        <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform", aberto && "rotate-180")} />
+      </button>
+      {aberto && (
+        <>
+          <div className="fixed inset-0 z-40" onMouseDown={() => setAberto(false)} />
+          <div className="absolute left-0 top-full mt-1.5 z-50 w-64 max-h-[70vh] overflow-y-auto rounded-xl border border-border bg-popover shadow-xl p-1.5">
+            <div className="relative mb-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                autoFocus
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setAberto(false);
+                  if (e.key === "Enter" && filtrados[0]) escolher(filtrados[0].id);
+                }}
+                placeholder="Buscar módulo…"
+                className="w-full h-8 pl-8 pr-2 rounded-md bg-muted/60 text-sm outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+            {listaRecentes.length > 0 && (
+              <>
+                <p className="px-3 pt-1.5 pb-1 text-[11px] font-medium text-muted-foreground/70">Recentes</p>
+                {listaRecentes.map((m) => <Item key={`r-${m.id}`} m={m} />)}
+                <div className="my-1 border-t border-border" />
+              </>
+            )}
+            {!termo && (
+              <button
+                type="button"
+                onClick={() => { setAberto(false); onDashboard(); }}
+                className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left rounded-md hover:bg-muted text-foreground"
+              >
+                <LayoutDashboard className="w-4 h-4 shrink-0 text-muted-foreground" /> Dashboard
+              </button>
+            )}
+            {filtrados.map((m) => <Item key={m.id} m={m} />)}
+            {filtrados.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum módulo encontrado.</p>}
+            {config && !termo && (
+              <>
+                <div className="my-1 border-t border-border" />
+                <button
+                  type="button"
+                  onClick={() => escolher(config.id)}
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-left rounded-md hover:bg-muted text-foreground"
+                >
+                  <Settings className="w-4 h-4 shrink-0 text-muted-foreground" /> Configurações
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ── Future modules (strip-only, no panel, disabled) ───────────────────────────
 const futureModules: { id: string; label: string; icon: LucideIcon }[] = [];
@@ -193,168 +292,6 @@ function StripTooltip({ label, children }: { label: string; children: React.Reac
   );
 }
 
-// ── User Dropdown (portal-based) ──────────────────────────────────────────────
-
-function UserDropdown({
-  user,
-  userInitials,
-  onLogout,
-  onAtalhos,
-  onConfiguracoes,
-  configAtivo,
-}: {
-  user: { nome: string; email: string; perfil: string } | null;
-  userInitials: string;
-  onLogout: () => void;
-  onAtalhos: () => void;
-  onConfiguracoes: () => void;
-  configAtivo: boolean;
-}) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const escuro = resolvedTheme === "dark";
-  const btnRef   = useRef<HTMLButtonElement>(null);
-  const dropRef  = useRef<HTMLDivElement>(null);
-  const [open, setOpen]     = useState(false);
-  const [pos, setPos]       = useState({ top: 0, left: 0 });
-  const [mounted, setMounted] = useState(false);
-  const { attemptNavigate } = useDirtyFormContext();
-  const router = useRouter();
-
-  useEffect(() => { setMounted(true); }, []);
-
-  function handleToggle() {
-    if (!btnRef.current) return;
-    const r = btnRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom - 360, left: r.right + 8 }); // ancorado perto da base
-    setOpen((p) => !p);
-  }
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (
-        dropRef.current && !dropRef.current.contains(e.target as Node) &&
-        btnRef.current  && !btnRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
-
-  const isAdmin = user?.perfil === "ADMIN";
-
-  return (
-    <>
-      <button
-        ref={btnRef}
-        onClick={handleToggle}
-        title={user ? `${user.nome} · ${user.email}` : "Usuário"}
-        className={cn(
-          "flex items-center justify-center w-9 h-9 rounded-xl transition-colors",
-          open ? "bg-gray-700" : "hover:bg-gray-800"
-        )}
-      >
-        <div className={cn(
-          "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold select-none",
-          isAdmin ? "bg-blue-500 text-white" : "bg-gray-600 text-gray-200"
-        )}>
-          {userInitials}
-        </div>
-      </button>
-
-      {mounted && open && createPortal(
-        <div
-          ref={dropRef}
-          className="fixed z-[9999] w-56 rounded-xl bg-popover text-popover-foreground border border-border shadow-[0_8px_32px_rgba(0,0,0,0.14)] overflow-hidden"
-          style={{ top: pos.top, left: pos.left }}
-        >
-          {/* User info */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
-            <div className={cn(
-              "w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
-              isAdmin ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-            )}>
-              {userInitials}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground truncate">{user?.nome ?? "—"}</p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email ?? "—"}</p>
-              {isAdmin && (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-primary mt-0.5">
-                  <ShieldCheck className="w-3 h-3" /> Admin
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="py-1">
-            <button
-              onClick={() => { setOpen(false); attemptNavigate(() => router.push("/minha-conta")); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-            >
-              <User className="w-4 h-4 text-muted-foreground" />
-              Minha Conta
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 ml-auto" />
-            </button>
-            <button
-              onClick={() => { setOpen(false); attemptNavigate(() => router.push("/conta/dispositivos")); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-            >
-              <Monitor className="w-4 h-4 text-muted-foreground" />
-              Dispositivos
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/60 ml-auto" />
-            </button>
-          </div>
-
-          {/* Antes eram ícones soltos na faixa escura: agora ficam aqui. */}
-          <div className="border-t border-border py-1">
-            <button
-              onClick={() => { setOpen(false); onConfiguracoes(); }}
-              className={cn(
-                "w-full flex items-center gap-2.5 px-4 py-2.5 text-sm hover:bg-muted transition-colors",
-                configAtivo ? "text-primary" : "text-foreground",
-              )}
-            >
-              <Settings className="w-4 h-4 text-muted-foreground" />
-              Configurações
-            </button>
-            <button
-              onClick={() => setTheme(escuro ? "light" : "dark")}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-            >
-              {escuro ? <Sun className="w-4 h-4 text-muted-foreground" /> : <Moon className="w-4 h-4 text-muted-foreground" />}
-              {escuro ? "Tema claro" : "Tema escuro"}
-            </button>
-            <button
-              onClick={() => { setOpen(false); onAtalhos(); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
-            >
-              <HelpCircle className="w-4 h-4 text-muted-foreground" />
-              Atalhos do teclado
-              <span className="ml-auto text-xs text-muted-foreground">?</span>
-            </button>
-          </div>
-
-          <div className="border-t border-border py-1">
-            <button
-              onClick={() => { setOpen(false); onLogout(); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Sair
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
-    </>
-  );
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Sidebar() {
@@ -362,7 +299,6 @@ export default function Sidebar() {
   const router = useRouter();
   const { attemptNavigate } = useDirtyFormContext();
   const { user, canAccess } = useSession();
-  const { openShortcuts } = useShortcuts();
 
   // ── Badge de aprovações pendentes (alimenta o item "Minhas Aprovações") ──
   // O sino/painel de notificações migrou p/ o topo (NotificationCenter no TabBar).
@@ -399,6 +335,16 @@ export default function Sidebar() {
   // Defaults idênticos no servidor e no 1º render do cliente (evita mismatch de
   // hidratação). As preferências salvas são lidas após montar, no efeito abaixo.
   const [panelWidth, setPanelWidth] = useState<number>(PANEL_DEFAULT);
+  // Preferência do usuário (Minha Conta): faixa de ícones ou droplist no nome.
+  const [barraModulos] = useBarraModulos();
+  const [, setRecentes] = usePersistedState<string[]>("ui:modulos-recentes", []);
+  // Sem a faixa de ícones o painel nunca fica vazio: vale o módulo da tela atual.
+  const moduloAtivoId = allModules.find((m) => moduleIsActive(m, pathname))?.id ?? null;
+  const painelId = openId ?? (!barraModulos ? (moduloAtivoId ?? visibleMain[0]?.id ?? null) : null);
+  const escolherModulo = (id: string) => {
+    setOpenId(id);
+    setRecentes((r) => [id, ...r.filter((x) => x !== id)].slice(0, 6));
+  };
   const [stripCollapsed, setStripCollapsed] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState(false);
   const [modKey, setModKey] = useState("⌘");
@@ -419,11 +365,11 @@ export default function Sidebar() {
 
   // Sync CSS variable + data attribute (used by pages to react to sidebar state)
   useLayoutEffect(() => {
-    const w = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
+    const w = stripCollapsed ? 0 : (barraModulos ? STRIP_W : 0) + (painelId ? panelWidth : 0);
     document.documentElement.style.setProperty("--sidebar-width", `${w}px`);
     // "1" = panel open (sidebar expanded), "0" = strip-only or fully collapsed
-    document.documentElement.dataset.sidebarExpanded = (!stripCollapsed && !!openId) ? "1" : "0";
-  }, [openId, panelWidth, stripCollapsed]);
+    document.documentElement.dataset.sidebarExpanded = (!stripCollapsed && !!painelId) ? "1" : "0";
+  }, [painelId, panelWidth, stripCollapsed, barraModulos]);
 
   // Persist settings (só depois de carregar as preferências, p/ não sobrescrever)
   useEffect(() => { if (hydrated) localStorage.setItem("sidebar-panel-w", String(panelWidth)); }, [panelWidth, hydrated]);
@@ -487,21 +433,21 @@ export default function Sidebar() {
     window.addEventListener("mouseup", onUp);
   }, [panelWidth]);
 
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
+  // O menu do usuário (topo) pede para abrir o painel de Configurações.
+  useEffect(() => {
+    const abrir = () => { setStripCollapsed(false); setOpenId("configuracoes"); };
+    window.addEventListener("sidebar:abrir-configuracoes", abrir);
+    return () => window.removeEventListener("sidebar:abrir-configuracoes", abrir);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openModuleBruto = allModules.find((m) => m.id === openId) ?? null;
+
+  const openModuleBruto = allModules.find((m) => m.id === painelId) ?? null;
   // Configurações carrega a seção "Sistema" (Administração) — só para admin
   const openModule = openModuleBruto && openModuleBruto.id === "configuracoes" && !showAdmin
     ? { ...openModuleBruto, sections: openModuleBruto.sections.filter((sec) => sec.kind !== "Sistema") }
     : openModuleBruto;
-  const sidebarW   = stripCollapsed ? 0 : STRIP_W + (openId ? panelWidth : 0);
+  const sidebarW   = stripCollapsed ? 0 : (barraModulos ? STRIP_W : 0) + (painelId ? panelWidth : 0);
 
-  const userInitials = user?.nome
-    ? user.nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
-    : "?";
 
   return (
     <>
@@ -526,7 +472,8 @@ export default function Sidebar() {
         className="relative h-screen z-30 flex shrink-0 overflow-hidden transition-[width] duration-200"
         style={{ width: sidebarW }}
       >
-        {/* ── Icon strip ─────────────────────────────────────────────── */}
+        {/* ── Icon strip (preferência "Barra de módulos: Mostrar") ───────── */}
+        {barraModulos && (
         <div
           className="flex flex-col bg-gray-900 shrink-0 overflow-hidden"
           style={{ width: STRIP_W, minWidth: STRIP_W }}
@@ -565,7 +512,7 @@ export default function Sidebar() {
               return (
                 <StripTooltip key={mod.id} label={mod.label}>
                   <button
-                    onClick={() => setOpenId(isOpen ? null : mod.id)}
+                    onClick={() => (isOpen ? setOpenId(null) : escolherModulo(mod.id))}
                     className={cn(
                       "relative flex flex-col items-center justify-center w-9 h-9 rounded-xl transition-colors",
                       isOpen
@@ -613,21 +560,14 @@ export default function Sidebar() {
               </button>
             </StripTooltip>
 
-            {/* Perfil (dropdown do usuário) */}
-            {/* Perfil: tema, atalhos, configurações e Sair ficam no menu do avatar */}
-            <UserDropdown
-              user={user}
-              userInitials={userInitials}
-              onLogout={handleLogout}
-              onAtalhos={openShortcuts}
-              onConfiguracoes={() => setOpenId(openId === "configuracoes" ? null : "configuracoes")}
-              configAtivo={moduleIsActive(configModule, pathname)}
-            />
+            {/* Menu do usuário (tema, atalhos, configurações, Sair) foi para o
+                canto superior direito: components/layout/UserMenu.tsx. */}
           </div>
         </div>
+        )}
 
         {/* ── Flyout panel ───────────────────────────────────────────── */}
-        {openId && (
+        {painelId && (
           <div
             className="h-full bg-card border-r border-border flex flex-col overflow-hidden relative"
             style={{ width: panelWidth }}
@@ -636,8 +576,30 @@ export default function Sidebar() {
               <>
                 {/* Panel header */}
                 <div className="flex items-center gap-2.5 px-4 h-16 border-b border-border shrink-0">
-                  <openModule.icon className="w-4 h-4 text-primary shrink-0" />
-                  <span className="font-semibold text-foreground text-sm">{openModule.label}</span>
+                  {barraModulos ? (
+                    <>
+                      <openModule.icon className="w-4 h-4 text-primary shrink-0" />
+                      <span className="font-semibold text-foreground text-sm">{openModule.label}</span>
+                    </>
+                  ) : (
+                    <>
+                      <SeletorModulo
+                        atual={openModule}
+                        modulos={visibleMain}
+                        config={configModule}
+                        onEscolher={escolherModulo}
+                        onDashboard={() => attemptNavigate(() => router.push("/dashboard"))}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setStripCollapsed(true)}
+                        title={`Recolher (${modKey}B)`}
+                        className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <PanelLeftClose className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
 
                 {/* Nav sections — overflow-x escondido: rótulos longos truncam
