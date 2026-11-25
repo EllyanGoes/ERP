@@ -184,13 +184,13 @@ export default function ParcelamentosPage() {
             <button type="button" className="text-info hover:underline"
               onClick={(e) => { e.stopPropagation(); router.push(o.href!); }}
               title="Abrir a compra (aba Pagamentos)">
-              {o.label} <span className="font-mono font-semibold">{o.ref}</span>
+              <span className="font-mono font-semibold">{o.ref ?? o.label}</span>
             </button>
             {o.nf && <span className="text-muted-foreground">· NF {o.nf}</span>}
           </span>
         );
       }
-      return <span className="text-muted-foreground">{o.ref ? `${o.label} ${o.ref}` : o.label}</span>;
+      return <span className="text-muted-foreground">{o.ref ?? o.label}</span>;
     } },
     { id: "valorTotal", header: "Valor total", accessorFn: (p) => p.valorTotal, meta: { className: "text-right" },
       cell: ({ row }) => <span className="tabular-nums">{formatBRL(row.original.valorTotal)}</span> },
@@ -332,17 +332,16 @@ export default function ParcelamentosPage() {
             {detalhe && (
               <p className="text-sm text-muted-foreground">
                 {detalhe.descricao} · {detalhe.parcelasPagas}/{detalhe.totalParcelas} pagas · saldo {formatBRL(detalhe.saldo)}
-                {" · "}Origem: {detalhe.origem.label}
+                {" · "}Origem:{" "}
                 {detalhe.origem.href && detalhe.origem.ref ? (
                   <>
-                    {" "}
                     <button type="button" className="font-mono text-xs font-semibold text-info hover:underline align-baseline"
                       onClick={() => router.push(detalhe.origem.href!)}
                       title="Abrir a compra (aba Pagamentos)">
                       {detalhe.origem.ref}
                     </button>
                   </>
-                ) : detalhe.origem.ref ? ` ${detalhe.origem.ref}` : null}
+                ) : detalhe.origem.ref ?? detalhe.origem.label}
                 {detalhe.origem.nf ? ` · NF ${detalhe.origem.nf}` : null}
               </p>
             )}

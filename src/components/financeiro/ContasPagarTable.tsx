@@ -1570,8 +1570,8 @@ function OrigemCompraRef({ o, onOpen, compact }: { o: OrigemPagar; onOpen: (href
   const conteudo = (
     <>
       {!compact && o.href && <ExternalLink className="w-3.5 h-3.5" />}
-      <span className={compact ? undefined : "font-medium"}>{o.label}</span>
-      <span className="font-mono">{o.ref}</span>
+      {/* O nº PC-xxxx já diz que é compra — o rótulo só aparece sem número. */}
+      {o.ref ? <span className="font-mono">{o.ref}</span> : <span className={compact ? undefined : "font-medium"}>{o.label}</span>}
     </>
   );
   return (
