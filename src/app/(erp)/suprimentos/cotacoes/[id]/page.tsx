@@ -670,11 +670,6 @@ export default function CotacaoDetailPage() {
 
         <EtapaSecao titulo="Dados da cotação">
           <EtapaCampos>
-            <EtapaCampo rotulo="Status">
-              <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap", statusBadge.cls)}>
-                {statusBadge.label}
-              </span>
-            </EtapaCampo>
             <EtapaCampo rotulo="Apelido">{cotacao.nome}</EtapaCampo>
             <EtapaCampo rotulo="Criação">{cotacao.createdAt ? formatDate(cotacao.createdAt) : null}</EtapaCampo>
             <EtapaCampo rotulo="Prazo de respostas">{cotacao.dataLimiteResposta ? formatDate(cotacao.dataLimiteResposta) : null}</EtapaCampo>
@@ -684,11 +679,7 @@ export default function CotacaoDetailPage() {
             <EtapaCampo rotulo="Observações" span={2}>
               {cotacao.observacoes && <span className="whitespace-pre-wrap">{cotacao.observacoes}</span>}
             </EtapaCampo>
-            {melhorOpcao && (
-              <EtapaCampo rotulo="Melhor opção" span={2}>
-                <span className="text-success font-medium">{melhorOpcao.fornecedor.nomeFantasia || melhorOpcao.fornecedor.razaoSocial}</span>
-              </EtapaCampo>
-            )}
+            {/* Status no selo da barra de ações; melhor opção na lateral "Fornecedores". */}
           </EtapaCampos>
 
           {/* Dados da solicitação (SC) — na página da compra a aba Solicitação já mostra. */}

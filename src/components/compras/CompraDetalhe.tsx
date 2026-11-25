@@ -53,7 +53,10 @@ type Compra = {
     vencimento: string | null; pagoEm: string | null; valor: number; pago: number; forma: string | null;
   }[];
   historico: { id: string; etapa: EtapaCompra | null; numero: string; statusDe: string | null; statusPara: string; usuario: string | null; em: string }[];
-  marcos: { em: string; etapa: EtapaCompra; label: string; numero?: string; cancelado?: boolean; foraDeOrdem?: boolean }[];
+  marcos: {
+    em: string; etapa: EtapaCompra; label: string; numero?: string; quem?: string | null; soData?: boolean;
+    cancelado?: boolean; foraDeOrdem?: boolean;
+  }[];
   fases: { etapa: EtapaCompra; inicio: string; fim: string | null; emAndamento: boolean }[];
 };
 
@@ -130,6 +133,10 @@ function ProximoPasso({ etapa, compra, onIr }: { etapa: EtapaCompra; compra: Com
   );
 }
 
+// Status gravado → nome mostrado (AGUARDANDO_PAGAMENTO do pedido é "emitido").
+const NOME_STATUS: Record<string, string> = { AGUARDANDO_PAGAMENTO: "emitido" };
+const nomeStatus = (st: string) => NOME_STATUS[st] ?? st.replace(/_/g, " ").toLowerCase();
+
 // ── Timeline: quanto tempo a compra levou, etapa por etapa ───────────────────
 const COR_ETAPA: Record<EtapaCompra, string> = {
   solicitacao: "#9ca3af", cotacao: "#f97316", pedido: "#3b82f6", entrada: "#8b5cf6",
@@ -138,6 +145,8 @@ const DIA = 86_400_000;
 const diasEntre = (a: string, b: string) => Math.max(0, (new Date(b).getTime() - new Date(a).getTime()) / DIA);
 const fmtDias = (d: number) => (d < 1 ? (d * 24 < 1 ? "< 1 h" : `${Math.round(d * 24)} h`) : `${Math.round(d)} d`);
 const fmtData = (iso: string) => new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+// Datas gravadas sem hora (NF, conferência antiga) ficam em 00:00 UTC: mostrar só o dia, em UTC.
+const fmtDia = (iso: string) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 
 // ── Pagamentos: títulos a pagar da compra (pedido antecipado e entrada) ─────
 const SITUACAO_TITULO: Record<string, { label: string; cls: string }> = {
@@ -245,13 +254,14 @@ function Timeline({ compra }: { compra: Compra }) {
   // Eventos: marcos do processo + mudanças de status registradas, em ordem.
   const eventos = [
     ...marcos.map((m) => ({
-      em: m.em, etapa: m.etapa, titulo: m.label, detalhe: m.numero ?? null, principal: true,
+      em: m.em, etapa: m.etapa, titulo: m.label, principal: true, soData: !!m.soData,
+      detalhe: [m.numero, m.quem ? `por ${m.quem}` : null].filter(Boolean).join(" · ") || null,
       cancelado: !!m.cancelado, foraDeOrdem: !!m.foraDeOrdem,
     })),
     ...historico.map((h) => ({
-      em: h.em, etapa: h.etapa, titulo: `Status: ${h.statusDe ? `${h.statusDe} → ` : ""}${h.statusPara}`.replace(/_/g, " ").toLowerCase(),
+      em: h.em, etapa: h.etapa, titulo: `Status: ${h.statusDe ? `${nomeStatus(h.statusDe)} → ` : ""}${nomeStatus(h.statusPara)}`,
       detalhe: [h.numero, h.usuario].filter(Boolean).join(" · ") || null, principal: false,
-      cancelado: false, foraDeOrdem: false,
+      cancelado: false, foraDeOrdem: false, soData: false,
     })),
   ].sort((a, b) => b.em.localeCompare(a.em)); // mais recente no topo
 
@@ -327,7 +337,7 @@ function Timeline({ compra }: { compra: Compra }) {
                   </span>
                 )}
                 <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                  {fmtData(e.em)}
+                  {e.soData ? fmtDia(e.em) : fmtData(e.em)}
                   {anterior && intervalo >= 1 / 24 && <span className="ml-2 text-foreground/70">+{fmtDias(intervalo)}</span>}
                 </span>
               </div>

@@ -48,7 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
       orderBy: { createdAt: "asc" },
       select: {
         id: true, numero: true, status: true, createdAt: true, prioridade: true, dataNecessidade: true,
-        dataAprovacao: true, dataCancelamento: true,
+        dataAprovacao: true, dataCancelamento: true, aprovadoPor: true, motivoCancelamento: true,
         solicitante: true, colaborador: { select: { nome: true } }, setor: { select: { nome: true } },
         itens: ITENS,
       },
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
       orderBy: { createdAt: "asc" },
       select: {
         id: true, numero: true, status: true, nome: true, createdAt: true, dataAprovacao: true,
-        aprovacoes: { select: { createdAt: true, respondidoEm: true, status: true }, orderBy: { createdAt: "asc" } },
+        aprovacoes: { select: { createdAt: true, respondidoEm: true, status: true, observacao: true, aprovador: { select: { nome: true } } }, orderBy: { createdAt: "asc" } },
       },
     }),
     prisma.pedidoCompra.findMany({
@@ -68,6 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
         id: true, numero: true, numeroAntigo: true, status: true, valorTotal: true, descricao: true, createdAt: true, updatedAt: true,
         dataEntregaPrevista: true, fornecedor: FORNECEDOR, itens: ITENS,
         conferencia: { select: { id: true, status: true } },
+        aprovacoes: { select: { createdAt: true, respondidoEm: true, status: true, observacao: true, aprovador: { select: { nome: true } } }, orderBy: { createdAt: "asc" } },
       },
     }),
     prisma.conferenciaCompra.findMany({
@@ -135,7 +136,11 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
   // `semFase`: o marco aparece na lista mas não abre etapa nas barras (NF do
   // fornecedor, documento cancelado). `foraDeOrdem`: criado antes da etapa
   // anterior começar (documento antigo vinculado depois).
-  type Marco = { em: string; etapa: EtapaCompra; label: string; numero?: string; semFase?: boolean; cancelado?: boolean; foraDeOrdem?: boolean };
+  // `quem`: quem aprovou/reprovou/cancelou. `soData`: data sem hora (NF, conferência antiga).
+  type Marco = {
+    em: string; etapa: EtapaCompra; label: string; numero?: string; quem?: string | null; soData?: boolean;
+    semFase?: boolean; cancelado?: boolean; foraDeOrdem?: boolean;
+  };
   const marcos: Marco[] = [];
   const add = (em: Date | null | undefined, etapa: EtapaCompra, label: string, numero?: string, extra: Partial<Marco> = {}) => {
     if (em) marcos.push({ em: em.toISOString(), etapa, label, numero, ...extra });
@@ -146,23 +151,46 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
   for (const d of scs) {
     const cancelada = d.status === "CANCELADA" || d.status === "REJEITADA";
     add(d.createdAt, "solicitacao", "Solicitação criada", d.numero, { semFase: cancelada, cancelado: cancelada });
-    add(d.dataAprovacao, "solicitacao", "Solicitação aprovada", d.numero, { semFase: cancelada });
-    add(d.dataCancelamento, "solicitacao", "Solicitação cancelada", d.numero, { semFase: true, cancelado: true });
+    add(d.dataAprovacao, "solicitacao", "Solicitação aprovada", d.numero, { semFase: cancelada, quem: d.aprovadoPor });
+    add(d.dataCancelamento, "solicitacao", d.motivoCancelamento ? `Solicitação cancelada — ${d.motivoCancelamento}` : "Solicitação cancelada", d.numero, { semFase: true, cancelado: true });
   }
   for (const d of cts) {
     add(d.createdAt, "cotacao", "Cotação aberta", d.numero);
-    add(d.aprovacoes[0]?.createdAt, "cotacao", "Cotação enviada para aprovação", d.numero);
-    add(d.dataAprovacao ?? d.aprovacoes.find((a) => a.status === "APROVADO")?.respondidoEm, "cotacao", "Cotação aprovada", d.numero);
+    // Cada envio/decisão de aprovação, com o aprovador.
+    for (const a of d.aprovacoes) {
+      const nome = a.aprovador?.nome ?? null;
+      add(a.createdAt, "cotacao", nome ? `Cotação enviada para aprovação de ${nome}` : "Cotação enviada para aprovação", d.numero);
+      if (a.status === "APROVADO") add(a.respondidoEm, "cotacao", "Cotação aprovada", d.numero, { quem: nome });
+      if (a.status === "REPROVADO") {
+        add(a.respondidoEm, "cotacao", a.observacao ? `Cotação reprovada — ${a.observacao}` : "Cotação reprovada", d.numero, { quem: nome, semFase: true });
+      }
+    }
+    // Aprovação antiga sem registro de aprovador: só a data.
+    if (d.dataAprovacao && !d.aprovacoes.some((a) => a.status === "APROVADO")) {
+      add(d.dataAprovacao, "cotacao", "Cotação aprovada", d.numero);
+    }
   }
   for (const d of pcs) {
     const cancelado = d.status === "CANCELADO";
     add(d.createdAt, "pedido", "Pedido emitido", d.numero, { semFase: cancelado, cancelado });
+    // Pedido editado depois de aprovado volta para aprovação.
+    for (const a of d.aprovacoes) {
+      const nome = a.aprovador?.nome ?? null;
+      add(a.createdAt, "pedido", nome ? `Pedido alterado enviado para aprovação de ${nome}` : "Pedido alterado enviado para aprovação", d.numero, { semFase: true });
+      if (a.status === "APROVADO") add(a.respondidoEm, "pedido", "Alteração do pedido aprovada", d.numero, { quem: nome, semFase: true });
+      if (a.status === "REPROVADO") add(a.respondidoEm, "pedido", "Alteração do pedido reprovada", d.numero, { quem: nome, semFase: true });
+    }
     if (cancelado) add(canceladoEm(d.id, d.updatedAt), "pedido", "Pedido cancelado", d.numero, { semFase: true, cancelado: true });
   }
   for (const d of des) {
-    add(d.dtEmissao, "entrada", "Nota fiscal emitida", d.numeroNF ? `NF ${d.numeroNF}` : d.numero, { semFase: true });
+    add(d.dtEmissao, "entrada", "Nota fiscal emitida", d.numeroNF ? `NF ${d.numeroNF}` : d.numero, { semFase: true, soData: true });
     add(d.createdAt, "entrada", "Mercadoria recebida (entrada aberta)", d.numero);
-    if (d.status === "CONCLUIDA") add(d.dataConferencia ?? null, "entrada", "Entrada concluída", d.numero);
+    if (d.status === "CONCLUIDA") {
+      // dataConferencia é só a data; o horário real vem do histórico de status.
+      const log = logs.find((l) => l.documentoId === d.id && l.statusPara === "CONCLUIDA");
+      if (log) add(log.criadoEm, "entrada", "Entrada concluída", d.numero, { quem: log.usuario });
+      else add(d.dataConferencia ?? null, "entrada", "Entrada concluída", d.numero, { soData: true });
+    }
   }
   marcos.sort((a, b) => a.em.localeCompare(b.em));
 

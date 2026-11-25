@@ -782,19 +782,26 @@ export default function NecessidadeDetailPage() {
                   )}
                 </EtapaCampo>
               </ForaDaCompra>
-              <EtapaCampo rotulo="Status"><StatusBadge status={necessidade.status} /></EtapaCampo>
-              <EtapaCampo rotulo="Prioridade"><PrioridadeBadge prioridade={necessidade.prioridade} /></EtapaCampo>
+              {/* Status fica no selo da barra de ações; prioridade, necessidade e
+                  filial (= empresa) já estão no cabeçalho da compra. */}
+              <ForaDaCompra>
+                <EtapaCampo rotulo="Prioridade"><PrioridadeBadge prioridade={necessidade.prioridade} /></EtapaCampo>
+              </ForaDaCompra>
               <EtapaCampo rotulo="Data de criação">{formatDate(necessidade.createdAt)}</EtapaCampo>
-              <EtapaCampo rotulo="Entrega desejada">{necessidade.dataNecessidade ? formatDate(necessidade.dataNecessidade) : null}</EtapaCampo>
+              <ForaDaCompra>
+                <EtapaCampo rotulo="Entrega desejada">{necessidade.dataNecessidade ? formatDate(necessidade.dataNecessidade) : null}</EtapaCampo>
+              </ForaDaCompra>
               <EtapaCampo rotulo="Local de estoque">{necessidade.localEstoque?.nome}</EtapaCampo>
               <EtapaCampo rotulo="Centro de custo">
                 {necessidade.centroCusto ? `${necessidade.centroCusto.codigo} — ${necessidade.centroCusto.nome}` : null}
               </EtapaCampo>
               <EtapaCampo rotulo="Tipo de compra">{necessidade.tipoCompra}</EtapaCampo>
               <EtapaCampo rotulo="Motivo">{necessidade.motivo}</EtapaCampo>
-              <EtapaCampo rotulo="Filial">
-                {necessidade.filial ? (necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial) : null}
-              </EtapaCampo>
+              <ForaDaCompra>
+                <EtapaCampo rotulo="Filial">
+                  {necessidade.filial ? (necessidade.filial.nomeFantasia || necessidade.filial.razaoSocial) : null}
+                </EtapaCampo>
+              </ForaDaCompra>
               <ForaDaCompra>
                 <EtapaCampo rotulo="Solicitante">{necessidade.colaborador?.nome ?? necessidade.solicitante}</EtapaCampo>
                 <EtapaCampo rotulo="Setor">{necessidade.setor?.nome}</EtapaCampo>

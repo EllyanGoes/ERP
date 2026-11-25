@@ -912,11 +912,13 @@ async function openWAModal() {
         {/* ── Dados do pedido ─────────────────────────────────────────────── */}
         <EtapaSecao titulo="Dados do pedido">
           <EtapaCampos>
-            <EtapaCampo rotulo="Status"><StatusBadge status={pedido.status} /></EtapaCampo>
+            {/* Status no selo da barra de ações; entrega e fornecedor no cabeçalho da compra. */}
             <EtapaCampo rotulo="Emissão">{pedido.createdAt ? formatDate(pedido.createdAt) : null}</EtapaCampo>
-            <EtapaCampo rotulo="Entrega prevista">
-              {pedido.dataEntregaPrevista ? formatDate(pedido.dataEntregaPrevista) : cf?.prazoEntregaDias ? `${cf.prazoEntregaDias} dias` : null}
-            </EtapaCampo>
+            <ForaDaCompra>
+              <EtapaCampo rotulo="Entrega prevista">
+                {pedido.dataEntregaPrevista ? formatDate(pedido.dataEntregaPrevista) : cf?.prazoEntregaDias ? `${cf.prazoEntregaDias} dias` : null}
+              </EtapaCampo>
+            </ForaDaCompra>
             <EtapaCampo rotulo="Condição de pagamento">{cf?.condicoesPagamento}</EtapaCampo>
             <EtapaCampo rotulo="Tipo de frete">{cf?.tipoFrete ? (TIPO_FRETE_LABEL[cf.tipoFrete] ?? cf.tipoFrete) : null}</EtapaCampo>
             {pedido.numeroAntigo && pedido.numeroAntigo !== pedido.numero && (
@@ -997,7 +999,9 @@ async function openWAModal() {
         {/* ── Fornecedor ──────────────────────────────────────────────────── */}
         <EtapaSecao titulo="Fornecedor">
           <EtapaCampos>
-            <EtapaCampo rotulo="Nome" span={2}>{fornNome}</EtapaCampo>
+            <ForaDaCompra>
+              <EtapaCampo rotulo="Nome" span={2}>{fornNome}</EtapaCampo>
+            </ForaDaCompra>
             <EtapaCampo rotulo="CNPJ/CPF">{pedido.fornecedor.cpfCnpj}</EtapaCampo>
             <EtapaCampo rotulo="Código"><span className="font-mono">{codigoForn}</span></EtapaCampo>
             <EtapaCampo rotulo="Contato" span={2}>{pedido.fornecedor.contato}</EtapaCampo>
