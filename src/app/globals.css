@@ -128,7 +128,6 @@ input[type="number"] {
    Estilo "lucide-animated": o traço do ícone se redesenha ao passar o mouse no
    elemento com .anim-gatilho. Variações para os ícones do topo. Sem animação
    para quem pediu ao sistema menos movimento. */
-@keyframes icone-desenhar { from { stroke-dashoffset: 64; } to { stroke-dashoffset: 0; } }
 @keyframes icone-balancar {
   0%, 100% { transform: rotate(0); }
   20% { transform: rotate(14deg); } 40% { transform: rotate(-12deg); }
@@ -148,9 +147,15 @@ input[type="number"] {
   40% { transform: translateY(2px); } 70% { transform: translateY(-1px); }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .anim-gatilho:hover .anim-desenhar :is(path, circle, rect, line, polyline, polygon, ellipse) {
-    stroke-dasharray: 64;
-    animation: icone-desenhar 0.7s ease-out;
+  /* Em repouso o ícone aparece ~70% desenhado; no hover se completa (e volta
+     suave ao sair). pathLength="1" vem de components/layout/IconesAnimados. */
+  .anim-desenhar :is(path, circle, rect, line, polyline, polygon, ellipse)[pathLength] {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0.3;
+    transition: stroke-dashoffset 0.45s ease-out;
+  }
+  .anim-gatilho:hover .anim-desenhar :is(path, circle, rect, line, polyline, polygon, ellipse)[pathLength] {
+    stroke-dashoffset: 0;
   }
   .anim-gatilho:hover .anim-balancar { transform-origin: 50% 10%; animation: icone-balancar 0.7s ease-in-out; }
   .anim-gatilho:hover .anim-pular { transform-origin: 50% 90%; animation: icone-pular 0.55s ease-out; }
