@@ -58,7 +58,7 @@ export default function TitulosKanban({ itens, onAbrir }: { itens: TituloKanban[
   }
 
   return (
-    <div className="flex items-start gap-3 overflow-x-auto pb-1 h-[calc(100vh-250px)] min-h-[420px]">
+    <div className="flex items-start gap-3 overflow-x-auto pb-1 h-[calc(100vh-200px)] min-h-[420px]">
       {COLUNAS.map((col) => {
         const lista = porColuna[col.id];
         const total = lista.reduce((s, t) => s + (col.id === "pago" ? t.valor : t.saldo), 0);

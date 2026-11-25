@@ -1089,8 +1089,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         />
         </div>
       ) : vista === "quadro" ? (
-        <div className="space-y-2">
-          {blocosTotais}
+        <div>
+          {/* Sem os blocos de totais: as colunas já trazem contagem e total. */}
           <TitulosKanban
             itens={contasFiltradas.map((c): TituloKanban => {
               const valor = decimalToNumber(c.valorOriginal) + decimalToNumber(c.valorMulta ?? 0) + decimalToNumber(c.valorJuros ?? 0);
