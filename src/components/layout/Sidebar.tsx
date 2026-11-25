@@ -66,7 +66,7 @@ function SeletorModulo({
   );
 
   return (
-    <div className="relative flex-1 min-w-0">
+    <div className="flex-1 min-w-0">
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
@@ -80,7 +80,8 @@ function SeletorModulo({
       {aberto && (
         <>
           <div className="fixed inset-0 z-40" onMouseDown={() => setAberto(false)} />
-          <div className="absolute left-0 top-full mt-1.5 z-50 w-64 max-h-[70vh] overflow-y-auto rounded-xl border border-border bg-popover shadow-xl p-1.5">
+          {/* Mesma largura da barra (o painel corta o que passa da borda). */}
+          <div className="absolute left-2 right-2 top-full mt-1 z-50 max-h-[75vh] overflow-y-auto rounded-xl border border-border bg-popover shadow-xl p-1.5">
             <div className="relative mb-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
@@ -341,6 +342,8 @@ export default function Sidebar() {
   // Sem a faixa de ícones o painel nunca fica vazio: vale o módulo da tela atual.
   const moduloAtivoId = allModules.find((m) => moduleIsActive(m, pathname))?.id ?? null;
   const painelId = openId ?? (!barraModulos ? (moduloAtivoId ?? visibleMain[0]?.id ?? null) : null);
+  // Sem a faixa (64px), o painel ganha um mínimo maior para o nome e o droplist.
+  const larguraPainel = barraModulos ? panelWidth : Math.max(panelWidth, 240);
   const escolherModulo = (id: string) => {
     setOpenId(id);
     setRecentes((r) => [id, ...r.filter((x) => x !== id)].slice(0, 6));
@@ -365,11 +368,11 @@ export default function Sidebar() {
 
   // Sync CSS variable + data attribute (used by pages to react to sidebar state)
   useLayoutEffect(() => {
-    const w = stripCollapsed ? 0 : (barraModulos ? STRIP_W : 0) + (painelId ? panelWidth : 0);
+    const w = stripCollapsed ? 0 : (barraModulos ? STRIP_W : 0) + (painelId ? larguraPainel : 0);
     document.documentElement.style.setProperty("--sidebar-width", `${w}px`);
     // "1" = panel open (sidebar expanded), "0" = strip-only or fully collapsed
     document.documentElement.dataset.sidebarExpanded = (!stripCollapsed && !!painelId) ? "1" : "0";
-  }, [painelId, panelWidth, stripCollapsed, barraModulos]);
+  }, [painelId, larguraPainel, stripCollapsed, barraModulos]);
 
   // Persist settings (só depois de carregar as preferências, p/ não sobrescrever)
   useEffect(() => { if (hydrated) localStorage.setItem("sidebar-panel-w", String(panelWidth)); }, [panelWidth, hydrated]);
@@ -446,7 +449,7 @@ export default function Sidebar() {
   const openModule = openModuleBruto && openModuleBruto.id === "configuracoes" && !showAdmin
     ? { ...openModuleBruto, sections: openModuleBruto.sections.filter((sec) => sec.kind !== "Sistema") }
     : openModuleBruto;
-  const sidebarW   = stripCollapsed ? 0 : (barraModulos ? STRIP_W : 0) + (painelId ? panelWidth : 0);
+  const sidebarW   = stripCollapsed ? 0 : (barraModulos ? STRIP_W : 0) + (painelId ? larguraPainel : 0);
 
 
   return (
@@ -570,12 +573,12 @@ export default function Sidebar() {
         {painelId && (
           <div
             className="h-full bg-card border-r border-border flex flex-col overflow-hidden relative"
-            style={{ width: panelWidth }}
+            style={{ width: larguraPainel }}
           >
             {openModule && (
               <>
                 {/* Panel header */}
-                <div className="flex items-center gap-2.5 px-4 h-16 border-b border-border shrink-0">
+                <div className="relative flex items-center gap-2.5 px-4 h-16 border-b border-border shrink-0">
                   {barraModulos ? (
                     <>
                       <openModule.icon className="w-4 h-4 text-primary shrink-0" />
