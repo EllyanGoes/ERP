@@ -691,9 +691,8 @@ export default function CotacaoDetailPage() {
                     <Link
                       href={`/compras/necessidades/${cotacao.necessidade.id}`}
                       className="font-mono font-semibold text-info hover:underline"
-                      title={cotacao.necessidade.numero}
                     >
-                      {cotacao.necessidade.numero}
+                      {cotacao.numeroCompra ?? cotacao.necessidade.numero}
                     </Link>
                   </EtapaCampo>
                   <EtapaCampo rotulo="Setor">
@@ -1117,7 +1116,6 @@ export default function CotacaoDetailPage() {
                 <h2 className="font-semibold text-foreground">Editar cotação</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {cotacao?.numeroCompra ? `Compra ${cotacao.numeroCompra}` : cotacao?.numero}
-                  {cotacao?.numeroCompra && <span className="ml-1.5 font-mono text-[11px] text-muted-foreground/70">{cotacao.numero}</span>}
                 </p>
               </div>
               <button

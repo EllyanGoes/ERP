@@ -18,7 +18,8 @@ import DatePicker from "@/components/shared/DatePicker";
 import { formatBRL, formatDate, decimalToNumber, cn } from "@/lib/utils";
 import { useTabTitle } from "@/lib/tabs-context";
 import { MessageCircle, Copy, ExternalLink, Search, ChevronDown, X, Loader2, Users, FileInput, Link2, FileText, Pencil, Truck, XCircle } from "lucide-react";
-import { useDocumentoId, useNavegacaoCompra } from "@/lib/compra-embutida";
+import { CompraEmbutidaProvider, useDocumentoId } from "@/lib/compra-embutida";
+import EditarPedidoTela from "@/app/(erp)/suprimentos/pedidos-compra/[id]/editar/page";
 import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaResumo, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 import CancelarCompraDialog from "@/components/compras/CancelarCompraDialog";
 
@@ -58,7 +59,6 @@ type PedidoCompra = {
   empresaId: string;
   numero: string;
   numeroCompra?: string | null;
-  numeroAntigo?: string | null;
   status: string;
   statusFinanceiro?: string | null;
   contasPagar?: ContaPagarMin[];
@@ -116,7 +116,6 @@ const TIPO_FRETE_LABEL: Record<string, string> = {
 
 export default function PedidoCompraDetailPage() {
   const id = useDocumentoId();
-  const nav = useNavegacaoCompra();
   const router  = useRouter();
   const { user } = useSession();
   const isAdmin  = user?.perfil === "ADMIN";
@@ -126,6 +125,8 @@ export default function PedidoCompraDetailPage() {
   const [actionError, setActionError] = useState("");
   const [actioning, setActioning] = useState(false);
   const [cancelarAberto, setCancelarAberto] = useState(false);
+  // Editar no lugar: a mesma aba vira o formulário (sem abrir outra tela).
+  const [editando, setEditando] = useState(false);
 
   // ── Vincular Cotação popover ──────────────────────────────────────────────────
   const [ctPopoverOpen,  setCtPopoverOpen]  = useState(false);
@@ -657,7 +658,6 @@ async function openWAModal() {
                     >
                       <span className="flex flex-col items-start">
                         <span className="font-mono font-semibold text-foreground">{n.numeroCompra ?? n.numero}</span>
-                        {n.numeroCompra && <span className="font-mono text-[10px] text-muted-foreground">{n.numero}</span>}
                       </span>
                       <div className="text-right">
                         {n.solicitante && <p className="text-xs text-muted-foreground">{n.solicitante}</p>}
@@ -678,7 +678,6 @@ async function openWAModal() {
         {sc ? (
           <div className="space-y-4">
             <EtapaCampos colunas={2}>
-              <EtapaCampo rotulo="Nº interno"><span className="font-mono">{sc.numero}</span></EtapaCampo>
               <ForaDaCompra>
                 <EtapaCampo rotulo="Solicitante">{sc.solicitante}</EtapaCampo>
                 <EtapaCampo rotulo={sc.centroCusto ? "Centro de custo" : sc.setor ? "Setor" : "Local"} span={2}>{scSetor}</EtapaCampo>
@@ -689,7 +688,6 @@ async function openWAModal() {
               <Link
                 href={`/compras/necessidades/${sc.id}`}
                 className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-                title={sc.numero}
               >
                 <FileText className="w-3 h-3" />
                 {sc.numeroCompra && sc.numeroCompra !== pedido.numeroCompra ? `Abrir solicitação · ${sc.numeroCompra}` : "Abrir solicitação"}
@@ -767,9 +765,6 @@ async function openWAModal() {
                     >
                       <span className="flex flex-col items-start">
                         <span className="font-mono font-semibold text-foreground">{c.numeroCompra ?? c.necessidade?.numeroCompra ?? c.numero}</span>
-                        {(c.numeroCompra ?? c.necessidade?.numeroCompra) && (
-                          <span className="font-mono text-[10px] text-muted-foreground">{c.numero}</span>
-                        )}
                       </span>
                       <div className="text-right">
                         {c.nome && <p className="text-xs text-muted-foreground">{c.nome}</p>}
@@ -785,7 +780,6 @@ async function openWAModal() {
         {pedido.cotacao ? (
           <div className="space-y-4">
             <EtapaCampos colunas={2}>
-              <EtapaCampo rotulo="Nº interno"><span className="font-mono">{pedido.cotacao.numero}</span></EtapaCampo>
               <EtapaCampo rotulo="Proposta">{cf ? <span className="font-mono">{propostaLabel}</span> : null}</EtapaCampo>
               {pedido.cotacao.nome && <EtapaCampo rotulo="Nome" span={2}>{pedido.cotacao.nome}</EtapaCampo>}
             </EtapaCampos>
@@ -793,7 +787,6 @@ async function openWAModal() {
               <Link
                 href={`/suprimentos/cotacoes/${pedido.cotacao.id}`}
                 className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-                title={pedido.cotacao.numero}
               >
                 <FileText className="w-3 h-3" />
                 {pedido.cotacao.numeroCompra && pedido.cotacao.numeroCompra !== pedido.numeroCompra
@@ -810,13 +803,26 @@ async function openWAModal() {
     </>
   );
 
+  if (editando) {
+    // O formulário de edição volta para cá ao salvar/cancelar (navega para a
+    // rota do pedido): interceptamos e só saímos do modo edição.
+    return (
+      <CompraEmbutidaProvider
+        docId={id}
+        abrir={(href) => {
+          if (href === `/suprimentos/pedidos-compra/${id}`) { setEditando(false); load(); return true; }
+          return false;
+        }}
+      >
+        <EditarPedidoTela />
+      </CompraEmbutidaProvider>
+    );
+  }
+
   return (
     <div>
       <PageHeader
-        title={
-          (pedido.numeroCompra ? `Compra ${pedido.numeroCompra} · Pedido${pedido.numero !== pedido.numeroCompra ? ` ${pedido.numero}` : ""}` : `Pedido ${pedido.numero}`) +
-          (pedido.numeroAntigo && pedido.numeroAntigo !== pedido.numero ? ` (antes ${pedido.numeroAntigo})` : "")
-        }
+        title={pedido.numeroCompra ? `Compra ${pedido.numeroCompra} · Pedido${pedido.numero !== pedido.numeroCompra ? ` ${pedido.numero}` : ""}` : `Pedido ${pedido.numero}`}
         breadcrumbs={[
           { label: "Suprimentos" },
           { label: "Pedidos de Compra", href: "/suprimentos/pedidos-compra" },
@@ -829,7 +835,7 @@ async function openWAModal() {
             {/* Editar: itens, preços, encargos… Depois de aprovado, salvar
                 devolve o pedido para aprovação. */}
             {!["RECEBIDO", "CANCELADO"].includes(pedido.status) && (
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => nav.ir(`/suprimentos/pedidos-compra/${id}/editar`)}>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditando(true)}>
                 <Pencil className="w-3.5 h-3.5" /> Editar
               </Button>
             )}
@@ -921,9 +927,6 @@ async function openWAModal() {
             </ForaDaCompra>
             <EtapaCampo rotulo="Condição de pagamento">{cf?.condicoesPagamento}</EtapaCampo>
             <EtapaCampo rotulo="Tipo de frete">{cf?.tipoFrete ? (TIPO_FRETE_LABEL[cf.tipoFrete] ?? cf.tipoFrete) : null}</EtapaCampo>
-            {pedido.numeroAntigo && pedido.numeroAntigo !== pedido.numero && (
-              <EtapaCampo rotulo="Nº antigo"><span className="font-mono">{pedido.numeroAntigo}</span></EtapaCampo>
-            )}
             {pedido.conferencia && (
               <ForaDaCompra>
                 <EtapaCampo rotulo="Entrada">
@@ -931,7 +934,6 @@ async function openWAModal() {
                     <Link
                       href={`/suprimentos/conferencias/${pedido.conferencia.id}`}
                       className="text-info hover:underline font-medium"
-                      title={pedido.conferencia.numero}
                     >
                       {pedido.conferencia.numeroCompra && pedido.conferencia.numeroCompra !== pedido.numeroCompra
                         ? `Entrada · ${pedido.conferencia.numeroCompra}`

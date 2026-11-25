@@ -83,7 +83,6 @@ type LocalEstoque = {
 type PedidoOption = {
   id: string;
   numero: string; // = número da compra (PC-0430, ou PC-0430/2)
-  numeroAntigo?: string | null;
   valorTotal?: unknown;
   // Financeiro do pedido (prévia de duplicatas)
   condicaoPagamentoId?: string | null;
@@ -2243,9 +2242,6 @@ function PcLinkList({
                   >
                     <span className="flex flex-col items-start">
                       <span className="font-mono font-semibold text-foreground">{p.numero}</span>
-                      {p.numeroAntigo && p.numeroAntigo !== p.numero && (
-                        <span className="font-mono text-[10px] text-muted-foreground">antes {p.numeroAntigo}</span>
-                      )}
                     </span>
                     <span className="flex items-center gap-2 text-xs">
                       <span className="text-muted-foreground">

@@ -114,17 +114,7 @@ const COLS: ColDef<ConferenciaRow>[] = [
     label: "Compra",
     thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
     tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
-    render: (doc) => {
-      const compra = compraLabel(doc);
-      return (
-        <div className="flex flex-col">
-          <span>{compra}</span>
-          {compra !== doc.numero && (
-            <span className="text-[10px] font-normal text-muted-foreground">{doc.numero}</span>
-          )}
-        </div>
-      );
-    },
+    render: (doc) => <span>{compraLabel(doc)}</span>,
   },
   {
     id: "numeroNF",
@@ -147,12 +137,7 @@ const COLS: ColDef<ConferenciaRow>[] = [
     tdClass: "px-4 py-3",
     render: (doc) => doc.pedido
       ? (
-        <div className="flex flex-col">
-          <span className="text-xs text-info">Pedido</span>
-          {doc.pedido.numeroAntigo && doc.pedido.numeroAntigo !== doc.pedido.numero && (
-            <span className="font-mono text-[10px] text-muted-foreground">antes {doc.pedido.numeroAntigo}</span>
-          )}
-        </div>
+        <span className="text-xs text-info">Pedido</span>
       )
       : <span className="text-muted-foreground/60 text-xs">avulsa</span>,
   },
@@ -294,7 +279,7 @@ function KanbanCard({ doc }: { doc: ConferenciaRow }) {
       className="bg-card border border-border rounded-lg p-3 shadow-sm cursor-pointer hover:shadow-md hover:border-blue-300 transition-all"
       onClick={() => router.push(`/suprimentos/conferencias/${doc.id}`)}
     >
-      <span className="font-mono text-xs font-semibold text-foreground" title={doc.numero}>{compraLabel(doc)}</span> <EmpresaTag empresaId={doc.empresaId} />
+      <span className="font-mono text-xs font-semibold text-foreground">{compraLabel(doc)}</span> <EmpresaTag empresaId={doc.empresaId} />
       {!doc.pedido && (
         <p className="text-xs text-muted-foreground mt-0.5">Entrada avulsa</p>
       )}

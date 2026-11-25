@@ -169,7 +169,7 @@ function DrillDownModal({
                       router.push(`/suprimentos/conferencias/${p.id}`);
                     }}
                   >
-                    <td className="px-5 py-3 font-mono text-xs text-info group-hover:underline" title={`Entrada ${p.numero}`}>{p.numeroCompra || p.numero}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-info group-hover:underline">{p.numeroCompra || p.numero}</td>
                     <td className="px-5 py-3 text-foreground">{p.fornecedorNome}</td>
                     <td className="px-5 py-3 text-right text-muted-foreground text-xs">{fmtDate(p.receiptDate)}</td>
                     <td className="px-5 py-3 text-right font-semibold text-foreground">

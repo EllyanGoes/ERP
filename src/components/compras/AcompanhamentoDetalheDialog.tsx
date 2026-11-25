@@ -44,6 +44,14 @@ const ETAPA_LABEL: Record<EtapaCompra, string> = {
 };
 const ORDEM: EtapaCompra[] = ["solicitacao", "cotacao", "pedido", "entrada"];
 
+/** Elo da cadeia pela etapa; o pedido leva o número só quando difere do da
+ *  compra (PC-0430/2). Sem número da compra, o do documento é o único que há. */
+function rotuloElo(e: Elo, numeroCompra: string | null): string {
+  if (!numeroCompra) return e.numero;
+  if (e.etapa === "pedido" && e.numero !== numeroCompra) return `Pedido ${e.numero}`;
+  return ETAPA_LABEL[e.etapa];
+}
+
 const fmtQtd = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 
 function valorCampo(c: Campo): string {
@@ -122,7 +130,7 @@ export default function AcompanhamentoDetalheDialog({
                 <EmpresaTag empresaId={detalhe.empresaId} />
                 <span className="text-xs font-normal text-muted-foreground">
                   {ETAPA_LABEL[detalhe.etapa]}
-                  {detalhe.numeroCompra && detalhe.numeroCompra !== detalhe.numero && ` · ${detalhe.numero}`}
+                  {detalhe.etapa === "pedido" && detalhe.numeroCompra && detalhe.numeroCompra !== detalhe.numero && ` · ${detalhe.numero}`}
                 </span>
               </>
             ) : (
@@ -160,10 +168,9 @@ export default function AcompanhamentoDetalheDialog({
                       <button
                         type="button"
                         onClick={() => onNavegar({ etapa: e.etapa, id: e.id })}
-                        title={`Ver ${e.numero} (${ETAPA_LABEL[e.etapa]})`}
                         className="flex items-center gap-2 pl-2.5 pr-1 py-1 rounded-lg border border-border hover:bg-muted transition-colors"
                       >
-                        <span className="text-xs font-semibold text-foreground">{e.numero}</span>
+                        <span className="text-xs font-semibold text-foreground">{rotuloElo(e, detalhe.numeroCompra)}</span>
                         <StatusBadge status={e.status} />
                       </button>
                     </span>

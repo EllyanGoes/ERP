@@ -19,7 +19,7 @@ import DatePicker from "@/components/shared/DatePicker";
 import EscClose from "@/components/shared/EscClose";
 import { useDocumentoId } from "@/lib/compra-embutida";
 import SelectMenu from "@/components/shared/SelectMenu";
-import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, EtapaRodapeAcoes, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
+import { EtapaLayout, EtapaSecao, EtapaCampos, EtapaCampo, EtapaCampoForm, ForaDaCompra, tabela } from "@/components/compras/etapa/EtapaUI";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -434,96 +434,76 @@ export default function NecessidadeDetailPage() {
   if (!necessidade) return <div className="px-8 pt-8 text-red-500">{error || "Não encontrado"}</div>;
 
   const isRascunho = necessidade.status === "RASCUNHO";
-  // Identificador da compra (número único do processo); SC- antigo como fallback/detalhe.
+  // Identificador da compra (número único do processo); SC- só como fallback.
   const compraNumero = necessidade.numeroCompra ?? necessidade.numero;
-  const compraRotulo = necessidade.numeroCompra
-    ? `Compra ${necessidade.numeroCompra} · ${necessidade.numero}`
-    : necessidade.numero;
+  const compraRotulo = necessidade.numeroCompra ? `Compra ${necessidade.numeroCompra}` : necessidade.numero;
   const isCancelada = necessidade.status === "CANCELADA";
   // Editar nunca em SC cancelada (estado final); senão admin sempre, ou estados iniciais.
   const canEdit    = !isCancelada && (isAdmin || ["RASCUNHO", "AGUARDANDO_APROVACAO", "REJEITADA"].includes(necessidade.status));
   // Cancelar (soft) disponível em todos os estados de trabalho, exceto os terminais já atendidos.
   const canCancel  = ["RASCUNHO", "AGUARDANDO_APROVACAO", "APROVADA", "REJEITADA", "EM_COTACAO", "EM_PEDIDO"].includes(necessidade.status);
 
-  // ── Edit mode view ───────────────────────────────────────────────────────────
-  if (editMode) {
-    return (
-      <div>
-        <PageHeader
-          title={necessidade.numeroCompra ? `Editar Compra ${necessidade.numeroCompra} · Solicitação` : `Editar ${necessidade.numero}`}
-          breadcrumbs={[
-            { label: "Compras" },
-            { label: "Solicitações de Compras", href: "/compras/necessidades" },
-            { label: compraNumero },
-            { label: "Editar" },
-          ]}
-        />
-
-        <form onSubmit={handleSaveEdit}>
-          <EtapaLayout>
-            {editError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{editError}</div>}
-
-            <EtapaSecao titulo="Dados da solicitação">
-              <EtapaCampos>
-                <EtapaCampoForm rotulo="Filial" obrigatorio span={2}>
-                  <SelectField options={filiais} value={eFilialId}
-                    onChange={(v) => { setEFilialId(v); setELocalEstoqueId(""); }}
-                    placeholder="Selecionar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial} />
-                </EtapaCampoForm>
-                <EtapaCampoForm rotulo="Prioridade" obrigatorio>
-                  <SelectMenu value={String(ePrioridade)} onChange={(v) => setEPrioridade(Number(v))}
-                    options={PRIORIDADES.map((p) => ({ value: String(p.value), label: p.label }))} className="w-full" />
-                </EtapaCampoForm>
-                <EtapaCampoForm rotulo="Entrega desejada">
-                  <DatePicker value={eEntregaDesejada} onChange={(v) => setEEntregaDesejada(v)} />
-                </EtapaCampoForm>
-
-                <EtapaCampoForm rotulo="Descrição" obrigatorio span={4}>
-                  <Input value={eDescricao} onChange={(e) => setEDescricao(e.target.value)} placeholder="Descreva o que está sendo solicitado..." />
-                </EtapaCampoForm>
-
-                <EtapaCampoForm rotulo="Solicitante" obrigatorio>
-                  <Input value={eSolicitante} onChange={(e) => setESolicitante(e.target.value)} placeholder="Nome do solicitante" />
-                </EtapaCampoForm>
-                <EtapaCampoForm rotulo="Tipo de compra">
-                  <SelectMenu value={eTipoCompra} onChange={setETipoCompra} options={TIPOS_COMPRA}
-                    placeholder="Selecione..." className="w-full" />
-                </EtapaCampoForm>
-                <EtapaCampoForm rotulo="Motivo" obrigatorio span={2}>
-                  <Input value={eMotivo} onChange={(e) => setEMotivo(e.target.value)} placeholder="Motivo da solicitação..." />
-                </EtapaCampoForm>
-
-                <EtapaCampoForm rotulo="Local de estoque" obrigatorio span={2}>
-                  <SelectField options={locaisEstoque} value={eLocalEstoqueId} onChange={setELocalEstoqueId}
-                    placeholder={eFilialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Selecionar local...") : "Selecione a filial primeiro"}
-                    getLabel={(l) => l.nome} disabled={!eFilialId} />
-                </EtapaCampoForm>
-                <EtapaCampoForm rotulo="Centro de custo" span={2}>
-                  <SelectField options={centrosCusto} value={eCentroCustoId} onChange={setECentroCustoId}
-                    placeholder="Selecionar centro de custo..." getLabel={(c) => `${c.codigo} - ${c.nome}`} />
-                </EtapaCampoForm>
-
-                <EtapaCampoForm rotulo="Categoria">
-                  <Input value={eCategoria} onChange={(e) => setECategoria(e.target.value)} placeholder="Ex: Material de escritório..." />
-                </EtapaCampoForm>
-                <EtapaCampoForm rotulo="Projeto">
-                  <Input value={eProjeto} onChange={(e) => setEProjeto(e.target.value)} placeholder="Nome do projeto..." />
-                </EtapaCampoForm>
-                <EtapaCampoForm rotulo="Classificação auxiliar" span={2}>
-                  <Input value={eClassificacaoAuxiliar} onChange={(e) => setEClassificacaoAuxiliar(e.target.value)} placeholder="Classificação adicional..." />
-                </EtapaCampoForm>
-
-                <EtapaCampoForm rotulo="Observação" span={4}>
-                  <Textarea value={eObservacoes} onChange={(e) => setEObservacoes(e.target.value)} placeholder="Informações adicionais..." rows={3} />
-                </EtapaCampoForm>
-              </EtapaCampos>
-            </EtapaSecao>
-
-            <EtapaSecao
-              titulo="Itens"
-              semPadding
-              acoes={<Button type="button" size="sm" variant="outline" onClick={addERow}><Plus className="w-4 h-4 mr-1" />Adicionar item</Button>}
-            >
+  // ── Edição no lugar: mesma tela, mesmos cartões; os campos viram editáveis ──
+  const camposEdicao = (
+    <div className="space-y-4">
+      {editError && <div className="bg-danger/10 border border-danger/30 text-danger px-4 py-3 rounded-lg text-sm">{editError}</div>}
+      <EtapaCampos>
+        <EtapaCampo rotulo="Data de criação">{formatDate(necessidade.createdAt)}</EtapaCampo>
+        <EtapaCampoForm rotulo="Local de estoque" obrigatorio>
+          <SelectField options={locaisEstoque} value={eLocalEstoqueId} onChange={setELocalEstoqueId}
+            placeholder={eFilialId ? (locaisEstoque.length === 0 ? "Nenhum local para esta filial" : "Selecionar local...") : "Selecione a filial primeiro"}
+            getLabel={(l) => l.nome} disabled={!eFilialId} />
+        </EtapaCampoForm>
+        <EtapaCampoForm rotulo="Centro de custo">
+          <SelectField options={centrosCusto} value={eCentroCustoId} onChange={setECentroCustoId}
+            placeholder="Selecionar centro de custo..." getLabel={(c) => `${c.codigo} - ${c.nome}`} />
+        </EtapaCampoForm>
+        <EtapaCampoForm rotulo="Tipo de compra">
+          <SelectMenu value={eTipoCompra} onChange={setETipoCompra} options={TIPOS_COMPRA}
+            placeholder="Selecione..." className="w-full" />
+        </EtapaCampoForm>
+        <EtapaCampoForm rotulo="Motivo" obrigatorio span={2}>
+          <Input value={eMotivo} onChange={(e) => setEMotivo(e.target.value)} placeholder="Motivo da solicitação..." />
+        </EtapaCampoForm>
+        <EtapaCampoForm rotulo="Categoria">
+          <Input value={eCategoria} onChange={(e) => setECategoria(e.target.value)} placeholder="Ex: Material de escritório..." />
+        </EtapaCampoForm>
+        <EtapaCampoForm rotulo="Projeto">
+          <Input value={eProjeto} onChange={(e) => setEProjeto(e.target.value)} placeholder="Nome do projeto..." />
+        </EtapaCampoForm>
+        <EtapaCampoForm rotulo="Classificação auxiliar" span={2}>
+          <Input value={eClassificacaoAuxiliar} onChange={(e) => setEClassificacaoAuxiliar(e.target.value)} placeholder="Classificação adicional..." />
+        </EtapaCampoForm>
+        <EtapaCampoForm rotulo="Descrição / Justificativa" obrigatorio span={2}>
+          <Input value={eDescricao} onChange={(e) => setEDescricao(e.target.value)} placeholder="Descreva o que está sendo solicitado..." />
+        </EtapaCampoForm>
+        <EtapaCampoForm rotulo="Observações" span={4}>
+          <Textarea value={eObservacoes} onChange={(e) => setEObservacoes(e.target.value)} placeholder="Informações adicionais..." rows={2} />
+        </EtapaCampoForm>
+      </EtapaCampos>
+      {/* O que o cabeçalho da compra mostra também se edita, aqui embaixo. */}
+      <div className="pt-4 border-t border-border">
+        <EtapaCampos>
+          <EtapaCampoForm rotulo="Solicitante" obrigatorio>
+            <Input value={eSolicitante} onChange={(e) => setESolicitante(e.target.value)} placeholder="Nome do solicitante" />
+          </EtapaCampoForm>
+          <EtapaCampoForm rotulo="Prioridade" obrigatorio>
+            <SelectMenu value={String(ePrioridade)} onChange={(v) => setEPrioridade(Number(v))}
+              options={PRIORIDADES.map((p) => ({ value: String(p.value), label: p.label }))} className="w-full" />
+          </EtapaCampoForm>
+          <EtapaCampoForm rotulo="Entrega desejada">
+            <DatePicker value={eEntregaDesejada} onChange={(v) => setEEntregaDesejada(v)} />
+          </EtapaCampoForm>
+          <EtapaCampoForm rotulo="Filial" obrigatorio>
+            <SelectField options={filiais} value={eFilialId}
+              onChange={(v) => { setEFilialId(v); setELocalEstoqueId(""); }}
+              placeholder="Selecionar filial..." getLabel={(f) => f.nomeFantasia || f.razaoSocial} />
+          </EtapaCampoForm>
+        </EtapaCampos>
+      </div>
+    </div>
+  );
+  const itensEdicao = (
               <div className="overflow-x-auto">
                 <table className={tabela.table}>
                   <thead className={tabela.thead}>
@@ -579,21 +559,7 @@ export default function NecessidadeDetailPage() {
                   </tbody>
                 </table>
               </div>
-            </EtapaSecao>
-
-            <EtapaRodapeAcoes info={<>Campos com <span className="text-danger">*</span> são obrigatórios.</>}>
-              <Button type="button" variant="outline" onClick={exitEditMode}>
-                <X className="w-4 h-4 mr-1" />Cancelar
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Salvando...</> : <><Save className="w-4 h-4 mr-1" />Salvar Alterações</>}
-              </Button>
-            </EtapaRodapeAcoes>
-          </EtapaLayout>
-        </form>
-      </div>
-    );
-  }
+  );
 
   // ── Read-only view ───────────────────────────────────────────────────────────
   return (
@@ -605,7 +571,17 @@ export default function NecessidadeDetailPage() {
           { label: "Solicitações de Compras", href: "/compras/necessidades" },
           { label: compraNumero },
         ]}
-        action={
+        action={editMode ? (
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <StatusBadge status={necessidade.status} />
+            <Button size="sm" variant="outline" type="button" onClick={exitEditMode} disabled={saving}>
+              <X className="w-3.5 h-3.5 mr-1" />Cancelar
+            </Button>
+            <Button size="sm" type="submit" form="sc-edicao" disabled={saving}>
+              {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Salvando...</> : <><Save className="w-3.5 h-3.5 mr-1" />Salvar alterações</>}
+            </Button>
+          </div>
+        ) : (
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <StatusBadge status={necessidade.status} />
 
@@ -655,8 +631,10 @@ export default function NecessidadeDetailPage() {
               </Button>
             )}
           </div>
-        }
+        )}
       />
+      {/* Formulário da edição no lugar (o botão Salvar fica na barra de ações, via form=). */}
+      <form id="sc-edicao" onSubmit={handleSaveEdit} />
       <EtapaLayout
         lateral={
           <>
@@ -716,7 +694,6 @@ export default function NecessidadeDetailPage() {
                   <div className="flex flex-wrap gap-2">
                     {necessidade.cotacoes.map((c) => (
                       <Link key={c.id} href={`/suprimentos/cotacoes/${c.id}`}
-                        title={c.numero}
                         className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
                         {c.numeroCompra
                           ? <span className="font-medium text-foreground group-hover:text-info">Cotação</span>
@@ -751,8 +728,7 @@ export default function NecessidadeDetailPage() {
                     <div className="flex flex-wrap gap-2">
                       {conferencias.map((c) => (
                         <Link key={c.id} href={`/suprimentos/conferencias/${c.id}`}
-                          title={c.numero}
-                          className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
+                            className="inline-flex items-center gap-2 text-sm border border-border hover:border-blue-300 hover:bg-info/10 rounded-lg px-3 py-1.5 transition-colors group">
                           {c.numeroCompra
                             ? <span className="font-medium text-foreground group-hover:text-info">Entrada</span>
                             : <span className="font-mono font-medium text-foreground group-hover:text-info">{c.numero}</span>}
@@ -772,14 +748,12 @@ export default function NecessidadeDetailPage() {
         )}
 
         <EtapaSecao titulo="Dados da solicitação">
+          {editMode ? camposEdicao : (
           <div className="space-y-4">
             <EtapaCampos>
               <ForaDaCompra>
                 <EtapaCampo rotulo="Compra">
                   <span className="font-mono font-bold text-foreground">{compraNumero}</span>
-                  {necessidade.numeroCompra && (
-                    <span className="block font-mono text-xs text-muted-foreground">{necessidade.numero}</span>
-                  )}
                 </EtapaCampo>
               </ForaDaCompra>
               {/* Status fica no selo da barra de ações; prioridade, necessidade e
@@ -858,9 +832,15 @@ export default function NecessidadeDetailPage() {
 
             <Autoria criadoPor={necessidade.criadoPor} atualizadoPor={necessidade.atualizadoPor} />
           </div>
+          )}
         </EtapaSecao>
 
-        <EtapaSecao titulo="Itens" semPadding>
+        <EtapaSecao
+          titulo="Itens"
+          semPadding
+          acoes={editMode ? <Button type="button" size="sm" variant="outline" onClick={addERow}><Plus className="w-4 h-4 mr-1" />Adicionar item</Button> : undefined}
+        >
+          {editMode ? itensEdicao : (
           <div className="overflow-x-auto">
             <table className={tabela.table}>
               <thead className={tabela.thead}>
@@ -897,6 +877,7 @@ export default function NecessidadeDetailPage() {
               </tbody>
             </table>
           </div>
+          )}
         </EtapaSecao>
       </EtapaLayout>
 

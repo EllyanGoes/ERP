@@ -93,12 +93,7 @@ const COLS: ColDef<Pedido>[] = [
     tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
     // `numero` do pedido = número da compra (ou PC-0430/2 no 2º pedido do processo)
     render: (p) => (
-      <div className="flex flex-col">
-        <span>{p.numero}</span>
-        {p.numeroAntigo && p.numeroAntigo !== p.numero && (
-          <span className="text-[10px] font-normal text-muted-foreground">antes {p.numeroAntigo}</span>
-        )}
-      </div>
+      <span>{p.numero}</span>
     ),
   },
   {
@@ -134,7 +129,7 @@ const COLS: ColDef<Pedido>[] = [
           onClick={(e) => e.stopPropagation()}
           className="group flex flex-col gap-0.5"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-info hover:text-info hover:underline" title={sc.numero}>
+          <span className="flex items-center gap-1 text-xs font-medium text-info hover:text-info hover:underline">
             <ClipboardList className="w-3 h-3 flex-shrink-0" />
             Solicitação
             <ChevronRight className="w-3 h-3 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -161,7 +156,6 @@ const COLS: ColDef<Pedido>[] = [
           href={`/suprimentos/cotacoes/${p.cotacao.id}`}
           onClick={(e) => e.stopPropagation()}
           className="group flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline"
-          title={p.cotacao.numero}
         >
           <FileText className="w-3 h-3 flex-shrink-0" />
           Cotação
@@ -211,7 +205,6 @@ const COLS: ColDef<Pedido>[] = [
           href={`/suprimentos/conferencias/${p.conferencia.id}`}
           onClick={(e) => e.stopPropagation()}
           className="group flex items-center gap-1 text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:text-teal-300 hover:underline"
-          title={p.conferencia.numero}
         >
           <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
           Entrada
@@ -425,7 +418,7 @@ function KanbanCard({
       onClick={() => !isDragging && router.push(`/suprimentos/pedidos-compra/${p.id}`)}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-semibold text-foreground" title={p.numeroAntigo && p.numeroAntigo !== p.numero ? `antes ${p.numeroAntigo}` : undefined}>{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
+        <span className="font-mono text-xs font-semibold text-foreground">{p.numero}</span> <EmpresaTag empresaId={p.empresaId} />
         <div onClick={(e) => e.stopPropagation()}>
           <PedidoActionsMenu id={p.id} numero={p.numero} status={p.status} isAdmin={isAdmin} />
         </div>
@@ -440,7 +433,6 @@ function KanbanCard({
           href={`/compras/necessidades/${sc.id}`}
           onClick={(e) => e.stopPropagation()}
           className="inline-flex items-center gap-1 text-xs text-info hover:text-info hover:underline mb-0.5"
-          title={sc.numero}
         >
           <ClipboardList className="w-3 h-3" />
           Solicitação
@@ -452,7 +444,6 @@ function KanbanCard({
           href={`/suprimentos/cotacoes/${p.cotacao.id}`}
           onClick={(e) => e.stopPropagation()}
           className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:text-indigo-300 hover:underline mb-1"
-          title={p.cotacao.numero}
         >
           <FileText className="w-3 h-3" />
           Cotação
@@ -726,7 +717,7 @@ export default function PedidosCompraPage() {
 
     autoTable(doc, {
       startY: 32,
-      head: [["Compra", "Fornecedor", "Descrição", "Solicitante", "Nº anterior", "Status", "Valor Total", "Entrega Prevista"]],
+      head: [["Compra", "Fornecedor", "Descrição", "Solicitante", "Status", "Valor Total", "Entrega Prevista"]],
       body: filtered.map((p) => {
         const sc = p.cotacao?.necessidade;
         const descricao = p.descricao ?? sc?.justificativa ?? "";
@@ -737,7 +728,6 @@ export default function PedidosCompraPage() {
           p.fornecedor.nomeFantasia || p.fornecedor.razaoSocial,
           descricao || "—",
           scLabel,
-          p.numeroAntigo && p.numeroAntigo !== p.numero ? p.numeroAntigo : "—",
           STATUS_LABEL[p.status] ?? p.status,
           formatBRL(decimalToNumber(p.valorTotal)),
           p.dataEntregaPrevista ? formatDate(p.dataEntregaPrevista) : "—",
@@ -751,10 +741,9 @@ export default function PedidosCompraPage() {
         1: { cellWidth: 40 },
         2: { cellWidth: 55 },
         3: { cellWidth: 38 },
-        4: { cellWidth: 22 },
-        5: { cellWidth: 26 },
-        6: { cellWidth: 24, halign: "right" },
-        7: { cellWidth: 24 },
+        4: { cellWidth: 26 },
+        5: { cellWidth: 24, halign: "right" },
+        6: { cellWidth: 24 },
       },
       margin: { left: 14, right: 14 },
     });

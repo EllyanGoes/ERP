@@ -66,7 +66,7 @@ const PRIORIDADE: Record<number, { label: string; cls: string }> = {
 
 // ── Número da compra ─────────────────────────────────────────────────────────
 // O processo (SC → CT → PC → DE) é identificado pelo número único da compra
-// (PC-0430); o número de cada documento fica só como detalhe (tooltip).
+// (PC-0430); os números internos de cada documento não aparecem na tela.
 
 /** Número da compra de uma cotação (o da SC de origem prevalece), ou o próprio. */
 function compraDaCotacao(c: Cotacao): string {
@@ -76,11 +76,6 @@ function compraDaCotacao(c: Cotacao): string {
 /** O pedido já leva o número da compra (PC-0430/2 no 2º pedido do processo). */
 function compraDoPedido(p: PedidoAprov): string {
   return p.numeroCompra && !p.numero.startsWith(p.numeroCompra) ? p.numeroCompra : p.numero;
-}
-
-/** Números internos dos documentos, para o tooltip. */
-function docsDaCotacao(c: Cotacao): string {
-  return [`Cotação ${c.numero}`, c.necessidade ? `Solicitação ${c.necessidade.numero}` : null].filter(Boolean).join(" · ");
 }
 
 function numeroDaAprovacao(r: Aprovacao): string {
@@ -149,7 +144,7 @@ function AprovacaoCard({
         )}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <Link href={`/suprimentos/pedidos-compra/${ped.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm" title={`Pedido ${ped.numero}`}>
+          <Link href={`/suprimentos/pedidos-compra/${ped.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm">
             Compra {compraDoPedido(ped)}
           </Link>
           <span className="text-xs px-2 py-0.5 rounded-full bg-info/10 text-info font-medium border border-info/30">Pedido de Compras · alterado</span>
@@ -211,7 +206,7 @@ function AprovacaoCard({
         )}
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <Link href={`/suprimentos/cotacoes/${cot.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm" title={docsDaCotacao(cot)}>
+          <Link href={`/suprimentos/cotacoes/${cot.id}`} className="font-semibold text-foreground hover:text-info transition-colors text-sm">
             Compra {compraDaCotacao(cot)}
           </Link>
           {cot.nome && <span className="text-sm text-foreground">— {cot.nome}</span>}
@@ -308,7 +303,6 @@ function AprovacaoCard({
             <Link
               href={`/compras/necessidades/${sc.id}`}
               className="font-semibold text-foreground hover:text-info transition-colors text-sm"
-              title={`Solicitação ${sc.numero}`}
             >
               Compra {sc.numeroCompra || sc.numero}
             </Link>
@@ -678,21 +672,21 @@ export default function AprovacoesPage() {
         const r = row.original;
         if (r.necessidade) {
           return (
-            <Link href={`/compras/necessidades/${r.necessidade.id}`} title={`Solicitação ${r.necessidade.numero}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
+            <Link href={`/compras/necessidades/${r.necessidade.id}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
               {numeroDaAprovacao(r)}
             </Link>
           );
         }
         if (r.cotacao) {
           return (
-            <Link href={`/suprimentos/cotacoes/${r.cotacao.id}`} title={docsDaCotacao(r.cotacao)} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
+            <Link href={`/suprimentos/cotacoes/${r.cotacao.id}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
               {numeroDaAprovacao(r)}
             </Link>
           );
         }
         if (r.pedidoCompra) {
           return (
-            <Link href={`/suprimentos/pedidos-compra/${r.pedidoCompra.id}`} title={`Pedido ${r.pedidoCompra.numero}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
+            <Link href={`/suprimentos/pedidos-compra/${r.pedidoCompra.id}`} className="font-medium text-foreground hover:text-info transition-colors whitespace-nowrap">
               {numeroDaAprovacao(r)}
             </Link>
           );

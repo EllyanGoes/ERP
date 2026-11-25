@@ -44,6 +44,8 @@ const HREF: Record<Etapa, (id: string) => string> = {
   entrada: (id) => `/suprimentos/conferencias/${id}`,
 };
 
+const ROTULO_ETAPA: Record<Etapa, string> = { solicitacao: "Solicitação", cotacao: "Cotação", pedido: "Pedido", entrada: "Entrada" };
+
 const elo = (etapa: Etapa, d: { id: string; numero: string; status: string } | null | undefined): Elo[] =>
   d ? [{ etapa, id: d.id, numero: d.numero, status: d.status }] : [];
 
@@ -261,7 +263,17 @@ export async function GET(_req: NextRequest, { params }: { params: { etapa: stri
   detalhe.campos = detalhe.campos.filter((c) => c.valor != null && c.valor !== "");
 
   // Linha do tempo: toda mudança de status dos documentos desta compra.
-  const numeros = new Map([[detalhe.id, detalhe.numero], ...detalhe.cadeia.map((e) => [e.id, e.numero] as [string, string])]);
+  // Rótulo pela etapa (números internos SC-/CT-/DE- não aparecem); o pedido
+  // leva o número só quando difere do da compra (PC-0430/2). Sem número da
+  // compra (espelho intragrupo), o número do documento é o único identificador.
+  const rotulo = (etapa: Etapa, numero: string): string =>
+    !detalhe.numeroCompra ? numero
+      : etapa === "pedido" && numero !== detalhe.numeroCompra ? `Pedido ${numero}`
+      : ROTULO_ETAPA[etapa];
+  const numeros = new Map([
+    [detalhe.id, rotulo(detalhe.etapa, detalhe.numero)],
+    ...detalhe.cadeia.map((e) => [e.id, rotulo(e.etapa, e.numero)] as [string, string]),
+  ]);
   const logs = await prisma.compraStatusLog.findMany({
     where: { documentoId: { in: Array.from(numeros.keys()) } },
     orderBy: { criadoEm: "asc" },

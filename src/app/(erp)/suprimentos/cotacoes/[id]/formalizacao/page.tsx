@@ -105,9 +105,6 @@ export default function FormalizacaoPage() {
 
         <h1 className="text-2xl font-bold text-foreground">
           Formalização da proposta - {cotacao.numeroCompra ? `Compra ${cotacao.numeroCompra}` : cotacao.numero}
-          {cotacao.numeroCompra && (
-            <span className="ml-2 align-middle font-mono text-sm font-normal text-muted-foreground">{cotacao.numero}</span>
-          )}
         </h1>
       </div>
 

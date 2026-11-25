@@ -150,7 +150,6 @@ function RecordChips({
           key={it.id}
           href={`${hrefBase}/${it.id}`}
           className={cn(chipClass, dimIds.has(it.id) && "opacity-50")}
-          title={it.numero}
         >
           {etapa && it.numeroCompra
             ? <span className="text-[10px] font-medium text-muted-foreground hover:text-info">{etapa}</span>
@@ -189,9 +188,6 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
           {compraDe(n)}
           <ChevronRight className="w-3 h-3 text-muted-foreground/60" />
         </span>
-        {n.numeroCompra && n.numeroCompra !== n.numero && (
-          <span className="text-[10px] font-normal text-muted-foreground">{n.numero}</span>
-        )}
       </span>
     ),
   },
@@ -267,7 +263,6 @@ const NECESSIDADES_COLS: ColDef<Necessidade>[] = [
               key={c.id}
               href={`/suprimentos/cotacoes/${c.id}`}
               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted hover:bg-info/10 border border-border hover:border-info/30 transition-colors"
-              title={c.numero}
             >
               {c.numeroCompra
                 ? <span className="text-[10px] font-medium text-muted-foreground hover:text-info">Cotação</span>
@@ -522,7 +517,7 @@ function KanbanCard({ n, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-xs font-bold text-muted-foreground" title={n.numeroCompra ? n.numero : undefined}>{compraDe(n)}</span> <EmpresaTag empresaId={n.empresaId} />
+        <span className="font-mono text-xs font-bold text-muted-foreground">{compraDe(n)}</span> <EmpresaTag empresaId={n.empresaId} />
         {canDelete && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1102,7 +1097,7 @@ export default function NecessidadesPage() {
               <div>
                 <p className="font-semibold text-foreground">Excluir solicitação?</p>
                 <p className="text-sm text-muted-foreground mt-0.5">
-                  {deleteItem.numeroCompra ? `Compra ${deleteItem.numeroCompra} · ${deleteItem.numero}` : deleteItem.numero}
+                  {deleteItem.numeroCompra ? `Compra ${deleteItem.numeroCompra}` : deleteItem.numero}
                 </p>
               </div>
             </div>

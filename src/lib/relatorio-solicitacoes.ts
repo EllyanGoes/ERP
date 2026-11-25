@@ -55,7 +55,6 @@ export async function buildRelatorioSolicitacoes(): Promise<RelatorioSolicitacoe
       },
       setor:         { select: { nome: true } },
       filial:        { select: { razaoSocial: true, nomeFantasia: true } },
-      cotacoes:      { select: { numero: true, status: true }, orderBy: { createdAt: "desc" }, take: 1 },
       pedidosCompra: { select: { numero: true }, orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: [
@@ -103,13 +102,12 @@ type SCData = Awaited<ReturnType<typeof prisma.necessidadeCompra.findMany<{
     itens: { include: { item: { select: { codigo: true; descricao: true; unidade: { select: { sigla: true } }; unidadeMedida: true } } } };
     setor:         { select: { nome: true } };
     filial:        { select: { razaoSocial: true; nomeFantasia: true } };
-    cotacoes:      { select: { numero: true; status: true } };
     pedidosCompra: { select: { numero: true } };
   };
 }>>>;
 
-// Columns: Compra · Status · Setor · Solicitante · Código · Descrição · Qtd. · Prioridade · Criado em · Cotação · Pedido
-const NUM_COLS = 11;
+// Columns: Compra · Status · Setor · Solicitante · Código · Descrição · Qtd. · Prioridade · Criado em · Pedido
+const NUM_COLS = 10;
 
 async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
   const { default: jsPDF }     = await import("jspdf");
@@ -169,12 +167,11 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
       const solicitante = sc.solicitante || "—";
       const prio       = PRIORIDADE_LABEL[sc.prioridade] ?? "Média";
       const criado     = new Date(sc.createdAt).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
-      const cotacao    = sc.cotacoes[0]?.numero ?? "—";
       const pedido     = sc.pedidosCompra[0]?.numero ?? "—";
       const statusMeta = STATUS_META[sc.status] ?? { label: sc.status, color: [100, 100, 100] as [number, number, number] };
 
       if (sc.itens.length === 0) {
-        rows.push([sc.numeroCompra ?? sc.numero, statusMeta.label, setor, solicitante, "—", "—", "—", prio, criado, cotacao, pedido]);
+        rows.push([sc.numeroCompra ?? sc.numero, statusMeta.label, setor, solicitante, "—", "—", "—", prio, criado, pedido]);
         continue;
       }
 
@@ -191,7 +188,6 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
           `${qty} ${unidade}`,
           idx === 0 ? prio             : "",
           idx === 0 ? criado           : "",
-          idx === 0 ? cotacao          : "",
           idx === 0 ? pedido           : "",
         ]);
       });
@@ -200,7 +196,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
 
   autoTable(doc, {
     startY: 26,
-    head: [["Compra", "Status", "Setor", "Solicitante", "Código", "Descrição", "Qtd.", "Prioridade", "Criado em", "Cotação", "Pedido"]],
+    head: [["Compra", "Status", "Setor", "Solicitante", "Código", "Descrição", "Qtd.", "Prioridade", "Criado em", "Pedido"]],
     body: rows,
     styles: {
       fontSize: 7,
@@ -225,8 +221,7 @@ async function generatePDF(scs: SCData, dateLabel: string): Promise<Buffer> {
       6:  { cellWidth: 18, halign: "right" },                                                 // Qtd.
       7:  { cellWidth: 17, halign: "center" },                                                // Prioridade
       8:  { cellWidth: 20, halign: "center" },                                                // Criado em
-      9:  { cellWidth: 20, halign: "center", textColor: [37, 99, 235], fontStyle: "bold" },  // Cotação
-      10: { cellWidth: 20, halign: "center", textColor: [22, 163, 74],  fontStyle: "bold" }, // Pedido
+      9:  { cellWidth: 20, halign: "center", textColor: [22, 163, 74],  fontStyle: "bold" }, // Pedido
     },
     didParseCell: (data) => {
       if (data.section !== "body") return;

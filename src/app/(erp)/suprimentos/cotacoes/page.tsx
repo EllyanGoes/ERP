@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import EscClose from "@/components/shared/EscClose";
 import CreateDrawer from "@/components/shared/CreateDrawer";
@@ -121,28 +120,11 @@ function makeCotacoesCols(
       thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
       tdClass: "px-4 py-3 font-mono text-xs font-medium text-foreground",
       render: (c) => (
-        <span className="inline-flex items-center gap-1.5" title={c.numeroCompra ? `Cotação ${c.numero}` : undefined}>
+        <span className="inline-flex items-center gap-1.5">
           {c.numeroCompra ?? c.numero}
-          {c.numeroCompra && <span className="text-[11px] font-normal text-muted-foreground">{c.numero}</span>}
           <EmpresaTag empresaId={c.empresaId} />
         </span>
       ),
-    },
-    {
-      id: "solicitacao",
-      label: "Solicitação",
-      thClass: "text-left px-4 py-3 font-medium text-muted-foreground",
-      tdClass: "px-4 py-3",
-      render: (c) => c.necessidade ? (
-        <Link
-          href={`/compras/necessidades/${c.necessidade.id}`}
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-info hover:underline"
-          title="Abrir a solicitação desta compra"
-        >
-          {c.necessidade.numero}
-        </Link>
-      ) : <span className="text-muted-foreground text-xs">—</span>,
     },
     {
       id: "apelido",
@@ -365,8 +347,7 @@ function KanbanCard({ c, onDelete, onClick, canDelete, onDragStart, onDragEnd, i
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
-          <span className="font-mono text-xs font-bold text-muted-foreground" title={c.numeroCompra ? `Cotação ${c.numero}` : undefined}>{c.numeroCompra ?? c.numero}</span>
-          {c.numeroCompra && <span className="ml-1 font-mono text-[10px] text-muted-foreground/70">{c.numero}</span>} <EmpresaTag empresaId={c.empresaId} />
+          <span className="font-mono text-xs font-bold text-muted-foreground">{c.numeroCompra ?? c.numero}</span> <EmpresaTag empresaId={c.empresaId} />
           {c.nome && (
             <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">{c.nome}</p>
           )}

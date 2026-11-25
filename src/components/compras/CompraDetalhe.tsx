@@ -29,7 +29,7 @@ import AnaliseCotacaoTela from "@/app/(erp)/suprimentos/cotacoes/[id]/analise/pa
 import CancelarCompraDialog from "@/components/compras/CancelarCompraDialog";
 import { EtapaSecao, tabela } from "@/components/compras/etapa/EtapaUI";
 
-type Doc = { id: string; numero: string; status: string; numeroAntigo?: string | null; numeroNF?: string | null };
+type Doc = { id: string; numero: string; status: string; numeroNF?: string | null };
 
 type Compra = {
   numeroCompra: string;
@@ -72,6 +72,15 @@ const ETAPAS: { etapa: EtapaCompra; label: string; sigla: string; icon: typeof C
 const NOME_ETAPA: Record<EtapaCompra, string> = {
   solicitacao: "Solicitação", cotacao: "Cotação", pedido: "Pedido", entrada: "Documento de Entrada",
 };
+
+/** Rótulo de um documento no seletor da aba. Números internos (SC-/CT-/DE-)
+ *  não aparecem: o pedido já leva o da compra (PC-0430, PC-0430/2); a entrada
+ *  vai pela NF; os demais, pela ordem. */
+function rotuloDoc(etapa: EtapaCompra, d: Doc, i: number): string {
+  if (etapa === "pedido") return d.numero;
+  if (etapa === "entrada" && d.numeroNF) return `NF ${d.numeroNF}`;
+  return `${NOME_ETAPA[etapa]} ${i + 1}`;
+}
 
 const TELAS: Record<EtapaCompra, () => JSX.Element> = {
   solicitacao: SolicitacaoTela,
@@ -593,7 +602,7 @@ export default function CompraDetalhe({
       {/* Mais de um documento na etapa (ex.: PC-0430 e PC-0430/2): seletor */}
       {docsDaAba.length > 1 && (
         <div className="flex flex-wrap items-center gap-1.5 px-8 pt-4">
-          {docsDaAba.map((d) => (
+          {docsDaAba.map((d, i) => (
             <button
               key={d.id}
               type="button"
@@ -603,7 +612,7 @@ export default function CompraDetalhe({
                 d.id === docId ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
               )}
             >
-              {d.numero}
+              {etapaDaAba && rotuloDoc(etapaDaAba, d, i)}
               <StatusBadge status={d.status} />
             </button>
           ))}

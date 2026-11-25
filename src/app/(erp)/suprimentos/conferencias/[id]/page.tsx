@@ -123,7 +123,6 @@ type Conferencia = {
   pedido: {
     id: string;
     numero: string;
-    numeroAntigo?: string | null;
     condicaoPagamentoId: string | null;
     condicoesPagamento: string | null;
     frete: unknown;
@@ -1052,7 +1051,7 @@ export default function DocumentoEntradaDetailPage() {
               </p>
               <ul className="space-y-0.5">
                 {scAtendidaMsg.map((sc) => (
-                  <li key={sc.numero} className="flex items-center gap-2 text-blue-100" title={sc.numero}>
+                  <li key={sc.numero} className="flex items-center gap-2 text-blue-100">
                     <span className="font-bold text-white">
                       Solicitação{sc.numeroCompra && sc.numeroCompra !== conferencia.numeroCompra ? ` · ${sc.numeroCompra}` : ""}
                     </span>
@@ -1401,12 +1400,6 @@ export default function DocumentoEntradaDetailPage() {
               <Input value="01" readOnly className="bg-muted" />
             </div>
 
-            {/* Nº Documento (read-only) */}
-            <div className="space-y-1.5">
-              <Label className={ROTULO}>Nº interno da entrada</Label>
-              <Input value={conferencia.numero} readOnly className="bg-muted font-mono text-xs text-muted-foreground" />
-            </div>
-
             {/* Data Conferência (read-only) */}
             {conferencia.dataConferencia && (
               <div className="space-y-1.5">
@@ -1429,7 +1422,6 @@ export default function DocumentoEntradaDetailPage() {
                 <Link
                   href={`/suprimentos/pedidos-compra/${conferencia.pedido.id}`}
                   className="text-xs text-info hover:underline"
-                  title={conferencia.pedido.numeroAntigo && conferencia.pedido.numeroAntigo !== conferencia.pedido.numero ? `antes ${conferencia.pedido.numeroAntigo}` : undefined}
                 >
                   {conferencia.pedido.numero.includes("/") || (conferencia.numeroCompra && conferencia.pedido.numero !== conferencia.numeroCompra)
                     ? <>Ver pedido <span className="font-mono">{conferencia.pedido.numero}</span></>

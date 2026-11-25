@@ -234,7 +234,7 @@ export default function AnaliseCotacaoPage() {
     const dateStr = now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
     const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     const titulo = "MAPA DA COTAÇÃO";
-    const subtitulo = `${cotacaoData.numeroCompra ? `Compra ${cotacaoData.numeroCompra} · Cotação ${cotacaoData.numero}` : `Cotação ${cotacaoData.numero}`}${cotacaoData.nome ? " — " + cotacaoData.nome : ""}   |   Data: ${dateStr}`;
+    const subtitulo = `${cotacaoData.numeroCompra ? `Compra ${cotacaoData.numeroCompra}` : `Cotação ${cotacaoData.numero}`}${cotacaoData.nome ? " — " + cotacaoData.nome : ""}   |   Data: ${dateStr}`;
 
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
@@ -401,7 +401,7 @@ export default function AnaliseCotacaoPage() {
       <nav className="text-sm text-muted-foreground mb-2 flex items-center gap-1">
         <Link href="/suprimentos/cotacoes" className="hover:text-foreground">Cotações</Link>
         <span>›</span>
-        <Link href={`/suprimentos/cotacoes/${id}`} className="hover:text-foreground" title={cotacao.numero}>{cotacao.numeroCompra ?? cotacao.numero}</Link>
+        <Link href={`/suprimentos/cotacoes/${id}`} className="hover:text-foreground">{cotacao.numeroCompra ?? cotacao.numero}</Link>
         <span>›</span>
         <span className="text-foreground">Análise</span>
       </nav>

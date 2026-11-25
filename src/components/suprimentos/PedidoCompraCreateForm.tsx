@@ -551,7 +551,7 @@ export default function PedidoCompraCreateForm() {
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-semibold text-foreground text-sm" title={`Cotação ${m.numero}`}>
+                      <span className="font-mono font-semibold text-foreground text-sm">
                         {m.numeroCompra ?? m.numero}
                       </span>
                       {m.nome && <span className="text-xs text-muted-foreground truncate">{m.nome}</span>}
@@ -1087,12 +1087,9 @@ export default function PedidoCompraCreateForm() {
                     <div className="rounded-lg bg-muted border border-border px-3 py-2.5 text-sm space-y-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-semibold text-foreground">{selectedSc.numeroCompra ?? selectedSc.numero}</span>
-                        {selectedSc.numeroCompra && (
-                          <span className="font-mono text-[10px] text-muted-foreground">{selectedSc.numero}</span>
-                        )}
                         <span className="text-muted-foreground">· {nItens} {nItens === 1 ? "item" : "itens"}</span>
                         {cot ? (
-                          <span className="inline-flex items-center gap-1 text-xs" title={cot.numero}>
+                          <span className="inline-flex items-center gap-1 text-xs">
                             <span className="text-muted-foreground">cotação</span>
                             <StatusBadge status={cot.status} />
                           </span>
@@ -1227,12 +1224,9 @@ export default function PedidoCompraCreateForm() {
                               <span className="min-w-0 flex-1">
                                 <span className="flex items-center gap-2 flex-wrap">
                                   <span className="font-mono font-semibold text-sm text-foreground">{sc.numeroCompra ?? sc.numero}</span>
-                                  {sc.numeroCompra && (
-                                    <span className="font-mono text-[10px] text-muted-foreground">{sc.numero}</span>
-                                  )}
                                   <span className="text-xs text-muted-foreground">{sc.itens.length} {sc.itens.length === 1 ? "item" : "itens"}</span>
                                   {cot ? (
-                                    <span className="inline-flex items-center gap-1 text-xs" title={cot.numero}>
+                                    <span className="inline-flex items-center gap-1 text-xs">
                                       <span className="text-muted-foreground">cotação</span>
                                       <StatusBadge status={cot.status} />
                                     </span>

@@ -170,7 +170,7 @@ export default function PropostaForm({
 
       const combined: PropostaData = {
         ...cf,
-        cotacao: { id: cotacao.id, numero: cotacao.numero, nome: cotacao.nome },
+        cotacao: { id: cotacao.id, numero: cotacao.numeroCompra ?? cotacao.numero, nome: cotacao.nome },
         propostaNumero: cfIndex + 1,
       };
       setData(combined);

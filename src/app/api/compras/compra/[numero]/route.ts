@@ -117,11 +117,13 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
     : [];
 
   const ids = [...scs, ...cts, ...pcs, ...des].map((d) => d.id);
+  // `numero` aqui é o que a Timeline mostra: só o do pedido, e só quando
+  // difere do da compra (PC-0430/2); SC-/CT-/DE- ficam fora da tela.
   const etapaDoId = new Map<string, { etapa: EtapaCompra; numero: string }>([
-    ...scs.map((d) => [d.id, { etapa: "solicitacao" as const, numero: d.numero }] as const),
-    ...cts.map((d) => [d.id, { etapa: "cotacao" as const, numero: d.numero }] as const),
-    ...pcs.map((d) => [d.id, { etapa: "pedido" as const, numero: d.numero }] as const),
-    ...des.map((d) => [d.id, { etapa: "entrada" as const, numero: d.numero }] as const),
+    ...scs.map((d) => [d.id, { etapa: "solicitacao" as const, numero: "" }] as const),
+    ...cts.map((d) => [d.id, { etapa: "cotacao" as const, numero: "" }] as const),
+    ...pcs.map((d) => [d.id, { etapa: "pedido" as const, numero: d.numero !== numeroCompra ? d.numero : "" }] as const),
+    ...des.map((d) => [d.id, { etapa: "entrada" as const, numero: "" }] as const),
   ]);
   const logs = ids.length
     ? await prisma.compraStatusLog.findMany({
@@ -142,6 +144,9 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
     semFase?: boolean; cancelado?: boolean; foraDeOrdem?: boolean;
   };
   const marcos: Marco[] = [];
+  // Detalhe do evento: números internos (SC-/CT-/DE-) não aparecem; o pedido
+  // leva o número só quando difere do da compra (PC-0430/2).
+  const numPedido = (numero: string) => (numero !== numeroCompra ? numero : undefined);
   const add = (em: Date | null | undefined, etapa: EtapaCompra, label: string, numero?: string, extra: Partial<Marco> = {}) => {
     if (em) marcos.push({ em: em.toISOString(), etapa, label, numero, ...extra });
   };
@@ -150,46 +155,46 @@ export async function GET(req: NextRequest, { params }: { params: { numero: stri
 
   for (const d of scs) {
     const cancelada = d.status === "CANCELADA" || d.status === "REJEITADA";
-    add(d.createdAt, "solicitacao", "Solicitação criada", d.numero, { semFase: cancelada, cancelado: cancelada });
-    add(d.dataAprovacao, "solicitacao", "Solicitação aprovada", d.numero, { semFase: cancelada, quem: d.aprovadoPor });
-    add(d.dataCancelamento, "solicitacao", d.motivoCancelamento ? `Solicitação cancelada — ${d.motivoCancelamento}` : "Solicitação cancelada", d.numero, { semFase: true, cancelado: true });
+    add(d.createdAt, "solicitacao", "Solicitação criada", undefined, { semFase: cancelada, cancelado: cancelada });
+    add(d.dataAprovacao, "solicitacao", "Solicitação aprovada", undefined, { semFase: cancelada, quem: d.aprovadoPor });
+    add(d.dataCancelamento, "solicitacao", d.motivoCancelamento ? `Solicitação cancelada — ${d.motivoCancelamento}` : "Solicitação cancelada", undefined, { semFase: true, cancelado: true });
   }
   for (const d of cts) {
-    add(d.createdAt, "cotacao", "Cotação aberta", d.numero);
+    add(d.createdAt, "cotacao", "Cotação aberta");
     // Cada envio/decisão de aprovação, com o aprovador.
     for (const a of d.aprovacoes) {
       const nome = a.aprovador?.nome ?? null;
-      add(a.createdAt, "cotacao", nome ? `Cotação enviada para aprovação de ${nome}` : "Cotação enviada para aprovação", d.numero);
-      if (a.status === "APROVADO") add(a.respondidoEm, "cotacao", "Cotação aprovada", d.numero, { quem: nome });
+      add(a.createdAt, "cotacao", nome ? `Cotação enviada para aprovação de ${nome}` : "Cotação enviada para aprovação");
+      if (a.status === "APROVADO") add(a.respondidoEm, "cotacao", "Cotação aprovada", undefined, { quem: nome });
       if (a.status === "REPROVADO") {
-        add(a.respondidoEm, "cotacao", a.observacao ? `Cotação reprovada — ${a.observacao}` : "Cotação reprovada", d.numero, { quem: nome, semFase: true });
+        add(a.respondidoEm, "cotacao", a.observacao ? `Cotação reprovada — ${a.observacao}` : "Cotação reprovada", undefined, { quem: nome, semFase: true });
       }
     }
     // Aprovação antiga sem registro de aprovador: só a data.
     if (d.dataAprovacao && !d.aprovacoes.some((a) => a.status === "APROVADO")) {
-      add(d.dataAprovacao, "cotacao", "Cotação aprovada", d.numero);
+      add(d.dataAprovacao, "cotacao", "Cotação aprovada");
     }
   }
   for (const d of pcs) {
     const cancelado = d.status === "CANCELADO";
-    add(d.createdAt, "pedido", "Pedido emitido", d.numero, { semFase: cancelado, cancelado });
+    add(d.createdAt, "pedido", "Pedido emitido", numPedido(d.numero), { semFase: cancelado, cancelado });
     // Pedido editado depois de aprovado volta para aprovação.
     for (const a of d.aprovacoes) {
       const nome = a.aprovador?.nome ?? null;
-      add(a.createdAt, "pedido", nome ? `Pedido alterado enviado para aprovação de ${nome}` : "Pedido alterado enviado para aprovação", d.numero, { semFase: true });
-      if (a.status === "APROVADO") add(a.respondidoEm, "pedido", "Alteração do pedido aprovada", d.numero, { quem: nome, semFase: true });
-      if (a.status === "REPROVADO") add(a.respondidoEm, "pedido", "Alteração do pedido reprovada", d.numero, { quem: nome, semFase: true });
+      add(a.createdAt, "pedido", nome ? `Pedido alterado enviado para aprovação de ${nome}` : "Pedido alterado enviado para aprovação", numPedido(d.numero), { semFase: true });
+      if (a.status === "APROVADO") add(a.respondidoEm, "pedido", "Alteração do pedido aprovada", numPedido(d.numero), { quem: nome, semFase: true });
+      if (a.status === "REPROVADO") add(a.respondidoEm, "pedido", "Alteração do pedido reprovada", numPedido(d.numero), { quem: nome, semFase: true });
     }
-    if (cancelado) add(canceladoEm(d.id, d.updatedAt), "pedido", "Pedido cancelado", d.numero, { semFase: true, cancelado: true });
+    if (cancelado) add(canceladoEm(d.id, d.updatedAt), "pedido", "Pedido cancelado", numPedido(d.numero), { semFase: true, cancelado: true });
   }
   for (const d of des) {
-    add(d.dtEmissao, "entrada", "Nota fiscal emitida", d.numeroNF ? `NF ${d.numeroNF}` : d.numero, { semFase: true, soData: true });
-    add(d.createdAt, "entrada", "Mercadoria recebida (entrada aberta)", d.numero);
+    add(d.dtEmissao, "entrada", "Nota fiscal emitida", d.numeroNF ? `NF ${d.numeroNF}` : undefined, { semFase: true, soData: true });
+    add(d.createdAt, "entrada", "Mercadoria recebida (entrada aberta)");
     if (d.status === "CONCLUIDA") {
       // dataConferencia é só a data; o horário real vem do histórico de status.
       const log = logs.find((l) => l.documentoId === d.id && l.statusPara === "CONCLUIDA");
-      if (log) add(log.criadoEm, "entrada", "Entrada concluída", d.numero, { quem: log.usuario });
-      else add(d.dataConferencia ?? null, "entrada", "Entrada concluída", d.numero, { soData: true });
+      if (log) add(log.criadoEm, "entrada", "Entrada concluída", undefined, { quem: log.usuario });
+      else add(d.dataConferencia ?? null, "entrada", "Entrada concluída", undefined, { soData: true });
     }
   }
   marcos.sort((a, b) => a.em.localeCompare(b.em));
