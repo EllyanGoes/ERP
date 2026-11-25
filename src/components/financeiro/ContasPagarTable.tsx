@@ -20,9 +20,10 @@ import PagamentosInput, {
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, CircleDot } from "lucide-react";
+import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, CircleDot, Kanban } from "lucide-react";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import TitulosGrafico from "@/components/financeiro/TitulosGrafico";
+import TitulosKanban, { type TituloKanban } from "@/components/financeiro/TitulosKanban";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
 import EmpresaTag from "@/components/shared/EmpresaTag";
@@ -295,7 +296,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   });
   const modoMes = !periodo.from && !periodo.to;
   // Vista: tabela (padrão) ou gráfico (acumulado por vencimento).
-  const [vista, setVista] = usePersistedState<"tabela" | "grafico">("financeiro:contas-pagar:vista", "tabela");
+  const [vista, setVista] = usePersistedState<"tabela" | "quadro" | "grafico">("financeiro:contas-pagar:vista", "tabela");
   // Barra de filtros padrão (funil + chips) — ver shared/FilterBar.
   const filterBar = useFilterBar("financeiro:contas-pagar:filtros", ["status"]);
   // Naturezas distintas presentes na lista (para o filtro) — ordenadas pelo
@@ -1052,12 +1053,17 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             { value: "fornecedor", label: "Por fornecedor" },
           ]}
         />
-        {/* Vista: tabela × gráfico (barras por vencimento). */}
+        {/* Vista: tabela × quadro (por situação) × gráfico (barras por vencimento). */}
         <div className="inline-flex items-center h-9 rounded-lg border border-border overflow-hidden shrink-0">
           <button type="button" onClick={() => setVista("tabela")} title="Ver em tabela"
             className={cn("h-full px-2.5 inline-flex items-center transition-colors",
               vista === "tabela" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
             <Table2 className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={() => setVista("quadro")} title="Ver em quadro (por situação)"
+            className={cn("h-full px-2.5 inline-flex items-center transition-colors",
+              vista === "quadro" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
+            <Kanban className="w-4 h-4" />
           </button>
           <button type="button" onClick={() => setVista("grafico")} title="Ver as contas por vencimento em gráfico"
             className={cn("h-full px-2.5 inline-flex items-center transition-colors",
@@ -1081,6 +1087,27 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             if (c) setDetalhe(c);
           }}
         />
+        </div>
+      ) : vista === "quadro" ? (
+        <div className="space-y-2">
+          {blocosTotais}
+          <TitulosKanban
+            itens={contasFiltradas.map((c): TituloKanban => {
+              const valor = decimalToNumber(c.valorOriginal) + decimalToNumber(c.valorMulta ?? 0) + decimalToNumber(c.valorJuros ?? 0);
+              const org = origemPagar(c);
+              return {
+                id: c.id, numero: c.numero,
+                fornecedor: c.fornecedor?.razaoSocial ?? null,
+                descricao: c.descricao,
+                valor, saldo: Math.max(0, valor - decimalToNumber(c.valorPago)),
+                vencimento: c.dataVencimento ?? null,
+                status: c.status,
+                compra: org?.label === "Compra" ? org.ref ?? null : null,
+                antecipado: !!c.antecipado,
+              };
+            })}
+            onAbrir={(id) => { const c = contas.find((x) => x.id === id); if (c) setDetalhe(c); }}
+          />
         </div>
       ) : (
       <DataTable
