@@ -439,6 +439,7 @@ export const mainModules: Module[] = [
         items: [
           { href: "/processos", label: "Painel", icon: LayoutDashboard, exact: true },
           { href: "/processos/lista", label: "Processos", icon: Gavel },
+          { href: "/processos/roteiros", label: "Roteiros por tipo", icon: Route },
         ],
       },
     ],

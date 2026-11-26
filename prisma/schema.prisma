@@ -2930,17 +2930,17 @@ model Usuario {
   sstObrigacoesResponsavel SstObrigacao[]
   sstAcoesResponsavel      SstAcaoCorretiva[]
   sstInspecoesResponsavel  SstInspecao[]
-  id                       String                @id @default(cuid())
+  id                       String                 @id @default(cuid())
   nome                     String
-  email                    String                @unique
+  email                    String                 @unique
   senha                    String
-  perfil                   PerfilUsuario         @default(USUARIO)
-  ativo                    Boolean               @default(true)
+  perfil                   PerfilUsuario          @default(USUARIO)
+  ativo                    Boolean                @default(true)
   // Membro CONVIDADO (projetos): pessoa sem acesso ao sistema — aparece nos
   // pickers de membro/responsável, mas o login é bloqueado.
-  convidado                Boolean               @default(false)
-  createdAt                DateTime              @default(now())
-  updatedAt                DateTime              @updatedAt
+  convidado                Boolean                @default(false)
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
   perfilAcessoId           String?
   telefone                 String?
   // Preferências de interface (tema, barra de módulos…): acompanham a conta em
@@ -2950,30 +2950,31 @@ model Usuario {
   aprovacoesSC             AprovacaoSC[]
   colaborador              Colaborador?
   permissoes               Permissao[]
-  perfilAcesso             PerfilAcesso?         @relation(fields: [perfilAcessoId], references: [id])
-  ticketsAbertos           SupportTicket[]       @relation("TicketsAbertos")
-  ticketsRespondidos       SupportTicket[]       @relation("TicketsRespondidos")
+  perfilAcesso             PerfilAcesso?          @relation(fields: [perfilAcessoId], references: [id])
+  ticketsAbertos           SupportTicket[]        @relation("TicketsAbertos")
+  ticketsRespondidos       SupportTicket[]        @relation("TicketsRespondidos")
   empresas                 UsuarioEmpresa[]
   vendedor                 Vendedor?
   sessoes                  UsuarioSessao[]
   notificacoes             Notificacao[]
   // Gestão de Projetos
-  projetosDono             Projeto[]             @relation("ProjetoDono")
+  projetosDono             Projeto[]              @relation("ProjetoDono")
   projetosMembro           ProjetoMembro[]
   tarefasMembro            TarefaMembro[]
   comentariosTarefa        TarefaComentario[]
   atividadesTarefa         TarefaAtividade[]
-  checklistItens           TarefaChecklistItem[] @relation("ChecklistResponsavel")
+  checklistItens           TarefaChecklistItem[]  @relation("ChecklistResponsavel")
   tarefasInbox             TarefaInbox[]
   // Investimentos pessoais (B3)
   investOperacoes          InvestOperacao[]
   investProventos          InvestProvento[]
-  documentosResp           Documento[]           @relation("DocumentoResponsavel")
-  processosResp            Processo[]            @relation("ProcessoResponsavel")
+  documentosResp           Documento[]            @relation("DocumentoResponsavel")
+  processosResp            Processo[]             @relation("ProcessoResponsavel")
+  processosRoteiroEtapas   ProcessoRoteiroEtapa[] @relation("ProcessoRoteiroEtapaResponsavel")
   documentosAcesso         DocumentoAcesso[]
   documentosLog            DocumentoLog[]
   documentosFavoritos      DocumentoFavorito[]
-  contratosResponsavel     Contrato[]            @relation("ContratoResponsavel")
+  contratosResponsavel     Contrato[]             @relation("ContratoResponsavel")
 }
 
 // Sessão/dispositivo logado de um usuário. id = jti embutido no JWT. Permite
@@ -6734,6 +6735,14 @@ model Processo {
   tags                   String[]            @default([])
   observacoes            String?
   diasSemAndamentoAlerta Int                 @default(60)
+  // Captura automática (DataJud/CNJ): o número CNJ é o próprio "numero".
+  datajudTribunal        String? // sigla do endpoint: tjap, trt8, trf1…
+  datajudAtivo           Boolean             @default(false)
+  datajudUltimaConsulta  DateTime?
+  datajudUltimoErro      String?
+  datajudClasse          String?
+  datajudOrgaoJulgador   String?
+  datajudAssuntos        String?
   criadoPor              String?
   atualizadoPor          String?
   createdAt              DateTime            @default(now())
@@ -6747,40 +6756,84 @@ model Processo {
 
   @@unique([empresaId, codigo])
   @@index([empresaId, situacao])
+  @@index([datajudAtivo])
 }
 
 model ProcessoAndamento {
-  id          String   @id @default(cuid())
-  processoId  String
-  data        DateTime
-  tipo        String // PROTOCOLO | MOVIMENTACAO | EXIGENCIA | MANIFESTACAO | DECISAO | AUDIENCIA | VISTORIA | PAGAMENTO | OUTRO
-  descricao   String
-  documentoId String?
-  origem      String   @default("MANUAL")
-  usuario     String?
-  createdAt   DateTime @default(now())
-  processo    Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  processoId      String
+  data            DateTime
+  tipo            String // PROTOCOLO | MOVIMENTACAO | EXIGENCIA | MANIFESTACAO | DECISAO | AUDIENCIA | VISTORIA | PAGAMENTO | OUTRO
+  descricao       String
+  documentoId     String?
+  origem          String   @default("MANUAL") // MANUAL | DATAJUD
+  externoId       String? // dedup da captura: código do movimento + dataHora + complementos
+  importancia     String   @default("NORMAL") // ALTA | NORMAL | ROTINA
+  resumoIa        String?
+  codigoMovimento Int?
+  usuario         String?
+  createdAt       DateTime @default(now())
+  processo        Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
 
+  @@unique([processoId, externoId])
   @@index([processoId, data])
+  @@index([importancia, data])
 }
 
 model ProcessoPrazo {
-  id            String    @id @default(cuid())
-  processoId    String
-  descricao     String
-  vence         DateTime
-  avisoDias     Int       @default(5)
-  responsavelId String?
-  status        String    @default("PENDENTE") // PENDENTE | CUMPRIDO | DISPENSADO
-  cumpridoEm    DateTime?
-  andamentoId   String?
-  motivo        String?
-  criadoPor     String?
-  createdAt     DateTime  @default(now())
-  processo      Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  id               String    @id @default(cuid())
+  processoId       String
+  descricao        String
+  vence            DateTime
+  avisoDias        Int       @default(5)
+  responsavelId    String?
+  status           String    @default("PENDENTE") // PENDENTE | CUMPRIDO | DISPENSADO
+  cumpridoEm       DateTime?
+  andamentoId      String?
+  motivo           String?
+  // Contagem (opcional): N dias a partir de inicioContagem, úteis ou corridos (src/lib/dias-uteis.ts)
+  diasUteis        Boolean   @default(false)
+  prazoDias        Int?
+  inicioContagem   DateTime?
+  suspensaoForense Boolean   @default(false) // recesso 20/12–20/01 (CPC art. 220), só judiciais
+  fundamento       String? // trecho do documento que fundamenta o prazo
+  criadoPor        String?
+  createdAt        DateTime  @default(now())
+  processo         Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
 
   @@index([processoId, status])
   @@index([status, vence])
+}
+
+// Roteiro (tarefas padrão) por tipo de processo — compartilhado pelo grupo.
+model ProcessoRoteiro {
+  id        String                 @id @default(cuid())
+  tipo      String // TIPOS_PROCESSO
+  nome      String
+  descricao String?
+  ativo     Boolean                @default(true)
+  criadoPor String?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @default(now()) @updatedAt
+  etapas    ProcessoRoteiroEtapa[]
+
+  @@index([tipo, ativo])
+}
+
+model ProcessoRoteiroEtapa {
+  id            String          @id @default(cuid())
+  roteiroId     String
+  ordem         Int             @default(0)
+  titulo        String
+  responsavelId String?
+  dias          Int             @default(0)
+  diasUteis     Boolean         @default(true)
+  base          String          @default("ABERTURA") // ABERTURA | CIENCIA
+  avisoDias     Int             @default(3)
+  roteiro       ProcessoRoteiro @relation(fields: [roteiroId], references: [id], onDelete: Cascade)
+  responsavel   Usuario?        @relation("ProcessoRoteiroEtapaResponsavel", fields: [responsavelId], references: [id], onDelete: SetNull)
+
+  @@index([roteiroId, ordem])
 }
 
 model ProcessoParte {

@@ -3,7 +3,7 @@
 // Lista de processos externos: filtros persistidos, criação em CreateDrawer.
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
 import CreateDrawer from "@/components/shared/CreateDrawer";
@@ -12,21 +12,31 @@ import { Input } from "@/components/ui/input";
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
-import { Loader2, Lock, Plus, Search } from "lucide-react";
+import { Columns3, FileUp, List, Loader2, Lock, Plus, Search } from "lucide-react";
 import ProcessoForm from "@/components/processos/ProcessoForm";
-import { PrazoChip, SituacaoBadge, TIPOS_PROCESSO, diasDesde, fmtData, useLookups, type LinhaProcesso } from "@/components/processos/comum";
+import ProcessosKanban, { type CartaoProcesso } from "@/components/processos/ProcessosKanban";
+import DocumentoProcessoDialog from "@/components/processos/DocumentoProcessoDialog";
+import { PrazoChip, SITUACOES, SituacaoBadge, TIPOS_PROCESSO, api, diasDesde, fmtData, useLookups } from "@/components/processos/comum";
 
 function Lista() {
   useTabTitle("Processos");
   const sp = useSearchParams();
   const lk = useLookups();
-  const [rows, setRows] = useState<LinhaProcesso[]>([]); const [loading, setLoading] = useState(true); const [pode, setPode] = useState(false);
+  const router = useRouter();
+  const [rows, setRows] = useState<CartaoProcesso[]>([]); const [loading, setLoading] = useState(true); const [pode, setPode] = useState(false);
   const [aba, setAba] = usePersistedState<"ativos" | "encerrados">("processos:lista:aba", "ativos");
   const [q, setQ] = useState("");
   const [fTipo, setFTipo] = usePersistedState("processos:lista:tipo", "");
   const [fResp, setFResp] = usePersistedState("processos:lista:resp", "");
   const [fPend, setFPend] = usePersistedState("processos:lista:pend", "");
   const [novo, setNovo] = useState(false);
+  const [doDocumento, setDoDocumento] = useState(false);
+  const [visao, setVisao] = usePersistedState<"lista" | "quadro">("processos:lista:visao", "lista");
+  async function mover(id: string, situacao: string) {
+    const r = await api(`/api/processos/${id}`, "PATCH", { situacao });
+    if (!r.ok) alert(r.error);
+    await load();
+  }
   useEffect(() => { if (sp.get("novo") === "1") setNovo(true); }, [sp]);
   async function load() {
     const j = await fetch(`/api/processos${aba === "encerrados" ? "?encerrados=1" : ""}`).then((r) => r.json()).catch(() => ({}));
@@ -45,7 +55,10 @@ function Lista() {
   return (
     <div>
       <PageHeader title="Processos" subtitle="Processos jurídicos e administrativos acompanhados fora da empresa" breadcrumbs={[{ label: "Processos", href: "/processos" }, { label: "Lista" }]}
-        action={pode ? <Button onClick={() => setNovo(true)} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Novo processo</Button> : undefined} />
+        action={pode ? <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setDoDocumento(true)} className="gap-1.5" title="Sobe o PDF do auto, notificação ou intimação e a IA preenche o cadastro"><FileUp className="w-4 h-4" /> A partir de documento</Button>
+          <Button onClick={() => setNovo(true)} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Novo processo</Button>
+        </div> : undefined} />
       <div className="px-8 pb-8 space-y-3">
         <div className="flex items-center gap-1 border-b border-border">
           {(["ativos", "encerrados"] as const).map((k) => <button key={k} onClick={() => { setLoading(true); setAba(k); }} className={cn("px-3 py-2 text-sm -mb-px border-b-2 capitalize", aba === k ? "border-info text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>{k}</button>)}
@@ -56,8 +69,17 @@ function Lista() {
           <SelectMenu value={fResp} onChange={setFResp} className="w-48" triggerClassName="h-8 text-xs" options={[{ value: "", label: "Responsável: todos" }, ...lk.usuarios.map((u) => ({ value: u.id, label: u.nome }))]} />
           <SelectMenu value={fPend} onChange={setFPend} className="w-52" triggerClassName="h-8 text-xs" options={[{ value: "", label: "Pendência: qualquer" }, { value: "prazo", label: "Com prazo vencido/próximo" }, { value: "empresa", label: "Aguardando a empresa" }, { value: "parado", label: "Parados" }]} />
           <span className="ml-auto text-xs text-muted-foreground">{vis.length} processo(s)</span>
+          <div className="inline-flex rounded-lg border border-border p-0.5">
+            {(["lista", "quadro"] as const).map((k) => (
+              <button key={k} onClick={() => setVisao(k)} title={k === "lista" ? "Lista" : "Quadro por situação"} className={cn("px-2 py-1 rounded-md inline-flex items-center gap-1 text-xs", visao === k ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:text-foreground")}>
+                {k === "lista" ? <List className="w-3.5 h-3.5" /> : <Columns3 className="w-3.5 h-3.5" />}{k === "lista" ? "Lista" : "Quadro"}
+              </button>
+            ))}
+          </div>
         </div>
-        {loading ? <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : (
+        {loading ? <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : visao === "quadro" ? (
+          <ProcessosKanban itens={vis} podeMover={pode} onMover={mover} situacoes={Object.entries(SITUACOES).filter(([, x]) => x.aberto === (aba === "ativos")).map(([k]) => k)} />
+        ) : (
           <div className="bg-card rounded-xl border border-border overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted text-xs text-muted-foreground"><tr>
@@ -88,6 +110,7 @@ function Lista() {
           </div>
         )}
       </div>
+      {doDocumento && <DocumentoProcessoDialog onFechar={() => setDoDocumento(false)} onConcluido={(id, aviso) => { setDoDocumento(false); if (aviso) alert(aviso); router.push(`/processos/${id}`); }} />}
       <CreateDrawer open={novo} onOpenChange={setNovo} title="Novo processo" onCreated={load}><ProcessoForm /></CreateDrawer>
     </div>
   );

@@ -7,15 +7,18 @@ import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CalendarClock, Gavel, Hourglass, Loader2, Plus, Scale } from "lucide-react";
-import { PrazoChip, RISCOS, SituacaoBadge, TIPOS_PROCESSO, fmtBRL, type LinhaProcesso } from "@/components/processos/comum";
+import { AlertTriangle, CalendarClock, Gavel, Hourglass, Landmark, Loader2, Plus, Scale } from "lucide-react";
+import { PrazoChip, RISCOS, SituacaoBadge, TIPOS_PROCESSO, fmtBRL, fmtData, type LinhaProcesso } from "@/components/processos/comum";
 
+type Novidade = { id: string; data: string; descricao: string; resumoIa: string | null; processo: { id: string; codigo: string; titulo: string } };
 type Linha = LinhaProcesso & { valorCausa: string | null; riscoPerda: string | null; prazos: { id: string; descricao: string; vence: string; avisoDias: number }[] };
 
 export default function ProcessosPainelPage() {
   useTabTitle("Processos");
   const [rows, setRows] = useState<Linha[]>([]); const [loading, setLoading] = useState(true); const [pode, setPode] = useState(false);
+  const [novidades, setNovidades] = useState<Novidade[]>([]);
   useEffect(() => { fetch("/api/processos").then((r) => r.json()).then((j) => { setRows(j.data ?? []); setPode(!!j.podeEditar); }).finally(() => setLoading(false)); }, []);
+  useEffect(() => { fetch("/api/processos/novidades").then((r) => r.json()).then((j) => setNovidades(j.data ?? [])).catch(() => {}); }, []);
 
   const hoje = new Date(new Date().toDateString()).getTime();
   const prazos = useMemo(() => rows.flatMap((r) => r.prazos.map((p) => ({ ...p, processo: r }))).sort((a, b) => +new Date(a.vence) - +new Date(b.vence)), [rows]);
@@ -66,6 +69,20 @@ export default function ProcessosPainelPage() {
               </ul>
             </div>
             <div className="space-y-4">
+              {novidades.length > 0 && (
+                <div className="bg-card border border-border rounded-xl">
+                  <div className="px-4 py-3 border-b border-border text-sm font-semibold flex items-center gap-1.5"><Landmark className="w-4 h-4" /> Novidades dos tribunais (7 dias)</div>
+                  <ul className="divide-y divide-border/60 max-h-96 overflow-y-auto">
+                    {novidades.map((n) => (
+                      <li key={n.id} className="px-4 py-2.5">
+                        <Link href={`/processos/${n.processo.id}`} className="text-xs text-info hover:underline">{n.processo.codigo} · {n.processo.titulo}</Link>
+                        <div className="text-sm">{n.resumoIa ?? n.descricao}</div>
+                        <div className="text-[11px] text-muted-foreground">{fmtData(n.data)}{n.resumoIa && ` · ${n.descricao}`}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="bg-card border border-border rounded-xl p-4">
                 <div className="text-sm font-semibold flex items-center gap-1.5 mb-2"><Scale className="w-4 h-4" /> Valor em discussão</div>
                 {porRisco.map((x) => <div key={x.k} className="flex justify-between text-sm py-0.5"><span className="text-muted-foreground">Risco {RISCOS[x.k].toLowerCase()}</span><span className="tabular-nums">{fmtBRL(x.total)}</span></div>)}

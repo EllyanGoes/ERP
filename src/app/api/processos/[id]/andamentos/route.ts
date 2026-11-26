@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { TIPOS_ANDAMENTO, podeEditar, situacaoPorAndamento, carregarProcesso } from "@/lib/processos";
+import { TIPOS_ANDAMENTO, podeEditar, situacaoPorAndamento, carregarProcesso, dadosPrazo } from "@/lib/processos";
 
 type Ctx = { params: { id: string } };
 
@@ -22,10 +22,19 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const tipo = TIPOS_ANDAMENTO[String(b.tipo)] ? String(b.tipo) : "MOVIMENTACAO";
   const data = b.data ? new Date(b.data) : new Date();
   const novaSituacao = "mudarSituacao" in b ? (b.mudarSituacao || null) : situacaoPorAndamento(tipo);
+  // Prazo aberto pelo andamento: data fixa ou contagem em dias (úteis/corridos) — ver dadosPrazo.
+  const querPrazo = !!(b.prazo?.descricao?.trim() && (b.prazo?.vence || (b.prazo?.prazoDias !== "" && b.prazo?.prazoDias != null)));
+  let prazoDados: Extract<ReturnType<typeof dadosPrazo>, { ok: true }>["data"] | null = null;
+  if (querPrazo) {
+    const tipoProc = (await prismaSemEscopo.processo.findUnique({ where: { id: p.id }, select: { tipo: true } }))?.tipo;
+    const dp = dadosPrazo({ inicioContagem: b.data, ...b.prazo }, tipoProc);
+    if (!dp.ok) return NextResponse.json({ error: dp.erro }, { status: 400 });
+    prazoDados = dp.data;
+  }
   const r = await prismaSemEscopo.$transaction(async (tx) => {
     const a = await tx.processoAndamento.create({ data: { processoId: p.id, data, tipo, descricao, documentoId: b.documentoId || null, usuario: auth.session.nome } });
-    if (b.prazo?.descricao?.trim() && b.prazo?.vence) {
-      await tx.processoPrazo.create({ data: { processoId: p.id, descricao: String(b.prazo.descricao).trim(), vence: new Date(b.prazo.vence), avisoDias: Math.max(0, Number(b.prazo.avisoDias ?? 5) || 5), responsavelId: p.responsavelId, andamentoId: a.id, criadoPor: auth.session.nome } });
+    if (prazoDados) {
+      await tx.processoPrazo.create({ data: { processoId: p.id, descricao: String(b.prazo.descricao).trim(), ...prazoDados, avisoDias: Math.max(0, Number(b.prazo.avisoDias ?? 5) || 5), responsavelId: p.responsavelId, andamentoId: a.id, criadoPor: auth.session.nome } });
     }
     if (b.cumprePrazoId) {
       await tx.processoPrazo.updateMany({ where: { id: String(b.cumprePrazoId), processoId: p.id, status: "PENDENTE" }, data: { status: "CUMPRIDO", cumpridoEm: data, andamentoId: a.id } });

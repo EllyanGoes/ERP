@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { salvarNaLixeira } from "@/lib/lixeira";
-import { camposProcesso, carregarProcesso, pendenciasProcesso, podeEditar } from "@/lib/processos";
+import { SITUACOES, camposProcesso, carregarProcesso, erroAcompanhamentoDatajud, pendenciasProcesso, podeEditar } from "@/lib/processos";
 
 type Ctx = { params: { id: string } };
 
@@ -41,7 +41,21 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const data = camposProcesso(b);
   if ("titulo" in b && !data.titulo) return NextResponse.json({ error: "O título não pode ficar vazio." }, { status: 400 });
   if ("orgao" in b && !data.orgao) return NextResponse.json({ error: "O órgão não pode ficar vazio." }, { status: 400 });
-  await prismaSemEscopo.processo.update({ where: { id: params.id }, data: { ...data, atualizadoPor: auth.session.nome } });
+  if ("datajudAtivo" in b || "numero" in b) {
+    const atual = await prismaSemEscopo.processo.findUnique({ where: { id: params.id }, select: { numero: true, datajudAtivo: true } });
+    const ativo = "datajudAtivo" in data ? !!data.datajudAtivo : !!atual?.datajudAtivo;
+    const erroDj = erroAcompanhamentoDatajud(ativo, "numero" in data ? (data.numero as string | null) : atual?.numero);
+    if (erroDj) return NextResponse.json({ error: erroDj }, { status: 400 });
+  }
+  // Mudança de situação (quadro, ficha ou formulário) fica registrada na linha do tempo.
+  const mudouSituacao = typeof data.situacao === "string" && data.situacao !== base.situacao;
+  await prismaSemEscopo.$transaction(async (tx) => {
+    await tx.processo.update({ where: { id: params.id }, data: { ...data, atualizadoPor: auth.session.nome } });
+    if (mudouSituacao) {
+      const de = SITUACOES[base.situacao]?.label ?? base.situacao, para = SITUACOES[String(data.situacao)]?.label ?? String(data.situacao);
+      await tx.processoAndamento.create({ data: { processoId: params.id, data: new Date(new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10)), tipo: "MOVIMENTACAO", descricao: `Situação alterada de "${de}" para "${para}"`, usuario: auth.session.nome } });
+    }
+  });
   return NextResponse.json({ ok: true });
 }
 

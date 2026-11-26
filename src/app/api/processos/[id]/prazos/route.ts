@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
-import { podeEditar, carregarProcesso } from "@/lib/processos";
+import { podeEditar, carregarProcesso, dadosPrazo } from "@/lib/processos";
 
 type Ctx = { params: { id: string } };
 
@@ -15,14 +15,17 @@ async function ctx(id: string) {
   return { ok: true as const, auth, p };
 }
 
-// POST { descricao, vence, avisoDias?, responsavelId? }
+// POST { descricao, vence | (inicioContagem, prazoDias, diasUteis?, suspensaoForense?), fundamento?, avisoDias?, responsavelId? }
 export async function POST(req: NextRequest, { params }: Ctx) {
   const c = await ctx(params.id);
   if (!c.ok) return c.res;
   const b = await req.json().catch(() => ({}));
-  if (!String(b.descricao ?? "").trim() || !b.vence) return NextResponse.json({ error: "Informe o prazo e a data." }, { status: 400 });
+  if (!String(b.descricao ?? "").trim()) return NextResponse.json({ error: "Descreva o prazo." }, { status: 400 });
+  const tipo = (await prismaSemEscopo.processo.findUnique({ where: { id: c.p.id }, select: { tipo: true } }))?.tipo;
+  const dp = dadosPrazo(b, tipo);
+  if (!dp.ok) return NextResponse.json({ error: dp.erro }, { status: 400 });
   const pr = await prismaSemEscopo.processoPrazo.create({
-    data: { processoId: c.p.id, descricao: String(b.descricao).trim(), vence: new Date(b.vence), avisoDias: Math.max(0, Number(b.avisoDias ?? 5) || 0), responsavelId: b.responsavelId || c.p.responsavelId, criadoPor: c.auth.session.nome },
+    data: { processoId: c.p.id, descricao: String(b.descricao).trim(), ...dp.data, avisoDias: Math.max(0, Number(b.avisoDias ?? 5) || 0), responsavelId: b.responsavelId || c.p.responsavelId, criadoPor: c.auth.session.nome },
   });
   return NextResponse.json({ data: pr }, { status: 201 });
 }

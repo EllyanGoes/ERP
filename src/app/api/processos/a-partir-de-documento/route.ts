@@ -1,0 +1,119 @@
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+import { NextRequest, NextResponse } from "next/server";
+import { requireModulo } from "@/lib/permissions";
+import { prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
+import { garantirPastaSistema, salvarArquivoDocumento } from "@/lib/documentos";
+import {
+  PAPEIS_PARTE, TIPOS_ANDAMENTO, aplicarRoteiro, camposProcesso, carregarProcesso, dadosPrazo, dataOuNull, erroAcompanhamentoDatajud,
+  podeEditar, proximoCodigoProcesso, situacaoPorAndamento, textoOuNull,
+} from "@/lib/processos";
+
+const MAX_BYTES = 4.5 * 1024 * 1024;
+
+type Dados = {
+  processoId?: string;
+  processo?: Record<string, unknown>;
+  andamento?: { data?: string; tipo?: string; descricao?: string };
+  prazo?: Record<string, unknown> | null;
+  partes?: { papel?: string; nome?: string; documento?: string | null }[];
+  documento?: { titulo?: string; numero?: string | null };
+  roteiroId?: string | null;
+  dataCiencia?: string | null;
+};
+
+// POST multipart { file: PDF, dados: JSON } — confirma o que o usuário conferiu:
+//  • sem processoId: cria o processo + partes + andamento inicial + prazo (+ roteiro);
+//  • com processoId: lança andamento + prazo no processo existente.
+// Em ambos, o PDF vai para o GED (pasta de sistema "Processos") ligado ao processo e ao andamento.
+export async function POST(req: NextRequest) {
+  const auth = await requireModulo("processos");
+  if (!auth.ok) return auth.response;
+  if (!(await podeEditar(auth.session))) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  const form = await req.formData().catch(() => null);
+  const file = form?.get("file") as File | null;
+  let d: Dados;
+  try { d = JSON.parse(String(form?.get("dados") ?? "{}")); } catch { return NextResponse.json({ error: "Dados inválidos." }, { status: 400 }); }
+  if (!file) return NextResponse.json({ error: "Envie o PDF." }, { status: 400 });
+  if (file.size > MAX_BYTES) return NextResponse.json({ error: "O arquivo passa de 4,5 MB." }, { status: 400 });
+
+  // Processo alvo (existente ou novo) — validações antes de gravar qualquer coisa.
+  let existente: { id: string; codigo: string; empresaId: string; situacao: string } | null = null;
+  let campos: ReturnType<typeof camposProcesso> | null = null;
+  if (d.processoId) {
+    existente = await carregarProcesso(auth.session, d.processoId);
+    if (!existente) return NextResponse.json({ error: "Processo não encontrado." }, { status: 404 });
+  } else {
+    campos = camposProcesso(d.processo ?? {});
+    if (!campos.titulo) return NextResponse.json({ error: "Informe o título do processo." }, { status: 400 });
+    if (!campos.orgao) return NextResponse.json({ error: "Informe o órgão (ou vara/tribunal)." }, { status: 400 });
+    const erroDj = erroAcompanhamentoDatajud(!!campos.datajudAtivo, campos.numero as string | null);
+    if (erroDj) return NextResponse.json({ error: erroDj }, { status: 400 });
+  }
+  const descricaoAnd = String(d.andamento?.descricao ?? "").trim();
+  if (!descricaoAnd) return NextResponse.json({ error: "Descreva o andamento (o que o documento traz)." }, { status: 400 });
+  const tipoAnd = TIPOS_ANDAMENTO[String(d.andamento?.tipo)] ? String(d.andamento!.tipo) : "EXIGENCIA";
+  const dataAnd = dataOuNull(d.andamento?.data) ?? new Date();
+  const tipoProc = existente ? (await prismaSemEscopo.processo.findUnique({ where: { id: existente.id }, select: { tipo: true } }))?.tipo : String(campos!.tipo ?? "OUTRO");
+  let prazo: Extract<ReturnType<typeof dadosPrazo>, { ok: true }>["data"] | null = null;
+  const prazoDesc = textoOuNull(d.prazo?.descricao);
+  if (d.prazo && prazoDesc) {
+    const dp = dadosPrazo({ inicioContagem: d.dataCiencia ?? d.andamento?.data, ...d.prazo }, tipoProc);
+    if (!dp.ok) return NextResponse.json({ error: dp.erro }, { status: 400 });
+    prazo = dp.data;
+  }
+
+  const empresaId = existente?.empresaId ?? auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID;
+  const r = await prismaSemEscopo.$transaction(async (tx) => {
+    let proc: { id: string; codigo: string; tipo: string; responsavelId: string | null; abertoEm: Date | null; confidencial: boolean; situacao: string };
+    if (existente) {
+      proc = (await tx.processo.findUnique({ where: { id: existente.id }, select: { id: true, codigo: true, tipo: true, responsavelId: true, abertoEm: true, confidencial: true, situacao: true } }))!;
+    } else {
+      const c = campos!;
+      const codigo = await proximoCodigoProcesso(tx, empresaId);
+      proc = await tx.processo.create({
+        data: {
+          ...(c as object), empresaId, codigo, titulo: String(c.titulo), orgao: String(c.orgao), tipo: String(c.tipo ?? "OUTRO"),
+          responsavelId: (c.responsavelId as string | null | undefined) ?? auth.session.sub,
+          confidencial: "confidencial" in (d.processo ?? {}) ? !!d.processo!.confidencial : c.interessadoTipo === "PESSOA",
+          abertoEm: (c.abertoEm as Date | null | undefined) ?? dataAnd,
+          situacao: situacaoPorAndamento(tipoAnd) ?? "EM_ANDAMENTO",
+          criadoPor: auth.session.nome,
+        },
+        select: { id: true, codigo: true, tipo: true, responsavelId: true, abertoEm: true, confidencial: true, situacao: true },
+      });
+      const partes = (d.partes ?? []).filter((x) => x?.nome?.trim()).slice(0, 20);
+      if (partes.length) await tx.processoParte.createMany({ data: partes.map((x) => ({ processoId: proc.id, papel: PAPEIS_PARTE[String(x.papel)] ? String(x.papel) : "OUTRO", nome: String(x.nome).trim(), documento: textoOuNull(x.documento) })) });
+      if (d.roteiroId) await aplicarRoteiro(tx, proc, String(d.roteiroId), { ciencia: dataOuNull(d.dataCiencia) ?? dataAnd, criadoPor: auth.session.nome });
+    }
+    const a = await tx.processoAndamento.create({ data: { processoId: proc.id, data: dataAnd, tipo: tipoAnd, descricao: descricaoAnd, usuario: auth.session.nome } });
+    if (prazo) await tx.processoPrazo.create({ data: { processoId: proc.id, descricao: prazoDesc!, ...prazo, avisoDias: Math.max(0, Number(d.prazo?.avisoDias ?? 5) || 5), responsavelId: proc.responsavelId, andamentoId: a.id, criadoPor: auth.session.nome } });
+    const nova = situacaoPorAndamento(tipoAnd);
+    if (existente && nova && nova !== proc.situacao) await tx.processo.update({ where: { id: proc.id }, data: { situacao: nova, atualizadoPor: auth.session.nome } });
+    return { proc, andamentoId: a.id };
+  });
+
+  // PDF no GED (fora da transação: upload externo). Falha aqui não desfaz o processo.
+  let aviso: string | null = null;
+  try {
+    const categoria = await garantirPastaSistema({ nome: "Processos", slug: "processos", ordem: 36 });
+    const titulo = textoOuNull(d.documento?.titulo) ?? `${r.proc.codigo} — ${file.name.replace(/\.pdf$/i, "")}`;
+    const doc = await prismaSemEscopo.documento.create({
+      data: { empresaId, categoriaId: categoria.id, titulo, numero: textoOuNull(d.documento?.numero), emissao: dataAnd, processoId: r.proc.id, confidencial: r.proc.confidencial, responsavelId: r.proc.responsavelId, tags: ["processo", r.proc.codigo.toLowerCase()], criadoPor: auth.session.nome },
+      select: { id: true },
+    });
+    try {
+      const arq = await salvarArquivoDocumento({ empresaId, categoriaSlug: categoria.slug, categoriaNome: categoria.nome, nomeArquivo: `${titulo} — v1.pdf`, mime: "application/pdf", conteudo: Buffer.from(await file.arrayBuffer()) });
+      const v = await prismaSemEscopo.documentoVersao.create({ data: { documentoId: doc.id, versao: 1, provider: arq.provider, driveFileId: arq.driveFileId, url: arq.url, nome: file.name, mime: "application/pdf", tamanho: file.size, criadoPor: auth.session.nome } });
+      await prismaSemEscopo.documento.update({ where: { id: doc.id }, data: { versaoVigenteId: v.id } });
+      await prismaSemEscopo.processoAndamento.update({ where: { id: r.andamentoId }, data: { documentoId: doc.id } });
+    } catch (e) {
+      await prismaSemEscopo.documento.delete({ where: { id: doc.id } }).catch(() => {});
+      throw e;
+    }
+  } catch (e) {
+    console.error("[processos/a-partir-de-documento] PDF não gravado no GED:", e);
+    aviso = "Processo gravado, mas o PDF não foi salvo no GED. Envie o arquivo de novo pela aba Documentos.";
+  }
+  return NextResponse.json({ data: { id: r.proc.id, codigo: r.proc.codigo }, aviso }, { status: 201 });
+}

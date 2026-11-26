@@ -63,6 +63,10 @@
     {
       "path": "/api/cron/manutencao-preventivas",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/processos-datajud",
+      "schedule": "0 10 * * *"
     }
   ],
   "functions": {
@@ -85,6 +89,9 @@
       "maxDuration": 60
     },
     "src/app/api/cron/reconciliar-estoque/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cron/processos-datajud/route.ts": {
       "maxDuration": 60
     }
   }

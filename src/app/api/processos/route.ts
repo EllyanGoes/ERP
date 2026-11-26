@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { PROCESSO_LISTA_SELECT, SITUACOES_ABERTAS, camposProcesso, filtroVisibilidade, pendenciasProcesso, podeEditar, proximoCodigoProcesso, situacaoPorAndamento, TIPOS_ANDAMENTO } from "@/lib/processos";
+import { PROCESSO_LISTA_SELECT, aplicarRoteiro, dataOuNull, SITUACOES_ABERTAS, camposProcesso, erroAcompanhamentoDatajud, filtroVisibilidade, pendenciasProcesso, podeEditar, proximoCodigoProcesso, situacaoPorAndamento, TIPOS_ANDAMENTO } from "@/lib/processos";
 
 // GET /api/processos?encerrados=1&tipo=&situacao=&responsavelId= — processos visíveis da empresa ativa
 // com pendências (prazos, parado, aguardando a empresa), próximo prazo e último andamento.
@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data, podeEditar: await podeEditar(auth.session) });
 }
 
-// POST — novo processo. Body: campos do processo + andamentoInicial? { data, tipo, descricao }.
+// POST — novo processo. Body: campos do processo + andamentoInicial? { data, tipo, descricao }
+// + roteiroId? (aplica as tarefas padrão do tipo como prazos) + dataCiencia? (base das etapas "da ciência").
 // Interessado pessoa física nasce confidencial (decisão do dono, PRD §9).
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("processos");
@@ -36,6 +37,8 @@ export async function POST(req: NextRequest) {
   const campos = camposProcesso(b);
   if (!campos.titulo) return NextResponse.json({ error: "Informe o título do processo." }, { status: 400 });
   if (!campos.orgao) return NextResponse.json({ error: "Informe o órgão (ou vara/tribunal)." }, { status: 400 });
+  const erroDj = erroAcompanhamentoDatajud(!!campos.datajudAtivo, campos.numero as string | null);
+  if (erroDj) return NextResponse.json({ error: erroDj }, { status: 400 });
   const empresaId = auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID;
   const pessoa = campos.interessadoTipo === "PESSOA";
   const ini = b.andamentoInicial as { data?: string; tipo?: string; descricao?: string } | undefined;
@@ -49,12 +52,13 @@ export async function POST(req: NextRequest) {
         situacao: ini?.tipo ? situacaoPorAndamento(ini.tipo) ?? String(campos.situacao ?? "EM_ANDAMENTO") : String(campos.situacao ?? "EM_ANDAMENTO"),
         criadoPor: auth.session.nome,
       },
-      select: { id: true, codigo: true },
+      select: { id: true, codigo: true, tipo: true, responsavelId: true, abertoEm: true },
     });
+    if (b.roteiroId) await aplicarRoteiro(tx, p, String(b.roteiroId), { ciencia: dataOuNull(b.dataCiencia) ?? (ini?.data ? new Date(ini.data) : null), criadoPor: auth.session.nome });
     if (ini?.descricao?.trim()) {
       await tx.processoAndamento.create({ data: { processoId: p.id, data: ini.data ? new Date(ini.data) : new Date(), tipo: TIPOS_ANDAMENTO[String(ini.tipo)] ? String(ini.tipo) : "PROTOCOLO", descricao: ini.descricao.trim(), usuario: auth.session.nome } });
     }
-    return p;
+    return { id: p.id, codigo: p.codigo };
   });
   return NextResponse.json({ data: criado }, { status: 201 });
 }

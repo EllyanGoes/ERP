@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 
 export { TIPOS_PROCESSO, SITUACOES, SITUACOES_ABERTAS, TIPOS_ANDAMENTO, PAPEIS_PARTE, ESFERAS, RISCOS, situacaoPorAndamento } from "@/lib/processos-tipos";
 import { ESFERAS, RISCOS, SITUACOES, TIPOS_PROCESSO } from "@/lib/processos-tipos";
+import { pareceCnj, validarCnj } from "@/lib/processos-cnj";
+import { calcularVencimento } from "@/lib/dias-uteis";
 
 /** Quem vê processo confidencial: ADMIN, responsável e quem tem processos.confidenciais. */
 export async function filtroVisibilidade(session: { sub: string; perfil: string }): Promise<Prisma.ProcessoWhereInput> {
@@ -84,7 +86,24 @@ export function camposProcesso(b: Record<string, unknown>): Prisma.ProcessoUnche
     ? (b.numerosExtras as { rotulo?: string; valor?: string }[]).filter((n) => n?.valor?.trim()).map((n) => ({ rotulo: String(n.rotulo ?? "").trim(), valor: String(n.valor).trim() }))
     : undefined;
   for (const k of ["colaboradorId", "fornecedorId", "clienteId", "contratoId", "imobilizadoId"] as const) if (k in b) d[k] = textoOuNull(b[k]);
+  // Número CNJ válido: grava formatado e já guarda o tribunal do DataJud.
+  if ("numero" in b && d.numero) {
+    const v = validarCnj(String(d.numero));
+    if (v.ok) { d.numero = v.info.formatado; d.datajudTribunal = v.info.tribunal; }
+  }
+  if ("datajudAtivo" in b) d.datajudAtivo = !!b.datajudAtivo;
   return d;
+}
+
+/** Regra do acompanhamento automático: só liga com número CNJ válido e tribunal no DataJud.
+ *  Devolve a mensagem de erro (amigável) ou null se está ok. */
+export function erroAcompanhamentoDatajud(datajudAtivo: boolean, numero: string | null | undefined): string | null {
+  if (!datajudAtivo) return null;
+  if (!numero) return "Para acompanhar no tribunal, informe o número CNJ do processo.";
+  const v = validarCnj(numero);
+  if (!v.ok) return pareceCnj(numero) || numero.replace(/\D/g, "").length >= 15 ? v.erro : "Acompanhamento automático só para processo judicial com número CNJ (NNNNNNN-DD.AAAA.J.TR.OOOO).";
+  if (!v.info.tribunal) return "Este tribunal não está na API pública do DataJud (ex.: STF).";
+  return null;
 }
 
 export const PROCESSO_LISTA_SELECT = {
@@ -101,4 +120,53 @@ export const PROCESSO_LISTA_SELECT = {
 export async function carregarProcesso(session: { sub: string; perfil: string }, id: string) {
   const visivel = await filtroVisibilidade(session);
   return prisma.processo.findFirst({ where: { id, AND: [visivel] }, select: { id: true, codigo: true, titulo: true, empresaId: true, situacao: true, responsavelId: true } });
+}
+
+/**
+ * Dados do prazo vindos do body: data fixa (`vence`) OU contagem (`inicioContagem` + `prazoDias`,
+ * úteis ou corridos, com suspensão forense opcional — src/lib/dias-uteis.ts). Erro amigável ou dados.
+ */
+export function dadosPrazo(b: Record<string, unknown>, tipoProcesso?: string):
+  { ok: true; data: { vence: Date; diasUteis: boolean; prazoDias: number | null; inicioContagem: Date | null; suspensaoForense: boolean; fundamento: string | null } } | { ok: false; erro: string } {
+  const fundamento = textoOuNull(b.fundamento);
+  const dias = b.prazoDias === "" || b.prazoDias == null ? null : Math.round(Number(b.prazoDias));
+  if (dias != null) {
+    if (!Number.isFinite(dias) || dias < 0 || dias > 3650) return { ok: false, erro: "Número de dias inválido." };
+    const inicio = dataOuNull(b.inicioContagem);
+    if (!inicio || isNaN(+inicio)) return { ok: false, erro: "Informe a data de início da contagem (ciência/intimação)." };
+    const diasUteis = !!b.diasUteis;
+    const suspensaoForense = "suspensaoForense" in b ? !!b.suspensaoForense : tipoProcesso === "JUDICIAL";
+    const vence = calcularVencimento(inicio, dias, { uteis: diasUteis, suspensaoForense, judicial: tipoProcesso === "JUDICIAL" });
+    return { ok: true, data: { vence, diasUteis, prazoDias: dias, inicioContagem: inicio, suspensaoForense, fundamento } };
+  }
+  const vence = dataOuNull(b.vence);
+  if (!vence || isNaN(+vence)) return { ok: false, erro: "Informe a data de vencimento ou a contagem em dias." };
+  return { ok: true, data: { vence, diasUteis: false, prazoDias: null, inicioContagem: null, suspensaoForense: false, fundamento } };
+}
+
+/**
+ * Aplica o roteiro (tarefas padrão do tipo) ao processo: cada etapa vira um prazo contado da
+ * abertura ou da ciência (dias úteis/corridos). Devolve quantos prazos criou.
+ */
+export async function aplicarRoteiro(
+  tx: Pick<Prisma.TransactionClient, "processoRoteiro" | "processoPrazo">,
+  proc: { id: string; tipo: string; responsavelId: string | null; abertoEm?: Date | null },
+  roteiroId: string,
+  opts: { ciencia?: Date | null; criadoPor?: string | null } = {},
+): Promise<number> {
+  const r = await tx.processoRoteiro.findFirst({ where: { id: roteiroId, ativo: true }, include: { etapas: { orderBy: { ordem: "asc" } } } });
+  if (!r) return 0;
+  const hoje = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
+  const judicial = proc.tipo === "JUDICIAL";
+  for (const e of r.etapas) {
+    const base = (e.base === "CIENCIA" ? opts.ciencia ?? proc.abertoEm : proc.abertoEm ?? opts.ciencia) ?? hoje;
+    await tx.processoPrazo.create({
+      data: {
+        processoId: proc.id, descricao: e.titulo, vence: calcularVencimento(base, e.dias, { uteis: e.diasUteis, suspensaoForense: judicial, judicial }),
+        avisoDias: e.avisoDias, responsavelId: e.responsavelId ?? proc.responsavelId, diasUteis: e.diasUteis, prazoDias: e.dias, inicioContagem: base,
+        suspensaoForense: judicial, fundamento: `Roteiro: ${r.nome}`, criadoPor: opts.criadoPor ?? null,
+      },
+    });
+  }
+  return r.etapas.length;
 }

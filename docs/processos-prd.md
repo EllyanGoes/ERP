@@ -216,7 +216,26 @@ Módulo `processos`: `painel.ver`, `processos.ver`, `processos.editar`, `process
 | **1 — Base** | `Processo`, `ProcessoAndamento`, `ProcessoPrazo`, `ProcessoParte`, `Documento.processoId`; painel, lista, página com linha do tempo/prazos/documentos/partes; cron de prazos com resumo; permissões; lixeira. **Cadastrar o processo do Amapá Terras** com os 8 documentos ligados e o andamento "14/10 — cadastro enviado ao SICARF (recibo 8D9C01-8D49001-2026)". | ~4 dias |
 | **2 — Acesso e financeiro** | `ProcessoCredencial` criptografada (migrar o acesso do SICARF e **apagar o PDF com senha** do GED); `ContaPagar.processoId` e aba Financeiro (custas, honorários, multas); prazos na Agenda/ICS; vínculo com Imobilizado. | ~3 dias |
 | **3 — Externo** | Link do processo para advogado/despachante registrar andamento e anexar (token, como a OS pública), sem acesso ao resto do ERP. Relatório para a contabilidade (provisões por risco — CPC 25). | ~2 dias |
-| **4 — Captura automática** | Consulta automática onde houver API pública (DataJud/CNJ para judiciais); para portais sem API (SICARF), lembrete periódico "conferir o portal" em vez de raspagem. | sob demanda |
+| **1.5 — Ideias do Astrea** | Antecipa a antiga fase 4 (captura automática) e acrescenta documento→processo, prazos em dias úteis, roteiros e quadro. Detalhe na seção 8.1. | ~4 dias |
+| ~~4 — Captura automática~~ | **Antecipada para a fase 1.5** (DataJud/CNJ). Para portais sem API (SICARF) continua valendo: lembrete periódico "conferir o portal" em vez de raspagem. | — |
+
+### 8.1 Fase 1.5 — Ideias do Astrea (aprovado 26/11/2026)
+
+O dono analisou o Astrea (Aurum) e aprovou adaptar estas ideias, nesta ordem:
+
+| # | Entrega | Situação |
+|---|---|---|
+| 1 | **Captura automática de andamentos pelo DataJud (API Pública do CNJ)** para processos judiciais com número CNJ: cron diário + botão "Atualizar agora"; **priorização** de cada movimento (importante × normal × rotina, por código TPU e nome); **resumo em linguagem simples por IA** só dos importantes; alerta no sino + Telegram para o responsável (um aviso por processo por rodada); filtro "Importantes / Todos" na linha do tempo; "Novidades dos tribunais (7 dias)" no painel. | **em implementação** |
+| 2 | **Documento vira processo**: subir o PDF (auto de infração, notificação, intimação, ofício) e a IA preencher órgão, número, valor, partes, data da ciência e prazo de defesa (com o trecho que fundamenta) para **conferência** antes de gravar; também "lançar a partir de documento" num processo existente. **Prazo em dias úteis** com feriados nacionais, do Amapá e de Macapá (CPC art. 224) e suspensão de 20/12 a 20/01 nos judiciais (CPC art. 220). | em implementação |
+| 3 | **Roteiros prontos por tipo de processo** (tarefas padrão que viram prazos ao criar o processo) + **quadro (kanban) por situação** na lista, no padrão do Fluxo de Compras. | em implementação |
+| 4 | Fases 2 e 3 já planejadas (cofre de credenciais, financeiro, link externo, relatório CPC 25). | planejado |
+
+**Fora (decisão do dono):** boletos/cobrança de clientes, timesheet, banco de peças/jurisprudência.
+
+Notas técnicas: `src/lib/processos-cnj.ts` (validação módulo 97 e tribunal pelo J.TR), `src/lib/processos-datajud.ts`
+(consulta, dedup por `processoId+externoId`, classificação), `src/lib/processos-ia.ts` (resumo e leitura de documento,
+best-effort), `src/lib/dias-uteis.ts` (calendário), cron `/api/cron/processos-datajud` (7h de Brasília). A chave pública do
+DataJud vem de `DATAJUD_API_KEY` com fallback para a chave publicada na wiki do CNJ.
 
 ## 9. Decisões do dono (28/10/2026)
 
@@ -230,8 +249,10 @@ Módulo `processos`: `painel.ver`, `processos.ver`, `processos.editar`, `process
 
 ## 10. Fora de escopo
 
-Peticionamento eletrônico; cálculo de prazos processuais em dias úteis com feriados forenses
-(v1 usa data informada); raspagem de portais com login; gestão de honorários por êxito;
+Peticionamento eletrônico; feriados forenses locais além de nacionais/Amapá/Macapá (portarias
+de suspensão de expediente de cada tribunal) — o prazo em dias úteis da fase 1.5 é referência e pode ser
+ajustado à mão; raspagem de portais com login; boletos/cobrança de clientes; timesheet; peças e
+jurisprudência; gestão de honorários por êxito;
 substituir o advogado ou o sistema do tribunal.
 
 ## 11. Métricas de sucesso
