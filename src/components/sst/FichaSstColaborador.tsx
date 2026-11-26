@@ -5,6 +5,7 @@
 // Usada na página /sst/colaboradores/[id] e como aba "Saúde e Segurança" do
 // cadastro em /empresa/colaboradores/[id] (embutido = sem cabeçalho/margens).
 import { useCallback, useEffect, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import SelectMenu from "@/components/shared/SelectMenu";
@@ -39,7 +40,23 @@ type Funcao = { id: string; nome: string; ativo: boolean };
 type Epi = { id: string; nome: string; ca: string | null; vidaUtilDias: number | null; itemId: string | null; ativo: boolean };
 type ExameTipo = { id: string; nome: string; ativo?: boolean };
 
-/** Cartão das faixas da ficha (exigência à esquerda, registro à direita). */
+/** Abas da ficha: uma por necessidade (exigência + registros empilhados). */
+type AbaFicha = "epis" | "exames" | "treinamentos";
+const ABAS_FICHA: AbaFicha[] = ["epis", "exames", "treinamentos"];
+/** Pendências (calculadas no servidor, as mesmas do selo) que pertencem a cada aba. */
+function abaDaPendencia(tipo: string): AbaFicha | null {
+  if (tipo.startsWith("EPI_") || tipo.startsWith("FICHA_EPI")) return "epis";
+  if (tipo.startsWith("ASO_") || tipo.startsWith("EXAME_")) return "exames";
+  if (tipo.startsWith("TREINAMENTO_")) return "treinamentos";
+  return null;
+}
+
+/** Rótulo de seção dentro da aba ("O que a função exige" / "Entregas e registros"). */
+function Secao({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground px-1 -mb-3">{children}</p>;
+}
+
+/** Cartão de cada seção da aba. */
 function Card({ icon, titulo, acao, children }: { icon: React.ReactNode; titulo: string; acao?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="bg-card rounded-xl border border-border h-full min-w-0 flex flex-col">
@@ -47,7 +64,7 @@ function Card({ icon, titulo, acao, children }: { icon: React.ReactNode; titulo:
         <h2 className="font-semibold text-sm text-foreground inline-flex items-center gap-2">{icon} {titulo}</h2>
         {acao}
       </div>
-      <div className="flex-1">{children}</div>
+      <div className="flex-1 overflow-x-auto">{children}</div>
     </section>
   );
 }
@@ -60,6 +77,23 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
   const [exameTipos, setExameTipos] = useState<ExameTipo[]>([]);
   const lk = useLookups();
   useTabTitle(embutido ? null : f ? `SST · ${f.nome}` : "SST");
+
+  // Aba ativa: ?aba= na URL (link direto / voltar) e, sem ela, a última usada
+  // pelo usuário. Embutida no cadastro do colaborador não mexe na URL.
+  const [abaSalva, setAbaSalva] = usePersistedState<AbaFicha>("sst:ficha-colaborador:aba", "epis");
+  const aba: AbaFicha = ABAS_FICHA.includes(abaSalva) ? abaSalva : "epis";
+  useEffect(() => {
+    if (embutido) return;
+    const q = new URLSearchParams(window.location.search).get("aba") as AbaFicha | null;
+    if (q && ABAS_FICHA.includes(q)) setAbaSalva(q);
+  }, [embutido, setAbaSalva]);
+  function setAba(a: AbaFicha) {
+    setAbaSalva(a);
+    if (embutido) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("aba", a);
+    window.history.replaceState(window.history.state, "", url.toString());
+  }
 
   const load = useCallback(async () => {
     const j = await fetch(`/api/sst/colaboradores/${id}`).then((r) => r.json()).catch(() => null);
@@ -216,8 +250,8 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
       />
       )}
       <div className={cn(!embutido && "px-8 pb-8")}>
-        {/* Função no topo (largura toda); abaixo, duas colunas: EPIs à esquerda,
-            ASO + treinamentos à direita. Abaixo de xl volta a uma coluna. */}
+        {/* Função no topo (largura toda); abaixo, uma aba por necessidade (EPIs,
+            exames/ASO, treinamentos) com a exigência e os registros empilhados. */}
         <div className="space-y-6">
           {/* Função */}
           <section className="bg-card rounded-xl border border-border">
@@ -238,19 +272,34 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             </div>
           </section>
 
-          {/* Exigências da função à esquerda, o que foi entregue/registrado à direita —
-              em faixas pareadas (EPIs | entregas, exames | ASOs, treinamentos | turmas). */}
+          {/* Uma aba por necessidade: primeiro o que a função exige, depois as
+              entregas e registros, empilhados em largura total. As abas inativas
+              ficam só ocultas (hidden print:block) p/ o botão "Ficha" imprimir tudo. */}
           {(() => {
             const nEntregas = f.sstEpiEntregas.length;
+            const abas: { id: AbaFicha; label: string; icon: React.ReactNode }[] = [
+              { id: "epis", label: "EPIs", icon: <HardHat className="w-4 h-4" /> },
+              { id: "exames", label: "Exames e ASO", icon: <Stethoscope className="w-4 h-4" /> },
+              { id: "treinamentos", label: "Treinamentos", icon: <GraduationCap className="w-4 h-4" /> },
+            ];
             return (
               <div className="space-y-6">
-                <div className="hidden xl:grid grid-cols-2 gap-6 -mb-3 px-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">O que a função exige</p>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Entregas e registros</p>
+                <div className="flex gap-1 border-b border-border overflow-x-auto print:hidden">
+                  {abas.map((a) => {
+                    const pend = f.pendencias.filter((p) => abaDaPendencia(p.tipo) === a.id);
+                    const grave = pend.some((p) => p.severidade === "CRITICA" || p.severidade === "ALTA");
+                    return (
+                      <button key={a.id} type="button" onClick={() => setAba(a.id)} className={cn("text-sm px-3 py-2 -mb-px border-b-2 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0", aba === a.id ? "border-info text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                        {a.icon}{a.label}
+                        {pend.length > 0 && <span className={cn("text-[11px] rounded-full px-1.5 tabular-nums border", grave ? "border-danger/30 bg-danger/10 text-danger" : "border-warning/30 bg-warning/10 text-warning")}>{pend.length} {pend.length === 1 ? "pendente" : "pendentes"}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* EPIs */}
-                <div className="grid xl:grid-cols-2 gap-6 items-stretch">
+                <div className={cn("space-y-6", aba !== "epis" && "hidden print:block")}>
+                  <Secao>O que a função exige</Secao>
                   <Card icon={<HardHat className="w-4 h-4" />} titulo="EPIs exigidos (NR-06)">
                     {f.episStatus.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">{vinculo ? "A função não exige EPI." : "Sem função — nada a cobrar."}</p> : (
               <table className="w-full text-sm">
@@ -286,6 +335,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
               </table>
                     )}
                   </Card>
+                  <Secao>Entregas e registros</Secao>
                   <Card icon={<HardHat className="w-4 h-4" />} titulo={`Entregas de EPI${nEntregas ? ` · ${nEntregas}` : ""}`}
                     acao={<Button size="sm" onClick={() => abrirEntrega()} className="gap-1.5 bg-blue-600 hover:bg-blue-700"><Plus className="w-3.5 h-3.5" /> Entrega</Button>}>
               {f.fichaAberta && (
@@ -372,7 +422,8 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 </div>
 
                 {/* Exames */}
-                <div className="grid xl:grid-cols-2 gap-6 items-stretch">
+                <div className={cn("space-y-6", aba !== "exames" && "hidden print:block")}>
+                  <Secao>O que a função exige</Secao>
                   <Card icon={<Stethoscope className="w-4 h-4" />} titulo="Exames exigidos (NR-07)">
             {(() => {
               const asoPend = f.pendencias.filter((p) => p.tipo.startsWith("ASO"));
@@ -413,6 +464,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
               );
             })()}
                   </Card>
+                  <Secao>Entregas e registros</Secao>
                   <Card icon={<Stethoscope className="w-4 h-4" />} titulo="ASOs e exames realizados"
                     acao={<div className="flex items-center gap-2">
                       <Button size="sm" variant="outline" onClick={abrirExame} className="gap-1.5"><Plus className="w-3.5 h-3.5" /> Exame</Button>
@@ -473,7 +525,8 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                 </div>
 
                 {/* Treinamentos */}
-                <div className="grid xl:grid-cols-2 gap-6 items-stretch">
+                <div className={cn("space-y-6", aba !== "treinamentos" && "hidden print:block")}>
+                  <Secao>O que a função exige</Secao>
                   <Card icon={<GraduationCap className="w-4 h-4" />} titulo="Treinamentos exigidos">
                     {!vinculo || vinculo.funcao.requisitosTreinamento.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">{vinculo ? "A função não exige treinamento." : "Sem função — nada a cobrar."}</p> : (
                       <table className="w-full text-sm">
@@ -495,6 +548,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                       </table>
                     )}
                   </Card>
+                  <Secao>Entregas e registros</Secao>
                   <Card icon={<GraduationCap className="w-4 h-4" />} titulo="Treinamentos realizados"
                     acao={<Link href="/sst/treinamentos" className="text-xs text-info hover:underline">nova turma</Link>}>
             {f.sstTreinamentos.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground italic">Nenhum treinamento registrado.</p> : (
