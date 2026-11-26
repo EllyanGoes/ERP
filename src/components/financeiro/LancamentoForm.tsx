@@ -45,6 +45,8 @@ export default function LancamentoForm({
   tipoSelecionavel = false,
   contaFixa,
   processo,
+  naturezaChaveInicial,
+  descricaoInicial,
   onSaved,
 }: {
   tipo: "receber" | "pagar";
@@ -53,6 +55,12 @@ export default function LancamentoForm({
   contaFixa?: { id: string; nome: string };
   /** Lançamento aberto pela aba Financeiro do processo: o título nasce ligado a ele. */
   processo?: { id: string; codigo: string };
+  /**
+   * Pré-seleciona a natureza TRAVADA por chave (ex.: "deposito-judicial" na aba Financeiro do
+   * processo) e começa "sem vínculo" de beneficiário. Continua editável.
+   */
+  naturezaChaveInicial?: string;
+  descricaoInicial?: string;
   /** Disparado após salvar com sucesso (antes do diálogo de confirmação). */
   onSaved?: (info: { status: "AGENDAMENTO" | "PAGAMENTO"; tipo: "receber" | "pagar" }) => void;
 }) {
@@ -60,11 +68,12 @@ export default function LancamentoForm({
   const isReceber = tipoSel === "receber";
   const [status, setStatus] = useState<"AGENDAMENTO" | "PAGAMENTO">("AGENDAMENTO");
   // Beneficiário polimórfico: CLIENTE (entrada) / FORNECEDOR/COLABORADOR (saída) / null (sem vínculo).
-  const [benTipo, setBenTipo] = useState<BenTipo | null>(tipo === "receber" ? "CLIENTE" : "FORNECEDOR");
+  const benTipoPadrao: BenTipo | null = naturezaChaveInicial ? null : tipo === "receber" ? "CLIENTE" : "FORNECEDOR";
+  const [benTipo, setBenTipo] = useState<BenTipo | null>(benTipoPadrao);
   const [benId, setBenId] = useState("");
   const [colaboradores, setColaboradores] = useState<Contato[]>([]);
   const [contaBancariaId, setContaBancariaId] = useState(contaFixa?.id ?? "");
-  const [descricao, setDescricao] = useState("");
+  const [descricao, setDescricao] = useState(descricaoInicial ?? "");
   const [dataPagamento, setDataPagamento] = useState(hojeInput());
   const [dataVencimento, setDataVencimento] = useState(hojeInput());
   const [dataCompetencia, setDataCompetencia] = useState(hojeInput());
@@ -100,10 +109,10 @@ export default function LancamentoForm({
     entity: "lançamento", gender: "m",
     onNew: () => {
       setTipoSel(tipo); setStatus("AGENDAMENTO");
-      setBenTipo(tipo === "receber" ? "CLIENTE" : "FORNECEDOR"); setBenId("");
-      setContaBancariaId(contaFixa?.id ?? ""); setDescricao("");
+      setBenTipo(benTipoPadrao); setBenId("");
+      setContaBancariaId(contaFixa?.id ?? ""); setDescricao(descricaoInicial ?? "");
       setDataPagamento(hojeInput()); setDataVencimento(hojeInput()); setDataCompetencia(hojeInput()); setDataEmissao(hojeInput());
-      setLinhas([novaLinha()]); setCentroCustoId(""); setErro(null);
+      setLinhas([linhaPreset()]); setCentroCustoId(""); setErro(null);
       setDetalhado(false); setAbaDetalhe("centro"); setValorJuros(""); setValorMulta("");
       setValorDesconto(""); setRetencoes(RETENCAO_VAZIA); setCondicaoPagamentoId("");
     },
@@ -118,6 +127,14 @@ export default function LancamentoForm({
       setContaBancariaId((cs.find((c) => c.tipo === "CAIXA") ?? cs[0])?.id ?? "");
     }).catch(() => {});
   }, [contaFixa]);
+
+  // Natureza travada pré-selecionada (naturezaChaveInicial) assim que a lista carrega.
+  const natPreset = naturezaChaveInicial ? (naturezas as (NaturezaOpt & { sistemaChave?: string | null })[]).find((n) => n.sistemaChave === naturezaChaveInicial) : undefined;
+  const linhaPreset = (): Linha => ({ ...novaLinha(), naturezaFinanceiraId: natPreset?.id ?? "" });
+  useEffect(() => {
+    if (!natPreset) return;
+    setLinhas((prev) => (prev.length === 1 && !prev[0].naturezaFinanceiraId ? [{ ...prev[0], naturezaFinanceiraId: natPreset.id }] : prev));
+  }, [natPreset]);
 
   // Naturezas conforme o tipo (entrada/saída) — refaz ao alternar no modo conta.
   useEffect(() => {

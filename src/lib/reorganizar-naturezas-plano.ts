@@ -103,6 +103,10 @@ const PLANO: DefNatureza[] = [
   // Grupo 7 — Investimento (não afeta resultado)
   { codigo: "7.01", nome: "Compra de imobilizado", tipo: "SAIDA", contaResultado: "3.3.0002", contrapartida: "2.1.1" },
   { codigo: "7.02", nome: "Venda de imobilizado", tipo: "ENTRADA", contrapartida: "1.1.5" },
+  // Depósito judicial / garantia (travadas — migration 20261126200000, processos §8.3): o
+  // depósito é ATIVO (1.2.9001), nunca despesa; o levantamento credita o próprio depósito.
+  { codigo: "7.03", nome: "Depósitos judiciais e garantias", tipo: "SAIDA", contaResultado: "1.2.9001" },
+  { codigo: "7.04", nome: "Levantamento de depósitos judiciais", tipo: "ENTRADA", contrapartida: "1.2.9001" },
   // Grupo 8 — Financiamento (não afeta resultado)
   { codigo: "8.01", nome: "Captação de empréstimos", tipo: "ENTRADA", contaResultado: "3.1.0001" },
   { codigo: "8.02", nome: "Amortização de empréstimos", tipo: "SAIDA", contaResultado: "3.3.0005", contrapartida: "2.1.3.0001" },
@@ -123,6 +127,8 @@ const CHAVES_MIGRAR: { chave: string; codigo: string }[] = [
   { chave: "juros-recebidos", codigo: "1.04" },
   { chave: "descontos-recebidos", codigo: "1.06" },
   { chave: "descontos-concedidos", codigo: "6.07" },
+  { chave: "deposito-judicial", codigo: "7.03" },
+  { chave: "levantamento-deposito-judicial", codigo: "7.04" },
 ];
 
 // Mapeamento nome-antigo → código sucessor (match sem caixa/acentos).
@@ -130,6 +136,8 @@ const MAPA_SUCESSORA: [string, string][] = [
   ["Juros Recebidos", "1.04"],
   ["Descontos Recebidos", "1.06"],
   ["Descontos Concedidos", "6.07"],
+  ["Depósitos Judiciais e Garantias", "7.03"],
+  ["Levantamento de Depósitos Judiciais", "7.04"],
   ["Venda de mercadorias", "1.01"],
   ["Venda de serviços", "1.03"],
   ["Combustível (produção)", "2.03"],

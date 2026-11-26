@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/permissions";
 import { recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { apagarLancamentosContabeis, contabilizarEntradaEstoque } from "@/lib/contabilidade";
+import { sincronizarPrazosDoTitulo } from "@/lib/processos-prazo-titulo";
 
 // Estorna o pagamento de um título a pagar: remove os lançamentos de caixa/banco,
 // volta o título para ABERTA (zera o pago), desfaz a contabilização do pagamento
@@ -28,6 +29,13 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       return { erro: { msg: "Este título foi baixado por um Encontro de Contas — estorne a compensação para reabri-lo.", status: 409 } } as const;
     }
 
+    // Depósito judicial com destino (levantado/convertido) no processo: desfazer lá primeiro,
+    // senão o saldo do depósito ficaria negativo (processos §8.3).
+    const destinos = await tx.processoDepositoDestino.count({ where: { contaPagarId: params.id } });
+    if (destinos > 0) {
+      return { erro: { msg: "Este depósito judicial já tem destino (levantamento/conversão) no processo — desfaça o destino antes de estornar.", status: 409 } } as const;
+    }
+
     await tx.lancamentoFinanceiro.deleteMany({ where: { contaPagarId: params.id } });
     await tx.contaPagar.update({
       where: { id: params.id },
@@ -36,6 +44,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     // Mudou o financeiro do pedido de compra → recomputa o status (espelho do que
     // o estorno de contas a receber faz com recomputarStatusPedido).
     if (conta.pedidoCompraId) await recomputarStatusFinanceiroCompra(tx, conta.pedidoCompraId);
+    // Prazo de processo cumprido por este pagamento volta a PENDENTE (processos §8.3).
+    await sincronizarPrazosDoTitulo(tx, params.id);
     // Desfaz a contabilização do pagamento DENTRO da transação (atômico).
     await apagarLancamentosContabeis({ empresaId: conta.empresaId, origemTipo: "PAGAMENTO", origemId: params.id }, tx);
     return { erro: null, antecipado: conta.antecipado, pedidoCompraId: conta.pedidoCompraId } as const;

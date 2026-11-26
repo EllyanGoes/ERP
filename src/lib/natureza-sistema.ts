@@ -17,7 +17,13 @@ export type ChaveNaturezaSistema =
   // Desconto concedido na baixa do Contas a Receber (recebeu menos e quitou):
   // taxa retida com esta natureza → débito na conta dela ((-) Descontos
   // Concedidos 3.1.9003; na Cimento e Mix, 3.1.0005).
-  | "descontos-concedidos";
+  | "descontos-concedidos"
+  // Depósito judicial / garantia (processos, §8.3): SAÍDA de investimento, não despesa — a
+  // conta da natureza é o ATIVO 1.2.9001 Depósitos Judiciais (D no pagamento).
+  | "deposito-judicial"
+  // Levantamento do depósito (volta para a empresa): ENTRADA sem receita — o recebimento
+  // credita Depósitos Judiciais (contabilizarTituloReceber pula a perna VENDA).
+  | "levantamento-deposito-judicial";
 
 type Db = Pick<Prisma.TransactionClient, "naturezaFinanceira">;
 

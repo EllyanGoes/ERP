@@ -66,6 +66,8 @@ const schema = z.object({
   // Processo externo (custas/honorários/multas — fase 2 de docs/processos-prd.md): só vínculo
   // gerencial no título; validado contra a visibilidade e a empresa ativa.
   processoId: z.string().optional().nullable().transform((v) => v || null),
+  // Observações do título (ex.: linha digitável da guia lida do documento do processo).
+  observacoes: z.string().max(2000).optional().nullable().transform((v) => v?.trim() || null),
   linhas: z.array(z.object({
     naturezaFinanceiraId: z.string().min(1, "Selecione a natureza financeira de cada linha"),
     detalhamento: z.string().optional().nullable(),
@@ -243,7 +245,7 @@ export async function POST(req: NextRequest) {
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
             grupoParcelamentoId: p.grupoParcelamentoId, parcelaNumero: p.parcelaNumero, parcelaTotal: p.parcelaTotal,
-            processoId,
+            processoId, observacoes: f.observacoes,
             ...(splitP.length ? { naturezas: { create: splitP } } : {}),
           };
           if (isReceber) {
@@ -260,7 +262,7 @@ export async function POST(req: NextRequest) {
         if (isReceber) { await espelharContaReceber(c.id).catch((e) => console.error("[financeiro/titulos] espelhar intragrupo:", e)); await contabilizarTituloReceber(c.id).catch((e) => console.error("[financeiro/titulos] contabilizar:", e)); }
         else await contabilizarTituloPagar(c.id).catch((e) => console.error("[financeiro/titulos] contabilizar:", e));
       }
-      return NextResponse.json({ data: { numeros: criados.map((c) => c.numero), total: criados.length } }, { status: 201 });
+      return NextResponse.json({ data: { numeros: criados.map((c) => c.numero), ids: criados.map((c) => c.id), total: criados.length } }, { status: 201 });
     }
     // Condição de parcela única: o vencimento sai da grade (pode ser "a
     // combinar" = null nas condições sem vencimento).
@@ -279,7 +281,7 @@ export async function POST(req: NextRequest) {
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
-            processoId,
+            processoId, observacoes: f.observacoes,
             ...(rateio.length ? { naturezas: { create: rateio } } : {}),
           },
         });
@@ -301,7 +303,7 @@ export async function POST(req: NextRequest) {
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
             centroCustoId: f.centroCustoId,
-            processoId,
+            processoId, observacoes: f.observacoes,
             ...(rateio.length ? { naturezas: { create: rateio } } : {}),
           },
         });
@@ -342,7 +344,7 @@ export async function POST(req: NextRequest) {
     if (isReceber) { await espelharContaReceber(criado.id).catch((e) => console.error("[financeiro/titulos] espelhar intragrupo:", e)); await contabilizarTituloReceber(criado.id).catch((e) => console.error("[financeiro/titulos] contabilizar:", e)); }
     else await contabilizarTituloPagar(criado.id).catch((e) => console.error("[financeiro/titulos] contabilizar:", e));
 
-    return NextResponse.json({ data: { numeros: [criado.numero], total: 1 } }, { status: 201 });
+    return NextResponse.json({ data: { numeros: [criado.numero], ids: [criado.id], total: 1 } }, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Erro ao criar lançamento";
     console.error("[POST /api/financeiro/titulos]", err);

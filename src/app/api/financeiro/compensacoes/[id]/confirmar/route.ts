@@ -7,6 +7,7 @@ import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { generateDocNumber, generateSimpleDocNumber, decimalToNumber } from "@/lib/utils";
 import { calcularNetting, garantirContaCompensacao, type TituloSaldo } from "@/lib/compensacao";
 import { recontabilizarTituloReceber, recontabilizarTituloPagar, contabilizarAjusteCompensacaoItem } from "@/lib/contabilidade";
+import { sincronizarPrazosDoTituloSeguro } from "@/lib/processos-prazo-titulo";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const saldoDe = (t: { valorOriginal: unknown; valorPago: unknown }) =>
@@ -209,6 +210,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   // Contabilização (pós-commit): principal via baixa reusada; ajuste dedicado; resíduo reclass.
   for (const id of Array.from(afetadosR)) await recontabilizarTituloReceber(id).catch((e) => console.error("[compensacao] recontabilizar:", e));
   for (const id of Array.from(afetadosP)) await recontabilizarTituloPagar(id).catch((e) => console.error("[compensacao] recontabilizar:", e));
+  // Prazo de processo pago por título compensado (cumpre/reabre — processos §8.3), best-effort.
+  await sincronizarPrazosDoTituloSeguro(Array.from(afetadosP));
   for (const itemId of itensComAjuste) await contabilizarAjusteCompensacaoItem(itemId).catch((e) => console.error("[compensacao] recontabilizar:", e));
   for (const r of residuoIds) {
     if (r.tipo === "RECEBER") await recontabilizarTituloReceber(r.id).catch((e) => console.error("[compensacao] recontabilizar:", e));

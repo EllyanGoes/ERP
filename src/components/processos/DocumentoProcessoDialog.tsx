@@ -3,6 +3,10 @@
 // "Novo a partir de documento" / "Lançar a partir de documento" (docs/processos-prd.md, Fase 1.5 item 2).
 // O usuário sobe o PDF (auto de infração, notificação, intimação, ofício) → a IA sugere os campos →
 // formulário PRÉ-PREENCHIDO para conferência → só ao confirmar grava processo/andamento/prazo + PDF no GED.
+// §8.3: se o documento traz guia/multa a pagar, a conferência mostra o PAGAMENTO (valor, vencimento,
+// desconto antecipado, linha digitável) e — para quem tem o Financeiro — "Criar conta a pagar": ao
+// confirmar, cria o prazo de pagamento, o título (POST /api/financeiro/titulos, a mesma regra do
+// Contas a Pagar), liga um ao outro e anexa o PDF ao título. Nada é criado sem confirmação.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileUp, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +17,12 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import SelectMenu from "@/components/shared/SelectMenu";
 import DatePicker from "@/components/shared/DatePicker";
 import { calcularVencimento } from "@/lib/dias-uteis";
+import { centroExigidoPelaNatureza } from "@/lib/natureza-centro";
+import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
+import BeneficiarioCombobox, { type BenTipo } from "@/components/financeiro/BeneficiarioCombobox";
+import { fmtCampoBR } from "@/components/financeiro/PagamentoTituloForm";
+import { parseValorBR } from "@/components/pedidos-venda/PagamentosInput";
 import { ESFERAS, PAPEIS_PARTE, TIPOS_ANDAMENTO, TIPOS_PROCESSO, fmtData } from "./comum";
 import { useRoteiros } from "./roteiros";
 
@@ -22,13 +32,19 @@ type Extracao = {
   tipoSugerido: string | null; tipoDocumento: string | null; titulo: string | null; orgao: string | null; esfera: string | null; numero: string | null;
   dataCiencia: string | null; valor: number | null; assunto: string | null; partes: { papel: string; nome: string; documento: string | null }[];
   prazo: { descricao: string; dias: number; diasUteis: boolean; trecho: string | null } | null; resumo: string | null;
+  pagamento?: { descricao: string | null; valor: number | null; vencimento: string | null; valorComDesconto: number | null; descontoPercentual: number | null; descontoAte: string | null; linhaDigitavel: string | null; trecho: string | null } | null;
 };
+type NatOpt = NaturezaOpt & { sistemaChave?: string | null; afetaResultado?: boolean; cif?: boolean };
 type Form = {
   titulo: string; tipo: string; orgao: string; esfera: string; numero: string; valorCausa: string; assunto: string; roteiroId: string;
   dataCiencia: string; andTipo: string; andDescricao: string; docTitulo: string;
   prazoDesc: string; prazoDias: string; diasUteis: boolean; suspensao: boolean; fundamento: string; avisoDias: string;
   partes: { papel: string; nome: string; documento: string }[];
+  // Pagamento (§8.3)
+  pagDesc: string; pagValor: string; pagVenc: string; pagDescontoAte: string; pagValorDesc: string; pagPct: string; pagLinha: string; pagTrecho: string;
+  criarCp: boolean;
 };
+const brl = (n: number | null | undefined) => (n == null ? "" : fmtCampoBR(String(n).replace(".", ",")));
 const hojeIso = () => new Date().toISOString().slice(0, 10);
 const isoValido = (s: string | null | undefined) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "");
 
@@ -43,7 +59,25 @@ function formDe(x: Extracao | null, tipoProcesso?: string): Form {
     prazoDesc: x?.prazo?.descricao ?? "", prazoDias: x?.prazo ? String(x.prazo.dias) : "", diasUteis: x?.prazo?.diasUteis ?? tipo === "JUDICIAL",
     suspensao: tipo === "JUDICIAL", fundamento: x?.prazo?.trecho ?? "", avisoDias: "5",
     partes: (x?.partes ?? []).map((p) => ({ papel: PAPEIS_PARTE[p.papel] ? p.papel : "OUTRO", nome: p.nome, documento: p.documento ?? "" })),
+    pagDesc: x?.pagamento?.descricao ?? (x?.pagamento ? x?.tipoDocumento ?? "Pagamento" : ""), pagValor: brl(x?.pagamento?.valor), pagVenc: isoValido(x?.pagamento?.vencimento),
+    pagDescontoAte: isoValido(x?.pagamento?.descontoAte), pagValorDesc: brl(x?.pagamento?.valorComDesconto), pagPct: x?.pagamento?.descontoPercentual != null ? String(x.pagamento.descontoPercentual).replace(".", ",") : "",
+    pagLinha: x?.pagamento?.linhaDigitavel ?? "", pagTrecho: x?.pagamento?.trecho ?? "",
+    criarCp: false,
   };
+}
+
+/** Natureza sugerida para a guia/multa: multa → travada "multa-paga"; taxa/guia/custas → "Impostos e taxas". */
+function sugerirNatureza(texto: string, nats: NatOpt[]): string {
+  const t = texto.toLowerCase();
+  if (/multa|infra[cç][aã]o|auto de/.test(t)) {
+    const m = nats.find((n) => n.sistemaChave === "multa-paga") ?? nats.find((n) => /multa/i.test(n.nome));
+    if (m) return m.id;
+  }
+  if (/taxa|dae|darf|gru|guia|custa|emolumento|imposto|tribut|licen/.test(t)) {
+    const m = nats.find((n) => /impostos e taxas|taxas/i.test(n.nome)) ?? nats.find((n) => /imposto|tribut/i.test(n.nome));
+    if (m) return m.id;
+  }
+  return "";
 }
 
 export default function DocumentoProcessoDialog({ processo, onFechar, onConcluido }: {
@@ -57,6 +91,30 @@ export default function DocumentoProcessoDialog({ processo, onFechar, onConcluid
   const [f, setF] = useState<Form>(formDe(null, processo?.tipo));
   const [aviso, setAviso] = useState(""); const [erro, setErro] = useState(""); const [salvando, setSalvando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Financeiro (§8.3): só quem tem o módulo vê "Criar conta a pagar".
+  const [podeFin, setPodeFin] = useState(false);
+  const [nats, setNats] = useState<NatOpt[]>([]);
+  const [natId, setNatId] = useState("");
+  const [ben, setBen] = useState<{ tipo: BenTipo | null; id: string }>({ tipo: null, id: "" });
+  const [fornecedores, setFornecedores] = useState<{ id: string; nome: string; doc: string | null }[]>([]);
+  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string }[]>([]);
+  const [centroId, setCentroId] = useState("");
+  useEffect(() => {
+    if (!podeFin) return;
+    fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json()).then((j) => setNats(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+    fetch("/api/suprimentos/fornecedores?ativo=1").then((r) => r.json()).then((j) => {
+      const l = (Array.isArray(j) ? j : (j.data ?? [])) as { id: string; razaoSocial?: string; nome?: string; cpfCnpj?: string | null }[];
+      setFornecedores(l.map((o) => ({ id: o.id, nome: o.razaoSocial ?? o.nome ?? "", doc: o.cpfCnpj ?? null })));
+    }).catch(() => {});
+    fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json()).then((j) => setCentros(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
+  }, [podeFin]);
+  // Natureza sugerida quando a lista chega (escolha continua editável).
+  useEffect(() => {
+    if (!nats.length || natId || !f.pagDesc) return;
+    setNatId(sugerirNatureza(`${f.pagDesc} ${f.andDescricao}`, nats));
+  }, [nats, natId, f.pagDesc, f.andDescricao]);
+  const natSel = nats.find((n) => n.id === natId);
+  const exigeCentro = centroExigidoPelaNatureza(natSel);
   const roteiros = useRoteiros(novo ? f.tipo : undefined);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((x) => ({ ...x, [k]: v }));
   useEffect(() => { if (novo) set("roteiroId", ""); }, [f.tipo, novo]);
@@ -75,7 +133,11 @@ export default function DocumentoProcessoDialog({ processo, onFechar, onConcluid
     const res = await fetch("/api/processos/ler-documento", { method: "POST", body: fd }).catch(() => null);
     const j = await res?.json().catch(() => ({}));
     if (!res?.ok) { setAviso(j?.error || "Não foi possível ler o documento. Preencha os campos conferindo o PDF."); setF(formDe(null, processo?.tipo)); setFase("conferir"); return; }
-    setF(formDe(j.data ?? null, processo?.tipo));
+    setPodeFin(!!j.podeFinanceiro);
+    const novoF = formDe(j.data ?? null, processo?.tipo);
+    // "Criar conta a pagar" pré-marcado quando o documento traz valor E vencimento do pagamento.
+    novoF.criarCp = !!j.podeFinanceiro && parseValorBR(novoF.pagValor) > 0 && !!novoF.pagVenc;
+    setF(novoF);
     if (j.aviso) setAviso(j.aviso);
     setFase("conferir");
   }
@@ -91,6 +153,14 @@ export default function DocumentoProcessoDialog({ processo, onFechar, onConcluid
     if (!arquivo) return;
     if (novo && (!f.titulo.trim() || !f.orgao.trim())) { setErro("Informe título e órgão."); return; }
     if (!f.andDescricao.trim()) { setErro("Descreva o que o documento traz."); return; }
+    const temPagamento = !!f.pagVenc;
+    const valorPag = parseValorBR(f.pagValor);
+    if (f.criarCp) {
+      if (!(valorPag > 0) || !f.pagVenc) { setErro("Para criar a conta a pagar, informe valor e vencimento do pagamento."); return; }
+      if (!natId) { setErro("Escolha a natureza da conta a pagar."); return; }
+      if (exigeCentro && !centroId) { setErro("Essa natureza exige centro de custo."); return; }
+      if (ben.tipo && !ben.id) { setErro("Selecione o fornecedor ou marque “Sem vínculo”."); return; }
+    }
     setSalvando(true); setErro("");
     const dados = {
       ...(processo ? { processoId: processo.id } : {
@@ -101,13 +171,45 @@ export default function DocumentoProcessoDialog({ processo, onFechar, onConcluid
       andamento: { data: f.dataCiencia, tipo: f.andTipo, descricao: f.andDescricao },
       prazo: f.prazoDesc.trim() && f.prazoDias !== "" ? { descricao: f.prazoDesc, prazoDias: f.prazoDias, diasUteis: f.diasUteis, suspensaoForense: judicial && f.suspensao, fundamento: f.fundamento, avisoDias: f.avisoDias, inicioContagem: f.dataCiencia } : null,
       documento: { titulo: f.docTitulo || f.titulo, numero: f.numero || null },
+      pagamento: temPagamento ? {
+        descricao: f.pagDesc || "Pagamento", vencimento: f.pagVenc, avisoDias: f.avisoDias,
+        valorPagar: valorPag > 0 ? valorPag : null, valorComDesconto: f.pagValorDesc.trim() ? parseValorBR(f.pagValorDesc) : null,
+        descontoPercentual: f.pagPct.trim() ? parseValorBR(f.pagPct) : null, descontoAte: f.pagDescontoAte || null,
+      } : null,
     };
     const fd = new FormData(); fd.append("file", arquivo); fd.append("dados", JSON.stringify(dados));
     const res = await fetch("/api/processos/a-partir-de-documento", { method: "POST", body: fd }).catch(() => null);
     const j = await res?.json().catch(() => ({}));
+    if (!res?.ok) { setSalvando(false); setErro(j?.error || "Erro ao gravar."); return; }
+    const avisos: string[] = j.aviso ? [j.aviso] : [];
+    // Conta a pagar (§8.3): mesma rota/regra do Contas a Pagar; liga ao prazo de pagamento e anexa o PDF.
+    if (f.criarCp && podeFin) {
+      const codigo = j.data.codigo as string;
+      const rt = await fetch("/api/financeiro/titulos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo: "pagar", status: "AGENDAMENTO", beneficiarioTipo: ben.tipo, beneficiarioId: ben.tipo ? ben.id : null,
+          descricao: `${f.pagDesc || "Pagamento"} — ${codigo}`, dataVencimento: f.pagVenc, dataEmissao: f.dataCiencia || null, dataCompetencia: f.dataCiencia || null,
+          centroCustoId: exigeCentro ? centroId : null, processoId: j.data.id,
+          observacoes: f.pagLinha.trim() ? `Linha digitável: ${f.pagLinha.trim()}` : null,
+          linhas: [{ naturezaFinanceiraId: natId, valor: valorPag, detalhamento: f.pagDesc || null }],
+        }),
+      }).catch(() => null);
+      const jt = await rt?.json().catch(() => ({}));
+      const cpId: string | undefined = jt?.data?.ids?.[0];
+      if (!rt?.ok || !cpId) avisos.push(`Processo gravado, mas a conta a pagar não foi criada: ${jt?.error ?? "erro de comunicação"}. Lance pela aba Financeiro.`);
+      else {
+        if (j.data.prazoPagamentoId) {
+          const rl = await fetch(`/api/processos/${j.data.id}/prazos`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prazoId: j.data.prazoPagamentoId, acao: "vincular-titulo", contaPagarId: cpId }) }).catch(() => null);
+          if (!rl?.ok) avisos.push(`Conta a pagar ${jt.data.numeros[0]} criada, mas não foi ligada ao prazo — ligue em Prazos › editar.`);
+        }
+        const fd2 = new FormData(); fd2.append("file", arquivo);
+        const ra = await fetch(`/api/contas-pagar/${cpId}/anexos`, { method: "POST", body: fd2 }).catch(() => null);
+        if (!ra?.ok) avisos.push(`Conta a pagar ${jt.data.numeros[0]} criada, mas o PDF não foi anexado ao título.`);
+      }
+    }
     setSalvando(false);
-    if (!res?.ok) { setErro(j?.error || "Erro ao gravar."); return; }
-    onConcluido(j.data.id, j.aviso);
+    onConcluido(j.data.id, avisos.length ? avisos.join(" ") : null);
   }
 
   return (
@@ -190,6 +292,40 @@ export default function DocumentoProcessoDialog({ processo, onFechar, onConcluid
               {judicial && <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="rounded" checked={f.suspensao} onChange={(e) => set("suspensao", e.target.checked)} /> Suspender de 20/12 a 20/01 (recesso forense, CPC art. 220)</label>}
               <div><Label className="text-xs">Trecho do documento que fixa o prazo</Label><Textarea rows={2} value={f.fundamento} onChange={(e) => set("fundamento", e.target.value)} /></div>
               <p className="text-[11px] text-muted-foreground">Conta a partir do dia seguinte à ciência; feriados nacionais, do Amapá e de Macapá não contam em dias úteis; vencimento em dia não útil passa para o próximo útil.</p>
+            </section>
+
+            <section className={`rounded-lg border p-3 space-y-2 ${f.pagVenc || f.pagValor ? "border-info/40 bg-info/5" : "border-border"}`}>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pagamento (guia, multa, custas)</div>
+              <Input value={f.pagDesc} onChange={(e) => set("pagDesc", e.target.value)} placeholder="Ex.: Multa do auto nº 123 / DAE taxa de licença (deixe vazio se não há o que pagar)" />
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                <div><Label className="text-xs">Valor (R$)</Label><Input inputMode="decimal" className="text-right font-mono" value={f.pagValor} onChange={(e) => set("pagValor", e.target.value)} onBlur={(e) => set("pagValor", fmtCampoBR(e.target.value))} /></div>
+                <div><Label className="text-xs">Vencimento</Label><DatePicker value={f.pagVenc} onChange={(v) => set("pagVenc", v ?? "")} /></div>
+                <div><Label className="text-xs">Desconto até</Label><DatePicker value={f.pagDescontoAte} onChange={(v) => set("pagDescontoAte", v ?? "")} /></div>
+                <div><Label className="text-xs">Com desconto (R$)</Label><Input inputMode="decimal" className="text-right font-mono" value={f.pagValorDesc} onChange={(e) => set("pagValorDesc", e.target.value)} onBlur={(e) => set("pagValorDesc", fmtCampoBR(e.target.value))} /></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+                <div><Label className="text-xs">ou desconto (%)</Label><Input inputMode="decimal" className="text-right font-mono" value={f.pagPct} onChange={(e) => set("pagPct", e.target.value)} placeholder="ex.: 30" /></div>
+                <div className="sm:col-span-3"><Label className="text-xs">Linha digitável / código de barras</Label><Input className="font-mono text-xs" value={f.pagLinha} onChange={(e) => set("pagLinha", e.target.value)} /></div>
+              </div>
+              {f.pagTrecho && <p className="text-[11px] text-muted-foreground italic">“{f.pagTrecho}”</p>}
+              {(() => { const v = parseValorBR(f.pagValor), c = parseValorBR(f.pagValorDesc); return v > 0 && c > 0 && c < v ? <p className="text-[11px] text-success">Pagando até {f.pagDescontoAte ? fmtData(f.pagDescontoAte) : "a data do desconto"} economiza {(v - c).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}.</p> : null; })()}
+              {f.pagVenc ? <p className="text-[11px] text-muted-foreground">Vira um prazo de pagamento (com aviso {f.avisoDias || 0} dia(s) antes{f.pagDescontoAte ? " do fim do desconto e" : ""} do vencimento).</p>
+                : <p className="text-[11px] text-muted-foreground">Sem vencimento, nenhum prazo de pagamento é criado.</p>}
+              {podeFin ? (
+                <div className="rounded-md border border-border p-2 space-y-2 bg-card">
+                  <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" className="rounded" checked={f.criarCp} onChange={(e) => set("criarCp", e.target.checked)} /> Criar conta a pagar ligada ao processo e ao prazo</label>
+                  {f.criarCp && (<>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div><Label className="text-xs">Beneficiário (órgão = sem vínculo)</Label>
+                        <BeneficiarioCombobox modo="pagar" tipo={ben.tipo} value={ben.id} onChange={(t, id) => setBen({ tipo: t, id: id ?? "" })} fornecedores={fornecedores} /></div>
+                      <div><Label className="text-xs">Natureza</Label><NaturezaCombobox value={natId} onChange={setNatId} naturezas={nats} /></div>
+                    </div>
+                    {exigeCentro && <div><Label className="text-xs">Centro de custo</Label>
+                      <ComboboxWithCreate value={centroId} onChange={setCentroId} options={centros.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}` }))} placeholder="Selecione" /></div>}
+                    <p className="text-[11px] text-muted-foreground">O título nasce em aberto (agendado) no Contas a Pagar com o PDF anexado{f.pagLinha.trim() ? " e a linha digitável nas observações" : ""}. Quando for quitado, o prazo de pagamento é cumprido sozinho.</p>
+                  </>)}
+                </div>
+              ) : (f.pagValor || f.pagVenc) ? <p className="text-[11px] text-muted-foreground">A conta a pagar é lançada por quem tem acesso ao Financeiro (aba Financeiro do processo).</p> : null}
             </section>
             {erro && <p className="text-sm text-danger">{erro}</p>}
           </div>

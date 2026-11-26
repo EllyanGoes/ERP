@@ -7,7 +7,8 @@ import { sendTelegramDM, escMD } from "@/lib/telegram";
 
 /**
  * Cron diário (dias úteis): um RESUMO por responsável dos processos externos —
- * prazos vencidos/da semana, aguardando a empresa e parados — no sino e no
+ * prazos vencidos/da semana, desconto por pagamento antecipado acabando (§8.3),
+ * aguardando a empresa e parados — no sino e no
  * Telegram (docs/processos-prd.md §5). Um aviso por pessoa, não por item.
  * Protegido por CRON_SECRET.
  */
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
     where: { situacao: { in: SITUACOES_ABERTAS } },
     select: {
       id: true, codigo: true, titulo: true, situacao: true, responsavelId: true, diasSemAndamentoAlerta: true, createdAt: true,
-      prazos: { where: { status: "PENDENTE" }, select: { descricao: true, vence: true, avisoDias: true, status: true, responsavelId: true } },
+      prazos: { where: { status: "PENDENTE" }, select: { id: true, descricao: true, vence: true, avisoDias: true, status: true, responsavelId: true, descontoAte: true, valorPagar: true, valorComDesconto: true } },
       andamentos: { orderBy: { data: "desc" }, take: 1, select: { data: true } },
     },
   });
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
   for (const pr of processos) {
     for (const pend of pendenciasProcesso(pr, hoje)) {
       if (pend.tipo === "SEM_RESPONSAVEL") continue;
-      const prazo = pend.tipo.startsWith("PRAZO") ? pr.prazos.find((x) => pend.titulo.endsWith(x.descricao)) : null;
+      const prazo = pend.prazoId ? pr.prazos.find((x) => x.id === pend.prazoId) : null;
       const dest = prazo?.responsavelId ?? pr.responsavelId;
       if (!dest) continue;
       porUsuario.set(dest, [...(porUsuario.get(dest) ?? []), { codigo: pr.codigo, titulo: pr.titulo, p: pend }]);
@@ -42,7 +43,8 @@ export async function GET(req: NextRequest) {
     const u = await prismaSemEscopo.usuario.findUnique({ where: { id: usuarioId }, select: { ativo: true, colaborador: { select: { telegramChatId: true } } } });
     if (!u?.ativo) continue;
     const vencidos = itens.filter((i) => i.p.tipo === "PRAZO_VENCIDO").length, breve = itens.filter((i) => i.p.tipo === "PRAZO_VENCE_EM_BREVE").length;
-    const titulo = `Processos: ${vencidos ? `${vencidos} prazo(s) vencido(s), ` : ""}${breve ? `${breve} prazo(s) próximo(s), ` : ""}${itens.length} pendência(s)`;
+    const descontos = itens.filter((i) => i.p.tipo === "DESCONTO_ACABANDO").length;
+    const titulo = `Processos: ${vencidos ? `${vencidos} prazo(s) vencido(s), ` : ""}${breve ? `${breve} prazo(s) próximo(s), ` : ""}${descontos ? `${descontos} desconto(s) acabando, ` : ""}${itens.length} pendência(s)`;
     const linhas = itens.sort((a, b) => (a.p.severidade === "ALTA" ? 0 : 1) - (b.p.severidade === "ALTA" ? 0 : 1)).slice(0, 8).map((i) => `• ${i.codigo} ${i.titulo}: ${i.p.titulo}`);
     const mensagem = linhas.join("\n") + (itens.length > 8 ? `\n… e mais ${itens.length - 8}` : "");
     await marcarNotificacoesLidasPorLink(usuarioId, "/processos", "PROCESSOS_PRAZOS").catch(() => {});

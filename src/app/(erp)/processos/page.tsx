@@ -1,16 +1,22 @@
 "use client";
 
 // Painel de processos externos: o que fazer esta semana, prazos, parados e valores em discussão.
+// §8.3: cartões de dinheiro (a pagar 30 dias, pago no ano, depositado em juízo, economia com desconto)
+// para quem tem o Financeiro — mesmo recorte (empresa ativa/grupo + confidenciais visíveis).
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useTabTitle } from "@/lib/tabs-context";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, CalendarClock, Gavel, Hourglass, Landmark, Loader2, Plus, Scale } from "lucide-react";
+import { AlertTriangle, BadgePercent, CalendarClock, Gavel, Hourglass, Landmark, Loader2, Plus, Receipt, Scale, Wallet } from "lucide-react";
 import { PrazoChip, RISCOS, SituacaoBadge, TIPOS_PROCESSO, fmtBRL, fmtData, type LinhaProcesso } from "@/components/processos/comum";
 
 type Novidade = { id: string; data: string; descricao: string; resumoIa: string | null; processo: { id: string; codigo: string; titulo: string } };
+type Dinheiro = {
+  podeVer: boolean; aPagar30?: number; aPagarVencido?: number; aPagarQtd?: number; pagoAno?: number; depositado?: number; economia30?: number;
+  descontos?: { id: string; descricao: string; descontoAte: string; valorComDesconto: string | null; economia: number; processo: { id: string; codigo: string; titulo: string } | null; contaPagar: { id: string; numero: string } | null }[];
+};
 type Linha = LinhaProcesso & { valorCausa: string | null; riscoPerda: string | null; prazos: { id: string; descricao: string; vence: string; avisoDias: number }[] };
 
 export default function ProcessosPainelPage() {
@@ -19,6 +25,8 @@ export default function ProcessosPainelPage() {
   const [novidades, setNovidades] = useState<Novidade[]>([]);
   useEffect(() => { fetch("/api/processos").then((r) => r.json()).then((j) => { setRows(j.data ?? []); setPode(!!j.podeEditar); }).finally(() => setLoading(false)); }, []);
   useEffect(() => { fetch("/api/processos/novidades").then((r) => r.json()).then((j) => setNovidades(j.data ?? [])).catch(() => {}); }, []);
+  const [din, setDin] = useState<Dinheiro | null>(null);
+  useEffect(() => { fetch("/api/processos/painel-financeiro").then((r) => r.json()).then(setDin).catch(() => {}); }, []);
 
   const hoje = new Date(new Date().toDateString()).getTime();
   const prazos = useMemo(() => rows.flatMap((r) => r.prazos.map((p) => ({ ...p, processo: r }))).sort((a, b) => +new Date(a.vence) - +new Date(b.vence)), [rows]);
@@ -36,6 +44,14 @@ export default function ProcessosPainelPage() {
     </Link>
   );
 
+  const CardValor = ({ icon, titulo, valor, cor, sub }: { icon: React.ReactNode; titulo: string; valor: number; cor?: string; sub?: string }) => (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon}{titulo}</div>
+      <div className={cn("text-xl font-semibold mt-1 tabular-nums", cor)}>{fmtBRL(valor)}</div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
+  );
+
   return (
     <div>
       <PageHeader title="Processos" subtitle="Painel dos processos jurídicos e administrativos externos" breadcrumbs={[{ label: "Processos" }]}
@@ -49,10 +65,26 @@ export default function ProcessosPainelPage() {
             <Card icon={<Hourglass className="w-3.5 h-3.5" />} titulo="Aguardando a empresa" valor={aguardando.length} cor={aguardando.length ? "text-warning" : undefined} href="/processos/lista" />
             <Card icon={<Hourglass className="w-3.5 h-3.5" />} titulo="Parados" valor={parados.length} href="/processos/lista" />
           </div>
+          {din?.podeVer && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <CardValor icon={<Receipt className="w-3.5 h-3.5" />} titulo="A pagar em processos (30 dias)" valor={din.aPagar30 ?? 0} cor={(din.aPagarVencido ?? 0) > 0 ? "text-danger" : undefined}
+                sub={(din.aPagarVencido ?? 0) > 0 ? `${fmtBRL(din.aPagarVencido)} já vencido · ${din.aPagarQtd} título(s)` : `${din.aPagarQtd ?? 0} título(s), inclui vencidos`} />
+              <CardValor icon={<Wallet className="w-3.5 h-3.5" />} titulo={`Pago no ano (${new Date().getFullYear()})`} valor={din.pagoAno ?? 0} sub="custas, multas, honorários… (sem depósitos)" />
+              <CardValor icon={<Landmark className="w-3.5 h-3.5" />} titulo="Depositado em juízo (saldo)" valor={din.depositado ?? 0} sub="ativo — volta se levantado" />
+              <CardValor icon={<BadgePercent className="w-3.5 h-3.5" />} titulo="Economia possível com desconto (30 dias)" valor={din.economia30 ?? 0} cor={(din.economia30 ?? 0) > 0 ? "text-success" : undefined} sub={`${din.descontos?.length ?? 0} pagamento(s) com desconto antecipado`} />
+            </div>
+          )}
           <div className="grid lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 bg-card border border-border rounded-xl">
               <div className="px-4 py-3 border-b border-border text-sm font-semibold">O que fazer</div>
               <ul className="divide-y divide-border/60">
+                {(din?.descontos ?? []).filter((d) => +new Date(d.descontoAte) <= hoje + 7 * 86_400_000).map((d) => (
+                  <li key={`d${d.id}`} className="px-4 py-2.5 flex items-start gap-3">
+                    <span className="text-xs whitespace-nowrap text-success font-semibold">{fmtData(d.descontoAte)}</span>
+                    <div className="min-w-0"><div className="text-sm">Pague até {fmtData(d.descontoAte)}{d.valorComDesconto != null && ` por ${fmtBRL(d.valorComDesconto)}`} e economize {fmtBRL(d.economia)} — {d.descricao}</div>
+                      {d.processo && <Link href={`/processos/${d.processo.id}`} className="text-xs text-info hover:underline">{d.processo.codigo} · {d.processo.titulo}</Link>}</div>
+                  </li>
+                ))}
                 {[...vencidos, ...semana].map((p) => (
                   <li key={p.id} className="px-4 py-2.5 flex items-start gap-3">
                     <PrazoChip vence={p.vence} avisoDias={p.avisoDias} />

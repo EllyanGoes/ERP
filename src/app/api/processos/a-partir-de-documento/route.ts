@@ -6,7 +6,7 @@ import { prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 import { salvarPdfNoProcesso } from "@/lib/processos-externo";
 import {
   PAPEIS_PARTE, TIPOS_ANDAMENTO, aplicarRoteiro, camposProcesso, carregarProcesso, dadosPrazo, dataOuNull, erroAcompanhamentoDatajud,
-  podeEditar, proximoCodigoProcesso, situacaoPorAndamento, textoOuNull,
+  dadosPagamentoPrazo, podeEditar, proximoCodigoProcesso, situacaoPorAndamento, textoOuNull,
 } from "@/lib/processos";
 
 const MAX_BYTES = 4.5 * 1024 * 1024; // limite do corpo da função na Vercel
@@ -20,6 +20,10 @@ type Dados = {
   documento?: { titulo?: string; numero?: string | null };
   roteiroId?: string | null;
   dataCiencia?: string | null;
+  // Guia/multa a pagar (§8.3): vira um prazo de PAGAMENTO com valor e desconto antecipado. O
+  // título a pagar é criado depois pela tela (POST /api/financeiro/titulos — exige Financeiro)
+  // e ligado a este prazo (PATCH prazos acao=vincular-titulo).
+  pagamento?: { descricao?: string; vencimento?: string; valorPagar?: unknown; valorComDesconto?: unknown; descontoPercentual?: unknown; descontoAte?: string | null; avisoDias?: unknown } | null;
 };
 
 // POST multipart { file: PDF, dados: JSON } — confirma o que o usuário conferiu:
@@ -63,6 +67,15 @@ export async function POST(req: NextRequest) {
     prazo = dp.data;
   }
 
+  let pagamento: { descricao: string; vence: Date; avisoDias: number; dados: Extract<ReturnType<typeof dadosPagamentoPrazo>, { ok: true }>["data"] } | null = null;
+  if (d.pagamento && d.pagamento.vencimento) {
+    const vence = dataOuNull(d.pagamento.vencimento);
+    if (!vence || isNaN(+vence)) return NextResponse.json({ error: "Vencimento do pagamento inválido." }, { status: 400 });
+    const pg = dadosPagamentoPrazo({ valorPagar: d.pagamento.valorPagar, valorComDesconto: d.pagamento.valorComDesconto, descontoPercentual: d.pagamento.descontoPercentual, descontoAte: d.pagamento.descontoAte ?? null });
+    if (!pg.ok) return NextResponse.json({ error: pg.erro }, { status: 400 });
+    pagamento = { descricao: textoOuNull(d.pagamento.descricao) ?? "Pagamento", vence, avisoDias: Math.max(0, Number(d.pagamento.avisoDias ?? 5) || 5), dados: pg.data };
+  }
+
   const empresaId = existente?.empresaId ?? auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID;
   const r = await prismaSemEscopo.$transaction(async (tx) => {
     let proc: { id: string; codigo: string; tipo: string; responsavelId: string | null; abertoEm: Date | null; confidencial: boolean; situacao: string };
@@ -88,9 +101,15 @@ export async function POST(req: NextRequest) {
     }
     const a = await tx.processoAndamento.create({ data: { processoId: proc.id, data: dataAnd, tipo: tipoAnd, descricao: descricaoAnd, usuario: auth.session.nome } });
     if (prazo) await tx.processoPrazo.create({ data: { processoId: proc.id, descricao: prazoDesc!, ...prazo, avisoDias: Math.max(0, Number(d.prazo?.avisoDias ?? 5) || 5), responsavelId: proc.responsavelId, andamentoId: a.id, criadoPor: auth.session.nome } });
+    const prazoPag = pagamento
+      ? await tx.processoPrazo.create({
+          data: { processoId: proc.id, descricao: pagamento.descricao, vence: pagamento.vence, ...pagamento.dados, avisoDias: pagamento.avisoDias, responsavelId: proc.responsavelId, andamentoId: a.id, fundamento: "Lido do documento", criadoPor: auth.session.nome },
+          select: { id: true },
+        })
+      : null;
     const nova = situacaoPorAndamento(tipoAnd);
     if (existente && nova && nova !== proc.situacao) await tx.processo.update({ where: { id: proc.id }, data: { situacao: nova, atualizadoPor: auth.session.nome } });
-    return { proc, andamentoId: a.id };
+    return { proc, andamentoId: a.id, prazoPagamentoId: prazoPag?.id ?? null };
   });
 
   // PDF no GED (fora da transação: upload externo). Falha aqui não desfaz o processo.
@@ -106,5 +125,5 @@ export async function POST(req: NextRequest) {
     console.error("[processos/a-partir-de-documento] PDF não gravado no GED:", e);
     aviso = "Processo gravado, mas o PDF não foi salvo no GED. Envie o arquivo de novo pela aba Documentos.";
   }
-  return NextResponse.json({ data: { id: r.proc.id, codigo: r.proc.codigo }, aviso }, { status: 201 });
+  return NextResponse.json({ data: { id: r.proc.id, codigo: r.proc.codigo, empresaId, prazoPagamentoId: r.prazoPagamentoId }, aviso }, { status: 201 });
 }

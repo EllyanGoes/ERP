@@ -8,7 +8,7 @@ import { valoresEstoqueDaEmpresa } from "@/lib/valor-estoque";
 import { aplicarCmpmEmpresa } from "@/lib/custo-empresa";
 import { rotearDestinoRequisicao, type DestinoConsumo } from "@/lib/pcp/rotear-requisicao";
 import { DIAS_TRABALHADOS_DEFAULT } from "@/lib/pcp/custeio-cif";
-import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaImpostosRetidos, garantirContaContabilNatureza, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaFretesSobreCompras, garantirContaContabilBanco, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado } from "@/lib/conta-contabil";
+import { garantirContaLocalNaEmpresa, garantirContasSistemaEstoque, garantirContasImobilizado, garantirContaImobilizadoEmAndamento, garantirContaResultadoAcumulado, garantirContaCmv, garantirContaCpv, garantirContaReceitaFallback, garantirContaDespesaFallback, garantirContaMaterialEntregar, garantirContaMaterialEntregarCliente, garantirContaDescontoConcedido, garantirContaSaldoAbertura, contaEstoquePrincipal, garantirContaClienteReceber, garantirContaColaboradorNaEmpresa, garantirContaJurosMultasAtivos, garantirContaJurosMultasPassivos, garantirContaDescontosObtidos, garantirContaImpostosRetidos, garantirContaContabilNatureza, garantirContaDevolucaoVendas, garantirContaCreditosClientes, garantirContaFretesSobreCompras, garantirContaContabilBanco, garantirContaAdiantamentoFornecedor, garantirContaImobilizadoBem, garantirContaPerdaBaixaImobilizado, contaDepositosJudiciais } from "@/lib/conta-contabil";
 import { encargosConferencia } from "@/lib/pedido-compra-de";
 
 // Motor de lançamentos contábeis (partidas dobradas). Opera cross-empresa com
@@ -21,7 +21,8 @@ export type OrigemIn =
   | "ESTOQUE_PRODUCAO" | "ESTOQUE_CONSUMO" | "ESTOQUE_AJUSTE" | "ESTOQUE_TRANSFERENCIA"
   | "DEPRECIACAO" | "ENCERRAMENTO" | "RECEITA_ENTREGA"
   | "FOLHA_PAGAMENTO" | "COMPENSACAO_AJUSTE" | "BAIXA_IMOBILIZADO" | "DIARIA"
-  | "DEVOLUCAO" | "TRANSFERENCIA_CAIXA" | "MANUAL" | "ESTORNO";
+  | "DEVOLUCAO" | "TRANSFERENCIA_CAIXA" | "MANUAL" | "ESTORNO"
+  | "PROCESSO_DEPOSITO";
 
 export type PartidaIn = {
   contaId: string;
@@ -415,9 +416,17 @@ export async function contabilizarTituloReceber(crId: string) {
   // Receita do título AVULSO: conta de resultado da NATUREZA (ex.: receita
   // financeira), senão o fallback unificado de Receita de Vendas.
   const contaReceita = contaNatRes ?? contaReceitaFb;
+  // Levantamento de DEPÓSITO JUDICIAL (natureza travada, sem cliente — processos §8.3): o
+  // dinheiro que volta não é receita, é o próprio depósito (ativo) virando caixa. Não há
+  // perna VENDA; o recebimento faz D Banco / C Depósitos Judiciais (juros/correção recebidos
+  // além do título seguem a regra geral: Juros e Multas Ativos).
+  const natChaveCr = natId && !cr.clienteId
+    ? (await prismaSemEscopo.naturezaFinanceira.findUnique({ where: { id: natId }, select: { sistemaChave: true } }))?.sistemaChave
+    : null;
+  const ehLevantamentoDeposito = natChaveCr === "levantamento-deposito-judicial";
   // ATIVO (recebível): com cliente é Clientes a Receber; sem vínculo é a
   // contrapartida ativa da natureza (ex.: Outros a Receber).
-  const contaAtivo = cr.clienteId ? contaCli : contaNatContra;
+  const contaAtivo = cr.clienteId ? contaCli : ehLevantamentoDeposito ? await contaDepositosJudiciais(cr.empresaId) : contaNatContra;
   const cli = cr.clienteId ?? undefined;
   if (!contaAtivo) return;
 
@@ -437,7 +446,7 @@ export async function contabilizarTituloReceber(crId: string) {
   // aqui não se repete. Só a venda AVULSA (CR sem pedido) gera a perna VENDA:
   // D Ativo (Clientes ou contrapartida da natureza) / C Receita (por natureza).
   const valor = decimalToNumber(cr.valorOriginal);
-  if (!ehPedido && valor > 0 && contaReceita) {
+  if (!ehPedido && !ehLevantamentoDeposito && valor > 0 && contaReceita) {
     const creditos: PartidaIn[] = [];
     let historico = `Venda — ${refCr}${cliNome ? ` · ${cliNome}` : ""}`;
     if (cr.compensacaoOrigemId) {

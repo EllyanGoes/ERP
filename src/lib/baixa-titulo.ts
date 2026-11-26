@@ -13,7 +13,8 @@
 //   • um LancamentoFinanceiro por linha/forma; multa+juros entram na 1ª linha;
 //   • rateio gerencial por natureza (só PAGAR): valida a soma contra o valor do
 //     título e substitui o rateio anterior;
-//   • recomputa o status financeiro do pedido (venda/compra) vinculado.
+//   • recomputa o status financeiro do pedido (venda/compra) vinculado;
+//   • quitação de CP ligado a prazo de processo cumpre o prazo (processos-prazo-titulo).
 //
 // TODAS as validações acontecem ANTES de qualquer escrita: um retorno de erro
 // não deixa a transação do chamador com escrita parcial (o chamador pode
@@ -26,6 +27,7 @@ import { contaCaixaIdDaEmpresa } from "@/lib/empresa";
 import { formaEletronicaNoCaixa } from "@/lib/roteamento-conta";
 import { recomputarStatusPedido, recomputarStatusFinanceiroCompra } from "@/lib/pedido-totais";
 import { naturezaSistema } from "@/lib/natureza-sistema";
+import { sincronizarPrazosDoTitulo } from "@/lib/processos-prazo-titulo";
 import type { PagamentoFormData } from "@/lib/validations/financeiro";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -341,6 +343,12 @@ export async function baixarTitulo(
   }
   if (!isReceber && (conta as ContaPagar).pedidoCompraId) {
     await recomputarStatusFinanceiroCompra(tx, (conta as ContaPagar).pedidoCompraId!);
+  }
+  // Título quitado que paga um PRAZO de processo (multa/guia/custas — processos §8.3): o prazo
+  // é cumprido com andamento automático, na mesma transação. Sem prazo ligado é 1 consulta
+  // indexada que não acha nada (não afeta nenhuma outra baixa).
+  if (!isReceber && newStatus === "PAGA") {
+    await sincronizarPrazosDoTitulo(tx, tituloId);
   }
 
   const atualizado = isReceber

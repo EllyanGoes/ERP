@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { EMPRESA_PADRAO_ID } from "@/lib/empresa";
 import { decimalToNumber } from "@/lib/utils";
 import { recontabilizarTituloReceber, recontabilizarTituloPagar, apagarLancamentosContabeis } from "@/lib/contabilidade";
+import { sincronizarPrazosDoTituloSeguro } from "@/lib/processos-prazo-titulo";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const novoStatus = (valorOriginal: number, valorPago: number) =>
@@ -110,6 +111,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   // Recontabiliza os originais a partir do estado revertido (remove D Forn/C Cli).
   for (const id of Array.from(afetadosR)) await recontabilizarTituloReceber(id).catch((e) => console.error("[compensacao] recontabilizar:", e));
   for (const id of Array.from(afetadosP)) await recontabilizarTituloPagar(id).catch((e) => console.error("[compensacao] recontabilizar:", e));
+  // Prazo de processo pago por título compensado (cumpre/reabre — processos §8.3), best-effort.
+  await sincronizarPrazosDoTituloSeguro(Array.from(afetadosP));
   // Resíduos cancelados: recontabilizar remove qualquer lançamento remanescente.
   for (const r of residuos) {
     if (r.tipo === "RECEBER") await recontabilizarTituloReceber(r.id).catch((e) => console.error("[compensacao] recontabilizar:", e));

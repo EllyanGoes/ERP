@@ -546,6 +546,29 @@ export async function garantirContaImobilizadoEmAndamento(empresaId: string) {
   return garantirContaPorCodigo(empresaId, { codigo: "1.2.4", nome: "Imobilizado em Andamento", pai: "1.2", grupo: "ATIVO", natureza: "DEVEDORA" });
 }
 
+/**
+ * Garante (idempotente) a conta do ATIVO "Depósitos Judiciais e Garantias" (1.2.9001, faixa de
+ * sistema sob 1.2 Ativo Não Circulante — semeada pela migration 20261126200000). Depósito
+ * judicial é um DIREITO (não despesa): o pagamento debita aqui; o levantamento e a conversão
+ * em pagamento creditam (docs/processos-prd.md §8.3).
+ */
+export async function garantirContaDepositosJudiciais(empresaId: string) {
+  return garantirContaPorCodigo(empresaId, { codigo: "1.2.9001", nome: "Depósitos Judiciais e Garantias", pai: "1.2", grupo: "ATIVO", natureza: "DEVEDORA" });
+}
+
+/**
+ * Conta onde o depósito judicial da empresa está registrado: a conta ligada à natureza travada
+ * "deposito-judicial" (a mesma que o pagamento do CP debitou) e, sem vínculo, a 1.2.9001.
+ * Usada para CREDITAR o depósito no levantamento e na conversão.
+ */
+export async function contaDepositosJudiciais(empresaId: string) {
+  const nat = await prismaSemEscopo.naturezaFinanceira.findUnique({
+    where: { empresaId_sistemaChave: { empresaId, sistemaChave: "deposito-judicial" } }, select: { id: true },
+  });
+  const ligada = nat ? await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, naturezaFinanceiraId: nat.id }, select: { id: true } }) : null;
+  return ligada ?? (await garantirContaDepositosJudiciais(empresaId));
+}
+
 /** Cria a analítica de um bem sob o pai indicado (1.2.1 Imobilizado depreciável; 1.2.3 Terrenos). */
 export async function garantirContaImobilizadoBem(empresaId: string, descricao: string, codigoPai = "1.2.1") {
   const pai = await prismaSemEscopo.contaContabil.findFirst({ where: { empresaId, codigo: codigoPai } });

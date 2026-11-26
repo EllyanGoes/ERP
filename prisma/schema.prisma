@@ -808,8 +808,8 @@ model AnexoTitulo {
 }
 
 model ContaPagar {
-  id                       String                 @id @default(cuid())
-  empresaId                String                 @default("emp_tramontin")
+  id                       String                    @id @default(cuid())
+  empresaId                String                    @default("emp_tramontin")
   numero                   String
   fornecedorId             String?
   // Beneficiário polimórfico do lançamento de SAÍDA: 'FORNECEDOR' | 'COLABORADOR'
@@ -826,14 +826,14 @@ model ContaPagar {
   pedidoCompraId           String?
   parcelaNumero            Int?
   parcelaTotal             Int?
-  valorOriginal            Decimal                @db.Decimal(15, 2)
-  valorPago                Decimal                @default(0) @db.Decimal(15, 2)
-  valorMulta               Decimal                @default(0) @db.Decimal(15, 2)
-  valorJuros               Decimal                @default(0) @db.Decimal(15, 2)
+  valorOriginal            Decimal                   @db.Decimal(15, 2)
+  valorPago                Decimal                   @default(0) @db.Decimal(15, 2)
+  valorMulta               Decimal                   @default(0) @db.Decimal(15, 2)
+  valorJuros               Decimal                   @default(0) @db.Decimal(15, 2)
   // Taxa/tarifa RETIDA na baixa (paga/recebe MENOS que o baixado): acumulada aqui;
   // a natureza travada (sistema) do encargo fica em taxaNaturezaId. O título é
   // sempre quitado pelo valorOriginal — a taxa nunca contamina o principal.
-  valorTaxa                Decimal                @default(0) @db.Decimal(15, 2)
+  valorTaxa                Decimal                   @default(0) @db.Decimal(15, 2)
   taxaNaturezaId           String?
   dataVencimento           DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento            DateTime?
@@ -841,48 +841,48 @@ model ContaPagar {
   // Data de emissão do documento (NF do fornecedor / lançamento manual). Nos
   // títulos de compra, quando null, a tela cai na emissão do Documento de Entrada.
   dataEmissao              DateTime?
-  status                   StatusConta            @default(ABERTA)
+  status                   StatusConta               @default(ABERTA)
   formaPagamento           String?
   // Forma PREVISTA de quitação (herdada do Documento de Entrada; ex.: permuta).
   // Distinta de formaPagamento (string-resumo do que foi efetivamente baixado).
   formaPagamentoPrevistaId String?
-  formaPagamentoPrevista   FormaPagamento?        @relation("FormaPrevistaCP", fields: [formaPagamentoPrevistaId], references: [id])
+  formaPagamentoPrevista   FormaPagamento?           @relation("FormaPrevistaCP", fields: [formaPagamentoPrevistaId], references: [id])
   notaFiscal               String?
-  intragrupo               Boolean                @default(false)
+  intragrupo               Boolean                   @default(false)
   // Folha de pagamento: quando true, a provisão já foi feita pela apropriação da
   // folha — a contabilização do título posta SÓ a liquidação (D passivo / C banco).
-  semProvisao              Boolean                @default(false)
+  semProvisao              Boolean                   @default(false)
   folhaId                  String?
   // Título único de diárias: liga o CP à folha de diárias que o gerou.
   diariaFolhaId            String?
-  diariaFolha              DiariaFolha?           @relation(fields: [diariaFolhaId], references: [id])
+  diariaFolha              DiariaFolha?              @relation(fields: [diariaFolhaId], references: [id])
   // Título único de RH (folha/diárias): TODO o contábil (provisão E baixa) é
   // postado pelo módulo de origem, por colaborador — contabilizarTituloPagar
   // pula o título inteiro. Diferente de semProvisao, que ainda posta a baixa.
-  contabilizacaoExterna    Boolean                @default(false)
+  contabilizacaoExterna    Boolean                   @default(false)
   // Pagamento antecipado (PA): título nascido no PEDIDO (adiantamento a fornecedor).
   // Ao ser pago, debita "Adiantamento a Fornecedores" (ativo 1.1.7), nunca despesa/
   // custo; a entrada depois liquida o adiantamento. Dirige a tag "PA" na tela.
-  antecipado               Boolean                @default(false)
+  antecipado               Boolean                   @default(false)
   // Conta de passivo a debitar na liquidação (folha: INSS/IRRF/FGTS a Recolher).
   // Quando null, o passivo vem do colaborador/natureza (comportamento padrão).
   contaPassivoId           String?
-  contaReceberEspelhoId    String?                @unique
+  contaReceberEspelhoId    String?                   @unique
   observacoes              String?
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  fornecedor               Fornecedor?            @relation(fields: [fornecedorId], references: [id])
-  centroCusto              CentroCusto?           @relation(fields: [centroCustoId], references: [id])
-  contaBancaria            ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
-  recorrencia              Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
-  contaReceberEspelho      ContaReceber?          @relation("EspelhoIntragrupoCR", fields: [contaReceberEspelhoId], references: [id])
-  pedidoCompra             PedidoCompra?          @relation(fields: [pedidoCompraId], references: [id])
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  fornecedor               Fornecedor?               @relation(fields: [fornecedorId], references: [id])
+  centroCusto              CentroCusto?              @relation(fields: [centroCustoId], references: [id])
+  contaBancaria            ContaBancaria?            @relation(fields: [contaBancariaId], references: [id])
+  recorrencia              Recorrencia?              @relation(fields: [recorrenciaId], references: [id])
+  contaReceberEspelho      ContaReceber?             @relation("EspelhoIntragrupoCR", fields: [contaReceberEspelhoId], references: [id])
+  pedidoCompra             PedidoCompra?             @relation(fields: [pedidoCompraId], references: [id])
   // Documento de Entrada que originou o título (compra por pedido OU entrada
   // avulsa) — dá rastreabilidade direta CP → DE no financeiro.
   conferenciaId            String?
-  conferencia              ConferenciaCompra?     @relation(fields: [conferenciaId], references: [id])
+  conferencia              ConferenciaCompra?        @relation(fields: [conferenciaId], references: [id])
   naturezaFinanceiraId     String?
-  naturezaFinanceira       NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
+  naturezaFinanceira       NaturezaFinanceira?       @relation(fields: [naturezaFinanceiraId], references: [id])
   lancamentos              LancamentoFinanceiro[]
   naturezas                ContaPagarNatureza[] // rateio gerencial por natureza (definido na baixa)
   anexos                   AnexoTitulo[] // documentos do título (fatura, boleto, comprovante)
@@ -890,12 +890,16 @@ model ContaPagar {
   // de nascimento é um RECLASS contra a conta transitória de compensação (não gera
   // nova despesa). Aponta para a Compensacao que o criou.
   compensacaoOrigemId      String?
-  compensacaoOrigem        Compensacao?           @relation("CompensacaoResiduoPagar", fields: [compensacaoOrigemId], references: [id])
+  compensacaoOrigem        Compensacao?              @relation("CompensacaoResiduoPagar", fields: [compensacaoOrigemId], references: [id])
   compensacaoItens         CompensacaoItem[]
   // Processo externo (custas, honorários, multas, depósitos) — só vínculo gerencial,
   // não muda a contabilização (docs/processos-prd.md fase 2).
   processoId               String?
-  processo                 Processo?              @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  processo                 Processo?                 @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  // Prazos de processo pagos por este título (cumpridos automaticamente na quitação — §8.3).
+  prazosProcesso           ProcessoPrazo[]
+  // Destinos (levantamento/conversão) quando o título é um depósito judicial (§8.3).
+  depositoDestinos         ProcessoDepositoDestino[]
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -933,8 +937,8 @@ model ContaPagarNatureza {
 }
 
 model ContaReceber {
-  id                   String                 @id @default(cuid())
-  empresaId            String                 @default("emp_tramontin")
+  id                   String                   @id @default(cuid())
+  empresaId            String                   @default("emp_tramontin")
   numero               String
   clienteId            String?
   pedidoVendaId        String?
@@ -950,35 +954,35 @@ model ContaReceber {
   recorrenciaId        String?
   parcelaNumero        Int?
   parcelaTotal         Int?
-  valorOriginal        Decimal                @db.Decimal(15, 2)
-  valorPago            Decimal                @default(0) @db.Decimal(15, 2)
-  valorMulta           Decimal                @default(0) @db.Decimal(15, 2)
-  valorJuros           Decimal                @default(0) @db.Decimal(15, 2)
+  valorOriginal        Decimal                  @db.Decimal(15, 2)
+  valorPago            Decimal                  @default(0) @db.Decimal(15, 2)
+  valorMulta           Decimal                  @default(0) @db.Decimal(15, 2)
+  valorJuros           Decimal                  @default(0) @db.Decimal(15, 2)
   // Taxa/tarifa RETIDA na baixa (recebe MENOS que o baixado — ex.: taxa de cartão):
   // acumulada aqui; natureza travada em taxaNaturezaId. O título é sempre quitado
   // pelo valorOriginal — a taxa nunca contamina o principal.
-  valorTaxa            Decimal                @default(0) @db.Decimal(15, 2)
+  valorTaxa            Decimal                  @default(0) @db.Decimal(15, 2)
   taxaNaturezaId       String?
   dataVencimento       DateTime? // null = sem data prevista (ex.: "Faturado")
   dataPagamento        DateTime?
   dataCompetencia      DateTime?
   // Data de emissão do documento / lançamento manual (espelha ContaPagar).
   dataEmissao          DateTime?
-  status               StatusConta            @default(ABERTA)
+  status               StatusConta              @default(ABERTA)
   formaPagamento       String?
   nossoNumero          String?
-  intragrupo           Boolean                @default(false)
+  intragrupo           Boolean                  @default(false)
   observacoes          String?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  cliente              Cliente?               @relation(fields: [clienteId], references: [id])
-  pedidoVenda          PedidoVenda?           @relation(fields: [pedidoVendaId], references: [id])
-  centroCusto          CentroCusto?           @relation(fields: [centroCustoId], references: [id])
-  contaBancaria        ContaBancaria?         @relation(fields: [contaBancariaId], references: [id])
-  recorrencia          Recorrencia?           @relation(fields: [recorrenciaId], references: [id])
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  cliente              Cliente?                 @relation(fields: [clienteId], references: [id])
+  pedidoVenda          PedidoVenda?             @relation(fields: [pedidoVendaId], references: [id])
+  centroCusto          CentroCusto?             @relation(fields: [centroCustoId], references: [id])
+  contaBancaria        ContaBancaria?           @relation(fields: [contaBancariaId], references: [id])
+  recorrencia          Recorrencia?             @relation(fields: [recorrenciaId], references: [id])
   naturezaFinanceiraId String?
-  naturezaFinanceira   NaturezaFinanceira?    @relation(fields: [naturezaFinanceiraId], references: [id])
-  espelhoPagar         ContaPagar?            @relation("EspelhoIntragrupoCR")
+  naturezaFinanceira   NaturezaFinanceira?      @relation(fields: [naturezaFinanceiraId], references: [id])
+  espelhoPagar         ContaPagar?              @relation("EspelhoIntragrupoCR")
   lancamentos          LancamentoFinanceiro[]
   anexos               AnexoTitulo[] // documentos do título (fatura, boleto, comprovante)
   naturezas            ContaReceberNatureza[] // rateio gerencial por natureza (definido na criação)
@@ -986,11 +990,13 @@ model ContaReceber {
   // de nascimento é um RECLASS contra a conta transitória de compensação (não gera
   // nova receita). Aponta para a Compensacao que o criou.
   compensacaoOrigemId  String?
-  compensacaoOrigem    Compensacao?           @relation("CompensacaoResiduoReceber", fields: [compensacaoOrigemId], references: [id])
+  compensacaoOrigem    Compensacao?             @relation("CompensacaoResiduoReceber", fields: [compensacaoOrigemId], references: [id])
   compensacaoItens     CompensacaoItem[]
   // Processo externo (restituição, indenização, levantamento de depósito judicial).
   processoId           String?
-  processo             Processo?              @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  processo             Processo?                @relation(fields: [processoId], references: [id], onDelete: SetNull)
+  // Levantamento de depósito judicial que gerou este título (§8.3 de docs/processos-prd.md).
+  depositoDestino      ProcessoDepositoDestino?
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -1228,8 +1234,8 @@ model NaturezaSubgrupo {
 }
 
 model NaturezaFinanceira {
-  id                   String                   @id @default(cuid())
-  empresaId            String                   @default("emp_tramontin")
+  id                   String                    @id @default(cuid())
+  empresaId            String                    @default("emp_tramontin")
   // Código do plano hierárquico (ex.: "2.04") — único por empresa. Naturezas
   // legadas (pré-reestruturação jul/2026) ficam sem código.
   codigo               String?
@@ -1237,35 +1243,35 @@ model NaturezaFinanceira {
   tipo                 NaturezaTipo
   grupo                NaturezaGrupo
   subgrupoId           String?
-  ativo                Boolean                  @default(true)
+  ativo                Boolean                   @default(true)
   // false nos grupos 7 (Investimento), 8 (Financiamento) e 9 (Movimentações
   // internas): não entram na DRE gerencial; 7/8 alimentam o DFC, 9 é neutro.
-  afetaResultado       Boolean                  @default(true)
+  afetaResultado       Boolean                   @default(true)
   // Reestruturação: natureza DESATIVADA aponta a sucessora do plano novo
   // (histórico continua legível; lançamento novo só com natureza ativa).
   sucessoraId          String?
-  sucessora            NaturezaFinanceira?      @relation("NaturezaSucessora", fields: [sucessoraId], references: [id])
-  antecessoras         NaturezaFinanceira[]     @relation("NaturezaSucessora")
+  sucessora            NaturezaFinanceira?       @relation("NaturezaSucessora", fields: [sucessoraId], references: [id])
+  antecessoras         NaturezaFinanceira[]      @relation("NaturezaSucessora")
   // Natureza de Custo Indireto de Fabricação: o débito de origem vai para
   // "CIF a Apropriar" (1.1.4.0001), não para a conta de resultado da natureza.
-  cif                  Boolean                  @default(false)
+  cif                  Boolean                   @default(false)
   // Destino contábil que ESTA natureza implica — usado só para o alerta de coerência
   // na requisição (compara com o destino real das flags do item). Não roteia nada.
   destinoSugerido      DestinoConsumo?
   // Aparece no seletor da Requisição de Material (consumo de estoque). Naturezas de
   // tesouraria/compra/investimento ficam false e não poluem a RM. Não apaga nada.
-  aplicavelRequisicao  Boolean                  @default(false)
+  aplicavelRequisicao  Boolean                   @default(false)
   // Natureza TRAVADA do sistema (encargos da baixa: juros, multa, tarifa, taxa de
   // cartão, deságio). Não pode ser excluída nem mudar de tipo/grupo; o motor a
   // referencia por `sistemaChave` (estável — renomear o nome não quebra nada).
-  sistema              Boolean                  @default(false)
+  sistema              Boolean                   @default(false)
   sistemaChave         String?
   // Posição manual na lista (drag and drop, estilo Nibo) — por empresa/grupo/subgrupo.
-  ordem                Int                      @default(0)
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
-  subgrupo             NaturezaSubgrupo?        @relation(fields: [subgrupoId], references: [id])
-  empresa              Empresa                  @relation(fields: [empresaId], references: [id])
+  ordem                Int                       @default(0)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  subgrupo             NaturezaSubgrupo?         @relation(fields: [subgrupoId], references: [id])
+  empresa              Empresa                   @relation(fields: [empresaId], references: [id])
   contasReceber        ContaReceber[]
   contasPagar          ContaPagar[]
   pedidosVenda         PedidoVenda[]
@@ -1273,22 +1279,23 @@ model NaturezaFinanceira {
   lancamentos          LancamentoFinanceiro[]
   recorrencias         Recorrencia[]
   requisicoes          RequisicaoMaterial[] // natureza da saída de estoque (ex.: CIF)
+  depositoDestinos     ProcessoDepositoDestino[] // conversão de depósito judicial: natureza da despesa
   requisicaoItens      RequisicaoMaterialItem[] // natureza por item da requisição
-  conferenciaItens     ConferenciaCompraItem[]  @relation("ConfItemNatureza") // natureza por item do DE
+  conferenciaItens     ConferenciaCompraItem[]   @relation("ConfItemNatureza") // natureza por item do DE
   contasPagarRateio    ContaPagarNatureza[] // rateio gerencial por natureza na baixa de contas a pagar
   contasReceberRateio  ContaReceberNatureza[] // rateio gerencial por natureza no título a receber
-  itensPadrao          Item[]                   @relation("ItemNaturezaPadrao") // natureza-padrão do item
-  tesSugeridos         TipoOperacao[]           @relation("TesNaturezaSugerida") // TES que sugerem esta natureza
+  itensPadrao          Item[]                    @relation("ItemNaturezaPadrao") // natureza-padrão do item
+  tesSugeridos         TipoOperacao[]            @relation("TesNaturezaSugerida") // TES que sugerem esta natureza
   partidasContabeis    PartidaContabil[] // dimensão natureza nas partidas (ex.: CIF)
   // Conta de RESULTADO (receita p/ ENTRADA, despesa p/ SAIDA): vínculo via
   // ContaContabil.naturezaFinanceiraId (uma conta por natureza).
-  contasContabeis      ContaContabil[]          @relation("NaturezaResultado")
+  contasContabeis      ContaContabil[]           @relation("NaturezaResultado")
   // Conta de CONTRAPARTIDA patrimonial: ATIVO (a receber) p/ ENTRADA, PASSIVO
   // (a pagar/obrigação) p/ SAIDA. Debitada/creditada na provisão e revertida na
   // liquidação — assim a saída/entrada passa pelo ativo/passivo, não direto no
   // resultado. Definida no cadastro da natureza.
   contaContrapartidaId String?
-  contaContrapartida   ContaContabil?           @relation("NaturezaContrapartida", fields: [contaContrapartidaId], references: [id])
+  contaContrapartida   ContaContabil?            @relation("NaturezaContrapartida", fields: [contaContrapartidaId], references: [id])
   criadoPor            String? // autoria: carimbado automaticamente pelo proxy de sessão
   atualizadoPor        String? // autoria: última edição manual (proxy de sessão)
 
@@ -1402,6 +1409,7 @@ enum OrigemLancamento {
   BAIXA_IMOBILIZADO // baixa do componente velho numa troca (CPC 27): D Deprec.Acum + Perda / C Imobilizado
   DEVOLUCAO // devolução de venda: estorno de receita + retorno do estoque ao custo
   TRANSFERENCIA_CAIXA // transferência entre contas (D conta destino / C conta origem)
+  PROCESSO_DEPOSITO // depósito judicial convertido em pagamento: D despesa / C Depósitos Judiciais (origemId = ProcessoDepositoDestino)
   MANUAL
   ESTORNO
 }
@@ -6713,7 +6721,7 @@ model ManutAtivoPecaLegado {
 // Tipos/situações como String (constantes em src/lib/processos.ts).
 // ─────────────────────────────────────────────────────────────────────────────
 model Processo {
-  id                     String                  @id @default(cuid())
+  id                     String                    @id @default(cuid())
   empresaId              String
   codigo                 String // PRC-0001
   titulo                 String
@@ -6724,30 +6732,30 @@ model Processo {
   numerosExtras          Json? // [{ rotulo, valor }]
   portalUrl              String?
   polo                   String? // AUTOR | REU | INTERESSADO | REQUERENTE
-  interessadoTipo        String                  @default("EMPRESA") // EMPRESA | PESSOA
+  interessadoTipo        String                    @default("EMPRESA") // EMPRESA | PESSOA
   interessadoNome        String?
   assunto                String?
-  situacao               String                  @default("EM_ANDAMENTO")
+  situacao               String                    @default("EM_ANDAMENTO")
   fase                   String?
   abertoEm               DateTime?
   encerradoEm            DateTime?
   responsavelId          String?
   advogado               String?
-  valorCausa             Decimal?                @db.Decimal(15, 2)
+  valorCausa             Decimal?                  @db.Decimal(15, 2)
   riscoPerda             String? // PROVAVEL | POSSIVEL | REMOTA (CPC 25)
-  confidencial           Boolean                 @default(false)
+  confidencial           Boolean                   @default(false)
   imovel                 String?
   imobilizadoId          String?
   colaboradorId          String?
   fornecedorId           String?
   clienteId              String?
   contratoId             String?
-  tags                   String[]                @default([])
+  tags                   String[]                  @default([])
   observacoes            String?
-  diasSemAndamentoAlerta Int                     @default(60)
+  diasSemAndamentoAlerta Int                       @default(60)
   // Captura automática (DataJud/CNJ): o número CNJ é o próprio "numero".
   datajudTribunal        String? // sigla do endpoint: tjap, trt8, trf1…
-  datajudAtivo           Boolean                 @default(false)
+  datajudAtivo           Boolean                   @default(false)
   datajudUltimaConsulta  DateTime?
   datajudUltimoErro      String?
   datajudClasse          String?
@@ -6755,10 +6763,10 @@ model Processo {
   datajudAssuntos        String?
   criadoPor              String?
   atualizadoPor          String?
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  empresa                Empresa                 @relation(fields: [empresaId], references: [id])
-  responsavel            Usuario?                @relation("ProcessoResponsavel", fields: [responsavelId], references: [id])
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  empresa                Empresa                   @relation(fields: [empresaId], references: [id])
+  responsavel            Usuario?                  @relation("ProcessoResponsavel", fields: [responsavelId], references: [id])
   andamentos             ProcessoAndamento[]
   prazos                 ProcessoPrazo[]
   partes                 ProcessoParte[]
@@ -6771,6 +6779,8 @@ model Processo {
   contasReceber          ContaReceber[]
   // Fase 3 — link externo (advogado/despachante)
   acessosExternos        ProcessoAcessoExterno[]
+  // §8.3 — destino dos depósitos judiciais (levantado / convertido em pagamento)
+  depositoDestinos       ProcessoDepositoDestino[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId, situacao])
@@ -6801,28 +6811,67 @@ model ProcessoAndamento {
 }
 
 model ProcessoPrazo {
-  id               String    @id @default(cuid())
-  processoId       String
-  descricao        String
-  vence            DateTime
-  avisoDias        Int       @default(5)
-  responsavelId    String?
-  status           String    @default("PENDENTE") // PENDENTE | CUMPRIDO | DISPENSADO
-  cumpridoEm       DateTime?
-  andamentoId      String?
-  motivo           String?
+  id                   String      @id @default(cuid())
+  processoId           String
+  descricao            String
+  vence                DateTime
+  avisoDias            Int         @default(5)
+  responsavelId        String?
+  status               String      @default("PENDENTE") // PENDENTE | CUMPRIDO | DISPENSADO
+  cumpridoEm           DateTime?
+  andamentoId          String?
+  motivo               String?
   // Contagem (opcional): N dias a partir de inicioContagem, úteis ou corridos (src/lib/dias-uteis.ts)
-  diasUteis        Boolean   @default(false)
-  prazoDias        Int?
-  inicioContagem   DateTime?
-  suspensaoForense Boolean   @default(false) // recesso 20/12–20/01 (CPC art. 220), só judiciais
-  fundamento       String? // trecho do documento que fundamenta o prazo
-  criadoPor        String?
-  createdAt        DateTime  @default(now())
-  processo         Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  diasUteis            Boolean     @default(false)
+  prazoDias            Int?
+  inicioContagem       DateTime?
+  suspensaoForense     Boolean     @default(false) // recesso 20/12–20/01 (CPC art. 220), só judiciais
+  fundamento           String? // trecho do documento que fundamenta o prazo
+  // Pagamento (§8.3): valor da guia/multa, desconto por pagamento antecipado e o título ligado.
+  valorPagar           Decimal?    @db.Decimal(15, 2)
+  descontoAte          DateTime? // pagar até esta data para ter o desconto
+  valorComDesconto     Decimal?    @db.Decimal(15, 2)
+  descontoPercentual   Decimal?    @db.Decimal(7, 4) // informativo (ex.: 30 = 30%)
+  contaPagarId         String?
+  // true quando foi a QUITAÇÃO do título que cumpriu o prazo (o estorno só reabre estes).
+  cumpridoPorPagamento Boolean     @default(false)
+  criadoPor            String?
+  createdAt            DateTime    @default(now())
+  processo             Processo    @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  contaPagar           ContaPagar? @relation(fields: [contaPagarId], references: [id], onDelete: SetNull)
 
   @@index([processoId, status])
   @@index([status, vence])
+  @@index([contaPagarId])
+}
+
+// Destino de um depósito judicial/garantia (§8.3 de docs/processos-prd.md). O depósito é um
+// ContaPagar com a natureza travada "deposito-judicial" (ativo 1.2.9001 Depósitos Judiciais);
+// cada destino baixa parte do saldo:
+//  • LEVANTADO  → título a RECEBER (natureza "levantamento-deposito-judicial") cujo recebimento
+//                 contabiliza D Banco / C Depósitos Judiciais (sem receita);
+//  • CONVERTIDO → lançamento contábil D despesa (natureza escolhida) / C Depósitos Judiciais
+//                 (origem PROCESSO_DEPOSITO, origemId = id deste registro).
+model ProcessoDepositoDestino {
+  id                   String              @id @default(cuid())
+  empresaId            String
+  processoId           String
+  contaPagarId         String // o depósito
+  tipo                 String // LEVANTADO | CONVERTIDO
+  valor                Decimal             @db.Decimal(15, 2)
+  data                 DateTime
+  naturezaFinanceiraId String? // CONVERTIDO: natureza da despesa (multa, condenação, custas…)
+  contaReceberId       String?             @unique // LEVANTADO: título a receber gerado
+  observacao           String?
+  criadoPor            String?
+  createdAt            DateTime            @default(now())
+  processo             Processo            @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  contaPagar           ContaPagar          @relation(fields: [contaPagarId], references: [id], onDelete: Restrict)
+  contaReceber         ContaReceber?       @relation(fields: [contaReceberId], references: [id], onDelete: Cascade)
+  naturezaFinanceira   NaturezaFinanceira? @relation(fields: [naturezaFinanceiraId], references: [id])
+
+  @@index([processoId])
+  @@index([contaPagarId])
 }
 
 // Roteiro (tarefas padrão) por tipo de processo — compartilhado pelo grupo.

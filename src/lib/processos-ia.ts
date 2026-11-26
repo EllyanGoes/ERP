@@ -67,6 +67,12 @@ export type ExtracaoDocumento = {
   assunto: string | null;
   partes: { papel: string; nome: string; documento: string | null }[];
   prazo: { descricao: string; dias: number; diasUteis: boolean; trecho: string | null } | null;
+  /** Guia/multa/boleto a pagar, se o documento trouxer (§8.3). */
+  pagamento: {
+    descricao: string | null; valor: number | null; vencimento: string | null;
+    valorComDesconto: number | null; descontoPercentual: number | null; descontoAte: string | null;
+    linhaDigitavel: string | null; trecho: string | null;
+  } | null;
   resumo: string | null;
 };
 
@@ -74,7 +80,7 @@ const nullable = (t: string) => ({ type: [t, "null"] });
 const SCHEMA_DOC = {
   type: "object",
   additionalProperties: false,
-  required: ["tipoSugerido", "tipoDocumento", "titulo", "orgao", "esfera", "numero", "dataCiencia", "valor", "assunto", "partes", "prazo", "resumo"],
+  required: ["tipoSugerido", "tipoDocumento", "titulo", "orgao", "esfera", "numero", "dataCiencia", "valor", "assunto", "partes", "prazo", "pagamento", "resumo"],
   properties: {
     tipoSugerido: { type: ["string", "null"], enum: ["FUNDIARIO", "AMBIENTAL", "ADMINISTRATIVO", "FISCAL", "JUDICIAL", "TRABALHISTA", "OUTRO", null] },
     tipoDocumento: nullable("string"),
@@ -101,11 +107,25 @@ const SCHEMA_DOC = {
         },
       ],
     },
+    pagamento: {
+      anyOf: [
+        { type: "null" },
+        {
+          type: "object", additionalProperties: false,
+          required: ["descricao", "valor", "vencimento", "valorComDesconto", "descontoPercentual", "descontoAte", "linhaDigitavel", "trecho"],
+          properties: {
+            descricao: nullable("string"), valor: nullable("number"), vencimento: nullable("string"),
+            valorComDesconto: nullable("number"), descontoPercentual: nullable("number"), descontoAte: nullable("string"),
+            linhaDigitavel: nullable("string"), trecho: nullable("string"),
+          },
+        },
+      ],
+    },
     resumo: nullable("string"),
   },
 };
 
-const PROMPT_DOC = `Este PDF foi recebido por uma empresa (auto de infração, notificação, intimação, citação ou ofício).
+const PROMPT_DOC = `Este PDF foi recebido por uma empresa (auto de infração, notificação, intimação, citação, ofício, guia/DAE/DARF/GRU ou boleto de custas).
 Extraia os dados para cadastrar o processo no sistema da empresa. Regras:
 - Use apenas o que está escrito no documento. Campo que não aparece → null. Não deduza número, valor, data ou prazo.
 - tipoSugerido: FISCAL (SEFAZ/Receita/prefeitura cobrando tributo), TRABALHISTA (MTE/fiscalização do trabalho), JUDICIAL (qualquer vara/tribunal), AMBIENTAL, FUNDIARIO (terras/imóvel), ADMINISTRATIVO (demais órgãos), OUTRO.
@@ -116,6 +136,14 @@ Extraia os dados para cadastrar o processo no sistema da empresa. Regras:
 - valor: valor total em discussão (multa + tributo, ou valor da causa), em reais, número sem formatação.
 - partes: órgão autuante, autor, réu, advogados e peritos que aparecem nominalmente.
 - prazo: só se o documento disser o prazo para defesa, impugnação, manifestação ou pagamento. dias = número de dias; diasUteis = true só se o texto disser "dias úteis" (ou se for processo judicial cível/trabalhista contado pelo CPC/CLT e o texto não disser o contrário); trecho = a frase exata do documento que fixa o prazo.
+- pagamento: só se o documento trouxer um valor A PAGAR (multa, guia/DAE/DARF/GRU, boleto de custas ou taxa). null se não houver cobrança.
+  descricao = curta, ex.: "Multa do auto nº 123" ou "DAE taxa de licença"; valor = valor a pagar sem desconto, em reais;
+  vencimento = data de vencimento da guia/multa (AAAA-MM-DD), null se não estiver escrita;
+  desconto por pagamento antecipado (ex.: "redução de 30% se pago em até 20 dias") → descontoPercentual (30) e/ou valorComDesconto
+  (só se o valor reduzido estiver escrito ou for o cálculo direto do percentual sobre o valor) e descontoAte = a data-limite SE estiver
+  escrita como data (AAAA-MM-DD); se o desconto for contado em dias, descontoAte = null e explique no trecho;
+  linhaDigitavel = linha digitável/código de barras como escrito (só dígitos e espaços/pontos), null se não houver;
+  trecho = a frase exata que fixa o valor/vencimento/desconto.
 - resumo: 1–2 frases em português simples dizendo o que o documento pede da empresa.`;
 
 /** Lê o PDF e devolve os campos sugeridos. null se a IA não estiver disponível ou falhar. */

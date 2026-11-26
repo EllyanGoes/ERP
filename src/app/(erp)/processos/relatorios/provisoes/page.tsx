@@ -3,7 +3,8 @@
 // Relatório de provisões por risco (CPC 25 / IAS 37) — fase 3 de docs/processos-prd.md.
 // Processos ativos na data-base com valor em discussão, agrupados por risco de perda, tipo e
 // empresa, para a contabilidade decidir provisão × nota explicativa. Só relatório: nada aqui
-// gera lançamento contábil.
+// gera lançamento contábil. §8.3: por processo, (−) já pago e depositado em juízo (à parte);
+// os totais por risco usam a EXPOSIÇÃO REMANESCENTE (valor em discussão − já pago).
 import { useMemo } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/shared/PageHeader";
@@ -22,8 +23,10 @@ type Linha = {
   id: string; codigo: string; titulo: string; tipo: string; orgao: string; numero: string | null; polo: string | null; situacao: string;
   riscoPerda: string | null; valorCausa: number | null; abertoEm: string | null; confidencial: boolean; empresaId: string; empresa: string;
   natureza: "ATIVO" | "PASSIVO"; responsavel: string | null;
+  // §8.3 — null quando o usuário não tem o módulo Financeiro.
+  jaPago: number | null; depositado: number | null; exposicao: number;
 };
-type Resp = { data: Linha[]; empresas: { id: string; nome: string }[]; dataBase: string };
+type Resp = { data: Linha[]; empresas: { id: string; nome: string }[]; dataBase: string; comFinanceiro?: boolean };
 
 const GRUPOS = [
   { k: "PROVAVEL", titulo: "Provável", regra: "Provisionar (reconhecer passivo e despesa) pelo valor estimado.", cls: "border-danger/30 bg-danger/5 text-danger" },
@@ -46,7 +49,11 @@ export default function ProvisoesPage() {
 
   const passivos = linhas.filter((l) => l.natureza === "PASSIVO");
   const ativos = linhas.filter((l) => l.natureza === "ATIVO");
-  const soma = (ls: Linha[]) => ls.reduce((s, l) => s + (l.valorCausa ?? 0), 0);
+  // Totais por risco = EXPOSIÇÃO REMANESCENTE (valor em discussão − já pago). Depósito judicial não
+  // reduz a provisão (é ativo, apresentado à parte).
+  const soma = (ls: Linha[]) => ls.reduce((s, l) => s + (l.exposicao ?? l.valorCausa ?? 0), 0);
+  const somaCampo = (ls: Linha[], k: "valorCausa" | "jaPago" | "depositado") => ls.reduce((s, l) => s + (l[k] ?? 0), 0);
+  const comFin = !!data?.comFinanceiro;
   const porGrupo = (ls: Linha[]) => GRUPOS.map((g) => ({ ...g, lista: ls.filter((l) => grupoDe(l) === g.k) }));
   const gruposPassivo = porGrupo(passivos);
   const resumo = (chave: (l: Linha) => string, rotulo: (k: string) => string) => {
@@ -55,7 +62,7 @@ export default function ProvisoesPage() {
     for (const l of passivos) {
       const k = chave(l);
       const r: R = m.get(k) ?? { PROVAVEL: 0, POSSIVEL: 0, REMOTA: 0, SEM: 0, n: 0 };
-      r[grupoDe(l) as keyof R] += l.valorCausa ?? 0; r.n += 1; m.set(k, r);
+      r[grupoDe(l) as keyof R] += l.exposicao ?? l.valorCausa ?? 0; r.n += 1; m.set(k, r);
     }
     return Array.from(m.entries()).map(([k, r]) => ({ k, rotulo: rotulo(k), ...r })).sort((a, b) => b.PROVAVEL + b.POSSIVEL - (a.PROVAVEL + a.POSSIVEL));
   };
@@ -64,11 +71,12 @@ export default function ProvisoesPage() {
   const nomeEmpresa = empresaId === "todas" ? "Todas as empresas" : data?.empresas.find((e) => e.id === empresaId)?.nome ?? "";
 
   function exportarCsv() {
-    const cab = ["Natureza", "Risco", "Código", "Título", "Tipo", "Órgão", "Número", "Polo", "Situação", "Empresa", "Aberto em", "Valor em discussão"];
+    const cab = ["Natureza", "Risco", "Código", "Título", "Tipo", "Órgão", "Número", "Polo", "Situação", "Empresa", "Aberto em", "Valor em discussão", "(-) Já pago", "Depositado em juízo", "Exposição remanescente"];
     const esc = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
     const corpo = linhas.map((l) => [
       l.natureza === "ATIVO" ? "Ativo contingente" : "Passivo contingente", GRUPOS.find((g) => g.k === grupoDe(l))!.titulo, l.codigo, l.titulo, TIPOS_PROCESSO[l.tipo] ?? l.tipo,
       l.orgao, l.numero ?? "", l.polo ?? "", SITUACOES[l.situacao]?.label ?? l.situacao, l.empresa, l.abertoEm ? fmtData(l.abertoEm) : "", l.valorCausa != null ? brl(l.valorCausa) : "",
+      l.jaPago != null ? brl(l.jaPago) : "", l.depositado != null ? brl(l.depositado) : "", brl(l.exposicao),
     ].map((c) => esc(String(c))).join(";"));
     const blob = new Blob(["﻿" + [cab.join(";"), ...corpo].join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -79,20 +87,23 @@ export default function ProvisoesPage() {
   async function exportarPdf() {
     const pdf: LinhaPdf[] = [];
     const bloco = (titulo: string, grupos: ReturnType<typeof porGrupo>) => {
-      pdf.push({ celulas: [titulo, "", "", "", ""], estilo: "secao" });
+      const v = (x: number | null) => (x != null ? brl(x) : "—");
+      pdf.push({ celulas: [titulo, "", "", "", "", "", ""], estilo: "secao" });
       for (const g of grupos) {
         if (!g.lista.length) continue;
-        pdf.push({ celulas: [`${g.titulo} — ${g.regra}`, "", "", "", brl(soma(g.lista))], estilo: "secao" });
-        for (const l of g.lista) pdf.push({ celulas: [`${l.codigo} ${l.titulo}`, TIPOS_PROCESSO[l.tipo] ?? l.tipo, l.orgao, l.empresa, l.valorCausa != null ? brl(l.valorCausa) : "—"] });
+        pdf.push({ celulas: [`${g.titulo} — ${g.regra}`, "", "", brl(somaCampo(g.lista, "valorCausa")), comFin ? brl(somaCampo(g.lista, "jaPago")) : "—", comFin ? brl(somaCampo(g.lista, "depositado")) : "—", brl(soma(g.lista))], estilo: "secao" });
+        for (const l of g.lista) pdf.push({ celulas: [`${l.codigo} ${l.titulo}`, TIPOS_PROCESSO[l.tipo] ?? l.tipo, l.empresa, v(l.valorCausa), v(l.jaPago), v(l.depositado), brl(l.exposicao)] });
       }
     };
     bloco("PASSIVOS CONTINGENTES / PROVISÕES", gruposPassivo);
     if (ativos.length) bloco("ATIVOS CONTINGENTES (empresa autora/requerente — não reconhecer)", porGrupo(ativos));
-    pdf.push({ celulas: ["Total a provisionar (provável)", "", "", "", brl(soma(gruposPassivo[0].lista))], estilo: "total" });
-    pdf.push({ celulas: ["Total a divulgar (possível)", "", "", "", brl(soma(gruposPassivo[1].lista))], estilo: "total" });
+    pdf.push({ celulas: ["Total a provisionar (provável) — exposição remanescente", "", "", "", "", "", brl(soma(gruposPassivo[0].lista))], estilo: "total" });
+    pdf.push({ celulas: ["Total a divulgar (possível) — exposição remanescente", "", "", "", "", "", brl(soma(gruposPassivo[1].lista))], estilo: "total" });
+    if (comFin) pdf.push({ celulas: ["Depositado em juízo (ativo, à parte — não reduz a provisão)", "", "", "", "", brl(somaCampo(passivos, "depositado")), ""], estilo: "total" });
     await gerarPdfContabil({
-      titulo: "Provisões por risco — CPC 25", empresa: nomeEmpresa, subinfo: [`Data-base: ${fmtData(base)}`, "Valor e risco conforme o cadastro atual dos processos. Relatório gerencial — não gera lançamento contábil."],
-      head: ["Processo", "Tipo", "Órgão", "Empresa", "Valor (R$)"], linhas: pdf, alinharDireitaDe: 4, orientacao: "l", arquivo: `provisoes-cpc25-${base}.pdf`,
+      titulo: "Provisões por risco — CPC 25", empresa: nomeEmpresa,
+      subinfo: [`Data-base: ${fmtData(base)}`, "Valor e risco conforme o cadastro atual. Exposição = valor em discussão − já pago até a data-base. Depósito judicial é ativo, apresentado à parte. Relatório gerencial — não gera lançamento contábil."],
+      head: ["Processo", "Tipo", "Empresa", "Em discussão", "(−) Já pago", "Depositado", "Exposição"], linhas: pdf, alinharDireitaDe: 3, orientacao: "l", arquivo: `provisoes-cpc25-${base}.pdf`,
     });
   }
 
@@ -109,6 +120,9 @@ export default function ProvisoesPage() {
           Perda <b className="text-warning">possível</b> → <b>não provisiona</b>, mas <b>divulga em nota explicativa</b> (natureza e valor estimado). Perda <b>remota</b> → não provisiona nem divulga.
           Quando a empresa é <b>autora/requerente</b> (ex.: restituição, indenização a receber), é <b>ativo contingente</b>: nunca se reconhece antes de ser praticamente certo; divulga-se se provável.
           O risco e o valor vêm da ficha de cada processo (campos “Risco de perda” e “Valor em discussão”) — confirme com o advogado antes de fechar o período.
+          <div className="mt-2"><b className="text-foreground">Pagamentos e depósitos.</b> A provisão é o valor estimado da saída <b>ainda não liquidada</b>: do valor em discussão sai o <b>já pago</b> (títulos a pagar ligados ao processo, baixados até a data-base, e depósitos convertidos em pagamento) e sobra a <b>exposição remanescente</b> — é ela que soma nos totais por risco.
+          O <b>depósito judicial</b> é um ATIVO da empresa (conta Depósitos Judiciais) e é apresentado <b>à parte</b>: não reduz a provisão automaticamente; quando o processo termina ele é levantado (volta) ou convertido em pagamento (aí passa a contar como pago).</div>
+          {data && !comFin && <div className="mt-1 text-warning">Pago e depositado aparecem só para quem também tem acesso ao módulo Financeiro.</div>}
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -124,7 +138,7 @@ export default function ProvisoesPage() {
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
               {gruposPassivo.map((g) => (
                 <div key={g.k} className={cn("rounded-xl border p-3", g.cls)}>
-                  <div className="text-xs font-medium">{g.titulo} · {g.lista.length}</div>
+                  <div className="text-xs font-medium">{g.titulo} · {g.lista.length} <span className="font-normal text-muted-foreground">(exposição)</span></div>
                   <div className="text-lg font-semibold tabular-nums text-foreground">{fmtBRL(soma(g.lista))}</div>
                   <div className="text-[11px] text-muted-foreground leading-snug">{g.regra}</div>
                 </div>
@@ -138,6 +152,7 @@ export default function ProvisoesPage() {
               <Resumo titulo="Por tipo" linhas={porTipo} />
               <Resumo titulo="Por empresa" linhas={porEmpresa} />
             </div>
+            {comFin && somaCampo(passivos, "depositado") > 0 && <p className="text-xs text-info">Depositado em juízo nos processos passivos: <b>{fmtBRL(somaCampo(passivos, "depositado"))}</b> — ativo, apresentado à parte (não reduz a provisão).</p>}
             <p className="text-[11px] text-muted-foreground">Valor e risco são os do cadastro atual (o sistema não guarda histórico do risco por data). Processos sem valor entram com R$ 0,00. Confidenciais aparecem só para quem pode vê-los.</p>
           </>)}
       </div>
@@ -152,13 +167,14 @@ function Tabela({ titulo, grupos, soma }: { titulo: string; grupos: { k: string;
       <table className="w-full text-sm">
         <thead className="bg-muted text-xs text-muted-foreground"><tr>
           <th className="text-left px-4 py-2 font-semibold">Processo</th><th className="text-left px-3 py-2 font-semibold">Tipo</th><th className="text-left px-3 py-2 font-semibold">Órgão</th>
-          <th className="text-left px-3 py-2 font-semibold">Situação</th><th className="text-left px-3 py-2 font-semibold">Empresa</th><th className="text-right px-4 py-2 font-semibold">Valor</th>
+          <th className="text-left px-3 py-2 font-semibold">Situação</th><th className="text-left px-3 py-2 font-semibold">Empresa</th><th className="text-right px-3 py-2 font-semibold">Em discussão</th>
+          <th className="text-right px-3 py-2 font-semibold">(−) Já pago</th><th className="text-right px-3 py-2 font-semibold" title="Ativo — apresentado à parte, não reduz a provisão">Depositado em juízo</th><th className="text-right px-4 py-2 font-semibold">Exposição</th>
         </tr></thead>
         <tbody>
           {grupos.filter((g) => g.lista.length).map((g) => (
             <GrupoLinhas key={g.k} g={g} total={soma(g.lista)} />
           ))}
-          {grupos.every((g) => !g.lista.length) && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Nenhum processo ativo nesta data-base.</td></tr>}
+          {grupos.every((g) => !g.lista.length) && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">Nenhum processo ativo nesta data-base.</td></tr>}
         </tbody>
       </table>
     </div>
@@ -167,7 +183,7 @@ function Tabela({ titulo, grupos, soma }: { titulo: string; grupos: { k: string;
 
 function GrupoLinhas({ g, total }: { g: { k: string; titulo: string; regra: string; lista: Linha[] }; total: number }) {
   return (<>
-    <tr className="bg-muted/50 border-t border-border"><td colSpan={5} className="px-4 py-1.5 text-xs font-semibold">{g.titulo} <span className="font-normal text-muted-foreground">— {g.regra}</span></td><td className="px-4 py-1.5 text-right text-xs font-semibold tabular-nums">{fmtBRL(total)}</td></tr>
+    <tr className="bg-muted/50 border-t border-border"><td colSpan={8} className="px-4 py-1.5 text-xs font-semibold">{g.titulo} <span className="font-normal text-muted-foreground">— {g.regra}</span></td><td className="px-4 py-1.5 text-right text-xs font-semibold tabular-nums">{fmtBRL(total)}</td></tr>
     {g.lista.map((l) => (
       <tr key={l.id} className="border-t border-border/60">
         <td className="px-4 py-2"><Link href={`/processos/${l.id}`} className="hover:underline"><span className="font-mono text-xs">{l.codigo}</span> {l.titulo}</Link>{l.confidencial && <Lock className="w-3 h-3 inline ml-1 text-muted-foreground" />}{l.numero && <div className="text-[11px] text-muted-foreground font-mono">{l.numero}</div>}</td>
@@ -175,7 +191,10 @@ function GrupoLinhas({ g, total }: { g: { k: string; titulo: string; regra: stri
         <td className="px-3 py-2 text-xs">{l.orgao}</td>
         <td className="px-3 py-2 text-xs">{SITUACOES[l.situacao]?.label ?? l.situacao}</td>
         <td className="px-3 py-2 text-xs">{l.empresa}</td>
-        <td className="px-4 py-2 text-right tabular-nums">{l.valorCausa != null ? fmtBRL(l.valorCausa) : <span className="text-muted-foreground">sem valor</span>}</td>
+        <td className="px-3 py-2 text-right tabular-nums">{l.valorCausa != null ? fmtBRL(l.valorCausa) : <span className="text-muted-foreground">sem valor</span>}</td>
+        <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{l.jaPago ? fmtBRL(-l.jaPago) : "—"}</td>
+        <td className="px-3 py-2 text-right tabular-nums text-info">{l.depositado ? fmtBRL(l.depositado) : "—"}</td>
+        <td className="px-4 py-2 text-right tabular-nums font-medium">{fmtBRL(l.exposicao)}</td>
       </tr>
     ))}
   </>);

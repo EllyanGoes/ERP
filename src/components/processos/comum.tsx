@@ -59,3 +59,46 @@ export async function api<T = unknown>(url: string, method: string, body?: unkno
   if (!res?.ok) return { ok: false, error: j?.error || "Erro de comunicação." };
   return { ok: true, data: j?.data };
 }
+
+/** Economia do desconto antecipado (valor cheio − com desconto) ou null. */
+export const economia = (p: { valorPagar?: string | number | null; valorComDesconto?: string | number | null }) => {
+  if (p.valorPagar == null || p.valorComDesconto == null) return null;
+  const e = Math.round((Number(p.valorPagar) - Number(p.valorComDesconto)) * 100) / 100;
+  return e > 0 ? e : null;
+};
+
+type PrazoPagamento = {
+  status: string; valorPagar: string | null; descontoAte: string | null; valorComDesconto: string | null; cumpridoPorPagamento?: boolean;
+  contaPagar: { id: string; numero: string; status: string; valorOriginal: string; valorPago: string } | null;
+};
+const STATUS_CP: Record<string, string> = { ABERTA: "em aberto", PARCIAL: "pago em parte", PAGA: "quitado", CANCELADA: "cancelado" };
+
+/**
+ * Linha de pagamento do prazo (§8.3): valor, "pague até DD/MM e economize R$ X" e o título ligado
+ * (com o valor com desconto como SUGESTÃO — o título nunca é alterado automaticamente).
+ */
+export function PagamentoPrazo({ pr }: { pr: PrazoPagamento }) {
+  if (pr.valorPagar == null && !pr.descontoAte && !pr.contaPagar) return null;
+  const eco = economia(pr);
+  const descontoVigente = pr.status === "PENDENTE" && pr.descontoAte && diasAte(pr.descontoAte) >= 0;
+  const cp = pr.contaPagar;
+  const sugerir = descontoVigente && cp && cp.status !== "PAGA" && pr.valorComDesconto != null && Math.abs(Number(cp.valorOriginal) - Number(pr.valorComDesconto)) > 0.005;
+  return (
+    <div className="mt-1 space-y-0.5 text-[11px]">
+      {pr.valorPagar != null && <div className="text-muted-foreground">Valor a pagar: <span className="tabular-nums text-foreground">{fmtBRL(pr.valorPagar)}</span></div>}
+      {descontoVigente && (
+        <div className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5", diasAte(pr.descontoAte!) <= 2 ? "border-warning/40 bg-warning/10 text-warning" : "border-success/30 bg-success/10 text-success")}>
+          Pague até {fmtData(pr.descontoAte)}{pr.valorComDesconto != null && <> por {fmtBRL(pr.valorComDesconto)}</>}{eco && <> e economize {fmtBRL(eco)}</>}
+        </div>
+      )}
+      {pr.status !== "PENDENTE" && pr.descontoAte && <div className="text-muted-foreground">Desconto até {fmtData(pr.descontoAte)}{eco && ` (economia de ${fmtBRL(eco)})`}</div>}
+      {cp && (
+        <div className="text-muted-foreground">
+          Título <a href={`/contas-pagar?abrir=${cp.id}`} className="font-mono text-info hover:underline">{cp.numero}</a> · {STATUS_CP[cp.status] ?? cp.status} · {fmtBRL(cp.valorOriginal)}
+          {pr.cumpridoPorPagamento && pr.status === "CUMPRIDO" && " · prazo cumprido pela quitação"}
+          {sugerir && <div className="text-warning">Sugestão: pagar {fmtBRL(pr.valorComDesconto)} até {fmtData(pr.descontoAte)} — ajuste o valor na baixa (desconto); o título não é alterado automaticamente.</div>}
+        </div>
+      )}
+    </div>
+  );
+}

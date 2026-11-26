@@ -18,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     include: {
       responsavel: { select: { id: true, nome: true } },
       andamentos: { orderBy: [{ data: "desc" }, { createdAt: "desc" }] },
-      prazos: { orderBy: [{ status: "asc" }, { vence: "asc" }] },
+      prazos: { orderBy: [{ status: "asc" }, { vence: "asc" }], include: { contaPagar: { select: { id: true, numero: true, status: true, valorOriginal: true, valorPago: true } } } },
       partes: { orderBy: { papel: "asc" } },
       bens: { orderBy: { createdAt: "asc" }, select: { id: true, observacao: true, imobilizado: { select: { id: true, descricao: true, status: true, dataAquisicao: true } } } },
       _count: { select: { credenciais: true, contasPagar: true, contasReceber: true, acessosExternos: { where: { revogadoEm: null } } } },
@@ -68,6 +68,11 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
   if (!(await podeEditar(auth.session))) return NextResponse.json({ error: "Sem permissão para excluir processos." }, { status: 403 });
   const base = await carregarProcesso(auth.session, params.id);
   if (!base) return NextResponse.json({ error: "Processo não encontrado." }, { status: 404 });
+  // Depósito judicial com destino registrado (conversão = lançamento contábil; levantamento = título
+  // a receber): desfazer na aba Financeiro antes — excluir aqui deixaria o contábil órfão (§8.3).
+  if (await prismaSemEscopo.processoDepositoDestino.count({ where: { processoId: params.id } })) {
+    return NextResponse.json({ error: "Este processo tem destinos de depósito judicial (levantamento/conversão) — desfaça-os na aba Financeiro antes de excluir." }, { status: 409 });
+  }
   await prismaSemEscopo.$transaction(async (tx) => {
     // Credenciais (cifradas) NÃO vão para o snapshot da lixeira; títulos do financeiro só perdem o vínculo (SetNull).
     const snap = await tx.processo.findUnique({ where: { id: params.id }, include: { andamentos: true, prazos: true, partes: true, bens: true } });

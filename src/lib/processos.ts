@@ -37,17 +37,33 @@ const hojeUtc = (h: Date) => Date.UTC(h.getFullYear(), h.getMonth(), h.getDate()
 const diasAte = (d: Date, hoje: Date) => Math.round((diaUtc(new Date(d)) - hojeUtc(hoje)) / DIA);
 
 export type PendenciaProcesso = {
-  tipo: "PRAZO_VENCIDO" | "PRAZO_VENCE_EM_BREVE" | "SEM_ANDAMENTO" | "AGUARDANDO_EMPRESA" | "SEM_RESPONSAVEL";
+  tipo: "PRAZO_VENCIDO" | "PRAZO_VENCE_EM_BREVE" | "DESCONTO_ACABANDO" | "SEM_ANDAMENTO" | "AGUARDANDO_EMPRESA" | "SEM_RESPONSAVEL";
   severidade: "ALTA" | "MEDIA";
   titulo: string;
   vence?: Date;
+  /** Prazo de origem (prazos e desconto) — o cron avisa o responsável do prazo. */
+  prazoId?: string;
 };
 
+type PrazoParaPendencia = {
+  id?: string; descricao: string; vence: Date; avisoDias: number; status: string;
+  // Desconto por pagamento antecipado (§8.3) — opcionais.
+  descontoAte?: Date | null; valorPagar?: unknown; valorComDesconto?: unknown;
+};
 type ProcessoParaPendencia = {
   situacao: string; responsavelId: string | null; diasSemAndamentoAlerta: number; createdAt: Date;
-  prazos: { descricao: string; vence: Date; avisoDias: number; status: string }[];
+  prazos: PrazoParaPendencia[];
   andamentos: { data: Date }[];
 };
+
+/** Economia do desconto por pagamento antecipado (valor cheio − valor com desconto), ou null. */
+export function economiaDesconto(p: { valorPagar?: unknown; valorComDesconto?: unknown }): number | null {
+  if (p.valorPagar == null || p.valorComDesconto == null) return null;
+  const e = Math.round((Number(p.valorPagar) - Number(p.valorComDesconto)) * 100) / 100;
+  return e > 0 ? e : null;
+}
+const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const ddmm = (d: Date) => new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC", day: "2-digit", month: "2-digit" });
 
 export function pendenciasProcesso(p: ProcessoParaPendencia, hoje = new Date()): PendenciaProcesso[] {
   if (!SITUACOES[p.situacao]?.aberto) return [];
@@ -55,8 +71,19 @@ export function pendenciasProcesso(p: ProcessoParaPendencia, hoje = new Date()):
   for (const pr of p.prazos) {
     if (pr.status !== "PENDENTE") continue;
     const d = diasAte(pr.vence, hoje);
-    if (d < 0) out.push({ tipo: "PRAZO_VENCIDO", severidade: "ALTA", titulo: `Prazo vencido há ${-d} dia(s): ${pr.descricao}`, vence: pr.vence });
-    else if (d <= pr.avisoDias) out.push({ tipo: "PRAZO_VENCE_EM_BREVE", severidade: d <= 2 ? "ALTA" : "MEDIA", titulo: d === 0 ? `Prazo HOJE: ${pr.descricao}` : `Prazo em ${d} dia(s): ${pr.descricao}`, vence: pr.vence });
+    if (d < 0) out.push({ tipo: "PRAZO_VENCIDO", severidade: "ALTA", titulo: `Prazo vencido há ${-d} dia(s): ${pr.descricao}`, vence: pr.vence, prazoId: pr.id });
+    else if (d <= pr.avisoDias) out.push({ tipo: "PRAZO_VENCE_EM_BREVE", severidade: d <= 2 ? "ALTA" : "MEDIA", titulo: d === 0 ? `Prazo HOJE: ${pr.descricao}` : `Prazo em ${d} dia(s): ${pr.descricao}`, vence: pr.vence, prazoId: pr.id });
+    // Desconto por pagamento antecipado acabando (mesma janela de aviso do prazo).
+    if (pr.descontoAte) {
+      const dd = diasAte(pr.descontoAte, hoje);
+      const eco = economiaDesconto(pr);
+      if (dd >= 0 && dd <= pr.avisoDias) {
+        out.push({
+          tipo: "DESCONTO_ACABANDO", severidade: dd <= 2 ? "ALTA" : "MEDIA", vence: pr.descontoAte, prazoId: pr.id,
+          titulo: `${dd === 0 ? "Desconto acaba HOJE" : `Desconto acaba em ${dd} dia(s)`}: pague até ${ddmm(pr.descontoAte)}${pr.valorComDesconto != null ? ` (${brl(Number(pr.valorComDesconto))})` : ""}${eco ? ` e economize ${brl(eco)}` : ""} — ${pr.descricao}`,
+        });
+      }
+    }
   }
   if (p.situacao === "AGUARDANDO_EMPRESA") out.push({ tipo: "AGUARDANDO_EMPRESA", severidade: "MEDIA", titulo: "Aguardando ação da empresa" });
   const ultimo = p.andamentos.reduce<Date | null>((m, a) => (!m || a.data > m ? a.data : m), null) ?? p.createdAt;
@@ -117,7 +144,7 @@ export const PROCESSO_LISTA_SELECT = {
   interessadoTipo: true, interessadoNome: true, confidencial: true, valorCausa: true, riscoPerda: true, responsavelId: true,
   diasSemAndamentoAlerta: true, createdAt: true, tags: true,
   responsavel: { select: { id: true, nome: true } },
-  prazos: { where: { status: "PENDENTE" }, orderBy: { vence: "asc" as const }, select: { id: true, descricao: true, vence: true, avisoDias: true, status: true } },
+  prazos: { where: { status: "PENDENTE" }, orderBy: { vence: "asc" as const }, select: { id: true, descricao: true, vence: true, avisoDias: true, status: true, valorPagar: true, descontoAte: true, valorComDesconto: true } },
   andamentos: { orderBy: { data: "desc" as const }, take: 1, select: { data: true, tipo: true, descricao: true } },
   _count: { select: { documentos: true, andamentos: true } },
 } satisfies Prisma.ProcessoSelect;
@@ -148,6 +175,38 @@ export function dadosPrazo(b: Record<string, unknown>, tipoProcesso?: string):
   const vence = dataOuNull(b.vence);
   if (!vence || isNaN(+vence)) return { ok: false, erro: "Informe a data de vencimento ou a contagem em dias." };
   return { ok: true, data: { vence, diasUteis: false, prazoDias: null, inicioContagem: null, suspensaoForense: false, fundamento } };
+}
+
+/** Valor em reais vindo do body: número ou texto BR ("1.234,56"). null se vazio/inválido. */
+export function valorOuNull(v: unknown): number | null {
+  if (v === "" || v == null) return null;
+  if (typeof v === "number") return Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
+  const t = String(v).trim();
+  const x = Number(/,/.test(t) ? t.replace(/\./g, "").replace(",", ".") : t);
+  return Number.isFinite(x) ? Math.round(x * 100) / 100 : null;
+}
+
+/**
+ * Campos de PAGAMENTO do prazo (§8.3): valor a pagar e desconto por pagamento antecipado
+ * (até a data `descontoAte`, pelo `valorComDesconto` OU pelo `descontoPercentual` sobre o valor).
+ * Só as chaves presentes no body. Erro amigável ou dados.
+ */
+export function dadosPagamentoPrazo(b: Record<string, unknown>):
+  { ok: true; data: { valorPagar?: number | null; descontoAte?: Date | null; valorComDesconto?: number | null; descontoPercentual?: number | null } } | { ok: false; erro: string } {
+  const d: { valorPagar?: number | null; descontoAte?: Date | null; valorComDesconto?: number | null; descontoPercentual?: number | null } = {};
+  if ("valorPagar" in b) d.valorPagar = valorOuNull(b.valorPagar);
+  if ("descontoAte" in b) d.descontoAte = dataOuNull(b.descontoAte);
+  if ("descontoPercentual" in b) d.descontoPercentual = valorOuNull(b.descontoPercentual);
+  if ("valorComDesconto" in b) d.valorComDesconto = valorOuNull(b.valorComDesconto);
+  if (d.descontoAte && isNaN(+d.descontoAte)) return { ok: false, erro: "Data do desconto inválida." };
+  if (d.descontoPercentual != null && (d.descontoPercentual <= 0 || d.descontoPercentual >= 100)) return { ok: false, erro: "Percentual de desconto deve ficar entre 0 e 100." };
+  // Percentual sem valor com desconto: calcula sobre o valor a pagar.
+  if (d.valorComDesconto == null && d.descontoPercentual != null && d.valorPagar != null) {
+    d.valorComDesconto = Math.round(d.valorPagar * (1 - d.descontoPercentual / 100) * 100) / 100;
+  }
+  if (d.valorComDesconto != null && d.valorPagar != null && d.valorComDesconto > d.valorPagar) return { ok: false, erro: "O valor com desconto não pode passar do valor a pagar." };
+  if ((d.valorComDesconto != null || d.descontoPercentual != null) && "descontoAte" in b && !d.descontoAte) return { ok: false, erro: "Informe até quando vale o desconto." };
+  return { ok: true, data: d };
 }
 
 /**

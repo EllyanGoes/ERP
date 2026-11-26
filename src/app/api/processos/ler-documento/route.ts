@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { podeEditar } from "@/lib/processos";
 import { extrairDocumentoProcesso, iaDisponivel } from "@/lib/processos-ia";
+import { temFinanceiro } from "@/lib/processos-pagamento";
 
 const MAX_BYTES = 4.5 * 1024 * 1024; // limite do corpo da requisição na Vercel
 
@@ -17,7 +18,9 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: "Envie o PDF." }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "O arquivo passa de 4,5 MB." }, { status: 400 });
   if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) return NextResponse.json({ error: "Envie um arquivo PDF." }, { status: 400 });
-  if (!iaDisponivel()) return NextResponse.json({ data: null, aviso: "Leitura automática indisponível (IA não configurada). Preencha os campos conferindo o documento." });
+  // podeFinanceiro: a conferência oferece "Criar conta a pagar" só a quem tem o módulo Financeiro (§8.3).
+  const podeFinanceiro = await temFinanceiro(auth.session);
+  if (!iaDisponivel()) return NextResponse.json({ data: null, podeFinanceiro, aviso: "Leitura automática indisponível (IA não configurada). Preencha os campos conferindo o documento." });
   const data = await extrairDocumentoProcesso(Buffer.from(await file.arrayBuffer()));
-  return NextResponse.json({ data, aviso: data ? null : "Não foi possível ler o documento automaticamente. Preencha os campos conferindo o PDF." });
+  return NextResponse.json({ data, podeFinanceiro, aviso: data ? null : "Não foi possível ler o documento automaticamente. Preencha os campos conferindo o PDF." });
 }

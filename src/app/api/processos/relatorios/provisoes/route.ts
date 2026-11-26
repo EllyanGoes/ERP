@@ -4,12 +4,17 @@ import { requireModulo, temPermissao } from "@/lib/permissions";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { empresasVisiveis } from "@/lib/empresa";
 import { filtroVisibilidade, SITUACOES_ABERTAS } from "@/lib/processos";
+import { resumoFinanceiroProcessos, temFinanceiro } from "@/lib/processos-pagamento";
 
 // GET /api/processos/relatorios/provisoes?empresaId=&dataBase=YYYY-MM-DD — relatório CPC 25 (fase 3).
 // Processos ATIVOS na data-base (abertos até ela e não encerrados antes dela) com valor em
 // discussão, para a contabilidade decidir provisão (provável), nota explicativa (possível) ou nada
 // (remota). Polo AUTOR/REQUERENTE = ativo contingente (não se reconhece; divulga se provável).
 // Só relatório: NÃO gera lançamento contábil. Valor e risco são os ATUAIS do cadastro (sem histórico).
+// §8.3: por processo, (−) já pago (caixa dos títulos a pagar ligados até a data-base, exceto
+// depósitos, + depósitos convertidos em pagamento) e o depositado em juízo (saldo, à parte — é
+// ATIVO, não reduz a provisão); exposição remanescente = valor em discussão − já pago (≥ 0).
+// Os valores pagos/depositados só vêm para quem também tem o módulo Financeiro.
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("processos");
   if (!auth.ok) return auth.response;
@@ -42,12 +47,17 @@ export async function GET(req: NextRequest) {
     },
   });
   const nomeEmpresa = new Map(empresas.map((e) => [e.id, e.nome]));
+  const fin = await temFinanceiro(auth.session);
+  const resumo = fin ? await resumoFinanceiroProcessos(lista.map((p) => p.id), fimDoDia) : null;
   const linhas = lista.map((p) => ({
     ...p,
     valorCausa: p.valorCausa == null ? null : Number(p.valorCausa),
+    jaPago: resumo ? resumo.get(p.id)?.jaPago ?? 0 : null,
+    depositado: resumo ? resumo.get(p.id)?.depositado ?? 0 : null,
+    exposicao: Math.max(0, Math.round(((p.valorCausa == null ? 0 : Number(p.valorCausa)) - (resumo?.get(p.id)?.jaPago ?? 0)) * 100) / 100),
     empresa: nomeEmpresa.get(p.empresaId) ?? p.empresaId,
     natureza: p.polo === "AUTOR" || p.polo === "REQUERENTE" ? "ATIVO" : "PASSIVO",
     responsavel: p.responsavel?.nome ?? null,
   }));
-  return NextResponse.json({ data: linhas, empresas, dataBase: dataBase.toISOString().slice(0, 10) });
+  return NextResponse.json({ data: linhas, empresas, dataBase: dataBase.toISOString().slice(0, 10), comFinanceiro: fin });
 }

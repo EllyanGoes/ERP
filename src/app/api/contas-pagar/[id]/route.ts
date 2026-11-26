@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/permissions";
 import { requireAdmin } from "@/lib/auth";
 import { pagamentoSchema, contaPagarSchema } from "@/lib/validations/financeiro";
 import { recontabilizarTituloPagar } from "@/lib/contabilidade";
+import { sincronizarPrazosDoTituloSeguro } from "@/lib/processos-prazo-titulo";
 import { baixarTitulo, normalizarLinhasPagamento } from "@/lib/baixa-titulo";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -112,6 +113,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   // conta de Fornecedores a Pagar). O recontabilizar já apaga os lançamentos
   // antigos (COMPRA/PAGAMENTO) e regrava — nada de delete manual aqui.
   await recontabilizarTituloPagar(params.id).catch((e) => console.error("[contas-pagar] contabilizar:", e));
+  // Mudar o valor pode tirar/pôr o título em PAGA → prazo de processo ligado acompanha (§8.3).
+  if (status !== conta.status) await sincronizarPrazosDoTituloSeguro([params.id]);
 
   return NextResponse.json({ data: atualizado });
 }

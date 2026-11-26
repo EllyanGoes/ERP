@@ -28,13 +28,18 @@ import AbaFinanceiro from "@/components/processos/AbaFinanceiro";
 import AbaExterno from "@/components/processos/AbaExterno";
 import BensProcesso, { type BemLigado } from "@/components/processos/BensProcesso";
 import { calcularVencimento, descreverContagem } from "@/lib/dias-uteis";
+import { fmtCampoBR } from "@/components/financeiro/PagamentoTituloForm";
+import { parseValorBR } from "@/components/pedidos-venda/PagamentosInput";
 import {
-  ESFERAS, PAPEIS_PARTE, PrazoChip, RISCOS, SITUACOES, SituacaoBadge, TIPOS_ANDAMENTO, TIPOS_PROCESSO, api, diasDesde, fmtBRL, fmtData, useLookups, type Pendencia,
+  ESFERAS, PAPEIS_PARTE, PagamentoPrazo, PrazoChip, RISCOS, SITUACOES, SituacaoBadge, TIPOS_ANDAMENTO, TIPOS_PROCESSO, api, diasDesde, fmtBRL, fmtData, useLookups, type Pendencia,
 } from "@/components/processos/comum";
 
 type Andamento = { id: string; data: string; tipo: string; descricao: string; documentoId: string | null; usuario: string | null; origem: string; importancia: string; resumoIa: string | null; interno: boolean };
 type Prazo = { id: string; descricao: string; vence: string; avisoDias: number; status: string; cumpridoEm: string | null; motivo: string | null; andamentoId: string | null;
-  diasUteis: boolean; prazoDias: number | null; inicioContagem: string | null; suspensaoForense: boolean; fundamento: string | null };
+  diasUteis: boolean; prazoDias: number | null; inicioContagem: string | null; suspensaoForense: boolean; fundamento: string | null;
+  // Pagamento (§8.3): valor, desconto antecipado e título ligado.
+  valorPagar: string | null; descontoAte: string | null; valorComDesconto: string | null; descontoPercentual: string | null; cumpridoPorPagamento: boolean;
+  contaPagar: { id: string; numero: string; status: string; valorOriginal: string; valorPago: string } | null };
 type Parte = { id: string; papel: string; nome: string; documento: string | null; contato: string | null };
 type Doc = { id: string; titulo: string; numero: string | null; emissao: string | null; confidencial: boolean; createdAt: string; categoria: { nome: string }; versaoVigente: { nome: string; tamanho: number } | null };
 type Processo = {
@@ -105,10 +110,28 @@ export default function ProcessoPage() {
 
   // ── prazos ──────────────────────────────────────────────────────────────────
   // Prazo por data fixa OU por contagem (início + N dias úteis/corridos — src/lib/dias-uteis.ts).
-  type PrazoForm = { descricao: string; vence: string; avisoDias: string; modo: "data" | "contagem"; inicio: string; dias: string; uteis: boolean; suspensao: boolean };
+  // Pagamento (opcional, §8.3): valor a pagar, desconto antecipado (até data, valor OU %) e título ligado.
+  type PrazoForm = { id?: string; descricao: string; vence: string; avisoDias: string; modo: "data" | "contagem"; inicio: string; dias: string; uteis: boolean; suspensao: boolean;
+    pagamento: boolean; valorPagar: string; descontoAte: string; valorComDesconto: string; descontoPct: string; contaPagarId: string };
   const [prazo, setPrazo] = useState<PrazoForm | null>(null);
   const [docLanc, setDocLanc] = useState(false);
-  const novoPrazo = () => { setMsg(""); setPrazo({ descricao: "", vence: "", avisoDias: "5", modo: "data", inicio: new Date().toISOString().slice(0, 10), dias: "", uteis: true, suspensao: p?.tipo === "JUDICIAL" }); };
+  const PAG_VAZIO = { pagamento: false, valorPagar: "", descontoAte: "", valorComDesconto: "", descontoPct: "", contaPagarId: "" };
+  const novoPrazo = () => { setMsg(""); setPrazo({ descricao: "", vence: "", avisoDias: "5", modo: "data", inicio: new Date().toISOString().slice(0, 10), dias: "", uteis: true, suspensao: p?.tipo === "JUDICIAL", ...PAG_VAZIO }); };
+  const brCampo = (v: string | null) => (v == null || v === "" ? "" : fmtCampoBR(String(v).replace(".", ",")));
+  const editarPrazo = (pr: Prazo) => {
+    setMsg("");
+    setPrazo({
+      id: pr.id, descricao: pr.descricao, vence: dia(pr.vence), avisoDias: String(pr.avisoDias), modo: "data", inicio: "", dias: "", uteis: pr.diasUteis, suspensao: pr.suspensaoForense,
+      pagamento: pr.valorPagar != null || pr.descontoAte != null || !!pr.contaPagar, valorPagar: brCampo(pr.valorPagar), descontoAte: dia(pr.descontoAte),
+      valorComDesconto: brCampo(pr.valorComDesconto), descontoPct: pr.descontoPercentual != null ? String(Number(pr.descontoPercentual)).replace(".", ",") : "", contaPagarId: pr.contaPagar?.id ?? "",
+    });
+  };
+  // Títulos a pagar do processo (para ligar ao prazo) — só quem tem o Financeiro recebe a lista.
+  const [titulosPagar, setTitulosPagar] = useState<{ id: string; numero: string; descricao: string; valorOriginal: string; status: string }[] | null>(null);
+  useEffect(() => {
+    if (!prazo?.pagamento || titulosPagar) return;
+    fetch(`/api/processos/${id}/financeiro`).then((r) => r.json()).then((j) => setTitulosPagar(j.podeVer ? j.pagar ?? [] : [])).catch(() => setTitulosPagar([]));
+  }, [prazo?.pagamento, titulosPagar, id]);
   const vencePrazo = useMemo(() => {
     if (!prazo) return null;
     if (prazo.modo === "data") return prazo.vence || null;
@@ -118,9 +141,18 @@ export default function ProcessoPage() {
   async function salvarPrazo() {
     if (!prazo) return;
     setSalvando(true); setMsg("");
-    const r = await api(`/api/processos/${id}/prazos`, "POST", prazo.modo === "data"
-      ? { descricao: prazo.descricao, vence: prazo.vence, avisoDias: Number(prazo.avisoDias) || 5 }
-      : { descricao: prazo.descricao, inicioContagem: prazo.inicio, prazoDias: prazo.dias, diasUteis: prazo.uteis, suspensaoForense: p?.tipo === "JUDICIAL" && prazo.suspensao, avisoDias: Number(prazo.avisoDias) || 5 });
+    const num = (v: string) => (v.trim() ? parseValorBR(v) : null);
+    const pag = prazo.pagamento
+      ? { valorPagar: num(prazo.valorPagar), descontoAte: prazo.descontoAte || null, valorComDesconto: num(prazo.valorComDesconto), descontoPercentual: num(prazo.descontoPct) }
+      : { valorPagar: null, descontoAte: null, valorComDesconto: null, descontoPercentual: null };
+    const r = prazo.id
+      ? await api(`/api/processos/${id}/prazos`, "PATCH", {
+          prazoId: prazo.id, acao: "editar", descricao: prazo.descricao, vence: prazo.vence, avisoDias: Number(prazo.avisoDias) || 0, ...pag,
+          ...(titulosPagar && titulosPagar.length ? { contaPagarId: prazo.pagamento ? prazo.contaPagarId || null : null } : {}),
+        })
+      : await api(`/api/processos/${id}/prazos`, "POST", prazo.modo === "data"
+        ? { descricao: prazo.descricao, vence: prazo.vence, avisoDias: Number(prazo.avisoDias) || 5, ...pag }
+        : { descricao: prazo.descricao, inicioContagem: prazo.inicio, prazoDias: prazo.dias, diasUteis: prazo.uteis, suspensaoForense: p?.tipo === "JUDICIAL" && prazo.suspensao, avisoDias: Number(prazo.avisoDias) || 5, ...pag });
     setSalvando(false);
     if (!r.ok) { setMsg(r.error!); return; }
     setPrazo(null); load();
@@ -289,13 +321,15 @@ export default function ProcessoPage() {
                   <tr key={pr.id} className={cn("border-t border-border/60", pr.status !== "PENDENTE" && "opacity-60")}>
                     <td className="px-4 py-2">{pr.descricao}{pr.motivo && <div className="text-[11px] text-muted-foreground">{pr.motivo}</div>}
                       {pr.prazoDias != null && pr.inicioContagem && <div className="text-[11px] text-muted-foreground">{descreverContagem(pr.prazoDias, pr.diasUteis, pr.inicioContagem)}{pr.suspensaoForense && " · com recesso forense"}</div>}
-                      {pr.fundamento && <div className="text-[11px] text-muted-foreground italic line-clamp-2" title={pr.fundamento}>“{pr.fundamento}”</div>}</td>
+                      {pr.fundamento && <div className="text-[11px] text-muted-foreground italic line-clamp-2" title={pr.fundamento}>“{pr.fundamento}”</div>}
+                      <PagamentoPrazo pr={pr} /></td>
                     <td className="px-3 py-2"><PrazoChip vence={pr.vence} avisoDias={pr.avisoDias} status={pr.status} /><div className="text-[11px] text-muted-foreground">avisa {pr.avisoDias} dia(s) antes</div></td>
                     <td className="px-3 py-2 text-xs">{pr.status === "PENDENTE" ? "Pendente" : pr.status === "CUMPRIDO" ? `Cumprido ${fmtData(pr.cumpridoEm)}` : `Dispensado ${fmtData(pr.cumpridoEm)}`}</td>
                     <td className="px-3 py-2 text-right whitespace-nowrap text-xs">{pode && (pr.status === "PENDENTE" ? <>
                       <button onClick={() => acaoPrazo(pr, "cumprir")} className="text-success hover:underline inline-flex items-center gap-1"><Check className="w-3 h-3" /> cumprido</button>
                       <button onClick={() => acaoPrazo(pr, "dispensar")} className="ml-3 text-muted-foreground hover:underline">dispensar</button>
                     </> : <button onClick={() => acaoPrazo(pr, "reabrir")} className="text-muted-foreground hover:underline inline-flex items-center gap-1"><RotateCcw className="w-3 h-3" /> reabrir</button>)}
+                      {pode && <button onClick={() => editarPrazo(pr)} className="ml-3 text-muted-foreground hover:underline">editar</button>}
                       {pode && <button onClick={() => removerPrazo(pr)} className="ml-3 text-muted-foreground hover:text-danger"><Trash2 className="w-3.5 h-3.5 inline" /></button>}</td>
                   </tr>
                 ))}
@@ -393,12 +427,12 @@ export default function ProcessoPage() {
       {/* Novo prazo */}
       <Dialog open={!!prazo} onOpenChange={(v) => !v && setPrazo(null)}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Novo prazo</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{prazo?.id ? "Editar prazo" : "Novo prazo"}</DialogTitle></DialogHeader>
           {prazo && <div className="space-y-3">
             <div><Label>Prazo</Label><Input autoFocus value={prazo.descricao} onChange={(e) => setPrazo({ ...prazo, descricao: e.target.value })} placeholder="Ex.: pagar taxa de vistoria" /></div>
-            <div className="inline-flex rounded-lg border border-border p-0.5 text-xs">
+            {!prazo.id && <div className="inline-flex rounded-lg border border-border p-0.5 text-xs">
               {(["data", "contagem"] as const).map((m) => <button key={m} type="button" onClick={() => setPrazo({ ...prazo, modo: m })} className={cn("px-2.5 py-1 rounded-md", prazo.modo === m ? "bg-muted text-foreground font-medium" : "text-muted-foreground")}>{m === "data" ? "Data de vencimento" : "Contar em dias"}</button>)}
-            </div>
+            </div>}
             {prazo.modo === "data" ? (
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Vence em</Label><DatePicker value={prazo.vence} onChange={(v) => setPrazo({ ...prazo, vence: v ?? "" })} /></div>
@@ -417,6 +451,26 @@ export default function ProcessoPage() {
               </div>
               <p className="text-[11px] text-muted-foreground">Exclui o dia da ciência e inclui o do vencimento; sábados, domingos e feriados (nacionais, Amapá e Macapá) não contam em dias úteis; vencimento em dia não útil passa para o próximo útil.</p>
             </>)}
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="rounded" checked={prazo.pagamento} onChange={(e) => setPrazo({ ...prazo, pagamento: e.target.checked })} /> É um pagamento (multa, guia, custas) — valor e desconto por pagamento antecipado</label>
+            {prazo.pagamento && (
+              <div className="rounded-lg border border-border p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs">Valor a pagar (R$)</Label><Input inputMode="decimal" className="text-right font-mono" value={prazo.valorPagar} onChange={(e) => setPrazo({ ...prazo, valorPagar: e.target.value })} onBlur={(e) => setPrazo({ ...prazo, valorPagar: fmtCampoBR(e.target.value) })} /></div>
+                  <div><Label className="text-xs">Desconto se pagar até</Label><DatePicker value={prazo.descontoAte} onChange={(v) => setPrazo({ ...prazo, descontoAte: v ?? "" })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs">Valor com desconto (R$)</Label><Input inputMode="decimal" className="text-right font-mono" value={prazo.valorComDesconto} onChange={(e) => setPrazo({ ...prazo, valorComDesconto: e.target.value })} onBlur={(e) => setPrazo({ ...prazo, valorComDesconto: fmtCampoBR(e.target.value) })} /></div>
+                  <div><Label className="text-xs">ou desconto (%)</Label><Input inputMode="decimal" className="text-right font-mono" value={prazo.descontoPct} placeholder="ex.: 30"
+                    onChange={(e) => setPrazo({ ...prazo, descontoPct: e.target.value })}
+                    onBlur={() => { const v = parseValorBR(prazo.valorPagar), pc = parseValorBR(prazo.descontoPct); if (v > 0 && pc > 0 && pc < 100 && !prazo.valorComDesconto.trim()) setPrazo({ ...prazo, valorComDesconto: fmtCampoBR(String(Math.round(v * (1 - pc / 100) * 100) / 100).replace(".", ",")) }); }} /></div>
+                </div>
+                {(() => { const v = parseValorBR(prazo.valorPagar), c = parseValorBR(prazo.valorComDesconto); return v > 0 && c > 0 && c < v ? <p className="text-[11px] text-success">Economia de {fmtBRL(v - c)} pagando até {prazo.descontoAte ? fmtData(prazo.descontoAte) : "a data do desconto"}. O aviso sai {prazo.avisoDias || 0} dia(s) antes.</p> : null; })()}
+                {prazo.id && titulosPagar && titulosPagar.length > 0 && (
+                  <div><Label className="text-xs">Título a pagar ligado (quitado → prazo cumprido)</Label>
+                    <SelectMenu value={prazo.contaPagarId} onChange={(v) => setPrazo({ ...prazo, contaPagarId: v })} options={[{ value: "", label: "Nenhum" }, ...titulosPagar.map((t) => ({ value: t.id, label: `${t.numero} · ${t.descricao} · ${fmtBRL(t.valorOriginal)}` }))]} /></div>
+                )}
+              </div>
+            )}
             {msg && <p className="text-sm text-danger">{msg}</p>}
           </div>}
           <DialogFooter><Button variant="outline" onClick={() => setPrazo(null)}>Cancelar</Button><Button onClick={salvarPrazo} disabled={salvando || !prazo?.descricao.trim() || !vencePrazo}>Salvar</Button></DialogFooter>
