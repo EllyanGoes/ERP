@@ -1,26 +1,23 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import DataTable, { type GroupInfo } from "@/components/shared/DataTable";
 import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/session-context";
 import { formatBRL, formatDate, decimalToNumber, isVencida } from "@/lib/utils";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
-import DatePicker from "@/components/shared/DatePicker";
-import PagamentosInput, {
-  type FormaOpt, type ContaOpt, type LinhaPagamento,
-  novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
-} from "@/components/pedidos-venda/PagamentosInput";
-import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
+import type { FormaOpt, ContaOpt } from "@/components/pedidos-venda/PagamentosInput";
+import type { NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
+import PagamentoTituloForm, { type TaxaNaturezaOpt, type CentroOpt, filtrarTaxaNaturezas, rotuloNatureza } from "@/components/financeiro/PagamentoTituloForm";
+import PagamentoLoteDialog, { type TituloLote } from "@/components/financeiro/PagamentoLoteDialog";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
-import { Plus, Trash2, Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, CircleDot, Kanban } from "lucide-react";
+import { Wallet, CalendarClock, Pencil, Building2, RotateCcw, ExternalLink, MoreVertical, Search, X, Layers, Link2, Loader2, BookOpen, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, CircleDot, Kanban } from "lucide-react";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import TitulosGrafico from "@/components/financeiro/TitulosGrafico";
 import TitulosKanban, { type TituloKanban } from "@/components/financeiro/TitulosKanban";
@@ -31,9 +28,6 @@ import FilterSelect from "@/components/shared/FilterSelect";
 import CheckboxFilter from "@/components/shared/CheckboxFilter";
 import DateRangePicker, { type DateRange } from "@/components/shared/DateRangePicker";
 import { cn } from "@/lib/utils";
-
-// Linha do rateio gerencial por natureza no modal de baixa.
-type RateioLinha = { key: string; naturezaFinanceiraId: string; detalhamento: string; valor: string };
 
 // Item de origem (DE/pedido) com TES — a naturezaSugerida do TES alimenta o
 // alerta "Sem centro de custo" (sugestão em grupo 2 = material, potencial CIF).
@@ -86,6 +80,10 @@ type ContaRow = {
   folhaId?: string | null; recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
   naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
   criadoPor?: string | null; atualizadoPor?: string | null;
+  // Título único de RH (folha/diárias): pago pelo módulo de RH, nunca aqui.
+  contabilizacaoExterna?: boolean;
+  // Natureza da taxa retida acumulada (desconto = "descontos-recebidos").
+  taxaNaturezaId?: string | null;
 };
 
 // TES e Centro de custo do documento de material que originou o título — SOMENTE
@@ -141,26 +139,6 @@ function origemPagar(c: ContaRow): OrigemPagar {
   if (c.recorrenciaId) return { label: "Recorrência", ref: null };
   if (c.intragrupo) return { label: "Intragrupo", ref: null };
   return { label: "Manual", ref: null };
-}
-
-// Naturezas elegíveis para a taxa/tarifa RETIDA na baixa: o grupo 6 do plano
-// hierárquico (6.01 Juros … 6.06 IOF), em ordem de código. Default: 6.02 Tarifas
-// bancárias (comportamento atual preservado). Empresa sem plano com código (ex.:
-// CMB) cai nas travadas do sistema (tarifa bancária, taxa de cartão), como antes.
-type TaxaNaturezaOpt = { id: string; nome: string; codigo?: string | null; sistema?: boolean; sistemaChave?: string | null };
-const CHAVES_TAXA_PAGAR = ["tarifa-bancaria", "taxa-cartao"] as const;
-function filtrarTaxaNaturezas(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt[] {
-  const grupo6 = arr
-    .filter((n) => n.codigo?.startsWith("6."))
-    .sort((a, b) => (a.codigo ?? "").localeCompare(b.codigo ?? ""));
-  if (grupo6.length > 0) return grupo6;
-  return CHAVES_TAXA_PAGAR
-    .map((ch) => arr.find((n) => n.sistema === true && n.sistemaChave === ch))
-    .filter((n): n is TaxaNaturezaOpt => !!n);
-}
-// Default da taxa no pagar: 6.02 (tarifa bancária) — por chave travada; senão a 1ª.
-function taxaNaturezaDefault(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt | undefined {
-  return arr.find((n) => n.sistemaChave === "tarifa-bancaria") ?? arr[0];
 }
 
 // Naturezas do título (coluna e filtro): as linhas do split; sem split, a
@@ -401,11 +379,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   // Totais dos blocos, recortando a base por categoria de status.
   const totais = useMemo(() => {
     const now = new Date();
-    let emAberto = 0, vencido = 0, aVencer = 0, semVenc = 0, pagoMes = 0;
+    let vencido = 0, aVencer = 0, semVenc = 0, pagoMes = 0;
     for (const c of contasBase) {
       if (c.status === "ABERTA" || c.status === "PARCIAL") {
         const saldo = decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago);
-        emAberto += saldo;
         if (!c.dataVencimento) semVenc += saldo;
         else if (isVencida(c.dataVencimento, c.dataPagamento)) vencido += saldo;
         else aVencer += saldo;
@@ -441,53 +418,15 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     const c = contas.find((x) => x.id === alvo);
     if (c) setDetalhe(c);
   }, [searchParams, contas]);
-  const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
-  const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
   const [formas, setFormas] = useState<FormaOpt[]>([]);
   const [contasBanco, setContasBanco] = useState<ContaOpt[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
-  // Rateio gerencial por natureza (classificação do título na baixa).
+  // Apoio do formulário de pagamento (PagamentoTituloForm).
   const [naturezasOpts, setNaturezasOpts] = useState<NaturezaOpt[]>([]);
-  const [rateio, setRateio] = useState<RateioLinha[]>([]);
-  // Centro de custo do título — editável na baixa (a alteração atualiza o título).
-  const [centros, setCentros] = useState<{ id: string; codigo: string; nome: string; grupoCentroCusto?: { nome: string } | null }[]>([]);
-  // Opções de centro agrupadas pelo GRUPO de centro de custo (mesma divisão do
-  // droplist de naturezas). Ordena por grupo p/ os cabeçalhos saírem juntos.
-  const centroOptions = [...centros]
-    .sort((a, b) => (a.grupoCentroCusto?.nome ?? "ZZZ").localeCompare(b.grupoCentroCusto?.nome ?? "ZZZ") || a.codigo.localeCompare(b.codigo, undefined, { numeric: true }))
-    .map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nome}`, group: c.grupoCentroCusto?.nome ?? "Sem grupo" }));
-  const [centroPagId, setCentroPagId] = useState("");
-  // Encargos da baixa: juros/multa SAEM do caixa além do título; a taxa/tarifa
-  // é RETIDA (paga MENOS) — o título é quitado por linhas + taxa e a taxa vira
-  // despesa com natureza travada do sistema.
-  const [juros, setJuros] = useState("");
-  const [multa, setMulta] = useState("");
-  const [taxa, setTaxa] = useState("");
-  const [taxaNaturezaId, setTaxaNaturezaId] = useState("");
+  const [centros, setCentros] = useState<CentroOpt[]>([]);
   const [taxaNaturezas, setTaxaNaturezas] = useState<TaxaNaturezaOpt[]>([]);
-
-  // Encargos POR DENTRO do título: ao alimentar juros/multa/taxa, a 1ª linha da
-  // classificação ABSORVE a diferença (título − demais linhas − encargos) — o
-  // somatório exibido continua batendo com o valor do título. Chamado nos
-  // onChange (síncrono, mesmo render) para o verificador não piscar.
-  // "100" → "100,00" ao sair de qualquer campo de valor (formato BR).
-  const fmtCampoBR = (s: string) =>
-    s.trim() === "" ? "" : parseValorBR(s).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const absorverEncargos = (j: string, m: string, t: string) => {
-    if (!selected) return;
-    const valOrig = decimalToNumber(selected.valorOriginal);
-    const encargos = parseValorBR(j) + parseValorBR(m) + parseValorBR(t);
-    setRateio((prev) => {
-      if (prev.length === 0) return prev;
-      const outras = prev.slice(1).reduce((s, l) => s + parseValorBR(l.valor), 0);
-      const alvo = Math.max(0, Math.round((valOrig - outras - encargos) * 100) / 100);
-      const fmt = alvo.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      if (prev[0].valor === fmt) return prev;
-      return prev.map((l, i) => (i === 0 ? { ...l, valor: fmt } : l));
-    });
-  };
+  // Natureza travada "descontos-recebidos" (ENTRADA): desconto na baixa.
+  const [descontoNatureza, setDescontoNatureza] = useState<TaxaNaturezaOpt | null>(null);
 
   // Rastreabilidade: ?focus=<id> destaca o título vindo do Razão/contabilidade.
   useEffect(() => {
@@ -505,11 +444,13 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       // Grupo 6 (Financeiras) para a taxa/tarifa retida; fallback nas travadas.
       setTaxaNaturezas(filtrarTaxaNaturezas(arr));
     }).catch(() => {});
+    fetch("/api/financeiro/naturezas?tipo=ENTRADA&ativo=1").then((r) => r.json()).then((j) => {
+      const arr: TaxaNaturezaOpt[] = Array.isArray(j) ? j : (j.data ?? []);
+      setDescontoNatureza(arr.find((n) => n.sistemaChave === "descontos-recebidos") ?? null);
+    }).catch(() => {});
     fetch("/api/empresa/centros-custo?ativo=true").then((r) => r.json())
       .then((j) => setCentros(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
   }, []);
-
-  const saldo = selected ? decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago) : 0;
 
   // MODO GRUPO: título de OUTRA empresa aparece na lista (leitura em grupo do
   // seletor), mas as AÇÕES pedem a troca da empresa ativa — baixa/edição usam
@@ -522,28 +463,42 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     alert(`Este título é da ${nome}. Troque a empresa ativa no seletor (canto superior direito) para executar esta ação.`);
   };
 
+  // ── Seleção para pagamento EM LOTE ─────────────────────────────────────────
+  // Só títulos pagáveis (em aberto/parcial, com saldo) ganham checkbox. Os que o
+  // lote vai pular (RH, permuta, sem classificação, outra empresa) podem ser
+  // marcados — o modal avisa o motivo antes de enviar (mesma regra do servidor).
+  const saldoDe = (c: ContaRow) => Math.max(0, Math.round((decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)) * 100) / 100);
+  const podeSelecionar = (c: ContaRow) => c.status !== "PAGA" && c.status !== "CANCELADA" && saldoDe(c) > 0.005;
+  const motivoLote = (c: ContaRow): string | null =>
+    acaoCruzaEmpresa(c) ? "Título de outra empresa — troque a empresa ativa"
+    : c.contabilizacaoExterna ? `Pago pelo módulo de RH (${c.folhaId ? "Folha de Pagamento" : "Diárias"})`
+    : c.formaPagamentoPrevista?.tipo === "PERMUTA" ? "Previsto como permuta — quite pelo Encontro de Contas"
+    : ((c.naturezas?.length ?? 0) === 0 && !c.naturezaFinanceiraId) ? "Sem natureza financeira — classifique e pague individualmente"
+    : !c.centroCustoId ? "Sem centro de custo — classifique e pague individualmente"
+    : null;
+  const [selIds, setSelIds] = useState<string[]>([]);
+  const [loteAberto, setLoteAberto] = useState(false);
+  const toggleSel = (id: string) => setSelIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  // Após refresh (pagos saem do "em aberto"), a seleção perde o que não é mais pagável.
+  useEffect(() => {
+    setSelIds((prev) => {
+      const novo = prev.filter((id) => { const c = contas.find((x) => x.id === id); return !!c && podeSelecionar(c); });
+      return novo.length === prev.length ? prev : novo;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contas]);
+  const selecionadas = useMemo(
+    () => selIds.map((id) => contas.find((c) => c.id === id)).filter((c): c is ContaRow => !!c),
+    [selIds, contas],
+  );
+  const totalSelecionado = selecionadas.reduce((s, c) => s + saldoDe(c), 0);
+  const titulosLote: TituloLote[] = selecionadas.map((c) => ({
+    id: c.id, numero: c.numero, fornecedor: c.fornecedor?.razaoSocial ?? null, saldo: saldoDe(c), motivo: motivoLote(c),
+  }));
+
+  // Abre o "Registrar Pagamento" (o formulário inicializa a partir do título).
   function abrir(row: ContaRow) {
     setSelected(row);
-    setErro(null);
-    setDataPag(new Date().toISOString().split("T")[0]);
-    const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
-    // Forma prevista do título (herdada do DE) pré-preenche a 1ª linha — exceto
-    // permuta, que não é forma de baixa (quita-se pelo Encontro de Contas).
-    const prev = row.formaPagamentoPrevista;
-    const formaPrev = prev && prev.tipo !== "PERMUTA" ? prev.nome : "";
-    setLinhas([novaLinhaPagamento(formaPrev, contaPadraoParaForma(formaPrev, formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
-    // Rateio por natureza: pré-carrega o existente ou 1 linha com o valor do
-    // título (natureza única do título — legado sem split — entra na linha).
-    const valOrig = decimalToNumber(row.valorOriginal);
-    setRateio(
-      row.naturezas && row.naturezas.length
-        ? row.naturezas.map((n) => ({ key: crypto.randomUUID(), naturezaFinanceiraId: n.naturezaFinanceiraId, detalhamento: n.detalhamento ?? "", valor: decimalToNumber(n.valor).toFixed(2).replace(".", ",") }))
-        : [{ key: crypto.randomUUID(), naturezaFinanceiraId: row.naturezaFinanceiraId ?? "", detalhamento: "", valor: valOrig > 0 ? valOrig.toFixed(2).replace(".", ",") : "" }],
-    );
-    // Centro de custo do título (herdado do DE quando propagado) — editável.
-    setCentroPagId(row.centroCustoId ?? "");
-    // Encargos sempre zerados ao reabrir o modal.
-    setJuros(""); setMulta(""); setTaxa(""); setTaxaNaturezaId("");
   }
 
   // Estorna o pagamento: o título volta para "em aberto" e o lançamento no
@@ -676,6 +631,17 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => (
       <span className="inline-flex items-center gap-1.5">
+        {/* Seleção p/ pagamento em lote (o DataTable ignora clique em input). */}
+        {podeSelecionar(row.original) ? (
+          <input
+            type="checkbox"
+            checked={selIds.includes(row.original.id)}
+            onChange={() => toggleSel(row.original.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-3.5 w-3.5 cursor-pointer accent-blue-600"
+            title="Selecionar para pagamento em lote"
+          />
+        ) : <span className="inline-block w-3.5" />}
         <EmpresaTag empresaId={row.original.empresaId} compact />
         <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
         {row.original.antecipado && (
@@ -777,7 +743,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
       // ml-auto: mesmo se a coluna for alargada (resizer), o ⋮ fica ancorado à direita.
       cell: ({ row }) => <div className="w-10 ml-auto">{renderAcoes(row.original)}</div>,
     },
-  ], [contasBanco, isAdmin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [contasBanco, isAdmin, selIds]);
 
   // Ao agrupar, esconde a coluna que virou o cabeçalho do grupo (redundante).
   const colsParaTabela = useMemo(() => columns.filter((c) => {
@@ -786,68 +753,6 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
     if (agrupamento === "vencimento" && id === "dataVencimento") return false;
     return true;
   }), [columns, agrupamento]);
-
-  async function handlePagamento() {
-    if (!selected) return;
-    const pagamentos = linhas
-      .filter((l) => parseValorBR(l.valor) > 0)
-      .map((l) => ({ forma: l.forma || null, contaBancariaId: l.contaBancariaId || null, valor: parseValorBR(l.valor) }));
-    if (pagamentos.length === 0) { setErro("Informe ao menos uma forma com valor."); return; }
-    const contaRuim = pagamentoContaInvalida(linhas, formas, contasBanco);
-    if (contaRuim) {
-      setErro(`Selecione a conta bancária de origem para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem sair do Caixa em Dinheiro.`);
-      return;
-    }
-    // Classificação OBRIGATÓRIA na baixa: natureza (ao menos uma linha) e
-    // centro de custo — o título sai quitado já classificado.
-    if (!rateio.some((l) => l.naturezaFinanceiraId)) {
-      setErro("Informe a natureza financeira na Classificação."); return;
-    }
-    if (!centroPagId) {
-      setErro("Informe o centro de custo na Classificação."); return;
-    }
-    // Encargos: juros/multa saem do caixa; taxa é retida (natureza travada).
-    const vJuros = parseValorBR(juros);
-    const vMulta = parseValorBR(multa);
-    const vTaxa = parseValorBR(taxa);
-    if (vJuros < 0 || vMulta < 0 || vTaxa < 0) { setErro("Juros, multa e taxa não podem ser negativos."); return; }
-    // Rateio por natureza: a soma deve bater com o valor do título — sozinha
-    // (encargos por fora) ou somada aos encargos (por dentro — a 1ª linha
-    // absorve; juros/multa/taxa viajam nas naturezas travadas automáticas).
-    const rateioValido = rateio.filter((l) => l.naturezaFinanceiraId && parseValorBR(l.valor) > 0);
-    if (rateioValido.length > 0) {
-      const soma = Math.round(rateioValido.reduce((s, l) => s + parseValorBR(l.valor), 0) * 100) / 100;
-      const valOrig = decimalToNumber(selected.valorOriginal);
-      const encargos = Math.round((vJuros + vMulta + vTaxa) * 100) / 100;
-      const bateSozinha = Math.abs(soma - valOrig) <= 0.05;
-      const bateComEncargos = encargos > 0.005 && Math.abs(soma + encargos - valOrig) <= 0.05;
-      if (!bateSozinha && !bateComEncargos) {
-        setErro(`A soma da classificação (${formatBRL(soma + encargos)}, com encargos) deve bater com o valor do título (${formatBRL(valOrig)}).`);
-        return;
-      }
-    }
-    setSaving(true); setErro(null);
-    const res = await fetch(`/api/contas-pagar/${selected.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pagamentos, dataPagamento: dataPag, valorMulta: vMulta, valorJuros: vJuros,
-        valorTaxa: vTaxa,
-        taxaNaturezaId: vTaxa > 0 ? (taxaNaturezaId || taxaNaturezaDefault(taxaNaturezas)?.id || null) : null,
-        naturezas: rateioValido.length
-          ? rateioValido.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseValorBR(l.valor) }))
-          : undefined,
-        // Classificação editada na baixa vai para o TÍTULO (null = limpar).
-        centroCustoId: centroPagId || null,
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) { setErro((await res.json().catch(() => ({}))).error ?? "Erro ao pagar."); return; }
-    setSelected(null);
-    router.refresh();
-  }
-
-  const totalInformado = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
 
   // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
   // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
@@ -1104,9 +1009,12 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
                 status: c.status,
                 compra: org?.label === "Compra" ? org.ref ?? null : null,
                 antecipado: !!c.antecipado,
+                selecionavel: podeSelecionar(c),
               };
             })}
             onAbrir={(id) => { const c = contas.find((x) => x.id === id); if (c) setDetalhe(c); }}
+            selecionados={selIds}
+            onToggleSelecao={toggleSel}
           />
         </div>
       ) : (
@@ -1127,6 +1035,27 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         stickyFirstColumn
       />
       )}
+      {/* Barra de seleção (pagamento em lote) — fixa no rodapé enquanto há seleção. */}
+      {selecionadas.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5 shadow-lg">
+          <span className="text-sm">
+            <b>{selecionadas.length}</b> selecionado{selecionadas.length !== 1 ? "s" : ""} · <span className="font-semibold tabular-nums">{formatBRL(totalSelecionado)}</span>
+          </span>
+          {(() => {
+            const visiveis = contasFiltradas.filter(podeSelecionar).map((c) => c.id);
+            const faltam = visiveis.filter((id) => !selIds.includes(id));
+            return faltam.length > 0 ? (
+              <button type="button" onClick={() => setSelIds((prev) => [...prev, ...faltam].slice(0, 200))} className="text-xs text-info hover:underline">
+                Selecionar todos os visíveis ({visiveis.length})
+              </button>
+            ) : null;
+          })()}
+          <Button size="sm" onClick={() => setLoteAberto(true)}>
+            <Wallet className="w-4 h-4" /> Pagar selecionados
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelIds([])}>Limpar</Button>
+        </div>
+      )}
       {detalhe && (() => {
         const podePagar = detalhe.status !== "PAGA" && detalhe.status !== "CANCELADA";
         const vo = decimalToNumber(detalhe.valorOriginal);
@@ -1142,6 +1071,8 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         const vJuros = decimalToNumber(detalhe.valorJuros ?? 0);
         const vMulta = decimalToNumber(detalhe.valorMulta ?? 0);
         const vTaxa = decimalToNumber(detalhe.valorTaxa ?? 0);
+        // Taxa acumulada na natureza de desconto = desconto obtido na baixa.
+        const taxaEhDesconto = !!descontoNatureza && detalhe.taxaNaturezaId === descontoNatureza.id;
         // Emissão do título; sem ela cai na emissão do DE e, por fim, na criação.
         const emissao = detalhe.dataEmissao ?? conf?.dtEmissao ?? detalhe.createdAt ?? null;
         // Naturezas: split com valores (uma linha por natureza); sem split, a
@@ -1168,7 +1099,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           { label: "Saldo", valor: <span className="font-medium">{formatBRL(vo - vp)}</span> },
           ...(vJuros > 0 ? [{ label: "Juros", valor: formatBRL(vJuros) }] : []),
           ...(vMulta > 0 ? [{ label: "Multa", valor: formatBRL(vMulta) }] : []),
-          ...(vTaxa > 0 ? [{ label: "Taxa retida", valor: formatBRL(vTaxa) }] : []),
+          ...(vTaxa > 0 ? [{ label: taxaEhDesconto ? "Desconto" : "Taxa retida", valor: formatBRL(vTaxa) }] : []),
           // ── Classificação ────────────────────────────────────────────────
           // TES e Centro de custo — SOMENTE LEITURA (definidos no material, não aqui).
           { label: "TES (origem)", valor: <span className="text-muted-foreground">{tesEcentroDoTitulo(detalhe).tes}</span> },
@@ -1178,14 +1109,14 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           // espelho do que o razão gerencial grava.
           ...(() => {
             const buscaChave = (ch: string) => taxaNaturezas.find((n) => n.sistemaChave === ch) ?? null;
-            const natTaxaSel = taxaNaturezas.find((n) => n.id === (detalhe as { taxaNaturezaId?: string | null }).taxaNaturezaId) ?? buscaChave("tarifa-bancaria");
-            const rotSis = (n: TaxaNaturezaOpt | null, fb: string) => (n ? `${n.codigo ? `${n.codigo} ` : ""}${n.nome}` : fb);
+            const natTaxaSel = taxaEhDesconto ? descontoNatureza : (taxaNaturezas.find((n) => n.id === detalhe.taxaNaturezaId) ?? buscaChave("tarifa-bancaria"));
+            const rotSis = (n: TaxaNaturezaOpt | null, fb: string) => (n ? rotuloNatureza(n) : fb);
             const linhas = [
               ...natLinhas.map((l) => ({ rot: rotuloNat(l.naturezaFinanceira!), det: l.detalhamento ?? null, valor: decimalToNumber(l.valor), auto: false })),
               ...(natLinhas.length === 0 && detalhe.naturezaFinanceira ? [{ rot: rotuloNat(detalhe.naturezaFinanceira), det: null, valor: vo, auto: false }] : []),
               ...(vJuros > 0 ? [{ rot: rotSis(buscaChave("juros-pagos"), "Juros pagos"), det: "juros da baixa", valor: vJuros, auto: true }] : []),
               ...(vMulta > 0 ? [{ rot: rotSis(buscaChave("multa-paga"), "Multas pagas"), det: "multa da baixa", valor: vMulta, auto: true }] : []),
-              ...(vTaxa > 0 ? [{ rot: rotSis(natTaxaSel, "Taxa retida"), det: "taxa/tarifa retida", valor: vTaxa, auto: true }] : []),
+              ...(vTaxa > 0 ? [{ rot: rotSis(natTaxaSel, taxaEhDesconto ? "Descontos obtidos" : "Taxa retida"), det: taxaEhDesconto ? "desconto da baixa" : "taxa/tarifa retida", valor: vTaxa, auto: true }] : []),
             ];
             if (linhas.length === 0) return [];
             return [{
@@ -1260,176 +1191,56 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
         );
       })()}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Registrar Pagamento</DialogTitle>
-            {selected && <p className="text-sm text-muted-foreground">{selected.numero} — Saldo: {formatBRL(saldo)}</p>}
+            {selected && <p className="text-sm text-muted-foreground">{selected.numero}{selected.fornecedor ? ` · ${selected.fornecedor.razaoSocial}` : ""} — Saldo: {formatBRL(decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago))}</p>}
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Classificação de origem (somente leitura) — o financeiro vê, não edita. */}
-            {selected && (() => { const o = tesEcentroDoTitulo(selected); const org = origemPagar(selected); return (
-              <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs grid grid-cols-3 gap-2">
-                <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Origem</span><span className="text-foreground">{org.label}{org.ref ? ` · ${org.ref}` : ""}</span></div>
-                <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">TES</span><span className="text-foreground">{o.tes}</span></div>
-                <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Centro de custo</span><span className="text-foreground">{o.centro}</span></div>
-              </div>
-            ); })()}
-            <div>
-              <Label>Data do Pagamento</Label>
-              <DatePicker value={dataPag} onChange={(v) => setDataPag(v)} className="mt-1 w-full" />
+          {/* Classificação de origem (somente leitura) — o financeiro vê, não edita. */}
+          {selected && (() => { const o = tesEcentroDoTitulo(selected); const org = origemPagar(selected); return (
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs grid grid-cols-3 gap-2">
+              <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Origem</span><span className="text-foreground">{org.label}{org.ref ? ` · ${org.ref}` : ""}</span></div>
+              <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">TES</span><span className="text-foreground">{o.tes}</span></div>
+              <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Centro de custo</span><span className="text-foreground">{o.centro}</span></div>
             </div>
-            {selected?.formaPagamentoPrevista?.tipo === "PERMUTA" && (
-              <div className="rounded-lg bg-violet-50 dark:bg-violet-500/10 border border-violet-300/50 px-3 py-2 text-xs text-violet-700 dark:text-violet-300">
-                Título previsto como <b>permuta</b> — quite pelo <b>Encontro de Contas</b> (motivo Permuta),
-                que liquida o CP e o CR do parceiro no mesmo lançamento. A baixa abaixo vale para
-                pagamento em dinheiro/banco.
-              </div>
-            )}
-            <PagamentosInput
-              linhas={linhas}
-              setLinhas={setLinhas}
+          ); })()}
+          {selected && (
+            <PagamentoTituloForm
+              key={selected.id}
+              titulo={{
+                id: selected.id,
+                numero: selected.numero,
+                valorOriginal: decimalToNumber(selected.valorOriginal),
+                valorPago: decimalToNumber(selected.valorPago),
+                formaPagamentoPrevista: selected.formaPagamentoPrevista ?? null,
+                naturezas: (selected.naturezas ?? []).map((n) => ({ naturezaFinanceiraId: n.naturezaFinanceiraId, detalhamento: n.detalhamento, valor: decimalToNumber(n.valor) })),
+                naturezaFinanceiraId: selected.naturezaFinanceiraId ?? null,
+                centroCustoId: selected.centroCustoId ?? null,
+              }}
               formas={formas}
               contas={contasBanco}
-              total={saldo}
-              menuMinWidth={340}
-              contaPlaceholder="Conta de pagamento"
+              naturezas={naturezasOpts}
+              onNaturezaCriada={(n) => setNaturezasOpts((prev) => [...prev, n])}
+              centros={centros}
+              taxaNaturezas={taxaNaturezas}
+              descontoNatureza={descontoNatureza}
+              onPago={() => { setSelected(null); router.refresh(); }}
+              onCancelar={() => setSelected(null)}
             />
-            {/* Encargos da baixa: juros/multa saem do caixa além do título; a
-                taxa/tarifa é retida (paga MENOS) — quitação = linhas + taxa. */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Encargos (opcional)</Label>
-              {/* A natureza da taxa não é escolhida aqui: cai na travada padrão
-                  (6.02 Tarifas bancárias) e aparece na linha automática abaixo. */}
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <Label className="text-xs">Juros (R$)</Label>
-                  <Input value={juros} onChange={(e) => { setJuros(e.target.value); absorverEncargos(e.target.value, multa, taxa); }} onBlur={(e) => setJuros(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
-                </div>
-                <div>
-                  <Label className="text-xs">Multa (R$)</Label>
-                  <Input value={multa} onChange={(e) => { setMulta(e.target.value); absorverEncargos(juros, e.target.value, taxa); }} onBlur={(e) => setMulta(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
-                </div>
-                <div>
-                  <Label className="text-xs">Taxa/tarifa retida (R$)</Label>
-                  <Input value={taxa} onChange={(e) => { setTaxa(e.target.value); absorverEncargos(juros, multa, e.target.value); }} onBlur={(e) => setTaxa(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
-                </div>
-              </div>
-              {(() => {
-                const vJuros = parseValorBR(juros), vMulta = parseValorBR(multa), vTaxa = parseValorBR(taxa);
-                if (vJuros < 0 || vMulta < 0 || vTaxa < 0) return <p className="text-[11px] text-danger">Juros, multa e taxa não podem ser negativos.</p>;
-                if (vTaxa <= 0 && vJuros <= 0 && vMulta <= 0) return null;
-                const caixa = totalInformado + vJuros + vMulta;
-                return (
-                  <p className="text-[11px] text-muted-foreground">
-                    {vTaxa > 0
-                      ? <>Caixa: <span className="font-medium text-foreground">{formatBRL(caixa)}</span> · Baixa do título: <span className="font-medium text-foreground">{formatBRL(totalInformado + vTaxa)}</span></>
-                      : <>Caixa: <span className="font-medium text-foreground">{formatBRL(caixa)}</span> (título + juros/multa)</>}
-                  </p>
-                );
-              })()}
-            </div>
-            {/* Classificação do título — cada linha: natureza / centro de custo /
-                detalhamento / valor. O centro é ÚNICO (nível do título, Opção A) e
-                vive na 1ª linha; as demais mantêm a coluna p/ alinhar. Edições
-                aqui ATUALIZAM o título. */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 min-w-0">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Classificação</Label>
-                </span>
-                <button type="button" onClick={() => setRateio((p) => [...p, { key: crypto.randomUUID(), naturezaFinanceiraId: "", detalhamento: "", valor: "" }])} className="inline-flex items-center gap-1 text-xs text-info hover:text-info font-medium">
-                  <Plus className="w-3.5 h-3.5" /> Adicionar natureza
-                </button>
-              </div>
-              <div className="grid grid-cols-[1.2fr_1fr_1fr_6.5rem_auto] gap-2 text-[11px] text-muted-foreground">
-                <span>Natureza <span className="text-red-500">*</span></span><span>Centro de custo <span className="text-red-500">*</span></span><span>Detalhamento</span><span className="text-right">Valor</span><span className="w-7" />
-              </div>
-              {rateio.map((l, i) => (
-                <div key={l.key} className="grid grid-cols-[1.2fr_1fr_1fr_6.5rem_auto] gap-2 items-center">
-                  <NaturezaCombobox
-                    value={l.naturezaFinanceiraId}
-                    onChange={(id) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, naturezaFinanceiraId: id } : x)))}
-                    naturezas={naturezasOpts}
-                    defaultTipo="SAIDA"
-                    allowCreate
-                    onCreated={(n) => setNaturezasOpts((prev) => [...prev, n])}
-                  />
-                  {i === 0 ? (
-                    <ComboboxWithCreate
-                      value={centroPagId}
-                      onChange={setCentroPagId}
-                      options={centroOptions}
-                      placeholder="Centro de custo…"
-                      noneLabel="Sem centro de custo"
-                      triggerClassName="h-9"
-                      menuMinWidth={340}
-                    />
-                  ) : (
-                    <span className="text-xs text-muted-foreground/40 px-2" title="O centro de custo é do título inteiro (definido na 1ª linha)">〃</span>
-                  )}
-                  <Input value={l.detalhamento} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, detalhamento: e.target.value } : x)))} placeholder="Detalhamento (opcional)" className="h-9 min-w-0" />
-                  <Input value={l.valor} onChange={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, valor: e.target.value } : x)))} onBlur={(e) => setRateio((p) => p.map((x) => (x.key === l.key ? { ...x, valor: fmtCampoBR(e.target.value) } : x)))} placeholder="0,00" className="h-9 text-right font-mono min-w-0" />
-                  <button type="button" onClick={() => setRateio((p) => (p.length > 1 ? p.filter((x) => x.key !== l.key) : p))} disabled={rateio.length <= 1} className="p-1.5 rounded text-muted-foreground/60 hover:text-red-500 hover:bg-danger/10 disabled:opacity-30">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-              {/* ENCARGOS refletidos automaticamente (somente leitura) — espelho
-                  do que a contabilização grava: juros/multa nas naturezas
-                  travadas do grupo 6 e a taxa na natureza escolhida acima. */}
-              {(() => {
-                const buscaChave = (ch: string) => taxaNaturezas.find((n) => n.sistemaChave === ch);
-                const natTaxa = taxaNaturezas.find((n) => n.id === (taxaNaturezaId || taxaNaturezaDefault(taxaNaturezas)?.id));
-                const encargos = [
-                  { rot: "Juros da baixa", v: parseValorBR(juros), nat: buscaChave("juros-pagos") },
-                  { rot: "Multa da baixa", v: parseValorBR(multa), nat: buscaChave("multa-paga") },
-                  { rot: "Taxa/tarifa retida", v: parseValorBR(taxa), nat: natTaxa },
-                ].filter((e) => e.v > 0);
-                if (encargos.length === 0) return null;
-                return encargos.map((e) => (
-                  <div key={e.rot} className="grid grid-cols-[1.2fr_1fr_1fr_6.5rem_auto] gap-2 items-center opacity-80">
-                    <span className="h-9 flex items-center px-2 rounded-md bg-muted text-sm truncate" title="Classificação automática do encargo">
-                      {e.nat ? `${e.nat.codigo ? `${e.nat.codigo} ` : ""}${e.nat.nome}` : "Natureza travada do sistema"}
-                    </span>
-                    <span className="text-xs text-muted-foreground/40 px-2" title="O centro de custo é do título inteiro (definido na 1ª linha)">〃</span>
-                    <span className="h-9 flex items-center px-2 rounded-md bg-muted text-sm text-muted-foreground">{e.rot} (automático)</span>
-                    <span className="h-9 flex items-center justify-end px-2 rounded-md bg-muted text-sm font-mono">{e.v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    <span className="w-7" />
-                  </div>
-                ));
-              })()}
-              {/* SOMATÓRIO ao vivo: linhas editáveis + encargos automáticos ×
-                  valor do título — verde quando fecha, vermelho com a diferença. */}
-              {selected && (() => {
-                const valOrig = decimalToNumber(selected.valorOriginal);
-                const somaEdit = rateio.reduce((s, l) => s + parseValorBR(l.valor), 0);
-                const enc = parseValorBR(juros) + parseValorBR(multa) + parseValorBR(taxa);
-                const soma = Math.round((somaEdit + enc) * 100) / 100;
-                const bate = Math.abs(soma - valOrig) <= 0.05;
-                return (
-                  <div className={cn(
-                    "flex items-center justify-between rounded-lg px-3 py-2",
-                    bate ? "bg-success/10 text-success" : "bg-danger/10 text-danger",
-                  )}>
-                    <span className="text-xs font-semibold uppercase tracking-wide">Soma da classificação</span>
-                    <span className="text-sm font-bold tabular-nums">
-                      {formatBRL(soma)} / {formatBRL(valOrig)} {bate ? "✓" : `· diferença ${formatBRL(soma - valOrig)}`}
-                    </span>
-                  </div>
-                );
-              })()}
-              <p className="text-[11px] text-muted-foreground">Classificação gerencial do título — natureza e centro de custo são <b>obrigatórios</b>; o centro vale para o título inteiro. Juros, multa e taxa entram <b>automaticamente</b> nas linhas acima e a 1ª linha absorve o valor deles para a soma continuar batendo com o título.</p>
-            </div>
-            {erro && <p className="text-sm text-danger">{erro}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
-            <Button onClick={handlePagamento} disabled={saving || totalInformado <= 0}>
-              {saving ? "Salvando..." : "Confirmar Pagamento"}
-            </Button>
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Pagamento em lote dos títulos selecionados. */}
+      {loteAberto && (
+        <PagamentoLoteDialog
+          titulos={titulosLote}
+          formas={formas}
+          contas={contasBanco}
+          onClose={() => setLoteAberto(false)}
+          onConcluido={() => { setSelIds([]); router.refresh(); }}
+        />
+      )}
 
       {/* Edição do título em pop-up (mesma tela). Título AVULSO (sem material/folha)
           pode editar o centro de custo; título de material não. */}

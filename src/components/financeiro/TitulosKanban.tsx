@@ -18,6 +18,8 @@ export type TituloKanban = {
   status: string;
   compra: string | null;
   antecipado: boolean;
+  /** Pode ser marcado para pagamento em lote (em aberto, com saldo). */
+  selecionavel?: boolean;
 };
 
 type Coluna = "sem_vencimento" | "a_vencer" | "vencido" | "parcial" | "pago";
@@ -44,7 +46,14 @@ function colunaDo(t: TituloKanban, hoje: string): Coluna | null {
   return diaISO(t.vencimento) < hoje ? "vencido" : "a_vencer";
 }
 
-export default function TitulosKanban({ itens, onAbrir }: { itens: TituloKanban[]; onAbrir: (id: string) => void }) {
+export default function TitulosKanban({ itens, onAbrir, selecionados, onToggleSelecao }: {
+  itens: TituloKanban[];
+  onAbrir: (id: string) => void;
+  /** Seleção para pagamento em lote (opcional — sem ela o quadro não mostra checkbox). */
+  selecionados?: string[];
+  onToggleSelecao?: (id: string) => void;
+}) {
+  const algumSelecionado = (selecionados?.length ?? 0) > 0;
   const agora = new Date();
   const hoje = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}`;
   const porColuna: Record<Coluna, TituloKanban[]> = { sem_vencimento: [], a_vencer: [], vencido: [], parcial: [], pago: [] };
@@ -80,14 +89,33 @@ export default function TitulosKanban({ itens, onAbrir }: { itens: TituloKanban[
               {lista.length === 0 && <p className="text-xs text-muted-foreground/70 text-center py-4">Nenhum título</p>}
               {lista.map((t) => {
                 const vencido = col.id === "vencido";
+                const marcado = !!selecionados?.includes(t.id);
+                const comCheck = !!onToggleSelecao && !!t.selecionavel;
                 return (
+                  <div key={t.id} className="relative group">
+                  {/* Checkbox discreto: aparece no hover ou quando já há seleção.
+                      Fica FORA do botão do cartão (clique no cartão abre o detalhe). */}
+                  {comCheck && (
+                    <input
+                      type="checkbox"
+                      checked={marcado}
+                      onChange={() => onToggleSelecao!(t.id)}
+                      title="Selecionar para pagamento em lote"
+                      className={cn(
+                        "absolute right-2 top-2.5 z-10 h-3.5 w-3.5 cursor-pointer accent-blue-600 transition-opacity",
+                        marcado || algumSelecionado ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus:opacity-100",
+                      )}
+                    />
+                  )}
                   <button
-                    key={t.id}
                     type="button"
                     onClick={() => onAbrir(t.id)}
-                    className="w-full text-left bg-card rounded-lg border border-border px-3 py-2.5 shadow-sm hover:border-blue-400 transition-colors"
+                    className={cn(
+                      "w-full text-left bg-card rounded-lg border px-3 py-2.5 shadow-sm hover:border-blue-400 transition-colors",
+                      marcado ? "border-blue-500 ring-1 ring-blue-500" : "border-border",
+                    )}
                   >
-                    <p className="text-sm text-foreground truncate" title={t.fornecedor ?? undefined}>{t.fornecedor ?? "Sem fornecedor"}</p>
+                    <p className={cn("text-sm text-foreground truncate", comCheck && "pr-5")} title={t.fornecedor ?? undefined}>{t.fornecedor ?? "Sem fornecedor"}</p>
                     {t.descricao && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2" title={t.descricao}>{t.descricao}</p>}
                     <div className="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground">
                       <span className="font-mono">{t.numero}</span>
@@ -106,6 +134,7 @@ export default function TitulosKanban({ itens, onAbrir }: { itens: TituloKanban[
                       </span>
                     </div>
                   </button>
+                  </div>
                 );
               })}
             </div>

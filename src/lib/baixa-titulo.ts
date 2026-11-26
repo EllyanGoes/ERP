@@ -166,7 +166,9 @@ export async function baixarTitulo(
   // Taxa retida: valida a natureza (travada do sistema OU do grupo 6 — Financeiras
   // — do plano hierárquico, ativa e da mesma empresa; default por lado) e rejeita
   // em título intragrupo — o motor pula caixa intragrupo e a taxa sumiria
-  // silenciosamente do razão.
+  // silenciosamente do razão. O DESCONTO na baixa do pagar usa a travada
+  // "descontos-recebidos" pelo mesmo caminho (pagou menos e quitou; o contábil
+  // credita Descontos Obtidos).
   let taxaNaturezaId: string | null = null;
   if (valorTaxa > 0.005) {
     if (conta.intragrupo) {
