@@ -55,6 +55,8 @@ type ContaRow = {
   recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
   naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
   criadoPor?: string | null; atualizadoPor?: string | null;
+  // Processo externo ligado (restituição/indenização) — origem quando não há pedido.
+  processoId?: string | null; processo?: { id: string; codigo: string } | null;
 };
 
 // Documento de ORIGEM do título a receber: pedido de venda (PV-xxxx — cobre
@@ -63,6 +65,7 @@ type ContaRow = {
 // a tela mostra SÓ o número (o PV já diz que é venda), com link para o pedido.
 function origemReceber(c: ContaRow): { label: string; ref: string | null; pedidoId?: string | null; href?: string | null } {
   if (c.pedidoVenda) return { label: "Pedido de Venda", ref: c.pedidoVenda.numero, pedidoId: c.pedidoVenda.id, href: `/pedidos-venda/${c.pedidoVenda.id}` };
+  if (c.processo) return { label: "Processo", ref: c.processo.codigo, href: `/processos/${c.processo.id}` };
   if (c.compensacaoOrigemId) return { label: "Encontro de Contas", ref: null };
   if (c.recorrenciaId) return { label: "Recorrência", ref: null };
   if (c.intragrupo) return { label: "Intragrupo", ref: null };

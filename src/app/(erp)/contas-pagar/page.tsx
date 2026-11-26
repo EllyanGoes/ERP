@@ -18,6 +18,8 @@ export default async function ContasPagarPage() {
       naturezaFinanceira: { select: { id: true, codigo: true, nome: true } },
       formaPagamentoPrevista: { select: { id: true, nome: true, tipo: true } },
       centroCusto: { select: { codigo: true, nome: true } },
+      // Processo externo ligado (custas/honorários/multas) — origem "PRC-0001" sem compra.
+      processo: { select: { id: true, codigo: true, titulo: true } },
       // DE de origem (pedido OU avulsa): número clicável + TES/centro dos itens
       // do documento — a fonte real da classificação (o pedido raramente tem).
       // naturezaSugerida do TES alimenta o alerta "Sem centro de custo" (grupo 2).

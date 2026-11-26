@@ -892,6 +892,10 @@ model ContaPagar {
   compensacaoOrigemId      String?
   compensacaoOrigem        Compensacao?           @relation("CompensacaoResiduoPagar", fields: [compensacaoOrigemId], references: [id])
   compensacaoItens         CompensacaoItem[]
+  // Processo externo (custas, honorários, multas, depósitos) — só vínculo gerencial,
+  // não muda a contabilização (docs/processos-prd.md fase 2).
+  processoId               String?
+  processo                 Processo?              @relation(fields: [processoId], references: [id], onDelete: SetNull)
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -900,6 +904,7 @@ model ContaPagar {
   @@unique([empresaId, numero])
   @@index([dataVencimento])
   @@index([fornecedorId])
+  @@index([processoId])
   @@index([conferenciaId])
   @@index([status])
   @@index([grupoParcelamentoId])
@@ -983,6 +988,9 @@ model ContaReceber {
   compensacaoOrigemId  String?
   compensacaoOrigem    Compensacao?           @relation("CompensacaoResiduoReceber", fields: [compensacaoOrigemId], references: [id])
   compensacaoItens     CompensacaoItem[]
+  // Processo externo (restituição, indenização, levantamento de depósito judicial).
+  processoId           String?
+  processo             Processo?              @relation(fields: [processoId], references: [id], onDelete: SetNull)
 
   empresa       Empresa @relation(fields: [empresaId], references: [id])
   criadoPor     String? // autoria: carimbado automaticamente pelo proxy de sessão
@@ -990,6 +998,7 @@ model ContaReceber {
 
   @@unique([empresaId, numero])
   @@index([clienteId])
+  @@index([processoId])
   @@index([dataVencimento])
   @@index([status])
   @@index([recorrenciaId])
@@ -1528,6 +1537,7 @@ model Imobilizado {
   atualizadoPor               String? // autoria: última edição manual (proxy de sessão)
   documentos                  Documento[]
   manutAtivos                 ManutAtivo[]
+  processos                   ProcessoBem[]
 
   @@index([empresaId])
 }
@@ -6703,7 +6713,7 @@ model ManutAtivoPecaLegado {
 // Tipos/situações como String (constantes em src/lib/processos.ts).
 // ─────────────────────────────────────────────────────────────────────────────
 model Processo {
-  id                     String              @id @default(cuid())
+  id                     String                  @id @default(cuid())
   empresaId              String
   codigo                 String // PRC-0001
   titulo                 String
@@ -6714,30 +6724,30 @@ model Processo {
   numerosExtras          Json? // [{ rotulo, valor }]
   portalUrl              String?
   polo                   String? // AUTOR | REU | INTERESSADO | REQUERENTE
-  interessadoTipo        String              @default("EMPRESA") // EMPRESA | PESSOA
+  interessadoTipo        String                  @default("EMPRESA") // EMPRESA | PESSOA
   interessadoNome        String?
   assunto                String?
-  situacao               String              @default("EM_ANDAMENTO")
+  situacao               String                  @default("EM_ANDAMENTO")
   fase                   String?
   abertoEm               DateTime?
   encerradoEm            DateTime?
   responsavelId          String?
   advogado               String?
-  valorCausa             Decimal?            @db.Decimal(15, 2)
+  valorCausa             Decimal?                @db.Decimal(15, 2)
   riscoPerda             String? // PROVAVEL | POSSIVEL | REMOTA (CPC 25)
-  confidencial           Boolean             @default(false)
+  confidencial           Boolean                 @default(false)
   imovel                 String?
   imobilizadoId          String?
   colaboradorId          String?
   fornecedorId           String?
   clienteId              String?
   contratoId             String?
-  tags                   String[]            @default([])
+  tags                   String[]                @default([])
   observacoes            String?
-  diasSemAndamentoAlerta Int                 @default(60)
+  diasSemAndamentoAlerta Int                     @default(60)
   // Captura automática (DataJud/CNJ): o número CNJ é o próprio "numero".
   datajudTribunal        String? // sigla do endpoint: tjap, trt8, trf1…
-  datajudAtivo           Boolean             @default(false)
+  datajudAtivo           Boolean                 @default(false)
   datajudUltimaConsulta  DateTime?
   datajudUltimoErro      String?
   datajudClasse          String?
@@ -6745,14 +6755,22 @@ model Processo {
   datajudAssuntos        String?
   criadoPor              String?
   atualizadoPor          String?
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
-  empresa                Empresa             @relation(fields: [empresaId], references: [id])
-  responsavel            Usuario?            @relation("ProcessoResponsavel", fields: [responsavelId], references: [id])
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  empresa                Empresa                 @relation(fields: [empresaId], references: [id])
+  responsavel            Usuario?                @relation("ProcessoResponsavel", fields: [responsavelId], references: [id])
   andamentos             ProcessoAndamento[]
   prazos                 ProcessoPrazo[]
   partes                 ProcessoParte[]
   documentos             Documento[]
+  // Fase 2 — acesso e financeiro
+  credenciais            ProcessoCredencial[]
+  logs                   ProcessoLog[]
+  bens                   ProcessoBem[]
+  contasPagar            ContaPagar[]
+  contasReceber          ContaReceber[]
+  // Fase 3 — link externo (advogado/despachante)
+  acessosExternos        ProcessoAcessoExterno[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId, situacao])
@@ -6772,6 +6790,8 @@ model ProcessoAndamento {
   resumoIa        String?
   codigoMovimento Int?
   usuario         String?
+  // Interno: não aparece no link externo do advogado/despachante (fase 3).
+  interno         Boolean  @default(false)
   createdAt       DateTime @default(now())
   processo        Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
 
@@ -6847,6 +6867,81 @@ model ProcessoParte {
   clienteId     String?
   colaboradorId String?
   processo      Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@index([processoId])
+}
+
+// Cofre de credenciais de portal (fase 2). Usuário e senha cifrados com AES-256-GCM
+// (src/lib/processos-cofre.ts, chave em PROCESSOS_CRED_KEY): "v1.<iv>.<tag>.<cifra>" em base64.
+// Nunca voltam na listagem — só pelo endpoint "revelar", que registra ProcessoLog.
+model ProcessoCredencial {
+  id             String   @id @default(cuid())
+  processoId     String
+  portal         String
+  url            String?
+  usuarioCifrado String
+  senhaCifrada   String
+  observacao     String?
+  criadoPor      String?
+  atualizadoPor  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  processo       Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@index([processoId])
+}
+
+// Log do processo: quem viu/copiou credencial e o que o externo fez pelo link (fase 2/3).
+// Sem FK para credencial/acesso: o registro sobrevive à exclusão deles.
+model ProcessoLog {
+  id           String   @id @default(cuid())
+  processoId   String
+  acao         String // CREDENCIAL_VER | CREDENCIAL_COPIAR_SENHA | CREDENCIAL_COPIAR_USUARIO | CREDENCIAL_CRIAR | CREDENCIAL_EDITAR | CREDENCIAL_EXCLUIR | EXTERNO_LINK_CRIAR | EXTERNO_LINK_REVOGAR | EXTERNO_ACESSO | EXTERNO_ANDAMENTO | EXTERNO_PRAZO | EXTERNO_DOCUMENTO
+  referenciaId String? // credencialId / acessoExternoId
+  detalhe      String?
+  usuarioId    String?
+  autor        String
+  ipHash       String?
+  createdAt    DateTime @default(now())
+  processo     Processo @relation(fields: [processoId], references: [id], onDelete: Cascade)
+
+  @@index([processoId, createdAt])
+  @@index([referenciaId, acao, createdAt])
+  @@index([ipHash, acao, createdAt])
+}
+
+// Bens do imobilizado ligados ao processo (ex.: processo fundiário ↔ terreno) — fase 2.
+model ProcessoBem {
+  id            String      @id @default(cuid())
+  processoId    String
+  imobilizadoId String
+  observacao    String?
+  createdAt     DateTime    @default(now())
+  processo      Processo    @relation(fields: [processoId], references: [id], onDelete: Cascade)
+  imobilizado   Imobilizado @relation(fields: [imobilizadoId], references: [id], onDelete: Cascade)
+
+  @@unique([processoId, imobilizadoId])
+  @@index([imobilizadoId])
+}
+
+// Link do advogado/despachante (fase 3): página pública /externo/processo/<token>.
+// Guarda só o HASH (sha256) do token; o token aparece uma única vez, ao gerar.
+model ProcessoAcessoExterno {
+  id             String    @id @default(cuid())
+  processoId     String
+  nome           String
+  email          String?
+  telefone       String?
+  tokenHash      String    @unique
+  validoAte      DateTime?
+  revogadoEm     DateTime?
+  revogadoPor    String?
+  documentoIds   String[]  @default([]) // documentos do GED explicitamente compartilhados (+ os enviados pelo externo)
+  podeLancar     Boolean   @default(true)
+  ultimoAcessoEm DateTime?
+  criadoPor      String?
+  createdAt      DateTime  @default(now())
+  processo       Processo  @relation(fields: [processoId], references: [id], onDelete: Cascade)
 
   @@index([processoId])
 }

@@ -3,13 +3,13 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { garantirPastaSistema, salvarArquivoDocumento } from "@/lib/documentos";
+import { salvarPdfNoProcesso } from "@/lib/processos-externo";
 import {
   PAPEIS_PARTE, TIPOS_ANDAMENTO, aplicarRoteiro, camposProcesso, carregarProcesso, dadosPrazo, dataOuNull, erroAcompanhamentoDatajud,
   podeEditar, proximoCodigoProcesso, situacaoPorAndamento, textoOuNull,
 } from "@/lib/processos";
 
-const MAX_BYTES = 4.5 * 1024 * 1024;
+const MAX_BYTES = 4.5 * 1024 * 1024; // limite do corpo da função na Vercel
 
 type Dados = {
   processoId?: string;
@@ -96,21 +96,12 @@ export async function POST(req: NextRequest) {
   // PDF no GED (fora da transação: upload externo). Falha aqui não desfaz o processo.
   let aviso: string | null = null;
   try {
-    const categoria = await garantirPastaSistema({ nome: "Processos", slug: "processos", ordem: 36 });
     const titulo = textoOuNull(d.documento?.titulo) ?? `${r.proc.codigo} — ${file.name.replace(/\.pdf$/i, "")}`;
-    const doc = await prismaSemEscopo.documento.create({
-      data: { empresaId, categoriaId: categoria.id, titulo, numero: textoOuNull(d.documento?.numero), emissao: dataAnd, processoId: r.proc.id, confidencial: r.proc.confidencial, responsavelId: r.proc.responsavelId, tags: ["processo", r.proc.codigo.toLowerCase()], criadoPor: auth.session.nome },
-      select: { id: true },
+    const docId = await salvarPdfNoProcesso({
+      processo: { id: r.proc.id, codigo: r.proc.codigo, empresaId, confidencial: r.proc.confidencial, responsavelId: r.proc.responsavelId },
+      conteudo: Buffer.from(await file.arrayBuffer()), nomeArquivo: file.name, titulo, emissao: dataAnd, autor: auth.session.nome, numero: textoOuNull(d.documento?.numero),
     });
-    try {
-      const arq = await salvarArquivoDocumento({ empresaId, categoriaSlug: categoria.slug, categoriaNome: categoria.nome, nomeArquivo: `${titulo} — v1.pdf`, mime: "application/pdf", conteudo: Buffer.from(await file.arrayBuffer()) });
-      const v = await prismaSemEscopo.documentoVersao.create({ data: { documentoId: doc.id, versao: 1, provider: arq.provider, driveFileId: arq.driveFileId, url: arq.url, nome: file.name, mime: "application/pdf", tamanho: file.size, criadoPor: auth.session.nome } });
-      await prismaSemEscopo.documento.update({ where: { id: doc.id }, data: { versaoVigenteId: v.id } });
-      await prismaSemEscopo.processoAndamento.update({ where: { id: r.andamentoId }, data: { documentoId: doc.id } });
-    } catch (e) {
-      await prismaSemEscopo.documento.delete({ where: { id: doc.id } }).catch(() => {});
-      throw e;
-    }
+    await prismaSemEscopo.processoAndamento.update({ where: { id: r.andamentoId }, data: { documentoId: docId } });
   } catch (e) {
     console.error("[processos/a-partir-de-documento] PDF não gravado no GED:", e);
     aviso = "Processo gravado, mas o PDF não foi salvo no GED. Envie o arquivo de novo pela aba Documentos.";

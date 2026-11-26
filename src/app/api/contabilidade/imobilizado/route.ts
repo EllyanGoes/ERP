@@ -22,7 +22,11 @@ export async function GET() {
 
   const bens = await prisma.imobilizado.findMany({
     orderBy: { createdAt: "desc" },
-    include: { depreciacoes: { select: { valor: true } } },
+    include: {
+      depreciacoes: { select: { valor: true } },
+      // Processos externos ligados ao bem (ex.: regularização fundiária do terreno).
+      processos: { select: { processo: { select: { id: true, codigo: true, titulo: true, confidencial: true } } } },
+    },
   });
   const data = bens.map((b) => {
     const acumulado = b.depreciacoes.reduce((s, d) => s + Number(d.valor), 0);
@@ -30,6 +34,8 @@ export async function GET() {
     return {
       ...b,
       depreciacoes: undefined,
+      // Confidencial: só o código (o título fica para quem abre o processo com permissão).
+      processos: b.processos.map((x) => ({ id: x.processo.id, codigo: x.processo.codigo, titulo: x.processo.confidencial ? null : x.processo.titulo })),
       depreciacaoAcumulada: acumulado,
       valorContabil,
     };

@@ -1,7 +1,7 @@
 "use client";
 
 // Página do processo externo: cabeçalho (situação, números, portal), abas Linha do
-// tempo · Prazos · Documentos · Partes · Dados. "Lançar andamento" e "Novo prazo"
+// tempo · Prazos · Documentos · Partes e bens · Acesso (cofre) · Financeiro · Acesso externo · Dados. "Lançar andamento" e "Novo prazo"
 // sempre à mão; exigência do órgão já oferece criar o prazo.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -20,15 +20,19 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useTabTitle } from "@/lib/tabs-context";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Check, Copy, ExternalLink, FileText, FileUp, Landmark, Loader2, Lock, Plus, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, ExternalLink, EyeOff, FileText, FileUp, Landmark, Loader2, Lock, Plus, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 import ProcessoForm, { type ProcessoValores } from "@/components/processos/ProcessoForm";
 import DocumentoProcessoDialog from "@/components/processos/DocumentoProcessoDialog";
+import AbaAcesso from "@/components/processos/AbaAcesso";
+import AbaFinanceiro from "@/components/processos/AbaFinanceiro";
+import AbaExterno from "@/components/processos/AbaExterno";
+import BensProcesso, { type BemLigado } from "@/components/processos/BensProcesso";
 import { calcularVencimento, descreverContagem } from "@/lib/dias-uteis";
 import {
   ESFERAS, PAPEIS_PARTE, PrazoChip, RISCOS, SITUACOES, SituacaoBadge, TIPOS_ANDAMENTO, TIPOS_PROCESSO, api, diasDesde, fmtBRL, fmtData, useLookups, type Pendencia,
 } from "@/components/processos/comum";
 
-type Andamento = { id: string; data: string; tipo: string; descricao: string; documentoId: string | null; usuario: string | null; origem: string; importancia: string; resumoIa: string | null };
+type Andamento = { id: string; data: string; tipo: string; descricao: string; documentoId: string | null; usuario: string | null; origem: string; importancia: string; resumoIa: string | null; interno: boolean };
 type Prazo = { id: string; descricao: string; vence: string; avisoDias: number; status: string; cumpridoEm: string | null; motivo: string | null; andamentoId: string | null;
   diasUteis: boolean; prazoDias: number | null; inicioContagem: string | null; suspensaoForense: boolean; fundamento: string | null };
 type Parte = { id: string; papel: string; nome: string; documento: string | null; contato: string | null };
@@ -38,7 +42,8 @@ type Processo = {
   portalUrl: string | null; polo: string | null; interessadoTipo: string; interessadoNome: string | null; assunto: string | null; situacao: string; fase: string | null;
   abertoEm: string | null; encerradoEm: string | null; responsavelId: string | null; responsavel: { id: string; nome: string } | null; advogado: string | null;
   valorCausa: string | null; riscoPerda: string | null; confidencial: boolean; imovel: string | null; tags: string[]; observacoes: string | null; diasSemAndamentoAlerta: number;
-  andamentos: Andamento[]; prazos: Prazo[]; partes: Parte[]; documentos: Doc[]; pendencias: Pendencia[];
+  andamentos: Andamento[]; prazos: Prazo[]; partes: Parte[]; documentos: Doc[]; pendencias: Pendencia[]; bens: BemLigado[];
+  _count: { credenciais: number; contasPagar: number; contasReceber: number; acessosExternos: number };
   datajudAtivo: boolean; datajudTribunal: string | null; datajudUltimaConsulta: string | null; datajudUltimoErro: string | null; datajudClasse: string | null; datajudOrgaoJulgador: string | null;
 };
 const SELO_IMPORTANCIA: Record<string, { label: string; cls: string }> = {
@@ -56,7 +61,7 @@ function haQuanto(iso: string) {
   const d = Math.round(h / 24);
   return d === 1 ? "há 1 dia" : `há ${d} dias`;
 }
-const ABAS = ["linha", "prazos", "documentos", "partes", "dados"] as const;
+const ABAS = ["linha", "prazos", "documentos", "partes", "acesso", "financeiro", "externo", "dados"] as const;
 type Aba = (typeof ABAS)[number];
 const dia = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
@@ -79,14 +84,14 @@ export default function ProcessoPage() {
   useEffect(() => { load(); }, [load]);
 
   // ── andamento ───────────────────────────────────────────────────────────────
-  const [and, setAnd] = useState<{ data: string; tipo: string; descricao: string; documentoId: string; situacao: string; prazoDesc: string; prazoVence: string; prazoAviso: string; cumpre: string } | null>(null);
+  const [and, setAnd] = useState<{ data: string; tipo: string; descricao: string; documentoId: string; situacao: string; prazoDesc: string; prazoVence: string; prazoAviso: string; cumpre: string; interno: boolean } | null>(null);
   const [msg, setMsg] = useState(""); const [salvando, setSalvando] = useState(false);
-  const novoAndamento = (tipo = "MOVIMENTACAO") => { setMsg(""); setAnd({ data: new Date().toISOString().slice(0, 10), tipo, descricao: "", documentoId: "", situacao: "__auto", prazoDesc: "", prazoVence: "", prazoAviso: "5", cumpre: "" }); };
+  const novoAndamento = (tipo = "MOVIMENTACAO") => { setMsg(""); setAnd({ data: new Date().toISOString().slice(0, 10), tipo, descricao: "", documentoId: "", situacao: "__auto", prazoDesc: "", prazoVence: "", prazoAviso: "5", cumpre: "", interno: false }); };
   async function salvarAndamento() {
     if (!and) return;
     setSalvando(true); setMsg("");
     const r = await api(`/api/processos/${id}/andamentos`, "POST", {
-      data: and.data, tipo: and.tipo, descricao: and.descricao, documentoId: and.documentoId || null,
+      data: and.data, tipo: and.tipo, descricao: and.descricao, documentoId: and.documentoId || null, interno: and.interno,
       ...(and.situacao === "__auto" ? {} : { mudarSituacao: and.situacao || null }),
       ...(and.prazoDesc.trim() && and.prazoVence ? { prazo: { descricao: and.prazoDesc, vence: and.prazoVence, avisoDias: Number(and.prazoAviso) || 5 } } : {}),
       ...(and.cumpre ? { cumprePrazoId: and.cumpre } : {}),
@@ -95,6 +100,7 @@ export default function ProcessoPage() {
     if (!r.ok) { setMsg(r.error!); return; }
     setAnd(null); load();
   }
+  async function alternarInterno(a: Andamento) { await api(`/api/processos/${id}/andamentos`, "PATCH", { andamentoId: a.id, interno: !a.interno }); load(); }
   async function removerAndamento(a: Andamento) { if (!confirm("Remover este andamento?")) return; await api(`/api/processos/${id}/andamentos?andamentoId=${a.id}`, "DELETE"); load(); }
 
   // ── prazos ──────────────────────────────────────────────────────────────────
@@ -168,7 +174,9 @@ export default function ProcessoPage() {
   };
   const abas: { id: Aba; label: string; n?: number }[] = [
     { id: "linha", label: "Linha do tempo", n: p.andamentos.length }, { id: "prazos", label: "Prazos", n: pendentes.length },
-    { id: "documentos", label: "Documentos", n: p.documentos.length }, { id: "partes", label: "Partes", n: p.partes.length }, { id: "dados", label: "Dados" },
+    { id: "documentos", label: "Documentos", n: p.documentos.length }, { id: "partes", label: "Partes e bens", n: p.partes.length + p.bens.length },
+    { id: "acesso", label: "Acesso", n: p._count.credenciais }, { id: "financeiro", label: "Financeiro", n: p._count.contasPagar + p._count.contasReceber },
+    { id: "externo", label: "Acesso externo", n: p._count.acessosExternos }, { id: "dados", label: "Dados" },
   ];
   const copiar = (t: string) => navigator.clipboard?.writeText(t).catch(() => {});
 
@@ -257,6 +265,8 @@ export default function ProcessoPage() {
                     <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2"><b className="text-foreground">{TIPOS_ANDAMENTO[it.a.tipo] ?? it.a.tipo}</b> · {fmtData(it.a.data)}
                       {it.a.origem === "DATAJUD" ? <span className="inline-flex items-center gap-1" title="Capturado automaticamente do tribunal (DataJud)"><Landmark className="w-3 h-3" /> capturado do tribunal</span> : it.a.usuario && ` · ${it.a.usuario}`}
                       {SELO_IMPORTANCIA[it.a.importancia] && <span className={cn("text-[10px] px-1.5 py-px rounded-full border", SELO_IMPORTANCIA[it.a.importancia].cls)}>{SELO_IMPORTANCIA[it.a.importancia].label}</span>}
+                      {it.a.interno && <span className="text-[10px] px-1.5 py-px rounded-full border border-border bg-muted inline-flex items-center gap-0.5" title="Não aparece no link externo"><EyeOff className="w-2.5 h-2.5" /> interno</span>}
+                      {pode && <button onClick={() => alternarInterno(it.a)} className="opacity-0 group-hover:opacity-100 hover:text-foreground" title={it.a.interno ? "Mostrar no link externo" : "Marcar como interno (some do link externo)"}><EyeOff className="w-3 h-3" /></button>}
                       {pode && <button onClick={() => removerAndamento(it.a)} className="opacity-0 group-hover:opacity-100 hover:text-danger" title="Remover"><Trash2 className="w-3 h-3" /></button>}</div>
                     {it.a.resumoIa ? <>
                       <div className="text-sm whitespace-pre-wrap">{it.a.resumoIa}</div>
@@ -330,8 +340,13 @@ export default function ProcessoPage() {
                 </tr>
               ))}</tbody></table>
             )}
+            <div className="pt-3 border-t border-border"><BensProcesso processoId={p.id} bens={p.bens} pode={pode} onMudou={load} /></div>
           </div>
         )}
+
+        {aba === "acesso" && <AbaAcesso processoId={p.id} />}
+        {aba === "financeiro" && <AbaFinanceiro processo={{ id: p.id, codigo: p.codigo }} />}
+        {aba === "externo" && <AbaExterno processo={{ id: p.id, codigo: p.codigo, titulo: p.titulo }} documentos={p.documentos.map((d) => ({ id: d.id, titulo: d.titulo }))} pode={pode} onMudou={load} />}
 
         {aba === "dados" && (
           <div className="bg-card border border-border rounded-xl p-4">
@@ -368,6 +383,7 @@ export default function ProcessoPage() {
                 <Input inputMode="numeric" value={and.prazoAviso} onChange={(e) => setAnd({ ...and, prazoAviso: e.target.value })} placeholder="avisar N dias antes" />
               </div>
             </div>
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" className="rounded" checked={and.interno} onChange={(e) => setAnd({ ...and, interno: e.target.checked })} /> Interno — não aparece para advogado/despachante no link externo</label>
             {msg && <p className="text-sm text-danger">{msg}</p>}
           </div>}
           <DialogFooter><Button variant="outline" onClick={() => setAnd(null)}>Cancelar</Button><Button onClick={salvarAndamento} disabled={salvando || !and?.descricao.trim()}>{salvando ? "Salvando…" : "Lançar"}</Button></DialogFooter>

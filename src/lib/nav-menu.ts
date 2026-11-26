@@ -439,7 +439,14 @@ export const mainModules: Module[] = [
         items: [
           { href: "/processos", label: "Painel", icon: LayoutDashboard, exact: true },
           { href: "/processos/lista", label: "Processos", icon: Gavel },
+          { href: "/processos/agenda", label: "Agenda de prazos", icon: CalendarClock },
           { href: "/processos/roteiros", label: "Roteiros por tipo", icon: Route },
+        ],
+      },
+      {
+        kind: "Relatórios",
+        items: [
+          { href: "/processos/relatorios/provisoes", label: "Provisões (CPC 25)", icon: FileBarChart2 },
         ],
       },
     ],

@@ -15,6 +15,7 @@ import { garantirContaImpostosRetidos } from "@/lib/conta-contabil";
 import { validarNaturezasAtivas } from "@/lib/natureza-sistema";
 import { espelharContaReceber } from "@/lib/intragrupo";
 import { calcularParcelas, type Parcela } from "@/lib/parcelas";
+import { carregarProcesso } from "@/lib/processos";
 import { z } from "zod";
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -62,6 +63,9 @@ const schema = z.object({
     cofins: z.coerce.number().min(0).optional().default(0),
     outras: z.coerce.number().min(0).optional().default(0),
   }).optional(),
+  // Processo externo (custas/honorários/multas — fase 2 de docs/processos-prd.md): só vínculo
+  // gerencial no título; validado contra a visibilidade e a empresa ativa.
+  processoId: z.string().optional().nullable().transform((v) => v || null),
   linhas: z.array(z.object({
     naturezaFinanceiraId: z.string().min(1, "Selecione a natureza financeira de cada linha"),
     detalhamento: z.string().optional().nullable(),
@@ -91,6 +95,15 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   const empresaId = session?.activeEmpresaId ?? EMPRESA_PADRAO_ID;
   const pago = f.status === "PAGAMENTO";
+
+  // Vínculo com processo: precisa estar visível ao usuário e ser da empresa do título.
+  let processoId: string | null = null;
+  if (f.processoId) {
+    const proc = await carregarProcesso(auth.session, f.processoId);
+    if (!proc) return NextResponse.json({ error: "Processo não encontrado." }, { status: 404 });
+    if (proc.empresaId !== empresaId) return NextResponse.json({ error: `O processo ${proc.codigo} é de outra empresa — troque a empresa ativa para lançar.` }, { status: 422 });
+    processoId = proc.id;
+  }
 
   const hojeSP = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
   const venc = dateUTC(f.dataVencimento) ?? dateUTC(hojeSP)!;
@@ -230,6 +243,7 @@ export async function POST(req: NextRequest) {
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
             grupoParcelamentoId: p.grupoParcelamentoId, parcelaNumero: p.parcelaNumero, parcelaTotal: p.parcelaTotal,
+            processoId,
             ...(splitP.length ? { naturezas: { create: splitP } } : {}),
           };
           if (isReceber) {
@@ -265,6 +279,7 @@ export async function POST(req: NextRequest) {
             status: pago ? "PAGA" : "ABERTA",
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
+            processoId,
             ...(rateio.length ? { naturezas: { create: rateio } } : {}),
           },
         });
@@ -286,6 +301,7 @@ export async function POST(req: NextRequest) {
             formaPagamento: f.formaPagamento || null,
             naturezaFinanceiraId: natPrincipal,
             centroCustoId: f.centroCustoId,
+            processoId,
             ...(rateio.length ? { naturezas: { create: rateio } } : {}),
           },
         });

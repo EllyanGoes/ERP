@@ -10,6 +10,8 @@ export default async function ContasReceberPage() {
     include: {
       cliente: { select: { id: true, razaoSocial: true } },
       contaBancaria: { select: { id: true, nome: true } },
+      // Processo externo ligado (restituição/indenização/levantamento de depósito).
+      processo: { select: { id: true, codigo: true } },
       lancamentos: { select: { contaBancaria: { select: { id: true, nome: true } } } },
       pedidoVenda: { select: { id: true, numero: true } },
       centroCusto: { select: { codigo: true, nome: true } },

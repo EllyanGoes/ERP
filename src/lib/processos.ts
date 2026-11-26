@@ -11,11 +11,17 @@ import { calcularVencimento } from "@/lib/dias-uteis";
 
 /** Quem vê processo confidencial: ADMIN, responsável e quem tem processos.confidenciais. */
 export async function filtroVisibilidade(session: { sub: string; perfil: string }): Promise<Prisma.ProcessoWhereInput> {
-  if (session.perfil === "ADMIN" || (await temPermissao(session.sub, "processos.confidenciais"))) return {};
+  // Permissão gravada é "processos.confidenciais.ver" (modules.ts); temPermissao aceita o nível acima.
+  if (session.perfil === "ADMIN" || (await temPermissao(session.sub, "processos.confidenciais.ver"))) return {};
   return { OR: [{ confidencial: false }, { responsavelId: session.sub }] };
 }
 export async function podeEditar(session: { sub: string; perfil: string }) {
   return session.perfil === "ADMIN" || temPermissao(session.sub, "processos.lista.editar");
+}
+
+/** Cofre de acessos: ver/copiar exige processos.credenciais.ver; gravar exige também editar. */
+export async function podeVerCredenciais(session: { sub: string; perfil: string }) {
+  return session.perfil === "ADMIN" || temPermissao(session.sub, "processos.credenciais.ver");
 }
 
 export async function proximoCodigoProcesso(tx: Pick<Prisma.TransactionClient, "processo">, empresaId: string) {

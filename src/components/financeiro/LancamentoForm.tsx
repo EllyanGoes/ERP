@@ -44,12 +44,15 @@ export default function LancamentoForm({
   contatos = [],
   tipoSelecionavel = false,
   contaFixa,
+  processo,
   onSaved,
 }: {
   tipo: "receber" | "pagar";
   contatos?: Contato[];
   tipoSelecionavel?: boolean;
   contaFixa?: { id: string; nome: string };
+  /** Lançamento aberto pela aba Financeiro do processo: o título nasce ligado a ele. */
+  processo?: { id: string; codigo: string };
   /** Disparado após salvar com sucesso (antes do diálogo de confirmação). */
   onSaved?: (info: { status: "AGENDAMENTO" | "PAGAMENTO"; tipo: "receber" | "pagar" }) => void;
 }) {
@@ -224,6 +227,7 @@ export default function LancamentoForm({
           valorDesconto: descontoNum || 0,
           retencoes: Object.fromEntries(Object.entries(retencoes).map(([k, v]) => [k, valorLinha(v)])),
           linhas: linhasValidas.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseDecimal(l.valor) })),
+          processoId: processo?.id ?? null,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -238,6 +242,11 @@ export default function LancamentoForm({
 
   return (
     <div className="space-y-5">
+      {processo && (
+        <div className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
+          Vinculado ao processo <b className="font-mono">{processo.codigo}</b> — o título aparece na aba Financeiro do processo.
+        </div>
+      )}
       {/* Tipo + Status + Conta */}
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1">

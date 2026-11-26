@@ -19,6 +19,11 @@ const COOKIE_NAME = "erp_session";
 //                     siteId ativo + Origin na allowlist de SiteRastreado
 //   /api/projetos/agenda/ics → feed iCalendar assinado por apps de calendário
 //                     (Mac/Google, sem cookie): valida token HMAC da URL
+//   /api/processos/agenda/ics → idem, prazos dos processos externos (HMAC próprio;
+//                     revalida usuário ativo + módulo + confidencial a cada consulta)
+//   /externo/*      → página PÚBLICA do processo para advogado/despachante: o token
+//                     aleatório da URL (só o hash no banco, revogável) é a chave
+//   /api/publico/processo/* → APIs dessa página (dentro de /api/publico)
 //   /ativo/*        → página PÚBLICA da etiqueta QR do ativo (Manutenção): quem
 //                     está na máquina vê histórico/saúde e abre SS sem login; o
 //                     token aleatório da URL (ManutAtivo.qrToken) é a chave
@@ -28,7 +33,7 @@ const COOKIE_NAME = "erp_session";
 //                     (muitos sem login no ERP): só leitura, sem custos; o token
 //                     aleatório da URL (ManutOrdem.linkToken) é a chave
 // Qualquer OUTRA rota /api/* agora exige um JWT de sessão válido.
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t", "/api/projetos/agenda/ics", "/ativo", "/os", "/api/publico"];
+const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/cron", "/api/webhooks", "/api/t", "/api/projetos/agenda/ics", "/api/processos/agenda/ics", "/ativo", "/externo", "/os", "/api/publico"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));

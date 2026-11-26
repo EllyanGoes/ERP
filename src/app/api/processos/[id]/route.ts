@@ -20,6 +20,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       andamentos: { orderBy: [{ data: "desc" }, { createdAt: "desc" }] },
       prazos: { orderBy: [{ status: "asc" }, { vence: "asc" }] },
       partes: { orderBy: { papel: "asc" } },
+      bens: { orderBy: { createdAt: "asc" }, select: { id: true, observacao: true, imobilizado: { select: { id: true, descricao: true, status: true, dataAquisicao: true } } } },
+      _count: { select: { credenciais: true, contasPagar: true, contasReceber: true, acessosExternos: { where: { revogadoEm: null } } } },
       documentos: {
         orderBy: { createdAt: "desc" },
         select: { id: true, titulo: true, numero: true, emissao: true, confidencial: true, createdAt: true, categoria: { select: { nome: true } }, versaoVigente: { select: { nome: true, tamanho: true } } },
@@ -67,7 +69,8 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
   const base = await carregarProcesso(auth.session, params.id);
   if (!base) return NextResponse.json({ error: "Processo não encontrado." }, { status: 404 });
   await prismaSemEscopo.$transaction(async (tx) => {
-    const snap = await tx.processo.findUnique({ where: { id: params.id }, include: { andamentos: true, prazos: true, partes: true } });
+    // Credenciais (cifradas) NÃO vão para o snapshot da lixeira; títulos do financeiro só perdem o vínculo (SetNull).
+    const snap = await tx.processo.findUnique({ where: { id: params.id }, include: { andamentos: true, prazos: true, partes: true, bens: true } });
     await salvarNaLixeira(tx, { empresaId: base.empresaId, tipo: "PROCESSO", origemId: base.id, numero: base.codigo, descricao: base.titulo, snapshot: snap, apagadoPor: auth.session.nome });
     await tx.documento.updateMany({ where: { processoId: params.id }, data: { processoId: null } });
     await tx.processo.delete({ where: { id: params.id } });

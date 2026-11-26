@@ -265,6 +265,8 @@ export const MODULOS: ModuloDef[] = [
       { key: "painel",         label: "Painel de processos",           acoes: ["ver"] },
       { key: "lista",          label: "Processos (cadastro e andamentos)", acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "confidenciais",  label: "Ver processos confidenciais",   acoes: ["ver"] },
+      { key: "credenciais",    label: "Cofre de acessos (ver/copiar senhas de portal)", acoes: ["ver"] },
+      { key: "relatorios",     label: "Relatório de provisões (CPC 25)", acoes: ["ver"] },
     ],
   },
   {

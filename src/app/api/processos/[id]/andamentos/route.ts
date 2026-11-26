@@ -6,7 +6,7 @@ import { TIPOS_ANDAMENTO, podeEditar, situacaoPorAndamento, carregarProcesso, da
 
 type Ctx = { params: { id: string } };
 
-// POST { data, tipo, descricao, documentoId?, mudarSituacao?: string|null, prazo?: { descricao, vence, avisoDias? }, cumprePrazoId? }
+// POST { data, tipo, descricao, interno?, documentoId?, mudarSituacao?: string|null, prazo?: { descricao, vence, avisoDias? }, cumprePrazoId? }
 // Lança o andamento; a situação segue o tipo (exigência → aguardando a empresa; protocolo/
 // manifestação → aguardando o órgão) salvo mudarSituacao explícito; pode criar o prazo que a
 // exigência abre ou dar por cumprido o prazo que este andamento atende.
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     prazoDados = dp.data;
   }
   const r = await prismaSemEscopo.$transaction(async (tx) => {
-    const a = await tx.processoAndamento.create({ data: { processoId: p.id, data, tipo, descricao, documentoId: b.documentoId || null, usuario: auth.session.nome } });
+    const a = await tx.processoAndamento.create({ data: { processoId: p.id, data, tipo, descricao, documentoId: b.documentoId || null, usuario: auth.session.nome, interno: !!b.interno } });
     if (prazoDados) {
       await tx.processoPrazo.create({ data: { processoId: p.id, descricao: String(b.prazo.descricao).trim(), ...prazoDados, avisoDias: Math.max(0, Number(b.prazo.avisoDias ?? 5) || 5), responsavelId: p.responsavelId, andamentoId: a.id, criadoPor: auth.session.nome } });
     }
@@ -44,6 +44,18 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return a;
   });
   return NextResponse.json({ data: r }, { status: 201 });
+}
+
+// PATCH { andamentoId, interno } — marca/desmarca "interno" (some/volta no link externo).
+export async function PATCH(req: NextRequest, { params }: Ctx) {
+  const auth = await requireModulo("processos");
+  if (!auth.ok) return auth.response;
+  if (!(await podeEditar(auth.session))) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  const p = await carregarProcesso(auth.session, params.id);
+  if (!p) return NextResponse.json({ error: "Processo não encontrado." }, { status: 404 });
+  const b = await req.json().catch(() => ({}));
+  await prismaSemEscopo.processoAndamento.updateMany({ where: { id: String(b.andamentoId ?? ""), processoId: p.id }, data: { interno: !!b.interno } });
+  return NextResponse.json({ ok: true });
 }
 
 // DELETE ?andamentoId= — remove o andamento (prazos ligados a ele perdem o vínculo).

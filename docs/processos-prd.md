@@ -1,6 +1,6 @@
 # PRD — Módulo de Processos Externos (jurídicos e administrativos)
 
-> Status: **aprovado pelo dono em 28/10/2026** (decisões na §9). Fase 1 em implementação.
+> Status: **aprovado pelo dono em 28/10/2026** (decisões na §9). Fases 1 e 1.5 entregues; fases 2 e 3 implementadas, pendente deploy (§8.2).
 > Princípio central: **processo é algo que anda FORA da empresa** (num órgão, num tribunal, num
 > cartório) **e que a empresa precisa acompanhar sem perder prazo**. O módulo não substitui o
 > sistema do órgão nem o advogado: é a ficha única do processo, com a linha do tempo, os prazos
@@ -214,8 +214,8 @@ Módulo `processos`: `painel.ver`, `processos.ver`, `processos.editar`, `process
 | Fase | Entrega | Esforço |
 |---|---|---|
 | **1 — Base** | `Processo`, `ProcessoAndamento`, `ProcessoPrazo`, `ProcessoParte`, `Documento.processoId`; painel, lista, página com linha do tempo/prazos/documentos/partes; cron de prazos com resumo; permissões; lixeira. **Cadastrar o processo do Amapá Terras** com os 8 documentos ligados e o andamento "14/10 — cadastro enviado ao SICARF (recibo 8D9C01-8D49001-2026)". | ~4 dias |
-| **2 — Acesso e financeiro** | `ProcessoCredencial` criptografada (migrar o acesso do SICARF e **apagar o PDF com senha** do GED); `ContaPagar.processoId` e aba Financeiro (custas, honorários, multas); prazos na Agenda/ICS; vínculo com Imobilizado. | ~3 dias |
-| **3 — Externo** | Link do processo para advogado/despachante registrar andamento e anexar (token, como a OS pública), sem acesso ao resto do ERP. Relatório para a contabilidade (provisões por risco — CPC 25). | ~2 dias |
+| **2 — Acesso e financeiro** ✅ *implementada, pendente deploy (26/11)* | `ProcessoCredencial` criptografada (migrar o acesso do SICARF e **apagar o PDF com senha** do GED); `ContaPagar.processoId` e aba Financeiro (custas, honorários, multas); prazos na Agenda/ICS; vínculo com Imobilizado. | ~3 dias |
+| **3 — Externo** ✅ *implementada, pendente deploy (26/11)* | Link do processo para advogado/despachante registrar andamento e anexar (token, como a OS pública), sem acesso ao resto do ERP. Relatório para a contabilidade (provisões por risco — CPC 25). | ~2 dias |
 | **1.5 — Ideias do Astrea** | Antecipa a antiga fase 4 (captura automática) e acrescenta documento→processo, prazos em dias úteis, roteiros e quadro. Detalhe na seção 8.1. | ~4 dias |
 | ~~4 — Captura automática~~ | **Antecipada para a fase 1.5** (DataJud/CNJ). Para portais sem API (SICARF) continua valendo: lembrete periódico "conferir o portal" em vez de raspagem. | — |
 
@@ -228,7 +228,7 @@ O dono analisou o Astrea (Aurum) e aprovou adaptar estas ideias, nesta ordem:
 | 1 | **Captura automática de andamentos pelo DataJud (API Pública do CNJ)** para processos judiciais com número CNJ: cron diário + botão "Atualizar agora"; **priorização** de cada movimento (importante × normal × rotina, por código TPU e nome); **resumo em linguagem simples por IA** só dos importantes; alerta no sino + Telegram para o responsável (um aviso por processo por rodada); filtro "Importantes / Todos" na linha do tempo; "Novidades dos tribunais (7 dias)" no painel. | **em implementação** |
 | 2 | **Documento vira processo**: subir o PDF (auto de infração, notificação, intimação, ofício) e a IA preencher órgão, número, valor, partes, data da ciência e prazo de defesa (com o trecho que fundamenta) para **conferência** antes de gravar; também "lançar a partir de documento" num processo existente. **Prazo em dias úteis** com feriados nacionais, do Amapá e de Macapá (CPC art. 224) e suspensão de 20/12 a 20/01 nos judiciais (CPC art. 220). | em implementação |
 | 3 | **Roteiros prontos por tipo de processo** (tarefas padrão que viram prazos ao criar o processo) + **quadro (kanban) por situação** na lista, no padrão do Fluxo de Compras. | em implementação |
-| 4 | Fases 2 e 3 já planejadas (cofre de credenciais, financeiro, link externo, relatório CPC 25). | planejado |
+| 4 | Fases 2 e 3 (cofre de credenciais, financeiro, link externo, relatório CPC 25). | implementadas — ver §8.2 |
 
 **Fora (decisão do dono):** boletos/cobrança de clientes, timesheet, banco de peças/jurisprudência.
 
@@ -236,6 +236,22 @@ Notas técnicas: `src/lib/processos-cnj.ts` (validação módulo 97 e tribunal p
 (consulta, dedup por `processoId+externoId`, classificação), `src/lib/processos-ia.ts` (resumo e leitura de documento,
 best-effort), `src/lib/dias-uteis.ts` (calendário), cron `/api/cron/processos-datajud` (7h de Brasília). A chave pública do
 DataJud vem de `DATAJUD_API_KEY` com fallback para a chave publicada na wiki do CNJ.
+
+### 8.2 Fases 2 e 3 — implementadas (26/11/2026), pendente deploy
+
+Migration `20261126180000_processos_fase2_fase3` (idempotente). Decisões de implementação:
+
+| Item | Como ficou |
+|---|---|
+| **Cofre** (`ProcessoCredencial`) | Usuário **e** senha cifrados (AES-256-GCM, IV de 12 bytes por valor, formato `v1.iv.tag.cifra`, `src/lib/processos-cofre.ts` + teste). Chave `PROCESSOS_CRED_KEY` (32 bytes em base64). Sem a chave: aba mostra "cofre não configurado" e bloqueia gravar/ler. Listagem traz só o login mascarado; Mostrar/Copiar passam por `/credenciais/revelar` e gravam `ProcessoLog` (quem, quando, qual). Permissão nova **Processos › Cofre de acessos** (`processos.credenciais.ver`); gravar exige também editar processos. Senha some da tela em 30 s. Credenciais não vão para o snapshot da lixeira. |
+| **Log** (`ProcessoLog`) | Um log por processo para o cofre e para o link externo (sem FK para credencial/link: sobrevive à exclusão). |
+| **Financeiro** | `ContaPagar.processoId` **e** `ContaReceber.processoId` (restituição, indenização, levantamento de depósito), FK SetNull + índice. Aba Financeiro (exige também o módulo Financeiro): títulos, totais pago/aberto, "Novo lançamento" reaproveita o `LancamentoForm` com o processo vinculado (`processoId` em `/api/financeiro/titulos`, validado contra visibilidade e empresa ativa) e "Vincular título existente" (mesma empresa, sem processo). Contas a Pagar/Receber: origem `PRC-0001` com link quando não há compra/pedido; vincular/desvincular no Editar título (`/api/processos/vincular-titulo`). **Nenhuma regra contábil mudou.** |
+| **Agenda/ICS** | Feed **próprio** de Processos (`/api/processos/agenda/ics`, HMAC com prefixo próprio) em vez de misturar na Agenda do Projetos, que é standalone por decisão do dono. Tela `/processos/agenda` (todos / só os meus) com assinatura Mac/Google. O feed revalida usuário ativo, módulo e confidencial a cada consulta; processo confidencial sai só com o código; lembrete (VALARM) na antecedência de aviso do prazo. |
+| **Imobilizado** | N:N `ProcessoBem` (o campo legado `Processo.imobilizadoId` foi copiado para o vínculo). Bens na aba "Partes e bens"; a lista do Imobilizado mostra os processos ligados (não há página por bem). |
+| **Link externo** (`ProcessoAcessoExterno`) | Um link por pessoa (nome, e-mail/telefone, validade, só consulta ou pode lançar, documentos compartilhados). Token `randomBytes(32)` base64url mostrado **uma vez**; no banco só o sha256. Página `/externo/processo/<token>` (fora do layout do ERP, liberada no middleware): título, número, órgão, situação, andamentos **não internos** (flag nova `ProcessoAndamento.interno`), prazos e documentos compartilhados. Registra andamento (PDF ≤ 4,5 MB → GED pasta Processos) e marca prazo cumprido com autoria "Externo: nome", log e aviso ao responsável (sino + Telegram). O lançamento externo **não muda a situação** do processo (o responsável decide). Limite: 20 envios/h por link e 40/h por IP. |
+| **CPC 25** | `/processos/relatorios/provisoes` (permissão nova **Processos › Relatório de provisões**): processos ativos na data-base por risco, tipo e empresa; polo autor/requerente sai como ativo contingente; CSV e PDF. Só relatório — **não** gera lançamento. Valor e risco são os atuais do cadastro (sem histórico por data). |
+
+Correção junto: a regra de confidencial checava `processos.confidenciais` mas a permissão gravada é `processos.confidenciais.ver` — usuários com a permissão (não ADMIN) não viam os confidenciais.
 
 ## 9. Decisões do dono (28/10/2026)
 

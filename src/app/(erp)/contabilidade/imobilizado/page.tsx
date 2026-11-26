@@ -10,7 +10,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatBRL } from "@/lib/utils";
-import { Building2, Plus, CalendarClock, Loader2 } from "lucide-react";
+import { Building2, Plus, CalendarClock, Gavel, Loader2 } from "lucide-react";
+import Link from "next/link";
 
 type Bem = {
   id: string;
@@ -24,6 +25,7 @@ type Bem = {
   valorContabil: number;
   criadoPor?: string | null;
   atualizadoPor?: string | null;
+  processos?: { id: string; codigo: string; titulo: string | null }[];
 };
 
 function autoriaTitle(criadoPor?: string | null, atualizadoPor?: string | null) {
@@ -93,7 +95,18 @@ export default function ImobilizadoPage() {
               <tr><td colSpan={6} className="px-6 py-10 text-center text-muted-foreground">Nenhum bem cadastrado.</td></tr>
             ) : bens.map((b) => (
               <tr key={b.id} title={autoriaTitle(b.criadoPor, b.atualizadoPor)} className={`border-b border-gray-50 hover:bg-muted ${b.status !== "ATIVO" ? "opacity-50" : ""}`}>
-                <td className="px-6 py-3 font-medium text-foreground">{b.descricao}</td>
+                <td className="px-6 py-3 font-medium text-foreground">
+                  {b.descricao}
+                  {(b.processos?.length ?? 0) > 0 && (
+                    <div className="mt-0.5 flex flex-wrap gap-1.5 text-[11px] font-normal">
+                      {b.processos!.map((p) => (
+                        <Link key={p.id} href={`/processos/${p.id}`} title={p.titulo ?? "Processo confidencial"} className="inline-flex items-center gap-1 text-info hover:underline">
+                          <Gavel className="w-3 h-3" /> <span className="font-mono">{p.codigo}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </td>
                 <td className="px-6 py-3 text-muted-foreground">{new Date(b.dataAquisicao).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
                 <td className="px-6 py-3 text-right tabular-nums">{formatBRL(Number(b.valorAquisicao))}</td>
                 <td className="px-6 py-3 text-center text-muted-foreground">{b.vidaUtilMeses} m</td>

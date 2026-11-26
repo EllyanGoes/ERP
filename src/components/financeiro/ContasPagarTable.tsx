@@ -80,6 +80,8 @@ type ContaRow = {
   folhaId?: string | null; recorrenciaId?: string | null; compensacaoOrigemId?: string | null; intragrupo?: boolean;
   naturezaFinanceiraId?: string | null; observacoes?: string | null; beneficiarioTipo?: string | null; beneficiarioId?: string | null;
   criadoPor?: string | null; atualizadoPor?: string | null;
+  // Processo externo ligado (custas/honorários/multas) — vira a origem quando não há compra.
+  processoId?: string | null; processo?: { id: string; codigo: string; titulo?: string } | null;
   // Título único de RH (folha/diárias): pago pelo módulo de RH, nunca aqui.
   contabilizacaoExterna?: boolean;
   // Natureza da taxa retida acumulada (desconto = "descontos-recebidos").
@@ -134,6 +136,7 @@ function origemPagar(c: ContaRow): OrigemPagar {
       : null;
     return { label: "Compra", ref, href, nf: conf?.numeroNF ?? null, antecipado: !!c.antecipado };
   }
+  if (c.processo) return { label: "Processo", ref: c.processo.codigo, href: `/processos/${c.processo.id}` };
   if (c.folhaId) return { label: "Folha de Pagamento", ref: null };
   if (c.compensacaoOrigemId) return { label: "Encontro de Contas", ref: null };
   if (c.recorrenciaId) return { label: "Recorrência", ref: null };
@@ -1400,7 +1403,7 @@ function OrigemCompraRef({ o, onOpen, compact }: { o: OrigemPagar; onOpen: (href
           type="button"
           onClick={(e) => { e.stopPropagation(); onOpen(o.href!); }}
           className="inline-flex items-center gap-1 text-info hover:underline"
-          title="Abrir a compra (aba Pagamentos)"
+          title={o.label === "Compra" ? "Abrir a compra (aba Pagamentos)" : `Abrir ${o.label.toLowerCase()} ${o.ref ?? ""}`.trim()}
         >
           {conteudo}
         </button>

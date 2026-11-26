@@ -29,6 +29,8 @@ export type TituloEdicao = {
   clienteId?: string | null;
   beneficiarioTipo?: string | null;
   beneficiarioId?: string | null;
+  // Processo externo ligado (custas/honorários/multas) — editável aqui, rota própria.
+  processoId?: string | null;
 };
 
 function toISODate(d: Date | string): string {
@@ -66,6 +68,9 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
   // Contas bancárias + troca de conta por lançamento (título pago).
   const [contasBanco, setContasBanco] = useState<{ id: string; nome: string; ativo?: boolean; compensacao?: boolean; ehTerceiro?: boolean }[]>([]);
   const [trocasConta, setTrocasConta] = useState<Record<string, string>>({});
+  // Vínculo com processo externo (null = usuário sem acesso a processos: seção oculta).
+  const [processoId, setProcessoId] = useState("");
+  const [processos, setProcessos] = useState<{ id: string; codigo: string; titulo: string }[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -82,8 +87,16 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
     setObservacoes(titulo.observacoes ?? "");
     setCentroCustoId(titulo.centroCustoId ?? "");
     setTrocasConta({});
+    setProcessoId(titulo.processoId ?? "");
     setErro(null);
   }, [titulo]);
+
+  // Processos visíveis (para ligar custas/honorários/multas ao processo).
+  useEffect(() => {
+    if (!titulo || processos) return;
+    fetch("/api/processos/opcoes").then((r) => (r.ok ? r.json() : null))
+      .then((j) => setProcessos(j?.data ?? null)).catch(() => {});
+  }, [titulo, processos]);
 
   // Contas bancárias (troca de conta do pagamento) — só quando há lançamentos.
   useEffect(() => {
@@ -141,6 +154,14 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
           body: JSON.stringify({ trocas }),
         });
         if (!rl.ok) { setErro((await rl.json().catch(() => ({}))).error ?? "Erro ao trocar a conta do pagamento."); return; }
+      }
+      // Vínculo com processo (só quando mudou) — rota própria, não mexe no contábil.
+      if (processos && (processoId || null) !== (titulo.processoId ?? null)) {
+        const rp = await fetch("/api/processos/vincular-titulo", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tipo, tituloId: titulo.id, processoId: processoId || null }),
+        });
+        if (!rp.ok) { setErro((await rp.json().catch(() => ({}))).error ?? "Erro ao vincular o processo."); return; }
       }
       onOpenChange(false);
       onSaved();
@@ -250,6 +271,22 @@ export default function EditarTituloDialog({ tipo, titulo, permiteCentro = false
                 );
               })}
               <p className="text-[11px] text-muted-foreground">Trocar a conta reprocessa o razão do pagamento. Valor e data não mudam aqui — use <b>Reabrir</b> e baixe de novo.</p>
+            </div>
+          )}
+          {processos && (
+            <div>
+              <Label className="text-xs">Processo externo</Label>
+              <div className="mt-1">
+                <ComboboxWithCreate
+                  value={processoId}
+                  onChange={setProcessoId}
+                  allowNone
+                  placeholder="Sem processo"
+                  menuMinWidth={420}
+                  options={processos.map((p) => ({ value: p.id, label: p.titulo, code: p.codigo }))}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Custas, taxas, honorários, multas ou depósitos do processo — aparece na aba Financeiro dele. Não muda a contabilização.</p>
             </div>
           )}
           <div>
