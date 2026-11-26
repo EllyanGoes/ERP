@@ -13,7 +13,11 @@ export type ChaveNaturezaSistema =
   | "desagio-antecipacao"
   // Desconto obtido na baixa do Contas a Pagar (pagou menos e quitou): taxa
   // retida com esta natureza → crédito em Descontos Obtidos (3.1.9005).
-  | "descontos-recebidos";
+  | "descontos-recebidos"
+  // Desconto concedido na baixa do Contas a Receber (recebeu menos e quitou):
+  // taxa retida com esta natureza → débito na conta dela ((-) Descontos
+  // Concedidos 3.1.9003; na Cimento e Mix, 3.1.0005).
+  | "descontos-concedidos";
 
 type Db = Pick<Prisma.TransactionClient, "naturezaFinanceira">;
 

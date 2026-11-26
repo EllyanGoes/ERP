@@ -5,13 +5,14 @@ import DataTable, { type GroupInfo } from "@/components/shared/DataTable";
 import { usePersistedState, useSessionState } from "@/lib/use-persisted-state";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { formatBRL, formatDate, decimalToNumber, isVencida, cn } from "@/lib/utils";
-import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers, UserRound, BookOpen, CircleDot, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined } from "lucide-react";
+import { CalendarClock, Building2, Wallet, RotateCcw, ExternalLink, Pencil, MoreVertical, Search, X, Layers, UserRound, BookOpen, CircleDot, ChevronLeft, ChevronRight, Table2, ChartNoAxesCombined, Kanban } from "lucide-react";
 import TitulosGrafico from "@/components/financeiro/TitulosGrafico";
+import TitulosKanban, { type TituloKanban } from "@/components/financeiro/TitulosKanban";
+import PagamentoTituloForm, { type TaxaNaturezaOpt, filtrarTaxaNaturezas } from "@/components/financeiro/PagamentoTituloForm";
+import PagamentoLoteDialog, { type TituloLote } from "@/components/financeiro/PagamentoLoteDialog";
 import { useFilterBar, FilterBarToggle, FilterBarChips, CHIP_TRIGGER, type FiltroChip } from "@/components/shared/FilterBar";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import NovaContaButton from "@/components/financeiro/NovaContaButton";
@@ -23,12 +24,10 @@ import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
 import TituloDetalhesDialog, { type TituloCampo, type TituloAcao } from "@/components/financeiro/TituloDetalhesDialog";
 import EditarTituloDialog from "@/components/financeiro/EditarTituloDialog";
 import { useSession } from "@/lib/session-context";
-import DatePicker from "@/components/shared/DatePicker";
-import PagamentosInput, {
+import {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
-  novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
-  contaEhCaixa, formaEhCartao, formaEhDinheiro, temContaBanco,
-  pagamentoCartaoSemMaquineta, fetchMaquinetas,
+  novaLinhaPagamento, parseValorBR, contaPadraoParaForma,
+  contaEhCaixa, formaEhCartao, formaEhDinheiro, temContaBanco, fetchMaquinetas,
 } from "@/components/pedidos-venda/PagamentosInput";
 
 type ContaRow = {
@@ -42,6 +41,8 @@ type ContaRow = {
   valorOriginal: unknown; valorPago: unknown;
   // Encargos ACUMULADOS nas baixas (juros/multa por fora, taxa retida).
   valorJuros?: unknown; valorMulta?: unknown; valorTaxa?: unknown;
+  // Natureza da taxa retida (travada) — "descontos-concedidos" = desconto na baixa.
+  taxaNaturezaId?: string | null;
   cliente: { id: string; razaoSocial: string };
   // Conta analítica de Clientes a Receber (1.1.2.x) — link p/ o razão do cliente.
   clienteContaId?: string | null;
@@ -56,26 +57,18 @@ type ContaRow = {
   criadoPor?: string | null; atualizadoPor?: string | null;
 };
 
-// Documento de ORIGEM do título a receber: pedido de venda, encontro de contas,
-// recorrência, intragrupo — ou avulso (manual).
-function origemReceber(c: ContaRow): { label: string; ref: string | null; pedidoId?: string | null } {
-  if (c.pedidoVenda) return { label: "Pedido de Venda", ref: c.pedidoVenda.numero, pedidoId: c.pedidoVenda.id };
+// Documento de ORIGEM do título a receber: pedido de venda (PV-xxxx — cobre
+// balcão, entrega/minuta, venda à ordem e devolução, que nascem do pedido),
+// encontro de contas, recorrência, intragrupo — ou avulso (manual). Com número,
+// a tela mostra SÓ o número (o PV já diz que é venda), com link para o pedido.
+function origemReceber(c: ContaRow): { label: string; ref: string | null; pedidoId?: string | null; href?: string | null } {
+  if (c.pedidoVenda) return { label: "Pedido de Venda", ref: c.pedidoVenda.numero, pedidoId: c.pedidoVenda.id, href: `/pedidos-venda/${c.pedidoVenda.id}` };
   if (c.compensacaoOrigemId) return { label: "Encontro de Contas", ref: null };
   if (c.recorrenciaId) return { label: "Recorrência", ref: null };
   if (c.intragrupo) return { label: "Intragrupo", ref: null };
   return { label: "Manual", ref: null };
 }
 
-// Naturezas TRAVADAS do sistema elegíveis para a taxa/tarifa RETIDA na baixa
-// (vêm do GET de naturezas com sistema=true). A ordem das chaves define o
-// default do lado: no receber, taxa de cartão primeiro.
-type TaxaNaturezaOpt = { id: string; nome: string; sistema?: boolean; sistemaChave?: string | null };
-const CHAVES_TAXA_RECEBER = ["taxa-cartao", "tarifa-bancaria"] as const;
-function filtrarTaxaNaturezas(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt[] {
-  return CHAVES_TAXA_RECEBER
-    .map((ch) => arr.find((n) => n.sistema === true && n.sistemaChave === ch))
-    .filter((n): n is TaxaNaturezaOpt => !!n);
-}
 
 type PedidoPag = { forma: string; valor: unknown; contaBancariaId: string | null };
 
@@ -184,8 +177,9 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const [periodo, setPeriodo] = usePersistedState<DateRange>("financeiro:contas-receber:periodo", { from: "", to: "" });
   // Barra de filtros padrão (funil + chips) — ver shared/FilterBar.
   const filterBar = useFilterBar("financeiro:contas-receber:filtros", ["status"]);
-  // Vista: tabela (padrão) ou gráfico (barras por vencimento) — como no CP.
-  const [vista, setVista] = usePersistedState<"tabela" | "grafico">("financeiro:contas-receber:vista", "tabela");
+  // Vista: tabela (padrão), quadro (por situação) ou gráfico (barras por
+  // vencimento) — como no CP.
+  const [vista, setVista] = usePersistedState<"tabela" | "quadro" | "grafico">("financeiro:contas-receber:vista", "tabela");
   // Filtro por MÊS (padrão, ativo sem período custom): títulos do mês + carry-over
   // em aberto dos meses anteriores. Abre no mês corrente; "TODOS" desliga.
   const [mes, setMes] = useSessionState<string>("financeiro:contas-receber:mes", () => {
@@ -325,27 +319,22 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   }, [contas, empresasSel, statusSel, contaFiltro, clienteFiltro, busca, periodo, mes]);
   const [selected, setSelected] = useState<ContaRow | null>(null);
   const [detalhe, setDetalhe] = useState<ContaRow | null>(null);
-  const [dataPag, setDataPag] = useState(new Date().toISOString().split("T")[0]);
-  const [linhas, setLinhas] = useState<LinhaPagamento[]>([novaLinhaPagamento()]);
   const [formas, setFormas] = useState<FormaOpt[]>([]);
   const [contasBanco, setContasBanco] = useState<ContaOpt[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
-  // Encargos da baixa: juros/multa ENTRAM no caixa além do título; a taxa/tarifa
-  // é RETIDA (recebe MENOS) — o título é quitado por linhas + taxa e a taxa vira
-  // despesa com natureza travada do sistema.
-  const [juros, setJuros] = useState("");
-  const [multa, setMulta] = useState("");
-  const [taxa, setTaxa] = useState("");
-  const [taxaNaturezaId, setTaxaNaturezaId] = useState("");
-  // "100" → "100,00" ao sair de qualquer campo de valor (formato BR).
-  const fmtCampoBR = (s: string) =>
-    s.trim() === "" ? "" : parseValorBR(s).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Apoio do formulário de recebimento (PagamentoTituloForm tipo="receber"):
+  // naturezas da taxa retida (grupo 6 / travadas; default taxa de cartão) e a
+  // travada "descontos-concedidos" (desconto na baixa — recebeu menos e quitou).
   const [taxaNaturezas, setTaxaNaturezas] = useState<TaxaNaturezaOpt[]>([]);
+  const [descontoNatureza, setDescontoNatureza] = useState<TaxaNaturezaOpt | null>(null);
   // Pagamentos registrados no pedido de origem do título selecionado (forma +
   // valor por linha) — pré-preenchem a baixa e alimentam o backstop do Caixa.
   const [pedidoPags, setPedidoPags] = useState<PedidoPag[]>([]);
+  // Pré-preenchimento da baixa vindo do pedido (linhas exatas ou forma única).
+  const [linhasIniciais, setLinhasIniciais] = useState<LinhaPagamento[] | undefined>(undefined);
+  const [formaPrevista, setFormaPrevista] = useState<{ nome: string } | null>(null);
+  // Aberto pelo arraste à coluna Parcial do quadro: valor vazio p/ informar a parcela.
+  const [abrirParcial, setAbrirParcial] = useState(false);
   const abrirSeq = useRef(0);
 
   // Agrupamento (toggle): por data de VENCIMENTO ou por CLIENTE. Grupos com
@@ -388,15 +377,15 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   useEffect(() => {
     fetch("/api/suprimentos/formas-pagamento").then((r) => r.json()).then((j) => setFormas(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
     fetch("/api/financeiro/contas").then((r) => r.json()).then((j) => setContasBanco(Array.isArray(j) ? j : (j.data ?? []))).catch(() => {});
-    // Naturezas travadas do sistema para a taxa/tarifa retida (taxa de cartão,
-    // tarifa bancária — ambas SAIDA).
+    // Naturezas SAIDA: taxa/tarifa retida (grupo 6 do plano; senão as travadas
+    // taxa de cartão/tarifa bancária) e a travada do desconto concedido (fica
+    // FORA da lista da taxa — desconto tem caminho próprio no formulário).
     fetch("/api/financeiro/naturezas?tipo=SAIDA&ativo=1").then((r) => r.json()).then((j) => {
-      const arr = Array.isArray(j) ? j : (j.data ?? []);
-      setTaxaNaturezas(filtrarTaxaNaturezas(arr));
+      const arr: TaxaNaturezaOpt[] = Array.isArray(j) ? j : (j.data ?? []);
+      setTaxaNaturezas(filtrarTaxaNaturezas(arr).filter((n) => n.sistemaChave !== "descontos-concedidos"));
+      setDescontoNatureza(arr.find((n) => n.sistemaChave === "descontos-concedidos") ?? null);
     }).catch(() => {});
   }, []);
-
-  const saldo = selected ? decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago) : 0;
 
   // MODO GRUPO: título de OUTRA empresa aparece na lista (leitura em grupo do
   // seletor), mas as AÇÕES pedem a troca da empresa ativa — baixa/edição usam
@@ -409,51 +398,109 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     alert(`Este título é da ${nome}. Troque a empresa ativa no seletor (canto superior direito) para executar esta ação.`);
   };
 
-  function abrir(row: ContaRow) {
-    setSelected(row);
-    setErro(null);
-    setDataPag(new Date().toISOString().split("T")[0]);
-    const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
-    setLinhas([novaLinhaPagamento("", contaPadraoParaForma("", formas, contasBanco), s > 0 ? s.toFixed(2).replace(".", ",") : "")]);
-    // Encargos sempre zerados ao reabrir o modal.
-    setJuros(""); setMulta(""); setTaxa(""); setTaxaNaturezaId("");
-    // Título nascido de pedido: pré-preenche as linhas com os pagamentos
-    // registrados nele (ex.: 44,00 dinheiro + 0,50 cartão vira duas linhas,
-    // cada uma na sua conta) — sem isso a baixa abre numa linha única e o
-    // valor eletrônico acaba caindo inteiro no Caixa.
-    setPedidoPags([]);
-    if (!row.pedidoVenda) return;
+  // Abre o "Registrar Recebimento" (PagamentoTituloForm tipo="receber").
+  // Título nascido de pedido: busca os pagamentos registrados nele ANTES de
+  // abrir — pré-preenchem a baixa (ex.: 44,00 dinheiro + 0,50 cartão vira duas
+  // linhas, cada uma na sua conta; sem isso o valor eletrônico acabaria caindo
+  // inteiro no Caixa) e alimentam o backstop do Caixa (validarBaixa).
+  // `parcial`: aberto pelo arraste à coluna Parcial do quadro (valor vazio).
+  async function abrir(row: ContaRow, parcial = false) {
     const seq = ++abrirSeq.current;
-    fetch(`/api/contas-receber/${row.id}`)
-      .then((r) => r.json())
-      .then((j) => {
-        if (seq !== abrirSeq.current) return; // modal já reaberto para outro título
-        const pags: PedidoPag[] = j?.data?.pedidoVenda?.pagamentos ?? [];
-        if (pags.length === 0) return;
-        setPedidoPags(pags);
-        // Só substitui as linhas quando o espelho é exato: título ainda sem
-        // baixa e soma dos pagamentos igual ao saldo (parcial/encargo não tem
-        // como ratear automaticamente).
-        const soma = pags.reduce((t, p) => t + decimalToNumber(p.valor), 0);
-        if (decimalToNumber(row.valorPago) > 0.005 || Math.abs(soma - s) > 0.005) return;
-        setLinhas(pags.map((p) => novaLinhaPagamento(
-          p.forma,
-          p.contaBancariaId ?? contaPadraoParaForma(p.forma, formas, contasBanco),
-          decimalToNumber(p.valor).toFixed(2).replace(".", ","),
-        )));
-        // Linha de cartão: sugere a maquineta quando a empresa só tem uma (com
-        // 2+ o operador escolhe — o PagamentosInput destaca até escolher).
-        if (pags.some((p) => formaEhCartao(p.forma, formas))) {
-          fetchMaquinetas().then((ms) => {
-            if (seq !== abrirSeq.current || ms.length !== 1) return;
-            setLinhas((prev) => prev.map((l) =>
-              formaEhCartao(l.forma, formas) && !l.maquinetaId ? { ...l, maquinetaId: ms[0].id, contaBancariaId: "" } : l,
-            ));
-          });
+    let pags: PedidoPag[] = [];
+    let iniciais: LinhaPagamento[] | undefined;
+    let prevista: { nome: string } | null = null;
+    if (row.pedidoVenda) {
+      const j = await fetch(`/api/contas-receber/${row.id}`).then((r) => r.json()).catch(() => null);
+      if (seq !== abrirSeq.current) return; // já reaberto para outro título
+      pags = j?.data?.pedidoVenda?.pagamentos ?? [];
+      // Só espelha quando é exato: título ainda sem baixa e soma dos pagamentos
+      // igual ao saldo (parcial/encargo não tem como ratear automaticamente).
+      const s = decimalToNumber(row.valorOriginal) - decimalToNumber(row.valorPago);
+      const soma = pags.reduce((t, p) => t + decimalToNumber(p.valor), 0);
+      const exato = pags.length > 0 && decimalToNumber(row.valorPago) <= 0.005 && Math.abs(soma - s) <= 0.005;
+      if (exato && !parcial) {
+        const temCartao = pags.some((p) => formaEhCartao(p.forma, formas));
+        if (pags.length > 1 || temCartao || pags[0].contaBancariaId) {
+          // Linhas exatas do pedido → o formulário abre no modo dividido.
+          iniciais = pags.map((p) => novaLinhaPagamento(
+            p.forma,
+            p.contaBancariaId ?? contaPadraoParaForma(p.forma, formas, contasBanco),
+            decimalToNumber(p.valor).toFixed(2).replace(".", ","),
+          ));
+          // Cartão: sugere a maquineta quando a empresa só tem uma (com 2+ o
+          // operador escolhe — o PagamentosInput destaca até escolher).
+          if (temCartao) {
+            const ms = await fetchMaquinetas().catch(() => []);
+            if (seq !== abrirSeq.current) return;
+            if (ms.length === 1) {
+              iniciais = iniciais.map((l) => (formaEhCartao(l.forma, formas) && !l.maquinetaId ? { ...l, maquinetaId: ms[0].id, contaBancariaId: "" } : l));
+            }
+          }
+        } else {
+          prevista = { nome: pags[0].forma };
         }
-      })
-      .catch(() => {});
+      }
+    }
+    setPedidoPags(pags);
+    setLinhasIniciais(iniciais);
+    setFormaPrevista(prevista);
+    setAbrirParcial(parcial);
+    setSelected(row);
   }
+
+  // Backstop do pedido: a trava de roteamento depende da FORMA da linha — uma
+  // linha sem forma escapa dela. Se o pedido registrou parte eletrônica, o que
+  // for roteado para o Caixa (conta tipo CAIXA ou linha sem conta, que o back
+  // resolve para o caixa da empresa) não pode passar do dinheiro do pedido mais
+  // os encargos desta baixa.
+  function validarBaixa(linhas: LinhaPagamento[], acrescimo: number): string | null {
+    if (!temContaBanco(contasBanco) || pedidoPags.length === 0) return null;
+    const totalPedido = pedidoPags.reduce((t, p) => t + decimalToNumber(p.valor), 0);
+    const dinheiroPedido = pedidoPags
+      .filter((p) => formaEhDinheiro(p.forma, formas))
+      .reduce((t, p) => t + decimalToNumber(p.valor), 0);
+    const eletronicoPedido = totalPedido - dinheiroPedido;
+    const paraCaixa = linhas
+      // Linha de cartão com maquineta não conta: a conta é derivada da
+      // administradora no back, nunca o Caixa.
+      .filter((l) => !(l.maquinetaId && formaEhCartao(l.forma, formas)))
+      .filter((l) => !l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contasBanco))
+      .reduce((t, l) => t + parseValorBR(l.valor), 0);
+    if (eletronicoPedido > 0.005 && paraCaixa > dinheiroPedido + acrescimo + 0.005) {
+      return `O pedido registrou ${formatBRL(eletronicoPedido)} em formas eletrônicas — esse valor não pode cair no Caixa em Dinheiro. Direcione-o para a conta do cartão/banco.`;
+    }
+    return null;
+  }
+
+  // ── Seleção para recebimento EM LOTE ───────────────────────────────────────
+  // Só títulos recebíveis (em aberto/parcial, com saldo) ganham checkbox. Os
+  // que o lote vai pular (outra empresa, intragrupo) podem ser marcados — o
+  // modal avisa o motivo antes de enviar (mesma regra do servidor).
+  const saldoDe = (c: ContaRow) => Math.max(0, Math.round((decimalToNumber(c.valorOriginal) - decimalToNumber(c.valorPago)) * 100) / 100);
+  const podeSelecionar = (c: ContaRow) => c.status !== "PAGA" && c.status !== "CANCELADA" && saldoDe(c) > 0.005;
+  const motivoLote = (c: ContaRow): string | null =>
+    acaoCruzaEmpresa(c) ? "Título de outra empresa — troque a empresa ativa"
+    : c.intragrupo ? "Título intragrupo — receba individualmente"
+    : null;
+  const [selIds, setSelIds] = useState<string[]>([]);
+  const [loteAberto, setLoteAberto] = useState(false);
+  const toggleSel = (id: string) => setSelIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  // Após refresh (recebidos saem do "em aberto"), a seleção perde o que não é mais recebível.
+  useEffect(() => {
+    setSelIds((prev) => {
+      const novo = prev.filter((id) => { const c = contas.find((x) => x.id === id); return !!c && podeSelecionar(c); });
+      return novo.length === prev.length ? prev : novo;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contas]);
+  const selecionadas = useMemo(
+    () => selIds.map((id) => contas.find((c) => c.id === id)).filter((c): c is ContaRow => !!c),
+    [selIds, contas],
+  );
+  const totalSelecionado = selecionadas.reduce((s, c) => s + saldoDe(c), 0);
+  const titulosLote: TituloLote[] = selecionadas.map((c) => ({
+    id: c.id, numero: c.numero, fornecedor: c.cliente?.razaoSocial ?? null, saldo: saldoDe(c), motivo: motivoLote(c),
+  }));
 
   // Cliente: nome em texto simples + dois atalhos ao lado — cadastro do cliente
   // e conta razão dele (analítica 1.1.2.x). Reusado na tabela, na visão
@@ -524,6 +571,17 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
   const columns = useMemo<ColumnDef<ContaRow>[]>(() => [
     { accessorKey: "numero", header: "Número", meta: { className: "whitespace-nowrap" }, cell: ({ row }) => (
       <span className="inline-flex items-center gap-1.5">
+        {/* Seleção p/ recebimento em lote (o DataTable ignora clique em input). */}
+        {podeSelecionar(row.original) ? (
+          <input
+            type="checkbox"
+            checked={selIds.includes(row.original.id)}
+            onChange={() => toggleSel(row.original.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-3.5 w-3.5 cursor-pointer accent-blue-600"
+            title="Selecionar para recebimento em lote"
+          />
+        ) : <span className="inline-block w-3.5" />}
         <EmpresaTag empresaId={row.original.empresaId} compact />
         <span className="font-mono text-xs font-semibold">{row.original.numero}</span>
       </span>
@@ -542,11 +600,11 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     { id: "origem", header: "Origem", cell: ({ row }) => {
       const o = origemReceber(row.original);
       if (!o.ref) return <span className="text-xs text-muted-foreground">{o.label}</span>;
-      return o.pedidoId ? (
+      return o.href ? (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); router.push(`/pedidos-venda/${o.pedidoId}`); }}
-          className="font-mono text-xs text-info hover:underline"
+          onClick={(e) => { e.stopPropagation(); router.push(o.href!); }}
+          className="font-mono text-xs text-info hover:underline whitespace-nowrap"
           title={`${o.label} — abrir`}
         >
           {o.ref}
@@ -615,7 +673,8 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
       meta: { className: "w-px whitespace-nowrap", stickyRight: true },
       cell: ({ row }) => <div className="w-10">{renderAcoes(row.original)}</div>,
     },
-  ], [contasBanco, isAdmin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [contasBanco, isAdmin, selIds, user?.activeEmpresaId]);
 
   // Ao agrupar, esconde a coluna que virou o cabeçalho do grupo (redundante).
   const colsParaTabela = useMemo(() => columns.filter((c) => {
@@ -634,76 +693,6 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
     router.refresh();
   }
 
-  async function handlePagamento() {
-    if (!selected) return;
-    // Linha de cartão com maquineta: envia maquinetaId e NÃO envia conta — a
-    // conta efetiva (administradora) e a taxa retida são derivadas no back.
-    const pagamentos = linhas
-      .filter((l) => parseValorBR(l.valor) > 0)
-      .map((l) => {
-        const comMaquineta = !!l.maquinetaId && formaEhCartao(l.forma, formas);
-        return {
-          forma: l.forma || null,
-          contaBancariaId: comMaquineta ? null : (l.contaBancariaId || null),
-          valor: parseValorBR(l.valor),
-          ...(comMaquineta ? { maquinetaId: l.maquinetaId } : {}),
-        };
-      });
-    if (pagamentos.length === 0) { setErro("Informe ao menos uma forma com valor."); return; }
-    const cartaoSemMaq = pagamentoCartaoSemMaquineta(linhas, formas);
-    if (cartaoSemMaq) {
-      setErro(`Escolha a maquineta para "${cartaoSemMaq.forma}" — a conta e a taxa do cartão derivam dela.`);
-      return;
-    }
-    const contaRuim = pagamentoContaInvalida(linhas, formas, contasBanco);
-    if (contaRuim) {
-      setErro(`Selecione a conta bancária de destino para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem cair no Caixa em Dinheiro.`);
-      return;
-    }
-    // Encargos: juros/multa entram no caixa; taxa é retida (natureza travada).
-    const vJuros = parseValorBR(juros);
-    const vMulta = parseValorBR(multa);
-    const vTaxa = parseValorBR(taxa);
-    if (vJuros < 0 || vMulta < 0 || vTaxa < 0) { setErro("Juros, multa e taxa não podem ser negativos."); return; }
-    // Backstop do pedido: a trava acima depende da FORMA da linha — uma linha
-    // sem forma escapa dela. Se o pedido registrou parte eletrônica, o que for
-    // roteado para o Caixa (conta tipo CAIXA ou linha sem conta, que o back
-    // resolve para o caixa da empresa) não pode passar do dinheiro do pedido
-    // mais os encargos desta baixa.
-    if (temContaBanco(contasBanco) && pedidoPags.length > 0) {
-      const totalPedido = pedidoPags.reduce((t, p) => t + decimalToNumber(p.valor), 0);
-      const dinheiroPedido = pedidoPags
-        .filter((p) => formaEhDinheiro(p.forma, formas))
-        .reduce((t, p) => t + decimalToNumber(p.valor), 0);
-      const eletronicoPedido = totalPedido - dinheiroPedido;
-      const paraCaixa = linhas
-        // Linha de cartão com maquineta não conta: a conta é derivada da
-        // administradora no back, nunca o Caixa.
-        .filter((l) => !(l.maquinetaId && formaEhCartao(l.forma, formas)))
-        .filter((l) => !l.contaBancariaId || contaEhCaixa(l.contaBancariaId, contasBanco))
-        .reduce((t, l) => t + parseValorBR(l.valor), 0);
-      if (eletronicoPedido > 0.005 && paraCaixa > dinheiroPedido + vJuros + vMulta + 0.005) {
-        setErro(`O pedido registrou ${formatBRL(eletronicoPedido)} em formas eletrônicas — esse valor não pode cair no Caixa em Dinheiro. Direcione-o para a conta do cartão/banco.`);
-        return;
-      }
-    }
-    setSaving(true); setErro(null);
-    const res = await fetch(`/api/contas-receber/${selected.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pagamentos, dataPagamento: dataPag, valorMulta: vMulta, valorJuros: vJuros,
-        valorTaxa: vTaxa,
-        taxaNaturezaId: vTaxa > 0 ? (taxaNaturezaId || taxaNaturezas[0]?.id || null) : null,
-      }),
-    });
-    setSaving(false);
-    if (!res.ok) { setErro((await res.json().catch(() => ({}))).error ?? "Erro ao receber."); return; }
-    setSelected(null);
-    router.refresh();
-  }
-
-  const totalInformado = linhas.reduce((s, l) => s + parseValorBR(l.valor), 0);
 
   // Chips da barra de filtros padrão (shared/FilterBar): o funil da toolbar
   // mostra/esconde a linha; filtro ativo mantém o funil azul mesmo escondido.
@@ -908,12 +897,17 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
             { value: "cliente", label: "Por cliente" },
           ]}
         />
-        {/* Vista: tabela × gráfico (barras por vencimento). */}
+        {/* Vista: tabela × quadro (por situação) × gráfico (barras por vencimento). */}
         <div className="inline-flex items-center h-9 rounded-lg border border-border overflow-hidden shrink-0">
           <button type="button" onClick={() => setVista("tabela")} title="Ver em tabela"
             className={cn("h-full px-2.5 inline-flex items-center transition-colors",
               vista === "tabela" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
             <Table2 className="w-4 h-4" />
+          </button>
+          <button type="button" onClick={() => setVista("quadro")} title="Ver em quadro (por situação)"
+            className={cn("h-full px-2.5 inline-flex items-center transition-colors",
+              vista === "quadro" ? "bg-foreground text-background" : "bg-card text-muted-foreground hover:bg-muted")}>
+            <Kanban className="w-4 h-4" />
           </button>
           <button type="button" onClick={() => setVista("grafico")} title="Ver as contas por vencimento em gráfico"
             className={cn("h-full px-2.5 inline-flex items-center transition-colors",
@@ -943,6 +937,34 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
           }}
         />
         </div>
+      ) : vista === "quadro" ? (
+        <div>
+          {/* Sem os blocos de totais: as colunas já trazem contagem e total. */}
+          <TitulosKanban
+            tipo="receber"
+            itens={contasFiltradas.map((c): TituloKanban => {
+              const valor = decimalToNumber(c.valorOriginal) + decimalToNumber(c.valorMulta ?? 0) + decimalToNumber(c.valorJuros ?? 0);
+              return {
+                id: c.id, numero: c.numero,
+                fornecedor: c.cliente?.razaoSocial ?? null,
+                descricao: c.descricao,
+                valor, saldo: Math.max(0, valor - decimalToNumber(c.valorPago)),
+                vencimento: c.dataVencimento ?? null,
+                status: c.status,
+                compra: origemReceber(c).ref,
+                antecipado: false,
+                selecionavel: podeSelecionar(c),
+              };
+            })}
+            onAbrir={(id) => { const c = contas.find((x) => x.id === id); if (c) setDetalhe(c); }}
+            selecionados={selIds}
+            onToggleSelecao={toggleSel}
+            onSoltarBaixa={(id, modo) => {
+              const c = contas.find((x) => x.id === id);
+              if (c) comGuardaEmpresa(c, () => { void abrir(c, modo === "parcial"); })();
+            }}
+          />
+        </div>
       ) : (
       <DataTable
         data={contasFiltradas}
@@ -961,6 +983,27 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         stickyFirstColumn
       />
       )}
+      {/* Barra de seleção (recebimento em lote) — fixa no rodapé enquanto há seleção. */}
+      {selecionadas.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5 shadow-lg">
+          <span className="text-sm">
+            <b>{selecionadas.length}</b> selecionado{selecionadas.length !== 1 ? "s" : ""} · <span className="font-semibold tabular-nums">{formatBRL(totalSelecionado)}</span>
+          </span>
+          {(() => {
+            const visiveis = contasFiltradas.filter(podeSelecionar).map((c) => c.id);
+            const faltam = visiveis.filter((id) => !selIds.includes(id));
+            return faltam.length > 0 ? (
+              <button type="button" onClick={() => setSelIds((prev) => [...prev, ...faltam].slice(0, 200))} className="text-xs text-info hover:underline">
+                Selecionar todos os visíveis ({visiveis.length})
+              </button>
+            ) : null;
+          })()}
+          <Button size="sm" onClick={() => setLoteAberto(true)}>
+            <Wallet className="w-4 h-4" /> Receber selecionados
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelIds([])}>Limpar</Button>
+        </div>
+      )}
       {detalhe && (() => {
         const podeReceber = detalhe.status !== "PAGA" && detalhe.status !== "CANCELADA";
         const podeEstornar = detalhe.status === "PAGA" || detalhe.status === "PARCIAL";
@@ -976,6 +1019,8 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         const vJuros = decimalToNumber(detalhe.valorJuros ?? 0);
         const vMulta = decimalToNumber(detalhe.valorMulta ?? 0);
         const vTaxa = decimalToNumber(detalhe.valorTaxa ?? 0);
+        // Taxa retida com a travada "descontos-concedidos" = desconto na baixa.
+        const taxaEhDesconto = !!descontoNatureza && detalhe.taxaNaturezaId === descontoNatureza.id;
         // Emissão do título; sem ela cai na data de criação.
         const emissao = detalhe.dataEmissao ?? detalhe.createdAt ?? null;
         // Naturezas: split com valores (uma linha por natureza); sem split, a
@@ -999,7 +1044,7 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
           { label: "Saldo", valor: <span className="font-medium">{formatBRL(vo - vp)}</span> },
           ...(vJuros > 0 ? [{ label: "Juros", valor: formatBRL(vJuros) }] : []),
           ...(vMulta > 0 ? [{ label: "Multa", valor: formatBRL(vMulta) }] : []),
-          ...(vTaxa > 0 ? [{ label: "Taxa retida", valor: formatBRL(vTaxa) }] : []),
+          ...(vTaxa > 0 ? [{ label: taxaEhDesconto ? "Desconto" : "Taxa retida", valor: formatBRL(vTaxa) }] : []),
           // ── Classificação ────────────────────────────────────────────────
           // Centro de custo — SOMENTE LEITURA (definido no material/título, não aqui).
           { label: "Centro de custo", valor: <span className="text-muted-foreground">{detalhe.centroCusto ? `${detalhe.centroCusto.codigo} - ${detalhe.centroCusto.nome}` : "—"}</span> },
@@ -1021,17 +1066,14 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
           }] : []),
           ...(contas.length ? [{ label: "Conta", valor: contas.map((c) => c.nome).join(" + ") }] : []),
           // ── Origem ───────────────────────────────────────────────────────
-          { label: "Origem", valor: org.label },
-          // Pedido de venda clicável — abre o pedido de origem.
-          ...(detalhe.pedidoVenda ? [{
-            label: "Pedido de venda",
-            valor: (
-              <button type="button" onClick={() => router.push(`/pedidos-venda/${detalhe.pedidoVenda!.id}`)}
-                className="inline-flex items-center gap-1 text-info hover:underline font-medium">
-                <ExternalLink className="w-3.5 h-3.5" /> {detalhe.pedidoVenda.numero}
-              </button>
-            ),
-          }] : []),
+          // Origem: o número do documento (PV-xxxx) com link para o pedido; sem
+          // número, o rótulo (Manual, Recorrência, Encontro de Contas…).
+          { label: "Origem", valor: org.ref && org.href ? (
+            <button type="button" onClick={() => router.push(org.href!)}
+              className="inline-flex items-center gap-1 text-info hover:underline" title={`${org.label} — abrir`}>
+              <ExternalLink className="w-3.5 h-3.5" /> <span className="font-mono">{org.ref}</span>
+            </button>
+          ) : org.ref ? <span className="font-mono">{org.ref}</span> : org.label },
           ...(detalhe.observacoes ? [{ label: "Observações", valor: detalhe.observacoes, full: true }] : []),
         ];
         const acoes: TituloAcao[] = [
@@ -1054,80 +1096,61 @@ export default function ContasReceberTable({ contas, resumo }: { contas: ContaRo
         );
       })()}
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Registrar Recebimento</DialogTitle>
-            {selected && <p className="text-sm text-muted-foreground">{selected.numero} — Saldo: {formatBRL(saldo)}</p>}
+            {selected && <p className="text-sm text-muted-foreground">{selected.numero}{selected.cliente ? ` · ${selected.cliente.razaoSocial}` : ""} — Saldo: {formatBRL(decimalToNumber(selected.valorOriginal) - decimalToNumber(selected.valorPago))}</p>}
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <Label>Data do Recebimento</Label>
-              <DatePicker value={dataPag} onChange={(v) => setDataPag(v)} className="mt-1 w-full" />
-            </div>
-            <PagamentosInput
-              linhas={linhas}
-              setLinhas={setLinhas}
+          {/* Origem e classificação (somente leitura) — o receber não reclassifica na baixa. */}
+          {selected && (() => {
+            const org = origemReceber(selected);
+            const nat = selected.naturezaFinanceira;
+            return (
+              <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs grid grid-cols-3 gap-2">
+                <div><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Origem</span><span className="text-foreground font-mono">{org.ref ?? org.label}</span></div>
+                <div className="min-w-0"><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Natureza</span><span className="text-foreground block truncate">{nat ? `${nat.codigo ? `${nat.codigo} ` : ""}${nat.nome}` : "—"}</span></div>
+                <div className="min-w-0"><span className="block text-[10px] uppercase tracking-wide text-muted-foreground/70">Centro de custo</span><span className="text-foreground block truncate">{selected.centroCusto ? `${selected.centroCusto.codigo} ${selected.centroCusto.nome}` : "—"}</span></div>
+              </div>
+            );
+          })()}
+          {selected && (
+            <PagamentoTituloForm
+              key={selected.id}
+              tipo="receber"
+              titulo={{
+                id: selected.id,
+                numero: selected.numero,
+                valorOriginal: decimalToNumber(selected.valorOriginal),
+                valorPago: decimalToNumber(selected.valorPago),
+                formaPagamentoPrevista: formaPrevista,
+              }}
               formas={formas}
               contas={contasBanco}
-              total={saldo}
-              usarMaquinetas
+              naturezas={[]}
+              centros={[]}
+              taxaNaturezas={taxaNaturezas}
+              descontoNatureza={descontoNatureza}
+              linhasIniciais={linhasIniciais}
+              validarExtra={validarBaixa}
+              valorVazio={abrirParcial}
+              onPago={() => { setSelected(null); router.refresh(); }}
+              onCancelar={() => setSelected(null)}
             />
-            {/* Encargos da baixa: juros/multa entram no caixa além do título; a
-                taxa/tarifa é retida (recebe MENOS) — quitação = linhas + taxa. */}
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Encargos (opcional)</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">Juros (R$)</Label>
-                  <Input value={juros} onChange={(e) => setJuros(e.target.value)} onBlur={(e) => setJuros(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
-                </div>
-                <div>
-                  <Label className="text-xs">Multa (R$)</Label>
-                  <Input value={multa} onChange={(e) => setMulta(e.target.value)} onBlur={(e) => setMulta(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
-                </div>
-              </div>
-              <div className="grid grid-cols-[9rem_1fr] gap-2">
-                <div>
-                  <Label className="text-xs">Taxa/tarifa retida (R$)</Label>
-                  <Input value={taxa} onChange={(e) => setTaxa(e.target.value)} onBlur={(e) => setTaxa(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
-                </div>
-                <div>
-                  <Label className="text-xs">Natureza da taxa</Label>
-                  <select
-                    value={taxaNaturezaId || taxaNaturezas[0]?.id || ""}
-                    onChange={(e) => setTaxaNaturezaId(e.target.value)}
-                    disabled={taxaNaturezas.length === 0}
-                    className="mt-1 w-full h-9 rounded-lg border border-border px-2 text-sm bg-card disabled:opacity-50"
-                  >
-                    {taxaNaturezas.length === 0 && <option value="">—</option>}
-                    {taxaNaturezas.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}
-                  </select>
-                </div>
-              </div>
-              {(() => {
-                const vJuros = parseValorBR(juros), vMulta = parseValorBR(multa), vTaxa = parseValorBR(taxa);
-                if (vJuros < 0 || vMulta < 0 || vTaxa < 0) return <p className="text-[11px] text-danger">Juros, multa e taxa não podem ser negativos.</p>;
-                if (vTaxa <= 0 && vJuros <= 0 && vMulta <= 0) return null;
-                const caixa = totalInformado + vJuros + vMulta;
-                return (
-                  <p className="text-[11px] text-muted-foreground">
-                    {vTaxa > 0
-                      ? <>Caixa: <span className="font-medium text-foreground">{formatBRL(caixa)}</span> · Baixa do título: <span className="font-medium text-foreground">{formatBRL(totalInformado + vTaxa)}</span></>
-                      : <>Caixa: <span className="font-medium text-foreground">{formatBRL(caixa)}</span> (título + juros/multa)</>}
-                  </p>
-                );
-              })()}
-            </div>
-            {erro && <p className="text-sm text-danger">{erro}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
-            <Button onClick={handlePagamento} disabled={saving || totalInformado <= 0}>
-              {saving ? "Salvando..." : "Confirmar Recebimento"}
-            </Button>
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
+
+      {/* Recebimento em lote dos títulos selecionados. */}
+      {loteAberto && (
+        <PagamentoLoteDialog
+          tipo="receber"
+          titulos={titulosLote}
+          formas={formas}
+          contas={contasBanco}
+          onClose={() => setLoteAberto(false)}
+          onConcluido={() => { setSelIds([]); router.refresh(); }}
+        />
+      )}
 
       {/* Edição do título em pop-up (mesma tela) */}
       <EditarTituloDialog

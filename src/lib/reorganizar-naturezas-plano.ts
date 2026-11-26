@@ -97,6 +97,9 @@ const PLANO: DefNatureza[] = [
   { codigo: "6.04", nome: "Deságio de antecipação", tipo: "SAIDA", contrapartida: "2.1.8" },
   { codigo: "6.05", nome: "Multas pagas", tipo: "SAIDA", contrapartida: "2.1.8" },
   { codigo: "6.06", nome: "IOF", tipo: "SAIDA", contrapartida: "2.1.8" },
+  // Desconto concedido na baixa do CR (travada "descontos-concedidos"; a migration
+  // 20261126130000 já a cria como 6.07 e liga a 3.1.9003 onde o plano estiver aplicado).
+  { codigo: "6.07", nome: "Descontos concedidos", tipo: "SAIDA", contaResultado: "3.1.9003" },
   // Grupo 7 — Investimento (não afeta resultado)
   { codigo: "7.01", nome: "Compra de imobilizado", tipo: "SAIDA", contaResultado: "3.3.0002", contrapartida: "2.1.1" },
   { codigo: "7.02", nome: "Venda de imobilizado", tipo: "ENTRADA", contrapartida: "1.1.5" },
@@ -119,12 +122,14 @@ const CHAVES_MIGRAR: { chave: string; codigo: string }[] = [
   { chave: "multa-paga", codigo: "6.05" },
   { chave: "juros-recebidos", codigo: "1.04" },
   { chave: "descontos-recebidos", codigo: "1.06" },
+  { chave: "descontos-concedidos", codigo: "6.07" },
 ];
 
 // Mapeamento nome-antigo → código sucessor (match sem caixa/acentos).
 const MAPA_SUCESSORA: [string, string][] = [
   ["Juros Recebidos", "1.04"],
   ["Descontos Recebidos", "1.06"],
+  ["Descontos Concedidos", "6.07"],
   ["Venda de mercadorias", "1.01"],
   ["Venda de serviços", "1.03"],
   ["Combustível (produção)", "2.03"],

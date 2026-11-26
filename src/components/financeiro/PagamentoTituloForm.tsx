@@ -1,10 +1,11 @@
 "use client";
 
-// Formulário de PAGAMENTO de um título a pagar (baixa) — modo rápido para o dia
-// a dia do financeiro. Não depende do Dialog: o Contas a Pagar o embute no
-// modal "Registrar Pagamento", e ele pode ir para outro painel sem mudança.
+// Formulário de BAIXA de um título (pagamento no Contas a Pagar, recebimento no
+// Contas a Receber — prop `tipo`) — modo rápido para o dia a dia do financeiro.
+// Não depende do Dialog: cada tela o embute no seu modal ("Registrar Pagamento"
+// / "Registrar Recebimento").
 //
-// Payload = o mesmo do PATCH /api/contas-pagar/[id] (baixarTitulo). Semântica
+// Payload = o mesmo do PATCH /api/contas-{pagar|receber}/[id] (baixarTitulo). Semântica
 // do servidor (src/lib/baixa-titulo.ts):
 //   • cada linha de `pagamentos` vira um lançamento de caixa; juros+multa
 //     entram SOMADOS na 1ª linha → caixa = Σ linhas + juros + multa;
@@ -15,6 +16,13 @@
 // saldo, o encargo volta no lançamento); abaixo, pagamento parcial ou DESCONTO
 // (valorTaxa = diferença com a natureza travada "descontos-recebidos" → o
 // contábil credita Descontos Obtidos).
+//
+// No RECEBER (tipo="receber") a mecânica é a mesma, espelhada: recebeu MENOS e
+// quitou = desconto CONCEDIDO (travada "descontos-concedidos" → (-) Descontos
+// Concedidos) ou taxa retida (default taxa de cartão); recebeu a MAIS = juros/
+// multa recebidos. Cartão com maquineta vai para o modo dividido (o PagamentosInput
+// escolhe a maquineta; conta e taxa derivam dela no servidor). Sem grade de
+// classificação: o PATCH do receber não reclassifica o título na baixa.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Paperclip, Plus, Trash2, X, ChevronDown, ChevronRight, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,12 +34,16 @@ import PagamentosInput, {
   type FormaOpt, type ContaOpt, type LinhaPagamento,
   novaLinhaPagamento, parseValorBR, contaPadraoParaForma, pagamentoContaInvalida,
   contaCaixaPadrao, contaEhCaixa, temContaBanco, formaEhDinheiro,
+  formaEhCartao, pagamentoCartaoSemMaquineta, fetchMaquinetas,
 } from "@/components/pedidos-venda/PagamentosInput";
 import NaturezaCombobox, { type NaturezaOpt } from "@/components/financeiro/NaturezaCombobox";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { cn, formatBRL } from "@/lib/utils";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Lado da baixa: pagar (Contas a Pagar) ou receber (Contas a Receber). */
+export type TipoBaixa = "pagar" | "receber";
 const fmtBR = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 // "100" → "100,00" ao sair de um campo de valor (formato BR).
 export const fmtCampoBR = (s: string) => (s.trim() === "" ? "" : fmtBR(parseValorBR(s)));
@@ -50,16 +62,18 @@ export function filtrarTaxaNaturezas(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt[] 
     .map((ch) => arr.find((n) => n.sistema === true && n.sistemaChave === ch))
     .filter((n): n is TaxaNaturezaOpt => !!n);
 }
-// Default da taxa no pagar: 6.02 (tarifa bancária) — por chave travada; senão a 1ª.
-export function taxaNaturezaDefault(arr: TaxaNaturezaOpt[]): TaxaNaturezaOpt | undefined {
-  return arr.find((n) => n.sistemaChave === "tarifa-bancaria") ?? arr[0];
+// Default da taxa: no pagar 6.02 (tarifa bancária); no receber 6.03 (taxa de
+// cartão) — por chave travada; senão a 1ª.
+export function taxaNaturezaDefault(arr: TaxaNaturezaOpt[], tipo: TipoBaixa = "pagar"): TaxaNaturezaOpt | undefined {
+  const chave = tipo === "receber" ? "taxa-cartao" : "tarifa-bancaria";
+  return arr.find((n) => n.sistemaChave === chave) ?? arr[0];
 }
 export const rotuloNatureza = (n: { codigo?: string | null; nome: string }) => `${n.codigo ? `${n.codigo} ` : ""}${n.nome}`;
 
 // ── Última forma/conta usada pelo usuário (preferência persistida) ──────────
 export type UltimaContaPagar = { forma: string; contaBancariaId: string } | null;
-export function useUltimaContaPagar() {
-  return usePersistedState<UltimaContaPagar>("financeiro:pagar:ultimaConta", null);
+export function useUltimaContaPagar(tipo: TipoBaixa = "pagar") {
+  return usePersistedState<UltimaContaPagar>(tipo === "receber" ? "financeiro:receber:ultimaConta" : "financeiro:pagar:ultimaConta", null);
 }
 
 /** Forma + conta iniciais: forma prevista do título (exceto permuta) → última
@@ -95,12 +109,14 @@ export function formaContaInicial(
 /** Forma + conta numa linha (mesmas regras do PagamentosInput: a conta segue a
  *  forma; eletrônica no Caixa fica vermelha). Permuta nunca aparece. */
 export function FormaContaPicker({
-  forma, conta, onChange, formas, contas, menuMinWidth = 320, destacarInvalida = true,
+  forma, conta, onChange, formas, contas, menuMinWidth = 420, destacarInvalida = true,
+  contaPlaceholder = "Conta de pagamento",
 }: {
   forma: string; conta: string;
   onChange: (v: { forma: string; conta: string }) => void;
   formas: FormaOpt[]; contas: ContaOpt[];
   menuMinWidth?: number; destacarInvalida?: boolean;
+  contaPlaceholder?: string;
 }) {
   const formasOpts = formas.filter((f) => f.ativo !== false && f.tipo !== "PERMUTA");
   const contasOpts = contas.filter((c) => c.ativo !== false && !c.compensacao);
@@ -130,7 +146,7 @@ export function FormaContaPicker({
         value={conta}
         onChange={(v) => onChange({ forma, conta: v })}
         allowNone={false}
-        placeholder="Conta de pagamento"
+        placeholder={contaPlaceholder}
         className="min-w-0"
         menuMinWidth={menuMinWidth}
         triggerClassName={cn("h-9 rounded-lg w-full min-w-0", invalida && "border-red-400 bg-danger/10 text-danger")}
@@ -144,10 +160,15 @@ export function FormaContaPicker({
   );
 }
 
-/** Mensagem da trava de roteamento (forma eletrônica saindo do Caixa). */
-export function erroContaInvalida(forma: string, conta: string, formas: FormaOpt[], contas: ContaOpt[]): string | null {
+/** Mensagem da trava de roteamento (forma eletrônica saindo do / caindo no Caixa). */
+function msgContaInvalida(forma: string, tipo: TipoBaixa): string {
+  return tipo === "receber"
+    ? `Selecione a conta bancária de destino para "${forma || "a forma eletrônica"}" — formas que não são dinheiro não podem cair no Caixa em Dinheiro.`
+    : `Selecione a conta bancária de origem para "${forma || "a forma eletrônica"}" — formas que não são dinheiro não podem sair do Caixa em Dinheiro.`;
+}
+export function erroContaInvalida(forma: string, conta: string, formas: FormaOpt[], contas: ContaOpt[], tipo: TipoBaixa = "pagar"): string | null {
   const ruim = pagamentoContaInvalida([novaLinhaPagamento(forma, conta, "1")], formas, contas);
-  return ruim ? `Selecione a conta bancária de origem para "${ruim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem sair do Caixa em Dinheiro.` : null;
+  return ruim ? msgContaInvalida(ruim.forma, tipo) : null;
 }
 
 // ── Tipos de entrada ────────────────────────────────────────────────────────
@@ -169,9 +190,13 @@ type RateioLinha = { key: string; naturezaFinanceiraId: string; detalhamento: st
 const MAX_ANEXO = 4.5 * 1024 * 1024;
 
 export default function PagamentoTituloForm({
+  tipo = "pagar",
   titulo, formas, contas, naturezas, onNaturezaCriada, centros, taxaNaturezas, descontoNatureza,
+  linhasIniciais, validarExtra, valorVazio = false,
   onPago, onCancelar,
 }: {
+  /** Lado da baixa (default "pagar" — o Contas a Pagar não passa nada). */
+  tipo?: TipoBaixa;
   titulo: TituloPagamento;
   formas: FormaOpt[];
   contas: ContaOpt[];
@@ -180,14 +205,25 @@ export default function PagamentoTituloForm({
   centros: CentroOpt[];
   /** Naturezas elegíveis para a taxa/tarifa retida (grupo 6 / travadas). */
   taxaNaturezas: TaxaNaturezaOpt[];
-  /** Natureza travada "descontos-recebidos" da empresa (null = não semeada). */
+  /** Natureza travada do desconto da empresa — "descontos-recebidos" no pagar,
+   *  "descontos-concedidos" no receber (null = não semeada). */
   descontoNatureza?: TaxaNaturezaOpt | null;
+  /** Linhas pré-preenchidas (ex.: pagamentos do pedido de venda) — abre direto
+   *  no modo dividido. */
+  linhasIniciais?: LinhaPagamento[];
+  /** Validação extra da tela antes de enviar (ex.: backstop do Caixa do pedido).
+   *  Recebe as linhas com valor e o acréscimo (juros+multa); string = erro. */
+  validarExtra?: (linhas: LinhaPagamento[], acrescimo: number) => string | null;
+  /** Abre com o valor VAZIO e o foco nele (baixa parcial — ex.: cartão solto na
+   *  coluna Parcial do quadro). Default: valor = saldo. */
+  valorVazio?: boolean;
   onPago: () => void;
   onCancelar: () => void;
 }) {
   const valOrig = titulo.valorOriginal;
   const saldo = r2(titulo.valorOriginal - titulo.valorPago);
-  const [ultima, setUltima] = useUltimaContaPagar();
+  const receber = tipo === "receber";
+  const [ultima, setUltima] = useUltimaContaPagar(tipo);
 
   // ── Modo rápido ───────────────────────────────────────────────────────────
   const [dataPag, setDataPag] = useState(() => new Date().toISOString().split("T")[0]);
@@ -205,15 +241,20 @@ export default function PagamentoTituloForm({
     if (!conta) setConta(s.conta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formas, contas]);
-  const [valor, setValor] = useState(() => (saldo > 0 ? fmtBR(saldo) : ""));
+  const [valor, setValor] = useState(() => (saldo > 0 && !valorVazio ? fmtBR(saldo) : ""));
   const [tipoAcrescimo, setTipoAcrescimo] = useState<"juros" | "multa">("juros");
   const [tipoFalta, setTipoFalta] = useState<"parcial" | "desconto">("parcial");
 
   // ── Mais opções: taxa retida + dividir em várias formas ───────────────────
-  const [maisOpcoes, setMaisOpcoes] = useState(false);
+  const iniciaDividido = !!linhasIniciais && linhasIniciais.length > 0;
+  const [maisOpcoes, setMaisOpcoes] = useState(iniciaDividido);
   const [taxa, setTaxa] = useState("");
-  const [dividir, setDividir] = useState(false);
-  const [linhas, setLinhas] = useState<LinhaPagamento[]>([]);
+  const [dividir, setDividir] = useState(iniciaDividido);
+  const [linhas, setLinhas] = useState<LinhaPagamento[]>(() => (iniciaDividido ? linhasIniciais! : []));
+  // Natureza da taxa retida escolhida (só receber — taxa de cartão × tarifa).
+  const [taxaNatId, setTaxaNatId] = useState("");
+  const taxaNatSel = (receber && taxaNatId ? taxaNaturezas.find((n) => n.id === taxaNatId) : undefined)
+    ?? taxaNaturezaDefault(taxaNaturezas, tipo);
 
   // ── Classificação (rateio por natureza + centro do título) ────────────────
   const [rateio, setRateio] = useState<RateioLinha[]>(() =>
@@ -284,8 +325,29 @@ export default function PagamentoTituloForm({
     setLinhas([novaLinhaPagamento(forma, conta, valor)]);
     setDividir(true);
   }
+  // Receber no CARTÃO: a maquineta é obrigatória (conta da administradora e taxa
+  // derivam dela) — vai para o modo dividido, onde o PagamentosInput a escolhe;
+  // com uma maquineta só, já vem sugerida.
+  function trocarFormaConta(v: { forma: string; conta: string }) {
+    if (receber && formaEhCartao(v.forma, formas)) {
+      setLinhas([{ ...novaLinhaPagamento(v.forma, "", valor), maquinetaId: undefined }]);
+      setDividir(true);
+      setMaisOpcoes(true);
+      fetchMaquinetas().then((ms) => {
+        if (ms.length !== 1) return;
+        setLinhas((prev) => prev.map((l) => (formaEhCartao(l.forma, formas) && !l.maquinetaId ? { ...l, maquinetaId: ms[0].id, contaBancariaId: "" } : l)));
+      }).catch(() => {});
+      return;
+    }
+    setForma(v.forma); setConta(v.conta);
+  }
   function juntar() {
     const l0 = linhas[0];
+    // Receber no cartão precisa da maquineta — só existe no modo dividido.
+    if (receber && l0 && formaEhCartao(l0.forma, formas)) {
+      setErro("Recebimento no cartão fica no modo dividido (a maquineta é escolhida lá).");
+      return;
+    }
     if (l0) { setForma(l0.forma); setConta(l0.contaBancariaId); }
     setValor(caixa > 0 ? fmtBR(caixa) : "");
     setDividir(false);
@@ -296,22 +358,23 @@ export default function PagamentoTituloForm({
     setErro(null);
     const base: LinhaPagamento[] = dividir ? linhas : [novaLinhaPagamento(forma, conta, valor)];
     const validas = base.filter((l) => parseValorBR(l.valor) > 0);
-    if (validas.length === 0) { setErro("Informe o valor pago."); return; }
-    if (validas.some((l) => !l.forma)) { setErro("Escolha a forma de pagamento."); return; }
-    const contaRuim = pagamentoContaInvalida(validas, formas, contas);
-    if (contaRuim) {
-      setErro(`Selecione a conta bancária de origem para "${contaRuim.forma || "a forma eletrônica"}" — formas que não são dinheiro não podem sair do Caixa em Dinheiro.`);
-      return;
+    if (validas.length === 0) { setErro(receber ? "Informe o valor recebido." : "Informe o valor pago."); return; }
+    if (validas.some((l) => !l.forma)) { setErro(receber ? "Escolha a forma de recebimento." : "Escolha a forma de pagamento."); return; }
+    if (receber) {
+      const semMaq = pagamentoCartaoSemMaquineta(validas, formas);
+      if (semMaq) { setErro(`Escolha a maquineta para "${semMaq.forma}" — a conta e a taxa do cartão derivam dela.`); return; }
     }
+    const contaRuim = pagamentoContaInvalida(validas, formas, contas);
+    if (contaRuim) { setErro(msgContaInvalida(contaRuim.forma, tipo)); return; }
     if (parseValorBR(taxa) < 0) { setErro("A taxa não pode ser negativa."); return; }
     if (vDesconto > 0 && vTaxa > 0) {
       setErro("Desconto e taxa/tarifa retida não podem ir na mesma baixa — registre a taxa como parte do desconto ou pague em duas baixas.");
       return;
     }
-    // Classificação OBRIGATÓRIA: natureza (ao menos uma linha) e centro de custo.
-    if (!rateio.some((l) => l.naturezaFinanceiraId)) { setClassAberta(true); setErro("Informe a natureza financeira na Classificação."); return; }
-    if (!centroId) { setClassAberta(true); setErro("Informe o centro de custo na Classificação."); return; }
-    const rateioValido = rateio.filter((l) => l.naturezaFinanceiraId && parseValorBR(l.valor) > 0);
+    // Classificação OBRIGATÓRIA (só pagar): natureza (ao menos uma linha) e centro.
+    if (!receber && !rateio.some((l) => l.naturezaFinanceiraId)) { setClassAberta(true); setErro("Informe a natureza financeira na Classificação."); return; }
+    if (!receber && !centroId) { setClassAberta(true); setErro("Informe o centro de custo na Classificação."); return; }
+    const rateioValido = receber ? [] : rateio.filter((l) => l.naturezaFinanceiraId && parseValorBR(l.valor) > 0);
     if (rateioValido.length > 0) {
       const soma = r2(rateioValido.reduce((s, l) => s + parseValorBR(l.valor), 0));
       const bateSozinha = Math.abs(soma - valOrig) <= 0.05;
@@ -324,50 +387,68 @@ export default function PagamentoTituloForm({
     }
     if (anexo && anexo.size > MAX_ANEXO) { setErro("Comprovante muito grande (máx. 4,5 MB)."); return; }
 
-    // Linhas do servidor: acréscimo sai da 1ª linha (o servidor devolve juros/
-    // multa somados nela) — o caixa sai exatamente o valor digitado.
-    const pagamentos = validas.map((l) => ({ forma: l.forma || null, contaBancariaId: l.contaBancariaId || null, valor: parseValorBR(l.valor) }));
+    const extra = validarExtra?.(validas, acrescimo);
+    if (extra) { setErro(extra); return; }
+
+    // Linhas do servidor: acréscimo sai da linha onde o servidor devolve juros/
+    // multa (a 1ª SEM maquineta; senão a 1ª) — o caixa sai exatamente o valor
+    // digitado. Cartão com maquineta (receber): manda maquinetaId e NÃO manda
+    // conta — a conta (administradora) e a taxa são derivadas no servidor.
+    const pagamentos = validas.map((l) => {
+      const comMaquineta = receber && !!l.maquinetaId && formaEhCartao(l.forma, formas);
+      return {
+        forma: l.forma || null,
+        contaBancariaId: comMaquineta ? null : (l.contaBancariaId || null),
+        valor: parseValorBR(l.valor),
+        ...(comMaquineta ? { maquinetaId: l.maquinetaId } : {}),
+      };
+    });
     if (acrescimo > 0) {
-      if (pagamentos[0].valor - acrescimo < 0.01) {
-        setErro("O acréscimo (juros/multa) precisa caber na 1ª forma de pagamento.");
+      const idx = Math.max(0, pagamentos.findIndex((p) => !("maquinetaId" in p)));
+      if (pagamentos[idx].valor - acrescimo < 0.01) {
+        setErro(`O acréscimo (juros/multa) precisa caber na ${idx === 0 ? "1ª" : `${idx + 1}ª`} forma de ${receber ? "recebimento" : "pagamento"}.`);
         return;
       }
-      pagamentos[0] = { ...pagamentos[0], valor: r2(pagamentos[0].valor - acrescimo) };
+      pagamentos[idx] = { ...pagamentos[idx], valor: r2(pagamentos[idx].valor - acrescimo) };
     }
     const valorTaxa = r2(vTaxa + vDesconto);
     const taxaNaturezaId = vDesconto > 0
       ? descontoNatureza!.id
-      : vTaxa > 0 ? (taxaNaturezaDefault(taxaNaturezas)?.id ?? null) : null;
+      : vTaxa > 0 ? (taxaNatSel?.id ?? null) : null;
 
     setSaving(true);
-    const res = await fetch(`/api/contas-pagar/${titulo.id}`, {
+    const res = await fetch(`/api/contas-${tipo}/${titulo.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pagamentos, dataPagamento: dataPag, valorMulta: vMulta, valorJuros: vJuros,
         valorTaxa, taxaNaturezaId,
-        naturezas: rateioValido.length
-          ? rateioValido.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseValorBR(l.valor) }))
-          : undefined,
-        // Classificação editada na baixa vai para o TÍTULO.
-        centroCustoId: centroId || null,
+        // Classificação editada na baixa vai para o TÍTULO (só pagar).
+        ...(receber ? {} : {
+          naturezas: rateioValido.length
+            ? rateioValido.map((l) => ({ naturezaFinanceiraId: l.naturezaFinanceiraId, detalhamento: l.detalhamento.trim() || null, valor: parseValorBR(l.valor) }))
+            : undefined,
+          centroCustoId: centroId || null,
+        }),
       }),
     }).catch(() => null);
     if (!res || !res.ok) {
       setSaving(false);
-      setErro((res ? (await res.json().catch(() => ({}))).error : null) ?? "Erro ao pagar.");
+      setErro((res ? (await res.json().catch(() => ({}))).error : null) ?? (receber ? "Erro ao receber." : "Erro ao pagar."));
       return;
     }
-    // Lembra a forma/conta usada (pré-preenche o próximo pagamento).
-    setUltima({ forma: validas[0].forma, contaBancariaId: validas[0].contaBancariaId });
+    // Lembra a forma/conta usada (pré-preenche a próxima baixa). Linha de
+    // maquineta não tem conta escolhida — não vira "última conta".
+    const lembrar = validas.find((l) => !(l.maquinetaId && formaEhCartao(l.forma, formas)) && l.contaBancariaId);
+    if (lembrar) setUltima({ forma: lembrar.forma, contaBancariaId: lembrar.contaBancariaId });
     // Comprovante (opcional) — sobe depois da baixa ok, na rota de anexos.
     if (anexo) {
       const fd = new FormData();
       fd.append("file", anexo);
-      const up = await fetch(`/api/contas-pagar/${titulo.id}/anexos`, { method: "POST", body: fd }).catch(() => null);
+      const up = await fetch(`/api/contas-${tipo}/${titulo.id}/anexos`, { method: "POST", body: fd }).catch(() => null);
       if (!up || !up.ok) {
         const msg = up ? (await up.json().catch(() => ({}))).error : null;
-        alert(`Pagamento registrado, mas o comprovante não foi anexado${msg ? `: ${msg}` : ""}. Anexe pelo detalhe do título.`);
+        alert(`${receber ? "Recebimento" : "Pagamento"} registrado, mas o comprovante não foi anexado${msg ? `: ${msg}` : ""}. Anexe pelo detalhe do título.`);
       }
     }
     setSaving(false);
@@ -395,7 +476,7 @@ export default function PagamentoTituloForm({
         <div className="rounded-lg bg-violet-50 dark:bg-violet-500/10 border border-violet-300/50 px-3 py-2 text-xs text-violet-700 dark:text-violet-300">
           Título previsto como <b>permuta</b> — quite pelo <b>Encontro de Contas</b> (motivo Permuta),
           que liquida o CP e o CR do parceiro no mesmo lançamento. A baixa abaixo vale para
-          pagamento em dinheiro/banco.
+          {receber ? " recebimento" : " pagamento"} em dinheiro/banco.
         </div>
       )}
 
@@ -415,20 +496,22 @@ export default function PagamentoTituloForm({
             ) : (
               <FormaContaPicker
                 forma={forma} conta={conta}
-                onChange={(v) => { setForma(v.forma); setConta(v.conta); }}
+                onChange={trocarFormaConta}
                 formas={formas} contas={contas}
                 destacarInvalida={parseValorBR(valor) > 0}
+                contaPlaceholder={receber ? "Conta de recebimento" : "Conta de pagamento"}
               />
             )}
           </div>
         </div>
         <div>
-          <Label className="text-xs">Valor pago</Label>
+          <Label className="text-xs">{receber ? "Valor recebido" : "Valor pago"}</Label>
           {dividir ? (
             <div className="mt-1 h-9 flex items-center justify-end px-2 rounded-lg bg-muted text-sm font-mono">{fmtBR(caixa)}</div>
           ) : (
             <Input
               value={valor}
+              autoFocus={valorVazio}
               onChange={(e) => setValor(e.target.value)}
               onBlur={(e) => setValor(fmtCampoBR(e.target.value))}
               placeholder="0,00"
@@ -454,12 +537,14 @@ export default function PagamentoTituloForm({
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-sm">
           <span className="text-info font-medium">Faltam {formatBRL(falta)}</span>
           <div className="inline-flex rounded-md border border-border overflow-hidden">
-            <button type="button" className={toggleCls(tipoFalta === "parcial")} onClick={() => setTipoFalta("parcial")}>Pagamento parcial</button>
+            <button type="button" className={toggleCls(tipoFalta === "parcial")} onClick={() => setTipoFalta("parcial")}>{receber ? "Recebimento parcial" : "Pagamento parcial"}</button>
             <button
               type="button"
               className={cn(toggleCls(tipoFalta === "desconto"), !descontoDisponivel && "opacity-40 cursor-not-allowed")}
               disabled={!descontoDisponivel}
-              title={descontoDisponivel ? "O título quita; a diferença vira Desconto obtido" : "A natureza travada de Descontos Recebidos não existe nesta empresa"}
+              title={descontoDisponivel
+                ? `O título quita; a diferença vira ${receber ? "Desconto concedido" : "Desconto obtido"}`
+                : `A natureza travada de ${receber ? "Descontos Concedidos" : "Descontos Recebidos"} não existe nesta empresa`}
               onClick={() => setTipoFalta("desconto")}
             >
               Desconto
@@ -467,7 +552,7 @@ export default function PagamentoTituloForm({
           </div>
           <span className="ml-auto text-xs text-muted-foreground">
             {tipoFalta === "desconto" && vDesconto > 0
-              ? <>Quita o título · desconto obtido {formatBRL(vDesconto)}</>
+              ? <>Quita o título · desconto {receber ? "concedido" : "obtido"} {formatBRL(vDesconto)}</>
               : <>Título fica parcial · saldo {formatBRL(falta)}</>}
           </span>
         </div>
@@ -484,14 +569,32 @@ export default function PagamentoTituloForm({
           <div className="mt-2 space-y-3 rounded-lg border border-border px-3 py-3">
             <div className="grid grid-cols-[minmax(0,1fr)_9rem] gap-2 items-end">
               <p className="text-[11px] text-muted-foreground">
-                <b>Taxa/tarifa retida</b>: o título quita pelo valor pago + taxa; a taxa não sai do caixa
-                {(() => { const d = taxaNaturezaDefault(taxaNaturezas); return d ? <> e vai para <b>{rotuloNatureza(d)}</b></> : null; })()}.
+                <b>Taxa/tarifa retida</b>: {receber
+                  ? <>o título quita pelo valor recebido + taxa; a taxa não entra no caixa</>
+                  : <>o título quita pelo valor pago + taxa; a taxa não sai do caixa</>}
+                {!receber && (() => { const d = taxaNaturezaDefault(taxaNaturezas); return d ? <> e vai para <b>{rotuloNatureza(d)}</b></> : null; })()}.
+                {receber && <> Cartão com maquineta já retém a taxa sozinho.</>}
               </p>
               <div>
                 <Label className="text-xs">Taxa/tarifa (R$)</Label>
                 <Input value={taxa} onChange={(e) => mudarTaxa(e.target.value)} onBlur={(e) => setTaxa(fmtCampoBR(e.target.value))} placeholder="0,00" className="mt-1 h-9 text-right font-mono" />
               </div>
             </div>
+            {/* Receber: escolhe a natureza da taxa (taxa de cartão × tarifa…). */}
+            {receber && taxaNaturezas.length > 1 && (
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-2 items-center">
+                <Label className="text-xs text-muted-foreground">Natureza da taxa</Label>
+                <ComboboxWithCreate
+                  value={taxaNatSel?.id ?? ""}
+                  onChange={setTaxaNatId}
+                  allowNone={false}
+                  placeholder="Natureza da taxa"
+                  triggerClassName="h-9 rounded-lg w-full min-w-0"
+                  menuMinWidth={320}
+                  options={taxaNaturezas.map((n) => ({ value: n.id, label: rotuloNatureza(n) }))}
+                />
+              </div>
+            )}
             {dividir ? (
               <div className="space-y-1">
                 <PagamentosInput
@@ -500,14 +603,15 @@ export default function PagamentoTituloForm({
                   formas={formas}
                   contas={contas}
                   total={Math.max(0, r2(saldo - vTaxa))}
-                  menuMinWidth={340}
-                  contaPlaceholder="Conta de pagamento"
+                  menuMinWidth={420}
+                  contaPlaceholder={receber ? "Conta de recebimento" : "Conta de pagamento"}
+                  usarMaquinetas={receber}
                 />
                 <button type="button" onClick={juntar} className="text-xs text-muted-foreground hover:text-foreground">Voltar para uma forma só</button>
               </div>
             ) : (
               <button type="button" onClick={abrirDividir} className="inline-flex items-center gap-1 text-xs text-info font-medium">
-                <Plus className="w-3.5 h-3.5" /> Dividir pagamento
+                <Plus className="w-3.5 h-3.5" /> {receber ? "Dividir recebimento" : "Dividir pagamento"}
               </button>
             )}
           </div>
@@ -515,7 +619,7 @@ export default function PagamentoTituloForm({
       </div>
 
       {/* ── Classificação: resumo; grade só ao alterar (ou se faltar algo) ── */}
-      {!classAberta ? (
+      {receber ? null : !classAberta ? (
         <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm">
           <span className="min-w-0 flex-1 truncate">
             <span className="text-muted-foreground">{resumoNat ?? "Sem natureza"}</span>
@@ -633,7 +737,7 @@ export default function PagamentoTituloForm({
       <div className="flex items-center justify-end gap-2 pt-1">
         <Button variant="outline" onClick={onCancelar} disabled={saving}>Cancelar</Button>
         <Button onClick={confirmar} disabled={saving || caixa <= 0}>
-          {saving ? "Salvando..." : `Confirmar pagamento${caixa > 0 ? ` · ${formatBRL(caixa)}` : ""}`}
+          {saving ? "Salvando..." : `Confirmar ${receber ? "recebimento" : "pagamento"}${caixa > 0 ? ` · ${formatBRL(caixa)}` : ""}`}
         </Button>
       </div>
     </div>

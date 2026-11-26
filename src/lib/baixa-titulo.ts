@@ -168,7 +168,9 @@ export async function baixarTitulo(
   // em título intragrupo — o motor pula caixa intragrupo e a taxa sumiria
   // silenciosamente do razão. O DESCONTO na baixa do pagar usa a travada
   // "descontos-recebidos" pelo mesmo caminho (pagou menos e quitou; o contábil
-  // credita Descontos Obtidos).
+  // credita Descontos Obtidos); no receber, o desconto CONCEDIDO usa a travada
+  // "descontos-concedidos" (recebeu menos e quitou; o contábil debita a conta
+  // de resultado da natureza — (-) Descontos Concedidos).
   let taxaNaturezaId: string | null = null;
   if (valorTaxa > 0.005) {
     if (conta.intragrupo) {

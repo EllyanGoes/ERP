@@ -497,7 +497,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
   }));
 
   // Abre o "Registrar Pagamento" (o formulário inicializa a partir do título).
-  function abrir(row: ContaRow) {
+  // `parcial`: aberto pelo arraste à coluna Parcial do quadro (valor vazio).
+  const [abrirParcial, setAbrirParcial] = useState(false);
+  function abrir(row: ContaRow, parcial = false) {
+    setAbrirParcial(parcial);
     setSelected(row);
   }
 
@@ -1015,6 +1018,10 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
             onAbrir={(id) => { const c = contas.find((x) => x.id === id); if (c) setDetalhe(c); }}
             selecionados={selIds}
             onToggleSelecao={toggleSel}
+            onSoltarBaixa={(id, modo) => {
+              const c = contas.find((x) => x.id === id);
+              if (c) comGuardaEmpresa(c, () => abrir(c, modo === "parcial"))();
+            }}
           />
         </div>
       ) : (
@@ -1207,6 +1214,7 @@ export default function ContasPagarTable({ contas, resumo }: { contas: ContaRow[
           {selected && (
             <PagamentoTituloForm
               key={selected.id}
+              valorVazio={abrirParcial}
               titulo={{
                 id: selected.id,
                 numero: selected.numero,

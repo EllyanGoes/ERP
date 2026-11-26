@@ -1,9 +1,11 @@
 "use client";
 
-// Pagamento EM LOTE de títulos a pagar: uma data, uma forma/conta, cada título
-// quitado pelo saldo integral (POST /api/contas-pagar/baixa-lote). Sem encargos
-// e sem mexer na classificação já gravada. Os títulos que o servidor vai pular
-// aparecem ANTES, com o motivo (mesma regra, calculada na tela).
+// Baixa EM LOTE de títulos (pagamento no Contas a Pagar, recebimento no Contas a
+// Receber — prop `tipo`): uma data, uma forma/conta, cada título quitado pelo
+// saldo integral (POST /api/contas-{pagar|receber}/baixa-lote). Sem encargos e
+// sem mexer na classificação já gravada. Os títulos que o servidor vai pular
+// aparecem ANTES, com o motivo (mesma regra, calculada na tela). No receber,
+// cartão fica de fora (exige maquineta — recebimento individual).
 import { useState } from "react";
 import { CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -11,12 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import DatePicker from "@/components/shared/DatePicker";
 import type { FormaOpt, ContaOpt } from "@/components/pedidos-venda/PagamentosInput";
-import { FormaContaPicker, formaContaInicial, erroContaInvalida, useUltimaContaPagar } from "@/components/financeiro/PagamentoTituloForm";
+import { FormaContaPicker, formaContaInicial, erroContaInvalida, useUltimaContaPagar, type TipoBaixa } from "@/components/financeiro/PagamentoTituloForm";
 import { formatBRL } from "@/lib/utils";
 
 export type TituloLote = {
   id: string;
   numero: string;
+  /** Parceiro: fornecedor (pagar) ou cliente (receber). */
   fornecedor: string | null;
   saldo: number;
   /** Motivo pelo qual o lote vai pular o título (null = será pago). */
@@ -26,8 +29,10 @@ export type TituloLote = {
 type Resultado = { pagos: { id: string; numero: string }[]; ignorados: { id: string; numero: string; motivo: string }[] };
 
 export default function PagamentoLoteDialog({
-  titulos, formas, contas, onClose, onConcluido,
+  tipo = "pagar", titulos, formas: formasTodas, contas: contasTodas, onClose, onConcluido,
 }: {
+  /** Lado do lote (default "pagar" — o Contas a Pagar não passa nada). */
+  tipo?: TipoBaixa;
   titulos: TituloLote[];
   formas: FormaOpt[];
   contas: ContaOpt[];
@@ -35,7 +40,12 @@ export default function PagamentoLoteDialog({
   /** Chamado após o envio (houve baixa) — o pai limpa a seleção e atualiza. */
   onConcluido: () => void;
 }) {
-  const [ultima, setUltima] = useUltimaContaPagar();
+  const receber = tipo === "receber";
+  // Receber em lote: sem cartão (a maquineta deriva conta e taxa — baixa
+  // individual) e sem a conta da administradora (tipo CARTAO).
+  const formas = receber ? formasTodas.filter((f) => f.tipo !== "CARTAO_CREDITO" && f.tipo !== "CARTAO_DEBITO") : formasTodas;
+  const contas = receber ? contasTodas.filter((c) => c.tipo !== "CARTAO") : contasTodas;
+  const [ultima, setUltima] = useUltimaContaPagar(tipo);
   const ini = formaContaInicial(null, ultima, formas, contas);
   const [dataPag, setDataPag] = useState(() => new Date().toISOString().split("T")[0]);
   const [forma, setForma] = useState(ini.forma);
@@ -50,19 +60,20 @@ export default function PagamentoLoteDialog({
 
   async function pagar() {
     setErro(null);
-    if (!forma) { setErro("Escolha a forma de pagamento."); return; }
-    if (!conta) { setErro("Escolha a conta de pagamento."); return; }
-    const ruim = erroContaInvalida(forma, conta, formas, contas);
+    const verbo = receber ? "recebimento" : "pagamento";
+    if (!forma) { setErro(`Escolha a forma de ${verbo}.`); return; }
+    if (!conta) { setErro(`Escolha a conta de ${verbo}.`); return; }
+    const ruim = erroContaInvalida(forma, conta, formas, contas, tipo);
     if (ruim) { setErro(ruim); return; }
     setSaving(true);
-    const res = await fetch("/api/contas-pagar/baixa-lote", {
+    const res = await fetch(`/api/contas-${tipo}/baixa-lote`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: pagaveis.map((t) => t.id), dataPagamento: dataPag, forma, contaBancariaId: conta }),
     }).catch(() => null);
     setSaving(false);
     if (!res || !res.ok) {
-      setErro((res ? (await res.json().catch(() => ({}))).error : null) ?? "Erro ao pagar o lote.");
+      setErro((res ? (await res.json().catch(() => ({}))).error : null) ?? (receber ? "Erro ao receber o lote." : "Erro ao pagar o lote."));
       return;
     }
     const j = await res.json();
@@ -77,18 +88,20 @@ export default function PagamentoLoteDialog({
     <Dialog open onOpenChange={(o) => { if (!o && !saving) onClose(); }}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{resultado ? "Resultado do pagamento em lote" : `Pagar ${titulos.length} título${titulos.length !== 1 ? "s" : ""}`}</DialogTitle>
+          <DialogTitle>{resultado
+            ? `Resultado do ${receber ? "recebimento" : "pagamento"} em lote`
+            : `${receber ? "Receber" : "Pagar"} ${titulos.length} título${titulos.length !== 1 ? "s" : ""}`}</DialogTitle>
         </DialogHeader>
 
         {resultado ? (
           <div className="space-y-3">
             <p className="flex items-center gap-2 text-sm text-success">
-              <CheckCircle2 className="w-4 h-4" /> {resultado.pagos.length} título{resultado.pagos.length !== 1 ? "s" : ""} pago{resultado.pagos.length !== 1 ? "s" : ""}
+              <CheckCircle2 className="w-4 h-4" /> {resultado.pagos.length} título{resultado.pagos.length !== 1 ? "s" : ""} {receber ? "recebido" : "pago"}{resultado.pagos.length !== 1 ? "s" : ""}
               {resultado.pagos.length > 0 && <span className="text-muted-foreground font-mono text-xs truncate">· {resultado.pagos.map((p) => p.numero).join(", ")}</span>}
             </p>
             {resultado.ignorados.length > 0 && (
               <div className="space-y-1">
-                <p className="flex items-center gap-2 text-sm text-warning"><AlertTriangle className="w-4 h-4" /> {resultado.ignorados.length} não pago{resultado.ignorados.length !== 1 ? "s" : ""}</p>
+                <p className="flex items-center gap-2 text-sm text-warning"><AlertTriangle className="w-4 h-4" /> {resultado.ignorados.length} não {receber ? "recebido" : "pago"}{resultado.ignorados.length !== 1 ? "s" : ""}</p>
                 <div className="max-h-60 overflow-y-auto rounded-lg border border-border divide-y divide-border text-sm">
                   {resultado.ignorados.map((i) => (
                     <div key={i.id} className="flex gap-3 px-3 py-1.5">
@@ -113,7 +126,7 @@ export default function PagamentoLoteDialog({
               <div className="min-w-0">
                 <Label className="text-xs">Forma e conta</Label>
                 <div className="mt-1">
-                  <FormaContaPicker forma={forma} conta={conta} onChange={(v) => { setForma(v.forma); setConta(v.conta); }} formas={formas} contas={contas} />
+                  <FormaContaPicker forma={forma} conta={conta} onChange={(v) => { setForma(v.forma); setConta(v.conta); }} formas={formas} contas={contas} contaPlaceholder={receber ? "Conta de recebimento" : "Conta de pagamento"} />
                 </div>
               </div>
             </div>
@@ -126,7 +139,7 @@ export default function PagamentoLoteDialog({
                   <span className="tabular-nums font-medium">{formatBRL(t.saldo)}</span>
                 </div>
               ))}
-              {pagaveis.length === 0 && <p className="px-3 py-4 text-center text-sm text-muted-foreground">Nenhum título selecionado pode ser pago em lote.</p>}
+              {pagaveis.length === 0 && <p className="px-3 py-4 text-center text-sm text-muted-foreground">Nenhum título selecionado pode ser {receber ? "recebido" : "pago"} em lote.</p>}
             </div>
 
             {ignorar.length > 0 && (
@@ -142,13 +155,13 @@ export default function PagamentoLoteDialog({
 
             <p className="text-[11px] text-muted-foreground">
               Cada título é quitado pelo saldo, sem juros/multa/desconto, mantendo a natureza e o centro de custo já gravados.
-              Para encargos ou parcial, pague o título individualmente.
+              Para encargos ou parcial, {receber ? "receba" : "pague"} o título individualmente.
             </p>
             {erro && <p className="text-sm text-danger">{erro}</p>}
             <DialogFooter>
               <Button variant="outline" onClick={onClose} disabled={saving}>Cancelar</Button>
               <Button onClick={pagar} disabled={saving || pagaveis.length === 0}>
-                {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Pagando…</> : `Pagar ${pagaveis.length} título${pagaveis.length !== 1 ? "s" : ""} · ${formatBRL(total)}`}
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> {receber ? "Recebendo…" : "Pagando…"}</> : `${receber ? "Receber" : "Pagar"} ${pagaveis.length} título${pagaveis.length !== 1 ? "s" : ""} · ${formatBRL(total)}`}
               </Button>
             </DialogFooter>
           </div>
