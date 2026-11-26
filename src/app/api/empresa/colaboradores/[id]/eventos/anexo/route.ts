@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModuloAny } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { salvarArquivoDocumento } from "@/lib/documentos";
+import { garantirPastaSistema, salvarArquivoDocumento } from "@/lib/documentos";
 
 const MAX_MB = 25;
 
@@ -17,11 +17,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const titulo = String(form.get("titulo") ?? "").trim() || file?.name || "Histórico funcional";
   if (!file) return NextResponse.json({ error: "Anexe o arquivo." }, { status: 400 });
   if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `Máx. ${MAX_MB} MB.` }, { status: 400 });
-  const categoria = await prismaSemEscopo.documentoCategoria.upsert({
-    where: { slug: "rh-historico" },
-    create: { nome: "RH — Histórico funcional", slug: "rh-historico", exigeValidade: false, diasAlerta: 30, ordem: 90 },
-    update: {},
-  });
+  const categoria = await garantirPastaSistema(
+    { nome: "Histórico funcional", slug: "rh-historico", exigeValidade: false, diasAlerta: 30, ordem: 90 },
+    { slug: "rh", nome: "RH", ordem: 90 },
+  );
   const documento = await prisma.documento.create({
     data: { empresaId: auth.session.activeEmpresaId ?? EMPRESA_PADRAO_ID, categoriaId: categoria.id, titulo, confidencial: true, colaboradorId: params.id, tags: ["rh", "historico"] },
     select: { id: true, empresaId: true },

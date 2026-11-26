@@ -3,18 +3,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
 import {
-  DOCUMENTO_LISTA_SELECT, MAX_MB_DOCUMENTO, podeVerDocumento,
+  DOCUMENTO_LISTA_SELECT, MAX_MB_DOCUMENTO, caminhosPastas, faltaValidade, podeVerDocumento,
   registrarLogDocumento, salvarArquivoDocumento, statusDerivado,
 } from "@/lib/documentos";
 
-// GET /api/documentos?categoria=&status=&entidade=fornecedor:<id>&busca=
+// GET /api/documentos?pasta=&categoria=&status=&entidade=fornecedor:<id>&busca=&visao=recentes|estrela
+// pasta (ou categoria, id ou slug): só os documentos DIRETOS da pasta.
+// visao=recentes: o que o usuário abriu/enviou por último; visao=estrela: favoritos dele.
+// Cada documento vem com caminho da pasta, favorito (do usuário) e faltaValidade.
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("documentos");
   if (!auth.ok) return auth.response;
   const sp = new URL(req.url).searchParams;
+  const usuarioId = auth.session.sub;
 
   const where: Record<string, unknown> = {};
-  if (sp.get("categoria")) where.categoriaId = sp.get("categoria");
+  const pastaRef = sp.get("pasta") || sp.get("categoria");
+  if (pastaRef) {
+    const p = await prismaSemEscopo.documentoCategoria.findFirst({ where: { OR: [{ id: pastaRef }, { slug: pastaRef }] }, select: { id: true } });
+    where.categoriaId = p?.id ?? pastaRef;
+  }
   if (sp.get("status")) where.status = sp.get("status");
   const entidade = sp.get("entidade"); // "fornecedor:<id>" | "cliente:" | "colaborador:" | "imobilizado:"
   if (entidade) {
@@ -32,13 +40,35 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  // prisma (escopado): lista da empresa ativa. Entidade vinculada usa sem escopo
-  // (a aba do fornecedor pode ser aberta de outra empresa) — mas mantém simples: escopado.
-  const documentos = await prisma.documento.findMany({
-    where,
-    select: DOCUMENTO_LISTA_SELECT,
-    orderBy: [{ validade: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
-  });
+  const visao = sp.get("visao");
+  let ultimoAcesso: Map<string, Date> | null = null;
+  if (visao === "recentes") {
+    // Últimos documentos que o usuário visualizou/baixou/enviou/editou.
+    const logs = await prismaSemEscopo.documentoLog.groupBy({
+      by: ["documentoId"],
+      where: { usuarioId },
+      _max: { createdAt: true },
+      orderBy: { _max: { createdAt: "desc" } },
+      take: 60,
+    });
+    ultimoAcesso = new Map(logs.map((l) => [l.documentoId, l._max.createdAt ?? new Date(0)]));
+    where.id = { in: Array.from(ultimoAcesso.keys()) };
+  } else if (visao === "estrela") {
+    where.favoritos = { some: { usuarioId } };
+  }
+
+  // prisma (escopado): lista da empresa ativa.
+  const [documentos, pastas, favoritos] = await Promise.all([
+    prisma.documento.findMany({
+      where,
+      select: DOCUMENTO_LISTA_SELECT,
+      orderBy: [{ validade: { sort: "asc", nulls: "last" } }, { createdAt: "desc" }],
+    }),
+    prismaSemEscopo.documentoCategoria.findMany({ select: { id: true, nome: true, paiId: true } }),
+    prismaSemEscopo.documentoFavorito.findMany({ where: { usuarioId }, select: { documentoId: true } }),
+  ]);
+  const caminhos = caminhosPastas(pastas);
+  const estrelas = new Set(favoritos.map((f) => f.documentoId));
 
   // Confidenciais fora p/ quem não pode ver + status derivado na leitura
   const visiveis = documentos
@@ -46,8 +76,13 @@ export async function GET(req: NextRequest) {
     .map((d) => ({
       ...d,
       status: statusDerivado(d.status, d.validade, d.diasAlerta ?? d.categoria.diasAlerta),
+      faltaValidade: faltaValidade(d, d.categoria.exigeValidade),
+      caminho: caminhos.get(d.categoria.id) ?? d.categoria.nome,
+      favorito: estrelas.has(d.id),
+      ultimoAcesso: ultimoAcesso?.get(d.id) ?? null,
       acessos: undefined,
     }));
+  if (ultimoAcesso) visiveis.sort((a, b) => +(b.ultimoAcesso ?? 0) - +(a.ultimoAcesso ?? 0));
 
   return NextResponse.json({ data: visiveis });
 }
@@ -68,10 +103,14 @@ export async function POST(req: NextRequest) {
   }
 
   const categoria = await prismaSemEscopo.documentoCategoria.findUnique({ where: { id: categoriaId } });
-  if (!categoria) return NextResponse.json({ error: "Categoria inválida." }, { status: 400 });
+  if (!categoria) return NextResponse.json({ error: "Escolha a pasta do documento." }, { status: 400 });
+  if (!categoria.ativo) return NextResponse.json({ error: `A pasta "${categoria.nome}" está inativa.` }, { status: 400 });
   const validade = form.get("validade") ? new Date(String(form.get("validade"))) : null;
-  if (categoria.exigeValidade && !validade) {
-    return NextResponse.json({ error: `A categoria "${categoria.nome}" exige data de validade.` }, { status: 400 });
+  // Envio rápido (vários arquivos de uma vez): entra sem validade e fica como
+  // "Falta validade" em vez de bloquear. O formulário completo continua exigindo.
+  const envioRapido = form.get("rapido") === "true";
+  if (categoria.exigeValidade && !validade && !envioRapido) {
+    return NextResponse.json({ error: `A pasta "${categoria.nome}" exige data de validade.` }, { status: 400 });
   }
 
   const str = (k: string) => (form.get(k) ? String(form.get(k)).trim() || null : null);

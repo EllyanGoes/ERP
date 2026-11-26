@@ -93,8 +93,10 @@ function SeletorModulo({
         <>
           <div className="fixed inset-0 z-40" onMouseDown={() => setAberto(false)} />
           {/* Mesma largura da barra (o painel corta o que passa da borda). */}
-          <div className="absolute left-2 right-2 top-full mt-1 z-50 max-h-[75vh] overflow-y-auto rounded-xl border border-border bg-popover shadow-xl p-1.5">
-            <div className="relative mb-1">
+          {/* Busca fixa no topo e Configurações fixa no rodapé — só a lista de
+              módulos rola. */}
+          <div className="absolute left-2 right-2 top-full mt-1 z-50 max-h-[75vh] flex flex-col rounded-xl border border-border bg-popover shadow-xl p-1.5">
+            <div className="relative mb-1 shrink-0">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <input
                 autoFocus
@@ -113,6 +115,7 @@ function SeletorModulo({
                 className="w-full h-8 pl-8 pr-2 rounded-md bg-muted/60 text-sm outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
             {listaRecentes.length > 0 && (
               <>
                 <p className="px-3 pt-1.5 pb-1 text-[11px] font-medium text-muted-foreground/70">Recentes</p>
@@ -131,8 +134,9 @@ function SeletorModulo({
             )}
             {filtrados.map((m) => <Item key={m.id} m={m} />)}
             {filtrados.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum módulo encontrado.</p>}
+            </div>
             {config && !termo && (
-              <>
+              <div className="shrink-0">
                 <div className="my-1 border-t border-border" />
                 <button
                   type="button"
@@ -141,7 +145,7 @@ function SeletorModulo({
                 >
                   <Settings className="w-4 h-4 shrink-0 text-muted-foreground" /> Configurações
                 </button>
-              </>
+              </div>
             )}
           </div>
         </>

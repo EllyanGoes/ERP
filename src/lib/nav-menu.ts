@@ -52,6 +52,7 @@ import {
   Layers,
   Activity,
   Clock,
+  Star,
   Route,
   Landmark,
   Wallet,
@@ -549,6 +550,8 @@ export const mainModules: Module[] = [
         kind: "Geral",
         items: [
           { href: "/documentos", label: "Acervo", icon: FileArchive, exact: true },
+          { href: "/documentos/recentes", label: "Recentes", icon: Clock },
+          { href: "/documentos/com-estrela", label: "Com estrela", icon: Star },
           { href: "/documentos/vencimentos", label: "Vencimentos", icon: CalendarClock },
         ],
       },

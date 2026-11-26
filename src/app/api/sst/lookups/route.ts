@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { listarPastasComCaminho } from "@/lib/documentos";
 
 // GET /api/sst/lookups — listas auxiliares dos formulários do módulo.
 export async function GET() {
@@ -9,7 +10,8 @@ export async function GET() {
   if (!auth.ok) return auth.response;
   const [locais, categorias, usuarios, itens, setores, projetos, maquinas] = await Promise.all([
     prisma.localEstoque.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
-    prismaSemEscopo.documentoCategoria.findMany({ where: { ativo: true }, orderBy: [{ ordem: "asc" }, { nome: "asc" }], select: { id: true, nome: true, slug: true } }),
+    // Pastas do GED com o caminho ("SST › PGR (NR-01)") no nome.
+    listarPastasComCaminho({ apenasAtivas: true }).then((ps) => ps.map((p) => ({ id: p.id, nome: p.caminho, slug: p.slug }))),
     prismaSemEscopo.usuario.findMany({ where: { ativo: true, convidado: false }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     prismaSemEscopo.item.findMany({ where: { ativo: true }, orderBy: { descricao: "asc" }, take: 2000, select: { id: true, codigo: true, descricao: true } }),
     prismaSemEscopo.setor.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),

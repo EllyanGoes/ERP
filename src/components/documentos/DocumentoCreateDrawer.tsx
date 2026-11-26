@@ -12,17 +12,20 @@ import EscClose from "@/components/shared/EscClose";
 import { Loader2, X, UploadCloud, Lock } from "lucide-react";
 import SelectMenu from "@/components/shared/SelectMenu";
 import ComboboxWithCreate from "@/components/shared/ComboboxWithCreate";
+import { MAX_MB_ENVIO, MSG_EXCEDE_ENVIO, excedeEnvio } from "./comum";
 
 type Opcao = { id: string; nome: string };
-type Categoria = { id: string; nome: string; diasAlerta: number; exigeValidade: boolean };
+type Categoria = { id: string; nome: string; caminho?: string; diasAlerta: number; exigeValidade: boolean };
 type Lookups = { usuarios: Opcao[]; fornecedores: Opcao[]; clientes: Opcao[]; colaboradores: Opcao[]; imobilizados: Opcao[] };
 
 export default function DocumentoCreateDrawer({
-  onFechar, onCriado, vinculo,
+  onFechar, onCriado, vinculo, pastaInicial,
 }: {
   onFechar: () => void;
   onCriado: (id: string) => void;
   vinculo?: { tipo: "fornecedor" | "cliente" | "colaborador" | "imobilizado" | "contrato" | "processo"; id: string };
+  /** Pasta já escolhida (ex.: aberta no Acervo). */
+  pastaInicial?: string | null;
 }) {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [lookups, setLookups] = useState<Lookups | null>(null);
@@ -32,7 +35,7 @@ export default function DocumentoCreateDrawer({
   const [erro, setErro] = useState("");
 
   const [titulo, setTitulo] = useState("");
-  const [categoriaId, setCategoriaId] = useState("");
+  const [categoriaId, setCategoriaId] = useState(pastaInicial ?? "");
   const [numero, setNumero] = useState("");
   const [emissor, setEmissor] = useState("");
   const [emissao, setEmissao] = useState("");
@@ -47,7 +50,11 @@ export default function DocumentoCreateDrawer({
 
   useEffect(() => {
     fetch("/api/documentos/categorias").then((r) => r.json()).then((j) => {
-      setCategorias((j.data ?? []).filter((c: Categoria & { ativo: boolean }) => c.ativo !== false));
+      setCategorias(
+        (j.data ?? [])
+          .filter((c: Categoria & { ativo: boolean }) => c.ativo !== false)
+          .sort((a: Categoria, b: Categoria) => (a.caminho ?? a.nome).localeCompare(b.caminho ?? b.nome, "pt-BR")),
+      );
     }).catch(() => {});
     fetch("/api/documentos/lookups").then((r) => r.json()).then((j) => setLookups(j.data ?? null)).catch(() => {});
   }, []);
@@ -61,9 +68,10 @@ export default function DocumentoCreateDrawer({
 
   async function salvar() {
     if (!titulo.trim()) { setErro("Informe o título."); return; }
-    if (!categoriaId) { setErro("Escolha a categoria."); return; }
+    if (!categoriaId) { setErro("Escolha a pasta."); return; }
     if (!file) { setErro("Anexe o arquivo do documento."); return; }
-    if (categoria?.exigeValidade && !validade) { setErro(`A categoria "${categoria.nome}" exige validade.`); return; }
+    if (excedeEnvio(file)) { setErro(MSG_EXCEDE_ENVIO); return; }
+    if (categoria?.exigeValidade && !validade) { setErro(`A pasta "${categoria.caminho ?? categoria.nome}" exige validade.`); return; }
     setSalvando(true); setErro("");
 
     const fd = new FormData();
@@ -83,6 +91,7 @@ export default function DocumentoCreateDrawer({
 
     try {
       const res = await fetch("/api/documentos", { method: "POST", body: fd });
+      if (res.status === 413) { setErro(MSG_EXCEDE_ENVIO); return; }
       const json = await res.json();
       if (!res.ok) { setErro(json.error || "Erro ao salvar."); return; }
       onCriado(json.data.id);
@@ -118,7 +127,7 @@ export default function DocumentoCreateDrawer({
               <p className="text-sm text-foreground font-medium">{file.name} <button className="text-xs text-danger ml-1" onClick={() => setFile(null)}>remover</button></p>
             ) : (
               <label className="text-sm text-muted-foreground cursor-pointer">
-                Clique ou arraste o arquivo aqui (máx. 20 MB)
+                Clique ou arraste o arquivo aqui (máx. {MAX_MB_ENVIO.toString().replace(".", ",")} MB)
                 <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </label>
             )}
@@ -131,12 +140,14 @@ export default function DocumentoCreateDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Categoria <span className="text-red-500">*</span></Label>
-              <SelectMenu
+              <Label>Pasta <span className="text-red-500">*</span></Label>
+              <ComboboxWithCreate
                 value={categoriaId}
                 onChange={setCategoriaId}
-                placeholder="Selecionar..."
-                options={categorias.map((c) => ({ value: c.id, label: c.nome }))}
+                noneLabel="Selecionar..."
+                triggerClassName="h-9 rounded-lg"
+                menuMinWidth={320}
+                options={categorias.map((c) => ({ value: c.id, label: c.caminho ?? c.nome }))}
               />
             </div>
             <div className="space-y-1.5">

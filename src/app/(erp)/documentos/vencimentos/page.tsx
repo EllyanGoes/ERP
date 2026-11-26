@@ -47,7 +47,7 @@ export default function VencimentosPage() {
         <div className="flex-1 min-w-0">
           <p className="text-sm text-foreground font-medium truncate">{d.titulo}</p>
           <p className="text-xs text-muted-foreground truncate">
-            {d.categoria.nome}
+            {d.caminho ?? d.categoria.nome}
             {entidadeVinculada(d) ? ` · ${entidadeVinculada(d)}` : ""}
             {d.responsavel ? ` · ${d.responsavel.nome}` : ""}
           </p>

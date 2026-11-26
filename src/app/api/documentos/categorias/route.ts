@@ -1,41 +1,72 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
-import { prismaSemEscopo } from "@/lib/prisma";
+import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { caminhosPastas, ehPastaSistema, slugPasta } from "@/lib/documentos";
 
-// GET — categorias ativas (todas p/ ADMIN)
+// GET — pastas do GED (categorias com hierarquia). Ativas para todos; inativas
+// também para ADMIN. Cada pasta vem com caminho ("SST › PGR (NR-01)"), flag de
+// sistema e contagens (documentos da empresa ativa + subpastas).
 export async function GET() {
   const auth = await requireModulo("documentos");
   if (!auth.ok) return auth.response;
-  const categorias = await prismaSemEscopo.documentoCategoria.findMany({
-    where: auth.session.perfil === "ADMIN" ? {} : { ativo: true },
-    orderBy: { ordem: "asc" },
-  });
-  return NextResponse.json({ data: categorias });
+  const [pastas, porPasta] = await Promise.all([
+    prismaSemEscopo.documentoCategoria.findMany({ orderBy: [{ ordem: "asc" }, { nome: "asc" }] }),
+    prisma.documento.groupBy({ by: ["categoriaId"], _count: { _all: true } }),
+  ]);
+  const caminhos = caminhosPastas(pastas);
+  const nDocs = new Map(porPasta.map((g) => [g.categoriaId, g._count._all]));
+  const visiveis = auth.session.perfil === "ADMIN" ? pastas : pastas.filter((p) => p.ativo);
+  const data = visiveis.map((p) => ({
+    ...p,
+    caminho: caminhos.get(p.id) ?? p.nome,
+    sistema: ehPastaSistema(p),
+    nDocumentos: nDocs.get(p.id) ?? 0,
+    nSubpastas: visiveis.filter((f) => f.paiId === p.id).length,
+  }));
+  return NextResponse.json({ data });
 }
 
-// POST — nova categoria (ADMIN)
+// POST — nova pasta { nome, paiId?, exigeValidade?, diasAlerta? }. Qualquer
+// usuário do módulo cria (decisão do dono: pastas da equipe). Subpasta herda
+// exigeValidade/diasAlerta da pai como padrão.
 export async function POST(req: NextRequest) {
   const auth = await requireModulo("documentos");
   if (!auth.ok) return auth.response;
-  if (auth.session.perfil !== "ADMIN") return NextResponse.json({ error: "Apenas administradores." }, { status: 403 });
 
-  const body = await req.json();
-  const nome = String(body.nome ?? "").trim();
-  if (!nome) return NextResponse.json({ error: "Informe o nome." }, { status: 400 });
-  const slug = nome.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const body = await req.json().catch(() => ({}));
+  const nome = String(body.nome ?? "").trim().replace(/\s+/g, " ");
+  if (!nome) return NextResponse.json({ error: "Informe o nome da pasta." }, { status: 400 });
+  if (nome.length > 120) return NextResponse.json({ error: "Nome muito longo (máx. 120)." }, { status: 400 });
+  const paiId = body.paiId ? String(body.paiId) : null;
 
-  const existente = await prismaSemEscopo.documentoCategoria.findUnique({ where: { slug } });
-  if (existente) return NextResponse.json({ error: "Já existe categoria com esse nome." }, { status: 400 });
+  const pai = paiId ? await prismaSemEscopo.documentoCategoria.findUnique({ where: { id: paiId } }) : null;
+  if (paiId && !pai) return NextResponse.json({ error: "Pasta de destino não encontrada." }, { status: 400 });
 
-  const ultima = await prismaSemEscopo.documentoCategoria.findFirst({ orderBy: { ordem: "desc" }, select: { ordem: true } });
-  const categoria = await prismaSemEscopo.documentoCategoria.create({
+  const irma = await prismaSemEscopo.documentoCategoria.findFirst({
+    where: { paiId, nome: { equals: nome, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (irma) return NextResponse.json({ error: `Já existe uma pasta "${nome}" aqui.` }, { status: 409 });
+
+  // Slug único (o slug identifica a pasta no Drive/Blob e para os módulos).
+  const base = slugPasta(pai ? `${pai.slug}-${nome}` : nome);
+  let slug = base;
+  for (let i = 2; await prismaSemEscopo.documentoCategoria.findUnique({ where: { slug }, select: { id: true } }); i++) {
+    slug = `${base}-${i}`;
+  }
+
+  const ultima = await prismaSemEscopo.documentoCategoria.findFirst({
+    where: { paiId }, orderBy: { ordem: "desc" }, select: { ordem: true },
+  });
+  const pasta = await prismaSemEscopo.documentoCategoria.create({
     data: {
-      nome, slug,
-      diasAlerta: parseInt(String(body.diasAlerta)) || 30,
-      exigeValidade: !!body.exigeValidade,
+      nome, slug, paiId,
+      diasAlerta: body.diasAlerta !== undefined && body.diasAlerta !== "" ? parseInt(String(body.diasAlerta)) || 30 : pai?.diasAlerta ?? 30,
+      exigeValidade: body.exigeValidade !== undefined ? !!body.exigeValidade : pai?.exigeValidade ?? false,
       ordem: (ultima?.ordem ?? 0) + 1,
+      criadoPorId: auth.session.sub,
     },
   });
-  return NextResponse.json({ data: categoria }, { status: 201 });
+  return NextResponse.json({ data: pasta }, { status: 201 });
 }

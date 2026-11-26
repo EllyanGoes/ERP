@@ -307,7 +307,7 @@ export async function pendenciasObrigacoes(empresaId: string, hoje = new Date())
   const obrigacoes = await prismaSemEscopo.sstObrigacao.findMany({
     where: { empresaId },
     orderBy: { nome: "asc" },
-    include: { categoriaGed: { select: { id: true, nome: true, slug: true } }, responsavel: { select: { id: true, nome: true } } },
+    include: { categoriaGed: { select: { id: true, nome: true, slug: true, pai: { select: { nome: true } } } }, responsavel: { select: { id: true, nome: true } } },
   });
   const out: PendenciaSst[] = [];
   const resolvidas: ObrigacaoResolvida[] = [];
@@ -328,7 +328,9 @@ export async function pendenciasObrigacoes(empresaId: string, hoje = new Date())
       if (d < 0) { situacao = "VENCIDA"; out.push({ tipo: "OBRIGACAO_VENCIDA", severidade: "CRITICA", titulo: `${o.nome}: vencido há ${-d} dia(s)`, referenciaId: o.id, vence: doc.validade, link }); }
       else if (d <= 60) { situacao = "VENCE_EM_BREVE"; out.push({ tipo: "OBRIGACAO_VENCE_EM_BREVE", severidade: "MEDIA", titulo: `${o.nome}: vence em ${d} dia(s)`, referenciaId: o.id, vence: doc.validade, link }); }
     }
-    resolvidas.push({ ...o, documento: doc, situacao });
+    // Pasta do GED com o caminho ("SST › PGR (NR-01)").
+    const cat = o.categoriaGed;
+    resolvidas.push({ ...o, categoriaGed: { id: cat.id, slug: cat.slug, nome: cat.pai ? `${cat.pai.nome} › ${cat.nome}` : cat.nome }, documento: doc, situacao });
   }
   return { pendencias: out, obrigacoes: resolvidas };
 }

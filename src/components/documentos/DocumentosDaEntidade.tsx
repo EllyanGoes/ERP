@@ -61,7 +61,7 @@ export default function DocumentosDaEntidade({
             <thead className="bg-muted border-b border-border">
               <tr>
                 <th className="text-left px-4 py-2 font-medium text-muted-foreground">Documento</th>
-                <th className="text-left px-4 py-2 font-medium text-muted-foreground">Categoria</th>
+                <th className="text-left px-4 py-2 font-medium text-muted-foreground">Pasta</th>
                 <th className="text-right px-4 py-2 font-medium text-muted-foreground">Validade</th>
                 <th className="text-left px-4 py-2 font-medium text-muted-foreground">Status</th>
               </tr>
@@ -73,7 +73,7 @@ export default function DocumentosDaEntidade({
                     <span className="flex items-center gap-1.5 text-foreground font-medium">{d.titulo} <IconesDoc doc={d} /></span>
                     {d.numero && <span className="block font-mono text-xs text-muted-foreground">{d.numero}</span>}
                   </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">{d.categoria.nome}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{d.caminho ?? d.categoria.nome}</td>
                   <td className="px-4 py-2.5 text-right"><ValidadeCell doc={d} /></td>
                   <td className="px-4 py-2.5"><StatusDocBadge status={d.status} /></td>
                 </tr>

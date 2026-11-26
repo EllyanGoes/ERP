@@ -179,7 +179,9 @@ const ROTAS_MANUAIS: RouteEntry[] = [
   { href: "/investimentos",                        label: "Carteira B3",             group: "Investimentos",  section: "Geral",            icon: LineChart, keywords: "investimentos carteira b3 ações fii bolsa cotações proventos dividendos" },
 
   // ── Documentos ──
-  { href: "/documentos",                           label: "Documentos (Acervo)",     group: "Documentos",     section: "Geral",            icon: FileArchive, keywords: "documentos ged certidão licença alvará contrato apólice seguro procuração drive arquivo acervo" },
+  { href: "/documentos",                           label: "Documentos (Acervo)",     group: "Documentos",     section: "Geral",            icon: FileArchive, keywords: "documentos ged certidão licença alvará contrato apólice seguro procuração drive arquivo acervo pastas enviar upload" },
+  { href: "/documentos/recentes",                  label: "Documentos recentes",     group: "Documentos",     section: "Geral",            icon: FileArchive, keywords: "documentos recentes abertos últimos ged" },
+  { href: "/documentos/com-estrela",               label: "Documentos com estrela",  group: "Documentos",     section: "Geral",            icon: FileArchive, keywords: "documentos estrela favoritos marcados ged" },
   { href: "/documentos/vencimentos",               label: "Vencimentos de Documentos", group: "Documentos",   section: "Geral",            icon: FileArchive, keywords: "vencimento validade certidão vencida renovar documentos agenda" },
 
   { href: "/admin/usuarios",                       label: "Usuários",                group: "Administração",  section: "Sistema",          icon: UserCog },

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo, EMPRESA_PADRAO_ID } from "@/lib/prisma";
-import { podeVerDocumento, registrarLogDocumento, statusDerivado } from "@/lib/documentos";
+import { caminhosPastas, faltaValidade, podeVerDocumento, registrarLogDocumento, statusDerivado } from "@/lib/documentos";
 import { driveAtivo, moverParaLixeira } from "@/lib/drive";
 import { salvarNaLixeira } from "@/lib/lixeira";
 
@@ -42,11 +42,22 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       })
     : [];
 
+  const [pastas, fav] = await Promise.all([
+    prismaSemEscopo.documentoCategoria.findMany({ select: { id: true, nome: true, paiId: true } }),
+    prismaSemEscopo.documentoFavorito.findUnique({
+      where: { usuarioId_documentoId: { usuarioId: auth.session.sub, documentoId: doc.id } },
+      select: { usuarioId: true },
+    }),
+  ]);
+
   await registrarLogDocumento(doc.id, auth.session.sub, "VISUALIZOU");
   return NextResponse.json({
     data: {
       ...doc,
       status: statusDerivado(doc.status, doc.validade, doc.diasAlerta ?? doc.categoria.diasAlerta),
+      faltaValidade: faltaValidade(doc, doc.categoria.exigeValidade),
+      caminho: caminhosPastas(pastas).get(doc.categoriaId) ?? doc.categoria.nome,
+      favorito: !!fav,
       logs,
       ehGestor,
     },
@@ -74,7 +85,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   for (const k of ["descricao", "numero", "emissor", "responsavelId", "fornecedorId", "clienteId", "colaboradorId", "imobilizadoId"] as const) {
     if (body[k] !== undefined) data[k] = str(body[k]);
   }
-  if (body.categoriaId !== undefined) data.categoriaId = body.categoriaId;
+  if (body.categoriaId !== undefined) {
+    const pasta = body.categoriaId ? await prismaSemEscopo.documentoCategoria.findUnique({ where: { id: String(body.categoriaId) }, select: { id: true, ativo: true } }) : null;
+    if (!pasta) return NextResponse.json({ error: "Pasta de destino não encontrada." }, { status: 400 });
+    if (!pasta.ativo) return NextResponse.json({ error: "A pasta de destino está inativa." }, { status: 400 });
+    data.categoriaId = pasta.id;
+  }
   if (body.emissao !== undefined) data.emissao = body.emissao ? new Date(body.emissao) : null;
   if (body.validade !== undefined) data.validade = body.validade ? new Date(body.validade) : null;
   if (body.diasAlerta !== undefined) data.diasAlerta = body.diasAlerta ? parseInt(String(body.diasAlerta)) || null : null;

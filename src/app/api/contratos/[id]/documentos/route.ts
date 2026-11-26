@@ -2,16 +2,17 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
-import { salvarArquivoDocumento } from "@/lib/documentos";
+import { garantirPastaSistema, salvarArquivoDocumento } from "@/lib/documentos";
 import { registrarEvento } from "@/lib/contratos";
 
 const MAX_MB = 25;
-// Categorias do GED por tipo de anexo (criadas sob demanda).
+// Pastas do GED por tipo de anexo (criadas sob demanda; subpastas dentro de
+// "Contratos"). Achadas pelo SLUG — o nome é livre para a equipe renomear.
 const CATEGORIAS: Record<string, { nome: string; slug: string; exigeValidade: boolean }> = {
   contrato: { nome: "Contratos", slug: "contratos", exigeValidade: false },
-  aditivo:  { nome: "Contratos — Aditivos", slug: "contratos-aditivos", exigeValidade: false },
-  garantia: { nome: "Contratos — Garantias e apólices", slug: "contratos-garantias", exigeValidade: true },
-  outro:    { nome: "Contratos — Outros", slug: "contratos-outros", exigeValidade: false },
+  aditivo:  { nome: "Aditivos", slug: "contratos-aditivos", exigeValidade: false },
+  garantia: { nome: "Garantias e apólices", slug: "contratos-garantias", exigeValidade: true },
+  outro:    { nome: "Outros", slug: "contratos-outros", exigeValidade: false },
 };
 
 // POST multipart { file, tipo: contrato|aditivo|garantia|outro, titulo?, validade?, assinadoEm?, aditivoId? }
@@ -27,7 +28,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!file) return NextResponse.json({ error: "Anexe o arquivo." }, { status: 400 });
   if (file.size > MAX_MB * 1024 * 1024) return NextResponse.json({ error: `Máx. ${MAX_MB} MB.` }, { status: 400 });
   const def = CATEGORIAS[tipo] ?? CATEGORIAS.outro;
-  const categoria = await prismaSemEscopo.documentoCategoria.upsert({ where: { slug: def.slug }, create: { nome: def.nome, slug: def.slug, exigeValidade: def.exigeValidade, diasAlerta: 60, ordem: 35 }, update: {} });
+  const categoria = await garantirPastaSistema(
+    { nome: def.nome, slug: def.slug, exigeValidade: def.exigeValidade, diasAlerta: 60, ordem: 35 },
+    tipo === "contrato" ? undefined : { slug: "contratos", nome: "Contratos", ordem: 3 },
+  );
   const titulo = String(form.get("titulo") ?? "").trim() || `${c.numero} — ${tipo === "contrato" ? "Contrato" : tipo === "aditivo" ? "Aditivo" : tipo === "garantia" ? "Garantia" : "Anexo"} — ${c.titulo}`;
   const validade = form.get("validade") ? new Date(String(form.get("validade"))) : tipo === "contrato" ? c.fim : null;
   const assinadoEm = form.get("assinadoEm") ? new Date(String(form.get("assinadoEm"))) : null;

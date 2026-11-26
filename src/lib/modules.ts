@@ -273,7 +273,7 @@ export const MODULOS: ModuloDef[] = [
     group: "Documentos",
     recursos: [
       { key: "documentos", label: "Documentos",            acoes: ["ver", "inserir", "editar", "excluir"] },
-      { key: "categorias", label: "Categorias",            acoes: ["ver", "inserir", "editar", "excluir"] },
+      { key: "categorias", label: "Pastas",                acoes: ["ver", "inserir", "editar", "excluir"] },
       { key: "relatorios", label: "Vencimentos/Relatórios", acoes: ["ver"] },
     ],
   },

@@ -2972,6 +2972,7 @@ model Usuario {
   processosResp            Processo[]            @relation("ProcessoResponsavel")
   documentosAcesso         DocumentoAcesso[]
   documentosLog            DocumentoLog[]
+  documentosFavoritos      DocumentoFavorito[]
   contratosResponsavel     Contrato[]            @relation("ContratoResponsavel")
 }
 
@@ -4998,20 +4999,29 @@ enum StatusDocumento {
   ARQUIVADO
 }
 
+// "Pasta" do GED (padrão Drive): categoria com hierarquia (paiId). O nome do
+// model ficou por compatibilidade (SST/Contratos/RH usam). Pastas de sistema
+// (id cat_*/doccat_* ou slug em SLUGS_PASTA_SISTEMA) não se excluem nem movem.
 model DocumentoCategoria {
-  id            String         @id @default(cuid())
+  id            String               @id @default(cuid())
   nome          String
-  slug          String         @unique
-  diasAlerta    Int            @default(30)
-  exigeValidade Boolean        @default(false)
-  ordem         Int            @default(0)
-  ativo         Boolean        @default(true)
+  slug          String               @unique
+  diasAlerta    Int                  @default(30)
+  exigeValidade Boolean              @default(false)
+  ordem         Int                  @default(0)
+  ativo         Boolean              @default(true)
+  paiId         String?
+  criadoPorId   String?
+  pai           DocumentoCategoria?  @relation("PastaPai", fields: [paiId], references: [id], onDelete: Restrict)
+  filhas        DocumentoCategoria[] @relation("PastaPai")
   documentos    Documento[]
   sstObrigacoes SstObrigacao[]
+
+  @@index([paiId])
 }
 
 model Documento {
-  id              String             @id @default(cuid())
+  id              String              @id @default(cuid())
   empresaId       String
   categoriaId     String
   titulo          String
@@ -5021,30 +5031,31 @@ model Documento {
   emissao         DateTime?
   validade        DateTime?
   diasAlerta      Int?
-  status          StatusDocumento    @default(VIGENTE)
-  confidencial    Boolean            @default(false)
+  status          StatusDocumento     @default(VIGENTE)
+  confidencial    Boolean             @default(false)
   responsavelId   String?
   fornecedorId    String?
   clienteId       String?
   colaboradorId   String?
   imobilizadoId   String?
-  versaoVigenteId String?            @unique
-  tags            String[]           @default([])
-  arquivoOk       Boolean            @default(true) // false: cron achou o arquivo movido/apagado no Drive
+  versaoVigenteId String?             @unique
+  tags            String[]            @default([])
+  arquivoOk       Boolean             @default(true) // false: cron achou o arquivo movido/apagado no Drive
   criadoPor       String?
   atualizadoPor   String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  categoria       DocumentoCategoria @relation(fields: [categoriaId], references: [id])
-  responsavel     Usuario?           @relation("DocumentoResponsavel", fields: [responsavelId], references: [id])
-  fornecedor      Fornecedor?        @relation(fields: [fornecedorId], references: [id])
-  cliente         Cliente?           @relation(fields: [clienteId], references: [id])
-  colaborador     Colaborador?       @relation(fields: [colaboradorId], references: [id])
-  imobilizado     Imobilizado?       @relation(fields: [imobilizadoId], references: [id])
-  versaoVigente   DocumentoVersao?   @relation("VersaoVigente", fields: [versaoVigenteId], references: [id])
-  versoes         DocumentoVersao[]  @relation("VersoesDoDocumento")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  categoria       DocumentoCategoria  @relation(fields: [categoriaId], references: [id])
+  responsavel     Usuario?            @relation("DocumentoResponsavel", fields: [responsavelId], references: [id])
+  fornecedor      Fornecedor?         @relation(fields: [fornecedorId], references: [id])
+  cliente         Cliente?            @relation(fields: [clienteId], references: [id])
+  colaborador     Colaborador?        @relation(fields: [colaboradorId], references: [id])
+  imobilizado     Imobilizado?        @relation(fields: [imobilizadoId], references: [id])
+  versaoVigente   DocumentoVersao?    @relation("VersaoVigente", fields: [versaoVigenteId], references: [id])
+  versoes         DocumentoVersao[]   @relation("VersoesDoDocumento")
   acessos         DocumentoAcesso[]
   logs            DocumentoLog[]
+  favoritos       DocumentoFavorito[]
 
   contratoId String?
   contrato   Contrato? @relation(fields: [contratoId], references: [id])
@@ -5088,6 +5099,18 @@ model DocumentoAcesso {
   usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 
   @@id([documentoId, usuarioId])
+}
+
+// Estrela (favorito) por usuário — visão "Com estrela" do GED.
+model DocumentoFavorito {
+  usuarioId   String
+  documentoId String
+  createdAt   DateTime  @default(now())
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, documentoId])
+  @@index([documentoId])
 }
 
 model DocumentoLog {

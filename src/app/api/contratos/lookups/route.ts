@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import { prisma, prismaSemEscopo } from "@/lib/prisma";
+import { listarPastasComCaminho } from "@/lib/documentos";
 
 // GET /api/contratos/lookups — fornecedores, clientes, usuários, centros e naturezas da empresa ativa.
 export async function GET() {
@@ -13,7 +14,11 @@ export async function GET() {
     prismaSemEscopo.usuario.findMany({ where: { ativo: true, convidado: false }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     prisma.centroCusto.findMany({ where: { ativo: true }, orderBy: { codigo: "asc" }, select: { id: true, codigo: true, nome: true } }),
     prisma.naturezaFinanceira.findMany({ where: { ativo: true }, orderBy: [{ codigo: "asc" }, { nome: "asc" }], select: { id: true, codigo: true, nome: true, tipo: true } }),
-    prismaSemEscopo.documentoCategoria.findMany({ where: { ativo: true, slug: { startsWith: "contratos" } }, orderBy: { ordem: "asc" }, select: { id: true, nome: true, slug: true } }),
+    listarPastasComCaminho({ apenasAtivas: true }),
   ]);
-  return NextResponse.json({ data: { fornecedores, clientes, usuarios, centros, naturezas, categorias } });
+  // Pastas do GED de contratos, com o caminho ("Contratos › Aditivos") no nome.
+  const categoriasContrato = categorias
+    .filter((c) => c.slug.startsWith("contratos"))
+    .map((c) => ({ id: c.id, nome: c.caminho, slug: c.slug }));
+  return NextResponse.json({ data: { fornecedores, clientes, usuarios, centros, naturezas, categorias: categoriasContrato } });
 }
