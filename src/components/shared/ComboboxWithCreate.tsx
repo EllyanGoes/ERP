@@ -107,7 +107,7 @@ export default function ComboboxWithCreate({
   function calcPosition() {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const DROPDOWN_MAX_H = 260;
+    const DROPDOWN_MAX_H = 380; // ~8 opções visíveis (antes 260 mostrava ~4)
     const MARGIN = 8;
     const spaceBelow = window.innerHeight - rect.bottom - MARGIN;
     const spaceAbove = rect.top - MARGIN;
@@ -291,7 +291,7 @@ export default function ComboboxWithCreate({
           {/* Options list — pb-1 (SEM padding-top): com py-1, o cabeçalho sticky
               de grupo fixava 4px abaixo do topo e o item rolado aparecia cortado
               nessa fresta, por cima do cabeçalho (mesmo padrão do NaturezaCombobox). */}
-          <div className="overflow-y-auto pb-1 flex-1" style={{ maxHeight: dropdownPos ? dropdownPos.maxHeight - 52 : 208 }}>
+          <div className="overflow-y-auto overflow-x-hidden pb-1 flex-1" style={{ maxHeight: dropdownPos ? dropdownPos.maxHeight - 52 : 208 }}>
             {allowNone && (
               <button
                 type="button"
@@ -355,7 +355,9 @@ export default function ComboboxWithCreate({
                           )}
                         </span>
                       ) : (
-                        <span className="truncate">{opt.label}</span>
+                        // block: truncate só corta com reticências em bloco —
+                        // inline estourava a largura e criava rolagem lateral.
+                        <span className="block truncate" title={opt.label}>{opt.label}</span>
                       )}
                     </span>
                     {isDisabled && (
