@@ -84,7 +84,7 @@ export default function AtivoPecas({ codApl }: { codApl: number }) {
   const abaixo = pecas.filter((p) => p.abaixoMinimo).length;
 
   return (
-    <section className="border-t border-border pt-3">
+    <section>
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Sobressalentes ({pecas.length})

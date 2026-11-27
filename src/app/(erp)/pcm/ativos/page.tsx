@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import PageHeader from "@/components/shared/PageHeader";
@@ -365,6 +366,7 @@ function Chip({
 // ── Página ─────────────────────────────────────────────────────────────────────
 export default function AtivosPage() {
   useTabTitle("Ativos");
+  const router = useRouter();
 
   const [tree, setTree] = useState<AtivoNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -702,7 +704,7 @@ export default function AtivosPage() {
 
       {/* Detalhe do ativo em popup */}
       <Dialog open={selecionado != null} onOpenChange={(v) => !v && setSelecionado(null)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-2xl max-h-[88vh] overflow-y-auto p-0">
+        <DialogContent showCloseButton={false} className="sm:max-w-5xl h-[88vh] overflow-hidden p-0 flex flex-col gap-0">
           <DialogTitle className="sr-only">Detalhes do ativo</DialogTitle>
           {selecionado != null && <AtivoPainel
             codApl={selecionado}
@@ -711,6 +713,7 @@ export default function AtivosPage() {
             onEditar={(a) => { setEditando(a); setPaiInicial(null); setFormAberto(true); }}
             onNovoFilho={(paiId) => novoAtivo(paiId)}
             onAlterado={load}
+            onAbrirEmJanela={() => { const cod = selecionado; setSelecionado(null); router.push(`/pcm/ativos/${cod}`); }}
           />}
         </DialogContent>
       </Dialog>

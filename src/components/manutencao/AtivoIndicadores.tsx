@@ -26,7 +26,7 @@ export default function AtivoIndicadores({ ativoId }: { ativoId: string }) {
   }, [ativoId]);
 
   return (
-    <section className="border-t border-border pt-3">
+    <section>
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Indicadores · 12 meses</h3>
         <Link href={`/pcm/indicadores?ativoId=${ativoId}`} className="text-[11px] text-info hover:underline">Ver detalhes</Link>
