@@ -39,10 +39,12 @@ export function faseDoProcesso(d: DocumentosDoProcesso): { etapa: EtapaCompra; c
   if (vivos.some(pedidoAberto)) return { etapa: "pedido", concluido: false };
   if (entradas.some(entradaAberta)) return { etapa: "entrada", concluido: false };
 
-  // Nada aberto adiante: a SC volta a ser o trabalho se sobrou item para comprar
-  // (atendida em parte) ou se nenhum pedido vivo chegou a existir.
+  // Nada aberto adiante: a SC volta a ser o trabalho se nenhum pedido vivo chegou
+  // a existir, ou se foi atendida em parte e ainda não houve entrada. Com entrada
+  // concluída a compra está CONCLUÍDA mesmo que a SC tenha sobra (decisão do dono
+  // 27/11: "já teve DE" = concluído; item que sobrou vira nova solicitação).
   const scAtiva = !!d.sc && (SC_ATIVAS as readonly string[]).includes(d.sc.status);
-  if (d.sc?.status === "PARCIALMENTE_ATENDIDA" || (scAtiva && vivos.length === 0 && entradas.length === 0)) {
+  if ((d.sc?.status === "PARCIALMENTE_ATENDIDA" && entradas.length === 0) || (scAtiva && vivos.length === 0 && entradas.length === 0)) {
     return { etapa: "solicitacao", concluido: false };
   }
 

@@ -31,8 +31,10 @@ assert.deepEqual(
 // Divisão: fica na fase menos avançada que ainda tem trabalho.
 assert.equal(fase({ sc: s("EM_PEDIDO"), pedidos: [pc("RECEBIDO", "EM_CONFERENCIA"), pc("CONFIRMADO")] }).etapa, "pedido");
 
-// Atendida em parte volta para a SC; pedido todo cancelado também.
-assert.equal(fase({ sc: s("PARCIALMENTE_ATENDIDA"), pedidos: [pc("RECEBIDO", "CONCLUIDA")] }).etapa, "solicitacao");
+// Atendida em parte: com entrada concluída a compra está concluída (27/11);
+// sem entrada nenhuma, volta para a SC. Pedido todo cancelado também volta.
+assert.deepEqual(fase({ sc: s("PARCIALMENTE_ATENDIDA"), pedidos: [pc("RECEBIDO", "CONCLUIDA")] }), { etapa: "entrada", concluido: true });
+assert.equal(fase({ sc: s("PARCIALMENTE_ATENDIDA"), pedidos: [pc("CANCELADO")] }).etapa, "solicitacao");
 assert.deepEqual(
   fase({ sc: s("EM_PEDIDO"), cotacoes: [s("CONCLUIDA")], pedidos: [pc("CANCELADO")] }),
   { etapa: "solicitacao", concluido: false },
