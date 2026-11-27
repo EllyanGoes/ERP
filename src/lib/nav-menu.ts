@@ -469,7 +469,6 @@ export const mainModules: Module[] = [
         items: [
           { href: "/pcm",                 label: "Painel",           icon: LayoutDashboard, exact: true },
           { href: "/pcm/mapa",            label: "Mapa da planta",   icon: MapIcon },
-          { href: "/pcm/solicitacoes",    label: "Solicitações",     icon: Inbox },
           { href: "/pcm/os",              label: "Ordens de Serviço", icon: Wrench },
           { href: "/pcm/quadro-os",       label: "Setor x OS",       icon: Kanban },
         ],

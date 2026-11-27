@@ -71,7 +71,7 @@ export default function PainelManutencaoPage() {
 
           {/* Números */}
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-            <Tile titulo="Solicitações p/ triar" valor={d.ss.aguardando} href="/pcm/solicitacoes" alerta={d.ss.urgentes > 0} nota={d.ss.urgentes ? `${d.ss.urgentes} com máquina parada` : undefined} />
+            <Tile titulo="Solicitações p/ triar" valor={d.ss.aguardando} href="/pcm/os?visao=kanban" alerta={d.ss.urgentes > 0} nota={d.ss.urgentes ? `${d.ss.urgentes} com máquina parada` : undefined} />
             <Tile titulo="OS em aberto" valor={d.os.abertas} href="/pcm/os" nota={d.os.emergencia ? `${d.os.emergencia} emergência` : undefined} alerta={d.os.emergencia > 0} />
             <Tile titulo="OS atrasadas" valor={d.os.atrasadas} href="/pcm/os" alerta={d.os.atrasadas > 0} />
             <Tile titulo="A validar (PCM)" valor={d.os.aValidar} href="/pcm/os" />

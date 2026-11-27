@@ -40,7 +40,14 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       apontamentos: { orderBy: { inicio: "asc" } },
       terceiros: { include: { fornecedor: { select: { id: true, razaoSocial: true, nomeFantasia: true } } } },
       eventos: { orderBy: { createdAt: "asc" } },
-      solicitacoes: { select: { id: true, numero: true, solicitanteNome: true, createdAt: true, descricao: true } },
+      solicitacoes: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true, numero: true, solicitanteNome: true, createdAt: true, descricao: true, status: true, origem: true,
+          ativoParado: true, paradoDesde: true, prioridade: true, localTexto: true, triadoPor: true, triadoEm: true,
+          ativo: { select: { tag: true, nome: true } },
+        },
+      },
       // OS aberta a partir de uma tarefa do Projetos — link de volta no resumo.
       tarefa: { select: { id: true, titulo: true, projetoId: true, projeto: { select: { nome: true } } } },
       requisicoes: {

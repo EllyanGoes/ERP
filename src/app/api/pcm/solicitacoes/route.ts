@@ -9,7 +9,7 @@ import { criarSolicitacao } from "@/lib/manutencao/solicitacao";
 // Solicitação de Serviço: QUALQUER usuário logado abre e acompanha as próprias;
 // quem tem o módulo PCM vê todas e faz a triagem.
 
-// GET ?status=ABERTA|CONVERTIDA|ANEXADA|RECUSADA|todas&minhas=1
+// GET ?status=ABERTA|CONVERTIDA|ANEXADA|RECUSADA|todas|quadro&minhas=1
 export async function GET(req: NextRequest) {
   const auth = await requireSession();
   if (!auth.ok) return auth.response;
@@ -17,7 +17,14 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const where: Prisma.ManutSolicitacaoWhereInput = {};
   const status = sp.get("status") ?? "ABERTA";
-  if (status !== "todas") where.status = status;
+  // quadro = coluna Solicitações do quadro de OS: aguardando triagem + recusadas
+  // nos últimos 30 dias (vão para a coluna Canceladas).
+  if (status === "quadro") {
+    where.OR = [
+      { status: "ABERTA" },
+      { status: "RECUSADA", triadoEm: { gte: new Date(Date.now() - 30 * 86_400_000) } },
+    ];
+  } else if (status !== "todas") where.status = status;
   if (!pcm || sp.get("minhas") === "1") where.solicitanteId = auth.session.sub;
   const data = await prisma.manutSolicitacao.findMany({
     where,

@@ -6,14 +6,15 @@
 // transição inválida avisa e não move. Atualização otimista com reversão.
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Clock, MapPin, MessageCircle, Timer, Wrench } from "lucide-react";
+import { Clock, Inbox, MapPin, MessageCircle, Plus, Timer, Wrench } from "lucide-react";
+import { ssUrgente, type AcaoTriagem, type SS } from "./SolicitacaoDialogs";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AvatarUsuario } from "@/components/projetos/comum";
 import EnviarOsWhatsappDialog from "./EnviarOsWhatsappDialog";
-import { DataHora, PrioridadeBadge, StatusOSBadge, api, fmtData, fmtDataHora } from "./comum";
+import { DataHora, PrioridadeBadge, PrioridadeTxt, StatusOSBadge, api, fmtData, fmtDataHora } from "./comum";
 import {
   ACAO_LABEL, ACOES_COM_MOTIVO, ACOES_PCM_TELA, COLUNAS_OS, DESTINO_ACAO,
   acoesParaColuna, colunaDoStatus, osAtrasada,
@@ -29,12 +30,16 @@ type Props = {
   onAtualizarLocal: (id: string, patch: Partial<OSResumo>) => void;
   onRecarregar: () => void;
   onAviso: (msg: string) => void;
+  /** Coluna Solicitações (SS aguardando triagem) + recusadas em Canceladas. */
+  solicitacoes?: SS[];
+  onTriar?: (ss: SS, acao: AcaoTriagem) => void;
+  onNovaSolicitacao?: () => void;
 };
 
 /** Diálogo da transição: motivo, fim da parada, programação ou escolha pausa/espera. */
 type Pendente = { os: OSResumo; acoes: AcaoOSTela[]; acao: AcaoOSTela; motivo: string; fimParada: string; programadaPara: string };
 
-export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, onAtualizarLocal, onRecarregar, onAviso }: Props) {
+export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, onAtualizarLocal, onRecarregar, onAviso, solicitacoes = [], onTriar, onNovaSolicitacao }: Props) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropCol, setDropCol] = useState<string | null>(null);
   const [pendente, setPendente] = useState<Pendente | null>(null);
@@ -98,8 +103,31 @@ export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, o
 
   return (
     <div className="flex items-start gap-3 px-3 py-3 h-full overflow-x-auto">
+      {/* Solicitações aguardando triagem: o início do processo (SS → OS) */}
+      {(() => {
+        const aguardando = solicitacoes
+          .filter((s) => s.status === "ABERTA")
+          .sort((a, b) => Number(ssUrgente(b)) - Number(ssUrgente(a)) || a.createdAt.localeCompare(b.createdAt));
+        return (
+          <div className={cn("w-[272px] shrink-0 bg-muted/60 rounded-xl border border-border flex flex-col max-h-full transition-opacity", dragId && "opacity-50")}>
+            <div className="flex items-center gap-2 px-3 py-2.5 shrink-0">
+              <Inbox className="w-4 h-4 shrink-0 text-sky-600" />
+              <span className="font-semibold text-sm text-foreground truncate">Solicitações</span>
+              <span className="ml-auto text-xs font-medium text-muted-foreground bg-card border border-border rounded-full px-2 tabular-nums">{aguardando.length}</span>
+              {onNovaSolicitacao && (
+                <button type="button" onClick={onNovaSolicitacao} title="Nova solicitação" className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-card"><Plus className="w-4 h-4" /></button>
+              )}
+            </div>
+            <div className="flex-1 min-h-[3rem] overflow-y-auto px-2 pb-2 space-y-2">
+              {aguardando.map((s) => <CartaoSS key={s.id} s={s} caminho={s.ativo ? caminhos?.get(s.ativo.id) : undefined} onTriar={onTriar} />)}
+              {aguardando.length === 0 && <p className="text-xs text-muted-foreground/70 text-center py-4">Nenhuma solicitação</p>}
+            </div>
+          </div>
+        );
+      })()}
       {COLUNAS_OS.map((col) => {
         const lista = porColuna(col.key);
+        const recusadas = col.key === "CANCELADA" ? solicitacoes.filter((s) => s.status === "RECUSADA") : [];
         // Coluna que aceita o cartão em arraste fica realçada; a inválida apaga.
         const valida = arrastando && colunaDoStatus(arrastando.status) !== col.key ? acoesParaColuna(arrastando.status, col.key).acoes.length > 0 : null;
         return (
@@ -117,12 +145,13 @@ export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, o
             <div className="flex items-center gap-2 px-3 py-2.5 shrink-0">
               <col.icon className={cn("w-4 h-4 shrink-0", col.corTexto)} />
               <span className="font-semibold text-sm text-foreground truncate">{col.label}</span>
-              <span className="ml-auto text-xs font-medium text-muted-foreground bg-card border border-border rounded-full px-2 tabular-nums">{lista.length}</span>
+              <span className="ml-auto text-xs font-medium text-muted-foreground bg-card border border-border rounded-full px-2 tabular-nums">{lista.length + recusadas.length}</span>
             </div>
             <div className="flex-1 min-h-[3rem] overflow-y-auto px-2 pb-2 space-y-2">
               {lista.map((o) => <CartaoOS key={o.id} o={o} caminho={o.ativo ? caminhos?.get(o.ativo.id) : undefined} arrastando={dragId === o.id} onAbrir={onAbrir} onWhatsapp={setWhatsId}
                 onDragStart={() => setDragId(o.id)} onDragEnd={() => { setDragId(null); setDropCol(null); }} />)}
-              {lista.length === 0 && <p className="text-xs text-muted-foreground/70 text-center py-4">Nenhuma OS</p>}
+              {recusadas.map((ss) => <CartaoSS key={ss.id} s={ss} caminho={ss.ativo ? caminhos?.get(ss.ativo.id) : undefined} />)}
+              {lista.length === 0 && recusadas.length === 0 && <p className="text-xs text-muted-foreground/70 text-center py-4">Nenhuma OS</p>}
             </div>
           </div>
         );
@@ -231,6 +260,46 @@ function CartaoOS({ o, caminho, arrastando, onAbrir, onWhatsapp, onDragStart, on
           {pessoa && <AvatarUsuario nome={pessoa} size="sm" title={o.apontamentos.length ? `Em execução: ${pessoa}` : `Responsável: ${pessoa}`} />}
         </span>
       </div>
+    </div>
+  );
+}
+
+// Cartão da Solicitação de Serviço (ainda sem OS): ações de triagem do PCM.
+// Recusada aparece só para consulta (coluna Canceladas).
+function CartaoSS({ s, caminho, onTriar }: { s: SS; caminho?: string; onTriar?: (ss: SS, acao: AcaoTriagem) => void }) {
+  const urgente = ssUrgente(s);
+  const recusada = s.status === "RECUSADA";
+  return (
+    <div className={cn(
+      "bg-card rounded-lg border px-3 py-2.5 shadow-sm border-l-4",
+      urgente ? "border-danger/50 border-l-danger" : "border-border border-l-sky-500",
+      recusada && "opacity-70",
+    )}>
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span className="font-mono font-medium text-sky-700 dark:text-sky-400">{s.numero}</span>
+        {recusada && <span className="rounded px-1.5 py-0.5 bg-danger/10 text-danger">Recusada</span>}
+        <span className="ml-auto">{fmtDataHora(s.createdAt)}</span>
+      </div>
+      <p className="mt-1 text-sm text-foreground leading-snug line-clamp-3 whitespace-pre-wrap" title={s.descricao}>{s.descricao}</p>
+      <div className="mt-1 text-xs text-muted-foreground flex items-start gap-1 min-w-0">
+        {s.ativo ? <Wrench className="w-3 h-3 mt-0.5 shrink-0" /> : <MapPin className="w-3 h-3 mt-0.5 shrink-0" />}
+        <span className="truncate" title={s.ativo ? `${caminho ? `${caminho} / ` : ""}${s.ativo.tag} ${s.ativo.nome}` : s.localTexto ?? ""}>
+          {s.ativo ? <>{caminho ? `${caminho.split(" › ").join(" / ")} / ` : ""}<span className="text-foreground/80">{s.ativo.nome}</span></> : s.localTexto ?? "Sem ativo"}
+        </span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+        {s.ativoParado && <span className="px-1.5 py-0.5 rounded bg-danger/10 text-danger">parado desde {fmtDataHora(s.paradoDesde)}</span>}
+        {s.prioridade && <PrioridadeTxt p={s.prioridade} />}
+        <span className="text-muted-foreground truncate">por {s.solicitanteNome ?? "—"}</span>
+      </div>
+      {recusada && s.motivoRecusa && <p className="mt-1 text-[11px] text-danger line-clamp-2" title={s.motivoRecusa}>{s.motivoRecusa}</p>}
+      {!recusada && onTriar && (
+        <div className="mt-2 flex items-center gap-1.5">
+          <Button size="sm" className="h-7 px-2.5 text-xs" onClick={() => onTriar(s, "converter")}>Gerar OS</Button>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onTriar(s, "anexar")}>Anexar</Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-danger hover:bg-danger/10" onClick={() => onTriar(s, "recusar")}>Recusar</Button>
+        </div>
+      )}
     </div>
   );
 }

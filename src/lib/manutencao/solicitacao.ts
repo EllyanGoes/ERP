@@ -67,7 +67,7 @@ export async function criarSolicitacao(n: NovaSolicitacao, db: typeof prisma | t
       usuarioId: u.id, tipo: "MANUT_SS_NOVA",
       titulo: `${urgente ? "⚠ Máquina parada — " : ""}${ss.numero} de ${n.solicitanteNome}${origem}`,
       mensagem: `${ss.ativo ? `${ss.ativo.tag} ${ss.ativo.nome}: ` : ss.localTexto ? `${ss.localTexto}: ` : ""}${n.descricao.slice(0, 160)}`,
-      link: "/pcm/solicitacoes",
+      link: "/pcm/os?visao=kanban",
     });
   }
   return ss;

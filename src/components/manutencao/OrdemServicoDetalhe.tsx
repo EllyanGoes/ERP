@@ -37,8 +37,9 @@ import {
   Pencil, Play, PlayCircle, Plus, Printer, RotateCcw, Square, Timer, Trash2, Undo2, Wrench, X, XCircle,
 } from "lucide-react";
 import {
-  AtivoCombobox, DataHora, OPCOES_PRIORIDADE, juntarDataHora, PrioridadeBadge, StatusOSBadge, api, brl, fmtData, fmtDataHora, fmtHoras, useManutLookups,
+  AtivoCombobox, DataHora, OPCOES_PRIORIDADE, juntarDataHora, PrioridadeBadge, PrioridadeTxt, StatusOSBadge, api, brl, fmtData, fmtDataHora, fmtHoras, useManutLookups,
 } from "@/components/manutencao/comum";
+import { ORIGEM_SS } from "@/components/manutencao/SolicitacaoDialogs";
 import {
   COR_STATUS_BARRA, GRUPO_DO_STATUS, fmtDuracao, segmentosStatus, situacaoReserva,
   type GrupoStatusOS, type SituacaoReserva,
@@ -69,7 +70,11 @@ type OSDet = {
   apontamentos: Apont[];
   terceiros: { id: string; descricao: string; valor: string; pedidoCompraId: string | null; fornecedor: { razaoSocial: string; nomeFantasia: string | null } | null }[];
   eventos: { id: string; tipo: string; detalhe: string | null; usuario: string | null; createdAt: string }[];
-  solicitacoes: { id: string; numero: string; solicitanteNome: string | null; createdAt: string; descricao: string }[];
+  solicitacoes: {
+    id: string; numero: string; solicitanteNome: string | null; createdAt: string; descricao: string; status: string; origem: string;
+    ativoParado: boolean; paradoDesde: string | null; prioridade: string | null; localTexto: string | null;
+    triadoPor: string | null; triadoEm: string | null; ativo: { tag: string; nome: string } | null;
+  }[];
   tarefa: { id: string; titulo: string; projetoId: string; projeto: { nome: string } } | null;
   requisicoes: Requisicao[];
   acoes: string[]; podeValidar: boolean; pendencias: string[];
@@ -175,7 +180,7 @@ function periodosDaJornada(m: ManualHoras): { inicio: string; fim: string }[] {
   return out;
 }
 
-type AbaId = "geral" | "atividades" | "apontamentos" | "itens" | "custos" | "historico";
+type AbaId = "geral" | "solicitacao" | "atividades" | "apontamentos" | "itens" | "custos" | "historico";
 
 export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Props) {
   const lk = useManutLookups();
@@ -463,6 +468,7 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
 
   const abas: { id: AbaId; label: string; n: number | null; alerta: boolean }[] = [
     { id: "geral", label: "Geral", n: null, alerta: false },
+    ...(o.solicitacoes.length ? [{ id: "solicitacao" as const, label: o.solicitacoes.length > 1 ? "Solicitações" : "Solicitação", n: o.solicitacoes.length > 1 ? o.solicitacoes.length : null, alerta: false }] : []),
     { id: "atividades", label: "Atividades", n: o.servicos.length, alerta: !fechada && (checklist.some((c) => !c.resposta) || faltaFalha) },
     { id: "apontamentos", label: "Apontamentos", n: o.apontamentos.length, alerta: abertos.length > 0 },
     { id: "itens", label: "Itens", n: o.materiais.length + o.requisicoes.length, alerta: false },
@@ -631,7 +637,7 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
               {o.leituraMedidor && <CampoG l="Leitura do medidor"><span>{Number(o.leituraMedidor)}</span></CampoG>}
               <CampoG l="Origem">
                 <div className="text-xs space-y-0.5">
-                  {o.solicitacoes.map((s) => <div key={s.id}>Solicitação <b>{s.numero}</b> · {s.solicitanteNome ?? "—"} · {fmtData(s.createdAt)}</div>)}
+                  {o.solicitacoes.map((s) => <div key={s.id}>Solicitação <button type="button" onClick={() => setAba("solicitacao")} className="font-semibold text-info hover:underline">{s.numero}</button> · {s.solicitanteNome ?? "—"} · {fmtData(s.createdAt)}</div>)}
                   {o.tarefa && <div>Tarefa <Link href={`/projetos/${o.tarefa.projetoId}?tarefa=${o.tarefa.id}`} className="text-info hover:underline">{o.tarefa.titulo}</Link> do projeto <b>{o.tarefa.projeto.nome}</b></div>}
                   {o.plano && <div>Plano <Link href={`/pcm/planos/cadastro/${o.plano.id}`} className="text-info hover:underline">{o.plano.codigo} {o.plano.nome}</Link></div>}
                   {!o.solicitacoes.length && !o.tarefa && !o.plano && <span className="text-muted-foreground">{o.codOrdLegado ? "Histórico do Engeman" : "OS direta"}</span>}
@@ -645,6 +651,31 @@ export default function OrdemServicoDetalhe({ id, modo, onFechar, onMudou }: Pro
         )}
 
         {/* ── Atividades ───────────────────────────────────────────────────── */}
+        {aba === "solicitacao" && (
+          <div className="space-y-3">
+            {o.solicitacoes.length > 1 && <p className="text-xs text-muted-foreground">{o.solicitacoes.length} solicitações atendidas por esta OS (as demais foram anexadas por relatarem o mesmo problema).</p>}
+            {o.solicitacoes.map((s, i) => (
+              <div key={s.id} className="bg-card border border-border rounded-xl p-4">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="font-mono font-semibold text-foreground">{s.numero}</span>
+                  <span className="text-[11px] rounded-full px-2 py-0.5 bg-muted text-muted-foreground">{i === 0 && s.status === "CONVERTIDA" ? "Originou a OS" : s.status === "ANEXADA" ? "Anexada" : s.status}</span>
+                  {s.ativoParado && <span className="text-[11px] px-1.5 py-0.5 rounded bg-danger/10 text-danger">ativo parado</span>}
+                </div>
+                <dl className="grid grid-cols-1 sm:grid-cols-[11rem_1fr] gap-x-4 gap-y-2.5 text-sm items-start">
+                  <CampoG l="Solicitante"><span>{s.solicitanteNome ?? "—"}</span></CampoG>
+                  <CampoG l="Aberta em"><span>{fmtDataHora(s.createdAt)}</span></CampoG>
+                  <CampoG l="Origem"><span>{ORIGEM_SS[s.origem] ?? s.origem}</span></CampoG>
+                  <CampoG l="Equipamento"><span>{s.ativo ? `${s.ativo.tag} — ${s.ativo.nome}` : s.localTexto ?? "—"}</span></CampoG>
+                  {s.ativoParado && <CampoG l="Parado desde"><span className="text-danger">{fmtDataHora(s.paradoDesde ?? s.createdAt)}</span></CampoG>}
+                  <CampoG l="Urgência pedida"><span>{s.prioridade ? <PrioridadeTxt p={s.prioridade} /> : "PCM decide"}</span></CampoG>
+                  <CampoG l="Relato"><p className="whitespace-pre-wrap text-foreground">{s.descricao}</p></CampoG>
+                  <CampoG l="Triagem"><span>{s.triadoPor ? `${s.triadoPor} · ${fmtDataHora(s.triadoEm)}` : "—"}</span></CampoG>
+                </dl>
+              </div>
+            ))}
+          </div>
+        )}
+
         {aba === "atividades" && (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-3">

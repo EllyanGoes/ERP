@@ -33,6 +33,7 @@ import OSKanbanView from "@/components/manutencao/OSKanbanView";
 import OSListaView from "@/components/manutencao/OSListaView";
 import OSCalendarioView from "@/components/manutencao/OSCalendarioView";
 import OrdemServicoDetalhe from "@/components/manutencao/OrdemServicoDetalhe";
+import { NovaSolicitacaoDialog, TriagemSolicitacaoDialog, type AcaoTriagem, type SS } from "@/components/manutencao/SolicitacaoDialogs";
 
 type Visao = "kanban" | "lista" | "calendario";
 
@@ -57,6 +58,15 @@ function QuadroOS() {
   const lk = useManutLookups();
 
   const [visao, setVisao] = usePersistedState<Visao>("pcm:os:visao", "kanban");
+  // ?visao=kanban (links da SS nova, do painel e da antiga tela de Solicitações)
+  const visaoParam = searchParams.get("visao") as Visao | null;
+  useEffect(() => {
+    if (!visaoParam || !VISOES.some((v) => v.key === visaoParam)) return;
+    setVisao(visaoParam);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("visao");
+    router.replace(`/pcm/os${p.size ? `?${p.toString()}` : ""}`, { scroll: false });
+  }, [visaoParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filtros (persistidos por usuário). Situação vale só na Lista; Quadro e
   // Calendário mostram as abertas + a validar + concluídas dos últimos 30 dias.
@@ -85,14 +95,22 @@ function QuadroOS() {
     if (seq !== reqSeq.current) return;
     setLista(j.data ?? []); setPodeValidar(!!j.podeValidar); setLoading(false);
   }, [fonte, equipeId, tipoId, minhas, executanteId]);
+
+  // Solicitações (SS) do quadro: aguardando triagem + recusadas recentes.
+  const [solicitacoes, setSolicitacoes] = useState<SS[]>([]);
+  const loadSS = useCallback(async () => {
+    const j = await fetch("/api/pcm/solicitacoes?status=quadro").then((r) => r.json()).catch(() => ({}));
+    setSolicitacoes(j.data ?? []);
+  }, []);
+  useEffect(() => { if (visao === "kanban") loadSS(); }, [visao, loadSS]);
   useEffect(() => { load(); }, [load]);
 
   // Recarrega ao voltar o foco (colaboração sem websocket, como em Projetos).
   useEffect(() => {
-    const onFocus = () => load(true);
+    const onFocus = () => { load(true); if (visao === "kanban") loadSS(); };
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [load]);
+  }, [load, loadSS, visao]);
 
   // Ativo/Local: o escolhido e tudo abaixo dele na árvore.
   const ativosDoFiltro = useMemo(() => {
@@ -124,6 +142,22 @@ function QuadroOS() {
       return true;
     });
   }, [lista, busca, prioridade, ativosDoFiltro, periodo]);
+
+  const filtroSoDeOS = !!(equipeId || tipoId || minhas || executanteId || periodo.from || periodo.to);
+  const ssVisiveis = useMemo(() => {
+    if (filtroSoDeOS) return [];
+    const q = busca.trim().toLowerCase();
+    return solicitacoes.filter((s) => {
+      if (prioridade && s.prioridade !== prioridade) return false;
+      if (ativosDoFiltro && !(s.ativo && ativosDoFiltro.has(s.ativo.id))) return false;
+      if (q && !`${s.numero} ${s.descricao} ${s.ativo?.tag ?? ""} ${s.ativo?.nome ?? ""} ${s.localTexto ?? ""} ${s.solicitanteNome ?? ""}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [solicitacoes, filtroSoDeOS, busca, prioridade, ativosDoFiltro]);
+
+  // Triagem da SS (Gerar OS / Anexar / Recusar) e nova SS pela coluna.
+  const [triagem, setTriagem] = useState<{ ss: SS; acao: AcaoTriagem } | null>(null);
+  const [novaSS, setNovaSS] = useState(false);
 
   // Mutação local otimista (arrastar no quadro).
   const atualizarLocal = useCallback((id: string, patch: Partial<OSResumo>) => {
@@ -242,7 +276,7 @@ function QuadroOS() {
             <div className="space-y-3 p-1">
               <div><Label className="text-xs">Categoria (tipo)</Label><SelectMenu value={tipoId} onChange={setTipoId} options={[{ value: "", label: "Todas" }, ...lk.tipos.map((t) => ({ value: t.id, label: `${t.sigla} — ${t.nome}` }))]} /></div>
               {visao === "lista" && <div><Label className="text-xs">Situação (Tabela)</Label><SelectMenu value={situacao} onChange={setSituacao} options={SITUACOES_OS} /></div>}
-              <p className="text-[11px] text-muted-foreground">Kanban e Calendário mostram as abertas, as a validar e as concluídas nos últimos 30 dias.</p>
+              <p className="text-[11px] text-muted-foreground">Kanban e Calendário mostram as abertas, as a validar e as concluídas/canceladas nos últimos 30 dias. No Kanban, a 1ª coluna traz as solicitações aguardando triagem (somem com filtro de equipe, tipo, executante, Eu ou data).</p>
             </div>
           )}
         </ChipMenu>
@@ -281,7 +315,8 @@ function QuadroOS() {
         ) : visao === "calendario" ? (
           <OSCalendarioView ordens={visiveis} onAbrir={abrirOS} />
         ) : (
-          <OSKanbanView ordens={visiveis} caminhos={caminhos} podeValidar={podeValidar} onAbrir={abrirOS} onAtualizarLocal={atualizarLocal} onRecarregar={recarregarSilencioso} onAviso={setAviso} />
+          <OSKanbanView ordens={visiveis} caminhos={caminhos} podeValidar={podeValidar} onAbrir={abrirOS} onAtualizarLocal={atualizarLocal} onRecarregar={recarregarSilencioso} onAviso={setAviso}
+            solicitacoes={ssVisiveis} onTriar={(ss, acao) => setTriagem({ ss, acao })} onNovaSolicitacao={() => setNovaSS(true)} />
         )}
       </div>
 
@@ -303,6 +338,13 @@ function QuadroOS() {
           <button onClick={() => setAviso("")} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
         </div>
       )}
+
+      <TriagemSolicitacaoDialog alvo={triagem} onFechar={() => setTriagem(null)}
+        onTriada={(acao, ordemId) => {
+          setTriagem(null); loadSS(); load(true);
+          if (acao === "converter" && ordemId) abrirOS(ordemId);
+        }} />
+      <NovaSolicitacaoDialog open={novaSS} onOpenChange={setNovaSS} onCriada={loadSS} />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-2xl">

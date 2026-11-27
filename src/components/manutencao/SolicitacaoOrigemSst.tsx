@@ -40,7 +40,7 @@ export function SolicitacoesVinculadas({ lista, className }: { lista: SsVinculad
         const st = STATUS_SS[s.status] ?? { label: s.status, cls: "bg-muted text-foreground border-border" };
         return (
           <span key={s.id} className="inline-flex items-center gap-1.5">
-            {pcm ? <Link href="/pcm/solicitacoes" className="font-mono font-medium text-info hover:underline">{s.numero}</Link> : <span className="font-mono font-medium">{s.numero}</span>}
+            {pcm ? <Link href="/pcm/os?visao=kanban" className="font-mono font-medium text-info hover:underline">{s.numero}</Link> : <span className="font-mono font-medium">{s.numero}</span>}
             <span className={cn("text-[11px] px-1.5 py-0.5 rounded-full border", st.cls)}>{st.label}</span>
             {s.ordem && (
               <>
