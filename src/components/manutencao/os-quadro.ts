@@ -1,12 +1,12 @@
 // Tipos e regras de tela do quadro de Ordens de Serviço (/pcm/os).
 // As transições espelham o motor (src/lib/manutencao/ordem.ts — ORIGEM/DESTINO),
 // que não pode ser importado no cliente; a API continua sendo a palavra final.
-import { CheckCircle2, ClipboardCheck, LockOpen, PauseCircle, PlayCircle, CalendarCheck, type LucideIcon } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, LockOpen, PauseCircle, PlayCircle, CalendarCheck, XCircle, type LucideIcon } from "lucide-react";
 
 export type OSResumo = {
   id: string; numero: string; status: string; prioridade: string; descricao: string; createdAt: string;
   programadaPara: string | null; prazo: string | null;
-  paradaInicio: string | null; paradaFim: string | null; concluidaEm: string | null; encerradaEm: string | null;
+  paradaInicio: string | null; paradaFim: string | null; concluidaEm: string | null; encerradaEm: string | null; canceladaEm?: string | null;
   localTexto: string | null; planoId: string | null;
   custoMaoObra: string; custoMaterial: string; custoTerceiros: string;
   ativo: { id: string; tag: string; nome: string } | null;
@@ -39,11 +39,12 @@ export const COLUNAS_OS: ColunaOS[] = [
   { key: "PAUSADA", label: "Em espera", status: ["PAUSADA", "AGUARDANDO_MATERIAL", "AGUARDANDO_TERCEIRO"], cor: "bg-orange-500", corTexto: "text-orange-600", icon: PauseCircle },
   { key: "ENCERRADA", label: "A validar (PCM)", status: ["ENCERRADA"], cor: "bg-purple-500", corTexto: "text-purple-600", icon: ClipboardCheck },
   { key: "CONCLUIDA", label: "Concluídas · 30 dias", status: ["CONCLUIDA"], cor: "bg-success", corTexto: "text-success", icon: CheckCircle2 },
+  { key: "CANCELADA", label: "Canceladas · 30 dias", status: ["CANCELADA"], cor: "bg-danger", corTexto: "text-danger", icon: XCircle },
 ];
 export const colunaDoStatus = (status: string) => COLUNAS_OS.find((c) => c.status.includes(status))?.key ?? null;
 
 // ── Ações (espelho do motor) ───────────────────────────────────────────────
-export type AcaoOSTela = "planejar" | "iniciar" | "pausar" | "aguardar_material" | "aguardar_terceiro" | "retomar" | "encerrar" | "concluir" | "devolver" | "reabrir";
+export type AcaoOSTela = "planejar" | "iniciar" | "pausar" | "aguardar_material" | "aguardar_terceiro" | "retomar" | "encerrar" | "concluir" | "devolver" | "reabrir" | "cancelar";
 
 const ORIGEM: Record<AcaoOSTela, string[]> = {
   planejar: ["ABERTA", "PLANEJADA", "EM_EXECUCAO", "PAUSADA", "AGUARDANDO_MATERIAL", "AGUARDANDO_TERCEIRO"],
@@ -56,21 +57,22 @@ const ORIGEM: Record<AcaoOSTela, string[]> = {
   concluir: ["ENCERRADA"],
   devolver: ["ENCERRADA"],
   reabrir: ["CONCLUIDA"],
+  cancelar: ["ABERTA", "PLANEJADA", "EM_EXECUCAO", "PAUSADA", "AGUARDANDO_MATERIAL", "AGUARDANDO_TERCEIRO", "ENCERRADA"],
 };
 export const DESTINO_ACAO: Record<AcaoOSTela, string> = {
   planejar: "PLANEJADA", iniciar: "EM_EXECUCAO", pausar: "PAUSADA", aguardar_material: "AGUARDANDO_MATERIAL",
   aguardar_terceiro: "AGUARDANDO_TERCEIRO", retomar: "EM_EXECUCAO", encerrar: "ENCERRADA", concluir: "CONCLUIDA",
-  devolver: "EM_EXECUCAO", reabrir: "EM_EXECUCAO",
+  devolver: "EM_EXECUCAO", reabrir: "EM_EXECUCAO", cancelar: "CANCELADA",
 };
 export const ACAO_LABEL: Record<AcaoOSTela, string> = {
   planejar: "Planejar", iniciar: "Iniciar", pausar: "Pausar", aguardar_material: "Aguardar material",
   aguardar_terceiro: "Aguardar terceiro", retomar: "Retomar", encerrar: "Encerrar execução", concluir: "Validar e concluir",
-  devolver: "Devolver p/ execução", reabrir: "Reabrir",
+  devolver: "Devolver p/ execução", reabrir: "Reabrir", cancelar: "Cancelar OS",
 };
 /** Pedem motivo (o motor recusa sem). */
-export const ACOES_COM_MOTIVO: AcaoOSTela[] = ["pausar", "aguardar_material", "aguardar_terceiro", "devolver", "reabrir"];
+export const ACOES_COM_MOTIVO: AcaoOSTela[] = ["pausar", "aguardar_material", "aguardar_terceiro", "devolver", "reabrir", "cancelar"];
 /** Só o PCM (permissão pcm.validacao.editar). */
-export const ACOES_PCM_TELA: AcaoOSTela[] = ["planejar", "concluir", "devolver", "reabrir"];
+export const ACOES_PCM_TELA: AcaoOSTela[] = ["planejar", "concluir", "devolver", "reabrir", "cancelar"];
 
 const pode = (acao: AcaoOSTela, status: string) => ORIGEM[acao].includes(status);
 
@@ -87,6 +89,7 @@ export function acoesParaColuna(status: string, coluna: string): { acoes: AcaoOS
     PAUSADA: ["pausar", "aguardar_material", "aguardar_terceiro"],
     ENCERRADA: ["encerrar"],
     CONCLUIDA: ["concluir"],
+    CANCELADA: ["cancelar"],
   };
   const acoes = (candidatas[coluna] ?? []).filter((a) => pode(a, status));
   if (acoes.length) return { acoes };
@@ -94,6 +97,8 @@ export function acoesParaColuna(status: string, coluna: string): { acoes: AcaoOS
     coluna === "ABERTA" ? "Uma OS não volta para Aberta — use Planejada ou Em execução."
     : coluna === "CONCLUIDA" ? "Só OS encerrada (a validar) pode ser concluída."
     : coluna === "PLANEJADA" ? "Só OS aberta pode ser planejada."
+    : coluna === "CANCELADA" ? "OS concluída não se cancela — reabra antes."
+    : status === "CANCELADA" ? "OS cancelada não volta ao fluxo."
     : coluna === "PAUSADA" && status === "ENCERRADA" ? "OS encerrada não pausa — devolva para execução."
     : "Essa mudança de status não é permitida.";
   return { acoes: [], erro };

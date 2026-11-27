@@ -47,6 +47,8 @@ export default function OSKanbanView({ ordens, caminhos, podeValidar, onAbrir, o
       .filter((o) => col.status.includes(o.status))
       .sort((a, b) => key === "CONCLUIDA"
         ? (b.concluidaEm ?? "").localeCompare(a.concluidaEm ?? "")
+        : key === "CANCELADA"
+        ? (b.canceladaEm ?? "").localeCompare(a.canceladaEm ?? "")
         : ordemPrioridade(a.prioridade) - ordemPrioridade(b.prioridade) || (a.prazo ?? a.programadaPara ?? "9").localeCompare(b.prazo ?? b.programadaPara ?? "9"));
   };
 
@@ -190,7 +192,7 @@ function CartaoOS({ o, caminho, arrastando, onAbrir, onWhatsapp, onDragStart, on
       className={cn(
         "group relative bg-card rounded-lg border border-border px-3 py-2.5 shadow-sm cursor-pointer hover:border-info/60 transition-colors",
         arrastando && "opacity-40",
-        o.status === "CONCLUIDA" && "opacity-70",
+        (o.status === "CONCLUIDA" || o.status === "CANCELADA") && "opacity-70",
       )}
     >
       {o.status !== "CANCELADA" && (

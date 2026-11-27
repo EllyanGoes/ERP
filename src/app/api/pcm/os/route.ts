@@ -10,7 +10,7 @@ const parseData = (v: unknown) => (typeof v === "string" && v ? new Date(v) : nu
 // GET /api/pcm/os?situacao=abertas|encerradas|concluidas|canceladas|todas|quadro&ativoId=&equipeId=&tipoId=&q=&de=&ate=&minhas=1&executanteId=
 // Lista operacional das OS.
 // situacao=quadro alimenta o kanban/calendário: todas as abertas + encerradas (a
-// validar) + concluídas nos últimos 30 dias. minhas=1 = OS em que o usuário logado
+// validar) + concluídas e canceladas nos últimos 30 dias. minhas=1 = OS em que o usuário logado
 // é o responsável ou tem apontamento (via Colaborador.usuarioId).
 export async function GET(req: NextRequest) {
   const auth = await requireModulo("pcm");
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     where.OR = [
       { status: { in: STATUS_OS_ABERTOS } },
       { status: "CONCLUIDA", concluidaEm: { gte: new Date(Date.now() - 30 * 86_400_000) } },
+      { status: "CANCELADA", canceladaEm: { gte: new Date(Date.now() - 30 * 86_400_000) } },
     ];
   }
   const and: Prisma.ManutOrdemWhereInput[] = [];
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
     take: situacao === "abertas" || situacao === "encerradas" || situacao === "quadro" ? 1000 : 500,
     select: {
       id: true, numero: true, status: true, prioridade: true, descricao: true, createdAt: true, programadaPara: true, prazo: true,
-      paradaInicio: true, paradaFim: true, concluidaEm: true, encerradaEm: true, localTexto: true, planoId: true, tarefaId: true,
+      paradaInicio: true, paradaFim: true, concluidaEm: true, encerradaEm: true, canceladaEm: true, localTexto: true, planoId: true, tarefaId: true,
       custoMaoObra: true, custoMaterial: true, custoTerceiros: true,
       ativo: { select: { id: true, tag: true, nome: true } },
       tipo: { select: { id: true, sigla: true, nome: true, natureza: true } },
