@@ -59,6 +59,7 @@ export default function SstColaboradoresPage() {
     .filter((l) => !busca || l.nome.toLowerCase().includes(busca.toLowerCase()) || (l.setor ?? "").toLowerCase().includes(busca.toLowerCase()))
     .filter((l) => !filtro || (filtro === "SEM_FUNCAO" ? !l.funcao : filtro === "AFASTADO" ? !!l.afastamento
       : filtro === "EPI_NUNCA" ? epiNunca(l).length > 0 : filtro === "EPI_TROCA" ? epiTroca(l).length > 0
+      : filtro === "ASO_PEND" ? asoPend(l).length > 0 : filtro === "TREINO_PEND" ? treinoPend(l).length > 0
       : l.semaforo === filtro && !l.afastamento))
     .filter((l) => !funcaoId || l.funcao?.id === funcaoId)
     .sort((a, b) => ({ CRITICO: 0, ATENCAO: 1, OK: 2 }[a.semaforo] - { CRITICO: 0, ATENCAO: 1, OK: 2 }[b.semaforo]) || a.nome.localeCompare(b.nome)),
@@ -68,7 +69,10 @@ export default function SstColaboradoresPage() {
   // e quantos têm troca de EPI vencida (reposição) — respeitam "só ativos" e ?funcao.
   const resumoEpi = useMemo(() => {
     const base = linhas.filter((l) => (!somenteAtivos || l.ativo) && (!funcaoId || l.funcao?.id === funcaoId));
-    return { nunca: base.filter((l) => epiNunca(l).length > 0).length, troca: base.filter((l) => epiTroca(l).length > 0).length };
+    return {
+      nunca: base.filter((l) => epiNunca(l).length > 0).length, troca: base.filter((l) => epiTroca(l).length > 0).length,
+      aso: base.filter((l) => asoPend(l).length > 0).length, treino: base.filter((l) => treinoPend(l).length > 0).length,
+    };
   }, [linhas, somenteAtivos, funcaoId]);
 
   // Agrupamento (por função SST ou setor): grupos em ordem alfabética, "sem …" por último.
@@ -105,6 +109,8 @@ export default function SstColaboradoresPage() {
         <div className="flex flex-wrap gap-3">
           <CardEpi ativo={filtro === "EPI_NUNCA"} onClick={() => setFiltro(filtro === "EPI_NUNCA" ? "" : "EPI_NUNCA")} n={resumoEpi.nunca} titulo="EPI nunca entregue" sub="pendência — entregar" tom="danger" />
           <CardEpi ativo={filtro === "EPI_TROCA"} onClick={() => setFiltro(filtro === "EPI_TROCA" ? "" : "EPI_TROCA")} n={resumoEpi.troca} titulo="Troca de EPI vencida" sub="reposição — reentregar" tom="warning" />
+          <CardEpi ativo={filtro === "ASO_PEND"} onClick={() => setFiltro(filtro === "ASO_PEND" ? "" : "ASO_PEND")} n={resumoEpi.aso} titulo="ASO / exames pendentes" sub="vencidos ou não realizados" tom="danger" />
+          <CardEpi ativo={filtro === "TREINO_PEND"} onClick={() => setFiltro(filtro === "TREINO_PEND" ? "" : "TREINO_PEND")} n={resumoEpi.treino} titulo="Treinamentos pendentes" sub="vencidos ou não realizados" tom="danger" />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
@@ -114,6 +120,7 @@ export default function SstColaboradoresPage() {
           <SelectMenu value={filtro} onChange={setFiltro} className="w-52" options={[
             { value: "", label: "Todos" }, { value: "CRITICO", label: "Com pendência" }, { value: "ATENCAO", label: "Com atenção" }, { value: "OK", label: "Regulares" }, { value: "SEM_FUNCAO", label: "Sem função SST" }, { value: "AFASTADO", label: "Afastados" },
             { value: "EPI_NUNCA", label: "EPI nunca entregue" }, { value: "EPI_TROCA", label: "EPI com troca vencida" },
+            { value: "ASO_PEND", label: "ASO / exames pendentes" }, { value: "TREINO_PEND", label: "Treinamentos pendentes" },
           ]} />
           <SelectMenu value={agrupar} onChange={(v) => setAgrupar(v as "" | "funcao" | "setor")} className="w-48" options={[
             { value: "", label: "Sem agrupar" }, { value: "funcao", label: "Agrupar por função" }, { value: "setor", label: "Agrupar por setor" },
@@ -124,7 +131,18 @@ export default function SstColaboradoresPage() {
         </div>
         {loading ? <div className="flex justify-center py-24"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div> : (
           <div className="bg-card rounded-xl border border-border overflow-hidden">
-            <table className="w-full text-sm">
+            {/* table-fixed + colgroup: larguras fixas — filtrar/agrupar não muda o
+                desenho do cabeçalho (antes o navegador recalculava pelo conteúdo). */}
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col />
+                <col className="w-[22%]" />
+                <col className="w-[9.5rem]" />
+                <col className="w-[9rem]" />
+                <col className="w-[7rem]" />
+                <col className="w-[7rem]" />
+                <col className="w-[8rem]" />
+              </colgroup>
               <thead className="bg-muted text-xs text-muted-foreground">
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold">Colaborador</th>
@@ -153,8 +171,8 @@ export default function SstColaboradoresPage() {
                   )}
                   {!fechados.has(g.chave) && g.itens.map((l) => (
                   <tr key={l.id} onClick={() => router.push(`/sst/colaboradores/${l.id}`)} className="border-t border-border/60 hover:bg-muted/40 cursor-pointer">
-                    <td className={cn("px-4 py-2 text-foreground", grupos && "pl-9", !l.ativo && "text-muted-foreground line-through")}>{l.nome}{l.afastamento && <span className="ml-2 inline-block align-middle"><SeloAfastado a={l.afastamento} /></span>}</td>
-                    <td className="px-3 py-2">{l.funcao ? <>{agrupar === "funcao" ? null : <>{l.funcao.nome} </>}<span className="text-xs text-muted-foreground">desde {fmtData(l.funcao.desde)}</span></> : <span className="text-muted-foreground/60">—</span>}</td>
+                    <td className={cn("px-4 py-2 text-foreground truncate", grupos && "pl-9", !l.ativo && "text-muted-foreground line-through")} title={l.nome}>{l.nome}{l.afastamento && <span className="ml-2 inline-block align-middle"><SeloAfastado a={l.afastamento} /></span>}</td>
+                    <td className="px-3 py-2 truncate" title={l.funcao?.nome}>{l.funcao ? <>{agrupar === "funcao" ? null : <>{l.funcao.nome} </>}<span className="text-xs text-muted-foreground">desde {fmtData(l.funcao.desde)}</span></> : <span className="text-muted-foreground/60">—</span>}</td>
                     <Contagem itens={epiNunca(l)} tom="danger" />
                     <Contagem itens={epiTroca(l)} tom="warning" />
                     <Contagem itens={pendenciasDa(l, "epi").filter((p) => p.tipo !== "EPI_NAO_ENTREGUE" && p.tipo !== "EPI_VENCIDO")} />
@@ -185,6 +203,9 @@ const grave = (p: Pendencia) => p.severidade === "ALTA" || p.severidade === "CRI
 /** EPI obrigatório nunca entregue (pendência) × entregue com a troca vencida (reposição). */
 const epiNunca = (l: Linha) => l.pendencias.filter((p) => p.tipo === "EPI_NAO_ENTREGUE");
 const epiTroca = (l: Linha) => l.pendencias.filter((p) => p.tipo === "EPI_VENCIDO");
+/** ASO/exames e treinamentos: só o que é pendência (grave) — "vence em breve" não conta. */
+const asoPend = (l: Linha) => pendenciasDa(l, "aso").filter(grave);
+const treinoPend = (l: Linha) => pendenciasDa(l, "treino").filter(grave);
 
 function CardEpi({ n, titulo, sub, tom, ativo, onClick }: { n: number; titulo: string; sub: string; tom: "danger" | "warning"; ativo: boolean; onClick: () => void }) {
   return (
