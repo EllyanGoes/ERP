@@ -30,7 +30,8 @@ type Detalhe = AtivoFicha & {
   _count: { filhos: number; ordens: number; solicitacoes: number };
   ordens: {
     id: string; numero: string; status: string; prioridade: string; descricao: string;
-    createdAt: string; concluidaEm: string | null; tipo: { sigla: string; nome: string };
+    createdAt: string; concluidaEm: string | null; encerradaEm: string | null; canceladaEm: string | null;
+    programadaPara: string | null; tipo: { sigla: string; nome: string };
   }[];
   planos: {
     id: string; gatilho: string; intervaloDias: number | null; intervaloMedida: string | null; ativo: boolean;
@@ -80,6 +81,36 @@ function Bloco({ titulo, children, extra, semBorda }: { titulo: string; children
         {extra}
       </div>
       {children}
+    </section>
+  );
+}
+
+const FINALIZADAS = new Set(["CONCLUIDA", "ENCERRADA", "CANCELADA"]);
+type OSLinha = Detalhe["ordens"][number];
+
+function ListaOS({ ordens, data }: { ordens: OSLinha[]; data: (o: OSLinha) => string }) {
+  return (
+    <ul className="divide-y divide-border">
+      {ordens.map((o) => (
+        <li key={o.id} className="flex items-start gap-3 text-sm py-2">
+          <Link href={`/pcm/os/${o.id}`} className="font-mono font-semibold text-info hover:underline shrink-0">{o.numero}</Link>
+          <span className="text-muted-foreground shrink-0" title={o.tipo.nome}>{o.tipo.sigla}</span>
+          <span className="flex-1 min-w-0 truncate text-foreground" title={o.descricao}>{o.descricao}</span>
+          <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[11px]", STATUS_OS_COR[o.status] ?? "bg-warning/10 text-warning")}>
+            {STATUS_OS_LABEL[o.status] ?? o.status}
+          </span>
+          <span className="shrink-0 w-28 text-right text-muted-foreground tabular-nums">{data(o)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function GrupoOS({ titulo, ordens, vazio, data }: { titulo: string; ordens: OSLinha[]; vazio: string; data: (o: OSLinha) => string }) {
+  return (
+    <section className="first:border-t-0 first:pt-0 border-t border-border pt-3">
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titulo} ({ordens.length})</h3>
+      {ordens.length === 0 ? <p className="text-xs text-muted-foreground italic py-1">{vazio}</p> : <ListaOS ordens={ordens} data={data} />}
     </section>
   );
 }
@@ -301,30 +332,32 @@ export default function AtivoPainel({
             </>
           )}
 
-          {abaAtual === "os" && (
-            d.ordens.length === 0 ? (
+          {abaAtual === "os" && (() => {
+            const proximas = d.ordens.filter((o) => !FINALIZADAS.has(o.status));
+            const executadas = d.ordens.filter((o) => o.status === "CONCLUIDA" || o.status === "ENCERRADA");
+            const canceladas = d.ordens.filter((o) => o.status === "CANCELADA");
+            return d.ordens.length === 0 ? (
               <p className="text-sm text-muted-foreground italic">Nenhuma OS para este ativo.</p>
             ) : (
               <>
-                {d._count.ordens > d.ordens.length && (
-                  <p className="text-xs text-muted-foreground">Mostrando as {d.ordens.length} mais recentes de {d._count.ordens}.</p>
+                <GrupoOS titulo="Próximas / em andamento" ordens={proximas} vazio="Nenhuma OS pendente." data={(o) => o.programadaPara ? `prog. ${fmtData(o.programadaPara)}` : fmtData(o.createdAt)} />
+                <GrupoOS titulo="Executadas" ordens={executadas} vazio="Nenhuma OS executada." data={(o) => fmtData(o.concluidaEm ?? o.encerradaEm ?? o.createdAt)} />
+                {canceladas.length > 0 && (
+                  <details className="border-t border-border pt-3 group/canc">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground select-none">
+                      Canceladas ({canceladas.length})
+                    </summary>
+                    <div className="mt-2 opacity-70">
+                      <ListaOS ordens={canceladas} data={(o) => fmtData(o.canceladaEm ?? o.createdAt)} />
+                    </div>
+                  </details>
                 )}
-                <ul className="divide-y divide-border">
-                  {d.ordens.map((o) => (
-                    <li key={o.id} className="flex items-start gap-3 text-sm py-2">
-                      <Link href={`/pcm/os/${o.id}`} className="font-mono font-semibold text-info hover:underline shrink-0">{o.numero}</Link>
-                      <span className="text-muted-foreground shrink-0" title={o.tipo.nome}>{o.tipo.sigla}</span>
-                      <span className="flex-1 min-w-0 truncate text-foreground" title={o.descricao}>{o.descricao}</span>
-                      <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[11px]", STATUS_OS_COR[o.status] ?? "bg-warning/10 text-warning")}>
-                        {STATUS_OS_LABEL[o.status] ?? o.status}
-                      </span>
-                      <span className="shrink-0 text-muted-foreground tabular-nums">{fmtData(o.concluidaEm ?? o.createdAt)}</span>
-                    </li>
-                  ))}
-                </ul>
+                {d._count.ordens > d.ordens.length && (
+                  <p className="text-xs text-muted-foreground">Finalizadas: mostrando as {d.ordens.length - proximas.length} mais recentes de {d._count.ordens - proximas.length}.</p>
+                )}
               </>
-            )
-          )}
+            );
+          })()}
 
           {abaAtual === "indicadores" && <AtivoIndicadores ativoId={d.id} />}
 

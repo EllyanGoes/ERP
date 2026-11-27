@@ -254,7 +254,12 @@ function AtivoRow({
     <div>
       <div
         draggable={!!dnd}
-        onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", node.id); dnd?.iniciar(node); }}
+        onDragStart={(e) => {
+          e.stopPropagation(); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", node.id);
+          // Adia o estado: mexer no DOM dentro do dragstart (faixa "Solte aqui na
+          // raiz" entra acima e empurra a linha) faz o Chrome abortar o arraste.
+          setTimeout(() => dnd?.iniciar(node), 0);
+        }}
         onDragEnd={() => dnd?.terminar()}
         onDragOver={(e) => {
           if (!podeReceber) return;

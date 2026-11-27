@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { requireModulo } from "@/lib/permissions";
 import type { Criticidade } from "@prisma/client";
@@ -12,6 +13,14 @@ function lerCodApl(raw: string): number | null {
 }
 
 // ── GET /api/pcm/ativos/[codApl] — ficha do ativo + OS, planos e medidores ───
+const STATUS_FINALIZADOS = ["ENCERRADA", "CONCLUIDA", "CANCELADA"] as const;
+const SELECT_OS = {
+  id: true, numero: true, status: true, prioridade: true, descricao: true,
+  createdAt: true, concluidaEm: true, encerradaEm: true, canceladaEm: true, programadaPara: true,
+  paradaInicio: true, paradaFim: true,
+  tipo: { select: { sigla: true, nome: true } },
+} satisfies Prisma.ManutOrdemSelect;
+
 export async function GET(_req: NextRequest, { params }: { params: { codApl: string } }) {
   const auth = await requireModulo("pcm");
   if (!auth.ok) return auth.response;
@@ -33,16 +42,21 @@ export async function GET(_req: NextRequest, { params }: { params: { codApl: str
   if (!ativo) return NextResponse.json({ error: "Ativo não encontrado" }, { status: 404 });
 
   const [ordens, planos, medidores, maquinasSst, centrosTrabalho] = await Promise.all([
-    prisma.manutOrdem.findMany({
-      where: { ativoId: ativo.id },
-      orderBy: { createdAt: "desc" },
-      take: 15,
-      select: {
-        id: true, numero: true, status: true, prioridade: true, descricao: true,
-        createdAt: true, concluidaEm: true, paradaInicio: true, paradaFim: true,
-        tipo: { select: { sigla: true, nome: true } },
-      },
-    }),
+    // Todas as OS pendentes (próximas) + as 30 finalizadas mais recentes
+    // (executadas/canceladas) — o painel separa os dois grupos.
+    Promise.all([
+      prisma.manutOrdem.findMany({
+        where: { ativoId: ativo.id, status: { notIn: [...STATUS_FINALIZADOS] } },
+        orderBy: [{ programadaPara: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+        select: SELECT_OS,
+      }),
+      prisma.manutOrdem.findMany({
+        where: { ativoId: ativo.id, status: { in: [...STATUS_FINALIZADOS] } },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: SELECT_OS,
+      }),
+    ]).then(([a, b]) => [...a, ...b]),
     prisma.manutPlanoAtivo.findMany({
       where: { ativoId: ativo.id },
       orderBy: [{ ativo: "desc" }, { proximoVencimento: "asc" }],
