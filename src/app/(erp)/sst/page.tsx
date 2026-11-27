@@ -23,8 +23,15 @@ type Painel = {
   pendencias: Pendencia[];
 };
 
-const GRUPOS: { key: string; label: string; icon: typeof Users; tipos: string[]; link: string }[] = [
-  { key: "epi", label: "EPI (NR-06)", icon: HardHat, tipos: ["EPI_NAO_ENTREGUE", "EPI_VENCIDO", "EPI_VENCE_EM_BREVE", "EPI_CA_VENCIDO"], link: "/sst/epis" },
+type PorTipo = Record<string, number>;
+const qt = (t: PorTipo, k: string) => t[k] ?? 0;
+const GRUPOS: { key: string; label: string; icon: typeof Users; tipos: string[]; link: string; resumo?: (t: PorTipo) => string; aviso?: boolean }[] = [
+  // EPI separado em dois: nunca entregue é pendência; troca vencida é reposição
+  // (o EPI já foi entregue ao menos uma vez — não deixa o colaborador "com pendência").
+  { key: "epi", label: "EPIs nunca entregues (NR-06)", icon: HardHat, tipos: ["EPI_NAO_ENTREGUE", "EPI_CA_VENCIDO"], link: "/sst/colaboradores?semaforo=EPI_NUNCA",
+    resumo: (t) => `${qt(t, "EPI_NAO_ENTREGUE")} a entregar${qt(t, "EPI_CA_VENCIDO") ? ` · ${qt(t, "EPI_CA_VENCIDO")} CA vencido` : ""}` },
+  { key: "epiTroca", label: "Trocas de EPI vencidas", icon: RefreshCw, tipos: ["EPI_VENCIDO", "EPI_VENCE_EM_BREVE"], link: "/sst/colaboradores?semaforo=EPI_TROCA", aviso: true,
+    resumo: (t) => `${qt(t, "EPI_VENCIDO")} a reentregar${qt(t, "EPI_VENCE_EM_BREVE") ? ` · ${qt(t, "EPI_VENCE_EM_BREVE")} em breve` : ""}` },
   { key: "saude", label: "ASO e exames (NR-07)", icon: Stethoscope, tipos: ["ASO_INEXISTENTE", "ASO_VENCIDO", "ASO_VENCE_EM_BREVE", "ASO_INAPTO", "ASO_DEMISSIONAL_PENDENTE", "EXAME_PENDENTE"], link: "/sst/saude" },
   { key: "trein", label: "Treinamentos", icon: GraduationCap, tipos: ["TREINAMENTO_FALTANDO", "TREINAMENTO_VENCIDO", "TREINAMENTO_VENCE_EM_BREVE"], link: "/sst/treinamentos" },
   { key: "maq", label: "Máquinas (NR-12)", icon: Cog, tipos: ["MAQUINA_NAO_AVALIADA", "MAQUINA_NAO_CONFORME", "MAQUINA_INTERDITADA"], link: "/sst/maquinas" },
@@ -89,14 +96,16 @@ export default function SstPainelPage() {
               {GRUPOS.map((g) => {
                 const n = g.tipos.reduce((acc, t) => acc + (p.porTipo[t] ?? 0), 0);
                 const criticas = p.pendencias.filter((x) => g.tipos.includes(x.tipo) && x.severidade === "CRITICA").length;
+                const graves = p.pendencias.filter((x) => g.tipos.includes(x.tipo) && (x.severidade === "CRITICA" || x.severidade === "ALTA")).length;
+                const vermelho = g.aviso ? false : g.resumo ? graves > 0 : criticas > 0;
                 const ativo = grupo === g.key;
                 return (
                   <button key={g.key} onClick={() => setGrupo(ativo ? null : g.key)}
                     className={cn("text-left rounded-xl border p-4 transition-colors", ativo ? "border-info bg-info/5" : "border-border bg-card hover:bg-muted/40",
-                      n === 0 ? "" : criticas > 0 ? "border-l-4 border-l-danger" : "border-l-4 border-l-warning")}>
+                      n === 0 ? "" : vermelho ? "border-l-4 border-l-danger" : "border-l-4 border-l-warning")}>
                     <div className="flex items-center gap-2 text-sm font-medium text-foreground"><g.icon className="w-4 h-4 text-muted-foreground" />{g.label}</div>
-                    <div className={cn("mt-2 text-2xl font-semibold", n === 0 ? "text-success" : criticas > 0 ? "text-danger" : "text-warning")}>{n}</div>
-                    <div className="text-xs text-muted-foreground">{n === 0 ? "tudo regular" : `${criticas} crítica(s)`} · <Link href={g.link} className="text-info hover:underline" onClick={(e) => e.stopPropagation()}>abrir</Link></div>
+                    <div className={cn("mt-2 text-2xl font-semibold", n === 0 ? "text-success" : vermelho ? "text-danger" : "text-warning")}>{n}</div>
+                    <div className="text-xs text-muted-foreground">{n === 0 ? "tudo regular" : g.resumo ? g.resumo(p.porTipo) : `${criticas} crítica(s)`} · <Link href={g.link} className="text-info hover:underline" onClick={(e) => e.stopPropagation()}>abrir</Link></div>
                   </button>
                 );
               })}

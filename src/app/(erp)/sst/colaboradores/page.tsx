@@ -57,10 +57,19 @@ export default function SstColaboradoresPage() {
   const visiveis = useMemo(() => linhas
     .filter((l) => !somenteAtivos || l.ativo)
     .filter((l) => !busca || l.nome.toLowerCase().includes(busca.toLowerCase()) || (l.setor ?? "").toLowerCase().includes(busca.toLowerCase()))
-    .filter((l) => !filtro || (filtro === "SEM_FUNCAO" ? !l.funcao : filtro === "AFASTADO" ? !!l.afastamento : l.semaforo === filtro && !l.afastamento))
+    .filter((l) => !filtro || (filtro === "SEM_FUNCAO" ? !l.funcao : filtro === "AFASTADO" ? !!l.afastamento
+      : filtro === "EPI_NUNCA" ? epiNunca(l).length > 0 : filtro === "EPI_TROCA" ? epiTroca(l).length > 0
+      : l.semaforo === filtro && !l.afastamento))
     .filter((l) => !funcaoId || l.funcao?.id === funcaoId)
     .sort((a, b) => ({ CRITICO: 0, ATENCAO: 1, OK: 2 }[a.semaforo] - { CRITICO: 0, ATENCAO: 1, OK: 2 }[b.semaforo]) || a.nome.localeCompare(b.nome)),
   [linhas, busca, filtro, somenteAtivos, funcaoId]);
+
+  // Contadores do topo: quantos colaboradores têm EPI nunca entregue (pendência)
+  // e quantos têm troca de EPI vencida (reposição) — respeitam "só ativos" e ?funcao.
+  const resumoEpi = useMemo(() => {
+    const base = linhas.filter((l) => (!somenteAtivos || l.ativo) && (!funcaoId || l.funcao?.id === funcaoId));
+    return { nunca: base.filter((l) => epiNunca(l).length > 0).length, troca: base.filter((l) => epiTroca(l).length > 0).length };
+  }, [linhas, somenteAtivos, funcaoId]);
 
   // Agrupamento (por função SST ou setor): grupos em ordem alfabética, "sem …" por último.
   const grupos = useMemo(() => {
@@ -92,13 +101,19 @@ export default function SstColaboradoresPage() {
           </DropdownMenu>
         } />
       <div className="px-8 pb-8 space-y-4">
+        {/* EPI: o que nunca foi entregue (pendência) × o que precisa ser reentregue (troca vencida). */}
+        <div className="flex flex-wrap gap-3">
+          <CardEpi ativo={filtro === "EPI_NUNCA"} onClick={() => setFiltro(filtro === "EPI_NUNCA" ? "" : "EPI_NUNCA")} n={resumoEpi.nunca} titulo="EPI nunca entregue" sub="pendência — entregar" tom="danger" />
+          <CardEpi ativo={filtro === "EPI_TROCA"} onClick={() => setFiltro(filtro === "EPI_TROCA" ? "" : "EPI_TROCA")} n={resumoEpi.troca} titulo="Troca de EPI vencida" sub="reposição — reentregar" tom="warning" />
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar nome ou setor..." className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-blue-500 w-64" />
           </div>
-          <SelectMenu value={filtro} onChange={setFiltro} className="w-44" options={[
+          <SelectMenu value={filtro} onChange={setFiltro} className="w-52" options={[
             { value: "", label: "Todos" }, { value: "CRITICO", label: "Com pendência" }, { value: "ATENCAO", label: "Com atenção" }, { value: "OK", label: "Regulares" }, { value: "SEM_FUNCAO", label: "Sem função SST" }, { value: "AFASTADO", label: "Afastados" },
+            { value: "EPI_NUNCA", label: "EPI nunca entregue" }, { value: "EPI_TROCA", label: "EPI com troca vencida" },
           ]} />
           <SelectMenu value={agrupar} onChange={(v) => setAgrupar(v as "" | "funcao" | "setor")} className="w-48" options={[
             { value: "", label: "Sem agrupar" }, { value: "funcao", label: "Agrupar por função" }, { value: "setor", label: "Agrupar por setor" },
@@ -114,7 +129,9 @@ export default function SstColaboradoresPage() {
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold">Colaborador</th>
                   <th className="text-left px-3 py-2 font-semibold">Função SST</th>
-                  <th className="text-right px-3 py-2 font-semibold">EPI</th>
+                  <th className="text-right px-3 py-2 font-semibold">EPI nunca entregue</th>
+                  <th className="text-right px-3 py-2 font-semibold">EPI troca vencida</th>
+                  <th className="text-right px-3 py-2 font-semibold" title="CA vencido, ficha sem assinatura, troca em breve">EPI (outros)</th>
                   <th className="text-right px-3 py-2 font-semibold">ASO/exames</th>
                   <th className="text-right px-3 py-2 font-semibold">Treinamentos</th>
                 </tr>
@@ -124,7 +141,7 @@ export default function SstColaboradoresPage() {
                   <Fragment key={g.chave || "_"}>
                   {grupos && (
                     <tr onClick={() => alternarGrupo(g.chave)} className="border-t border-border bg-muted/50 cursor-pointer select-none hover:bg-muted">
-                      <td colSpan={5} className="px-4 py-1.5">
+                      <td colSpan={7} className="px-4 py-1.5">
                         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
                           {fechados.has(g.chave) ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                           {g.titulo}
@@ -138,14 +155,16 @@ export default function SstColaboradoresPage() {
                   <tr key={l.id} onClick={() => router.push(`/sst/colaboradores/${l.id}`)} className="border-t border-border/60 hover:bg-muted/40 cursor-pointer">
                     <td className={cn("px-4 py-2 text-foreground", grupos && "pl-9", !l.ativo && "text-muted-foreground line-through")}>{l.nome}{l.afastamento && <span className="ml-2 inline-block align-middle"><SeloAfastado a={l.afastamento} /></span>}</td>
                     <td className="px-3 py-2">{l.funcao ? <>{agrupar === "funcao" ? null : <>{l.funcao.nome} </>}<span className="text-xs text-muted-foreground">desde {fmtData(l.funcao.desde)}</span></> : <span className="text-muted-foreground/60">—</span>}</td>
-                    <Contagem itens={pendenciasDa(l, "epi")} />
+                    <Contagem itens={epiNunca(l)} tom="danger" />
+                    <Contagem itens={epiTroca(l)} tom="warning" />
+                    <Contagem itens={pendenciasDa(l, "epi").filter((p) => p.tipo !== "EPI_NAO_ENTREGUE" && p.tipo !== "EPI_VENCIDO")} />
                     <Contagem itens={pendenciasDa(l, "aso")} />
                     <Contagem itens={pendenciasDa(l, "treino")} />
                   </tr>
                   ))}
                   </Fragment>
                 ))}
-                {visiveis.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum colaborador.</td></tr>}
+                {visiveis.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhum colaborador.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -163,12 +182,30 @@ const AREA: Record<"epi" | "aso" | "treino", (t: string) => boolean> = {
 };
 const pendenciasDa = (l: Linha, area: keyof typeof AREA) => l.pendencias.filter((p) => AREA[area](p.tipo));
 const grave = (p: Pendencia) => p.severidade === "ALTA" || p.severidade === "CRITICA";
+/** EPI obrigatório nunca entregue (pendência) × entregue com a troca vencida (reposição). */
+const epiNunca = (l: Linha) => l.pendencias.filter((p) => p.tipo === "EPI_NAO_ENTREGUE");
+const epiTroca = (l: Linha) => l.pendencias.filter((p) => p.tipo === "EPI_VENCIDO");
+
+function CardEpi({ n, titulo, sub, tom, ativo, onClick }: { n: number; titulo: string; sub: string; tom: "danger" | "warning"; ativo: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} title={ativo ? "Remover filtro" : "Filtrar"}
+      className={cn("text-left rounded-xl border px-4 py-2.5 min-w-52 transition-colors", ativo ? (tom === "danger" ? "border-danger bg-danger/5" : "border-warning bg-warning/5") : "border-border bg-card hover:bg-muted/40",
+        n > 0 && (tom === "danger" ? "border-l-4 border-l-danger" : "border-l-4 border-l-warning"))}>
+      <div className="text-xs text-muted-foreground">{titulo}</div>
+      <div className="flex items-baseline gap-2">
+        <span className={cn("text-2xl font-semibold tabular-nums", n === 0 ? "text-success" : tom === "danger" ? "text-danger" : "text-warning")}>{n}</span>
+        <span className="text-xs text-muted-foreground">{n === 1 ? "colaborador" : "colaboradores"} · {sub}</span>
+      </div>
+    </button>
+  );
+}
 
 /** A cor do número é a situação da área (vermelho = problema, amarelo = atenção);
  *  o hover lista cada item da pendência como tag. */
-function Contagem({ itens }: { itens: Pendencia[] }) {
+function Contagem({ itens, tom }: { itens: Pendencia[]; tom?: "danger" | "warning" }) {
   const nGrave = itens.filter(grave).length;
-  const cor = nGrave > 0 ? "text-danger font-medium" : itens.length > 0 ? "text-warning font-medium" : "text-muted-foreground";
+  const cor = tom ? (tom === "danger" ? "text-danger font-medium" : "text-warning font-medium") : nGrave > 0 ? "text-danger font-medium" : itens.length > 0 ? "text-warning font-medium" : "text-muted-foreground";
+  if (itens.length === 0 && tom) return <td className="px-3 py-2 text-right text-muted-foreground/60">—</td>;
   if (itens.length === 0) return <td className="px-3 py-2 text-right"><CheckCircle2 className="ml-auto size-4 text-success" aria-label="Em dia" /></td>;
   const ordenados = [...itens].sort((a, b) => Number(grave(b)) - Number(grave(a)));
   return (

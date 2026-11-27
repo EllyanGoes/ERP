@@ -79,8 +79,14 @@ export default function SstEpisPage() {
   const [nome, setNome] = useState(""); const [ca, setCa] = useState(""); const [caValidade, setCaValidade] = useState(""); const [vida, setVida] = useState(""); const [fab, setFab] = useState(""); const [descartavel, setDescartavel] = useState(false);
   const [tamanhos, setTamanhos] = useState<LinhaTamanho[]>([]);
   const [saving, setSaving] = useState(false); const [erro, setErro] = useState("");
+  // Vida útil alterada na edição: recalcular a troca das entregas vigentes (padrão marcado).
+  const [vidaOriginal, setVidaOriginal] = useState(""); const [recalcular, setRecalcular] = useState(true);
+  const vidaMudou = !!editId && (vida.trim() || "") !== vidaOriginal && !descartavel;
+  const [aviso, setAviso] = useState<string | null>(null);
+  useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(null), 6000); return () => clearTimeout(t); }, [aviso]);
   function abrir(e?: Epi) {
     setEditId(e?.id ?? null); setNome(e?.nome ?? ""); setCa(e?.ca ?? ""); setCaValidade(e?.caValidade ? e.caValidade.slice(0, 10) : ""); setVida(e?.vidaUtilDias ? String(e.vidaUtilDias) : ""); setFab(e?.fabricante ?? ""); setDescartavel(!!e?.descartavel);
+    setVidaOriginal(e?.vidaUtilDias ? String(e.vidaUtilDias) : ""); setRecalcular(true);
     const base = e?.itens.length ? e.itens.map((i, k) => ({ key: k, tamanho: i.tamanho ?? "", itemId: i.itemId, ca: i.ca ?? "", caValidade: i.caValidade ? i.caValidade.slice(0, 10) : "", fabricante: i.fabricante ?? "" })) : [{ ...linhaVazia(), key: 0 }];
     setTamanhos(base); setErro(""); setOpen(true);
   }
@@ -89,11 +95,15 @@ export default function SstEpisPage() {
     const preenchidas = tamanhos.filter((t) => t.itemId);
     if (preenchidas.length > 1 && preenchidas.some((t) => !t.tamanho.trim())) { setErro("Com mais de um item, informe o tamanho ou a cor de cada um."); return; }
     setSaving(true); setErro("");
-    const res = await fetch(editId ? `/api/sst/epis/${editId}` : "/api/sst/epis", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, ca: ca || null, caValidade: caValidade || null, vidaUtilDias: vida || null, fabricante: fab || null, descartavel, itens: tamanhos.filter((t) => t.itemId).map((t) => ({ itemId: t.itemId, tamanho: t.tamanho || null, ca: t.ca || null, caValidade: t.caValidade || null, fabricante: t.fabricante || null })) }) });
+    const res = await fetch(editId ? `/api/sst/epis/${editId}` : "/api/sst/epis", { method: editId ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, ca: ca || null, caValidade: caValidade || null, vidaUtilDias: vida || null, ...(vidaMudou ? { recalcularVigentes: recalcular } : {}), fabricante: fab || null, descartavel, itens: tamanhos.filter((t) => t.itemId).map((t) => ({ itemId: t.itemId, tamanho: t.tamanho || null, ca: t.ca || null, caValidade: t.caValidade || null, fabricante: t.fabricante || null })) }) });
     const j = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setErro(j.error || "Erro"); return; }
     setOpen(false); load();
+    if (vidaMudou && recalcular) {
+      const n = Number(j.recalculadas ?? 0);
+      setAviso(n === 0 ? "EPI salvo. Nenhuma entrega vigente precisou de recálculo." : `EPI salvo. Troca recalculada em ${n} entrega${n === 1 ? "" : "s"} vigente${n === 1 ? "" : "s"}.`);
+    }
   }
   const [del, setDel] = useState<Epi | null>(null);
   async function excluir() { if (!del) return; setSaving(true); const res = await fetch(`/api/sst/epis/${del.id}`, { method: "DELETE" }); const j = await res.json().catch(() => ({})); setSaving(false); if (!res.ok) { alert(j.error || "Erro"); } setDel(null); load(); }
@@ -104,6 +114,12 @@ export default function SstEpisPage() {
 
   return (
     <div>
+      {aviso && (
+        <div role="status" className="fixed bottom-6 right-6 z-50 max-w-sm rounded-lg border border-success/30 bg-card px-4 py-3 text-sm text-foreground shadow-lg">
+          <span className="text-success font-medium">✓</span> {aviso}
+          <button type="button" onClick={() => setAviso(null)} className="ml-3 text-muted-foreground hover:text-foreground" aria-label="Fechar"><X className="inline w-3.5 h-3.5" /></button>
+        </div>
+      )}
       <PageHeader title="EPIs e entregas" subtitle="Equipamentos de proteção individual (NR-06)" breadcrumbs={[{ label: "SST", href: "/sst" }, { label: "EPIs" }]}
         action={<div className="flex gap-2"><Button variant="outline" onClick={() => setEntrega(true)} className="gap-1.5"><HardHat className="w-4 h-4" /> Nova entrega</Button><Button onClick={() => abrir()} className="bg-blue-600 hover:bg-blue-700 gap-1.5"><Plus className="w-4 h-4" /> Novo EPI</Button></div>} />
       <div className="px-8 pb-8">
@@ -213,6 +229,13 @@ export default function SstEpisPage() {
               <div><Label>Validade do CA</Label><DatePicker value={caValidade} onChange={setCaValidade} /></div>
               <div><Label>Vida útil (dias)</Label><Input type="number" min={1} value={vida} onChange={(e) => setVida(e.target.value)} placeholder="troca a cada" /></div>
             </div>
+            {vidaMudou && (
+              <label className="flex items-start gap-2 text-sm cursor-pointer rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
+                <input type="checkbox" className="rounded mt-0.5" checked={recalcular} onChange={(e) => setRecalcular(e.target.checked)} />
+                <span><span className="font-medium text-foreground">Recalcular a troca das entregas vigentes</span>
+                  <span className="block text-[11px] text-muted-foreground">Última entrega de cada colaborador: data da entrega + {vida.trim() ? `${vida.trim()} dia(s)` : "sem vida útil (fica sem troca prevista)"}. Desmarcado, só as próximas entregas usam a nova vida útil.</span></span>
+              </label>
+            )}
             <div><Label>Fabricante</Label><Input value={fab} onChange={(e) => setFab(e.target.value)} /></div>
             <label className="flex items-start gap-2 text-sm cursor-pointer">
               <input type="checkbox" className="rounded mt-0.5" checked={descartavel} onChange={(e) => setDescartavel(e.target.checked)} />

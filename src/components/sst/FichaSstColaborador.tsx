@@ -284,14 +284,19 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
             ];
             return (
               <div className="space-y-6">
-                <div className="flex gap-1 border-b border-border overflow-x-auto print:hidden">
+                {/* Linha de base via sombra interna (não borda + -mb-px): nada transborda na
+                    vertical, então não aparece barra de rolagem. Horizontal só rola (toque/
+                    trackpad, sem barra visível) quando as abas não cabem — mobile. */}
+                <div className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_hsl(var(--border))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden print:hidden">
                   {abas.map((a) => {
                     const pend = f.pendencias.filter((p) => abaDaPendencia(p.tipo) === a.id);
                     const grave = pend.some((p) => p.severidade === "CRITICA" || p.severidade === "ALTA");
                     return (
-                      <button key={a.id} type="button" onClick={() => setAba(a.id)} className={cn("text-sm px-3 py-2 -mb-px border-b-2 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0", aba === a.id ? "border-info text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                      <button key={a.id} type="button" onClick={() => setAba(a.id)} className={cn("text-sm px-3 py-2 border-b-2 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0", aba === a.id ? "border-info text-foreground font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}>
                         {a.icon}{a.label}
-                        {pend.length > 0 && <span className={cn("text-[11px] rounded-full px-1.5 tabular-nums border", grave ? "border-danger/30 bg-danger/10 text-danger" : "border-warning/30 bg-warning/10 text-warning")}>{pend.length} {pend.length === 1 ? "pendente" : "pendentes"}</span>}
+                        {/* Conta tudo da aba; vermelho só com pendência real (EPI nunca entregue, CA vencido…) —
+                            troca de EPI vencida sozinha é reposição (âmbar). */}
+                        {pend.length > 0 && <span className={cn("text-[11px] rounded-full px-1.5 tabular-nums border", grave ? "border-danger/30 bg-danger/10 text-danger" : "border-warning/30 bg-warning/10 text-warning")}>{pend.length} {grave ? (pend.length === 1 ? "pendente" : "pendentes") : (pend.length === 1 ? "aviso" : "avisos")}</span>}
                       </button>
                     );
                   })}
@@ -324,9 +329,9 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                     return (
                       <tr key={s.epi.id} className="border-t border-border/60">
                         <td className="px-4 py-2 text-foreground">{s.epi.nome}{s.epi.ca ? <span className="text-xs text-muted-foreground"> · CA {s.epi.ca}</span> : null}{!s.obrigatorio && <span className="text-xs text-muted-foreground"> (opcional)</span>}</td>
-                        <td className="px-3 py-2">{!v ? <span className="text-xs font-medium text-danger">não entregue</span> : vencido ? <span className="text-xs font-medium text-danger">vencido</span> : trocaEmBreve ? <span className="text-xs font-medium text-warning">troca em {diasTroca} dia(s)</span> : <span className="text-xs font-medium text-success">em uso</span>}</td>
+                        <td className="px-3 py-2">{!v ? <span className="text-xs font-medium text-danger">não entregue</span> : vencido ? <span className="text-xs font-medium text-warning">troca vencida — reentregar</span> : trocaEmBreve ? <span className="text-xs font-medium text-warning">troca em {diasTroca} dia(s)</span> : <span className="text-xs font-medium text-success">em uso</span>}</td>
                         <td className="px-3 py-2 text-muted-foreground">{v ? fmtData(v.data) : "—"}</td>
-                        <td className={cn("px-3 py-2", vencido ? "text-danger" : trocaEmBreve ? "text-warning" : "text-muted-foreground")}>{v?.vencimentoUso ? fmtData(v.vencimentoUso) : "—"}</td>
+                        <td className={cn("px-3 py-2", vencido ? "text-warning font-medium" : trocaEmBreve ? "text-warning" : "text-muted-foreground")}>{v?.vencimentoUso ? fmtData(v.vencimentoUso) : "—"}</td>
                         <td className="px-3 py-2 text-right"><button onClick={() => abrirEntrega(s.epi.id)} className="text-xs text-info hover:underline">{v ? "Trocar" : "Entregar"}</button></td>
                       </tr>
                     );
@@ -397,7 +402,7 @@ export default function FichaSstColaborador({ id, embutido = false }: { id: stri
                                       {e.epi.nome}
                                       {e.tamanho && <span className="ml-1 text-[11px] px-1 rounded border border-border text-muted-foreground">{/^\d/.test(e.tamanho) ? `tam. ${e.tamanho}` : e.tamanho}</span>}
                                       {e.tipo !== "ENTREGA" && <span className={cn("ml-1 text-[11px] px-1 rounded border", e.tipo === "DEVOLUCAO" ? "border-border text-muted-foreground" : "border-warning/30 text-warning bg-warning/5")}>{TIPO_ENTREGA[e.tipo]}</span>}
-                                      <span className="text-[11px] text-muted-foreground">{(e.ca || e.epi.ca) ? ` · CA ${e.ca || e.epi.ca}` : ""}{e.vencimentoUso && <> · troca <span className={cn(vencida && "text-danger font-medium")}>{fmtData(e.vencimentoUso)}</span></>}</span>
+                                      <span className="text-[11px] text-muted-foreground">{(e.ca || e.epi.ca) ? ` · CA ${e.ca || e.epi.ca}` : ""}{e.vencimentoUso && <> · troca <span className={cn(vencida && "text-warning font-medium")}>{fmtData(e.vencimentoUso)}</span></>}</span>
                                       {e.motivo && <span className="block text-[11px] text-muted-foreground">{e.motivo}</span>}
                                     </li>
                                   );

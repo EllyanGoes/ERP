@@ -165,9 +165,14 @@ export function pendenciasColaborador(c: ColaboradorSst, hoje = new Date()): Pen
     // Descartável não vence: é consumo frequente (troca prevista não se aplica).
     if (v.vencimentoUso && !r.epi.descartavel) {
       const d = diasAte(v.vencimentoUso, hoje);
-      // Entregue e dentro do prazo não é pendência (decisão do dono, 27/10): só o
-      // vencido conta. A ficha mostra "troca em N dias" como informação.
-      if (d < 0) out.push({ ...base, tipo: "EPI_VENCIDO", severidade: "ALTA", titulo: `EPI vencido: ${r.epi.nome}`, detalhe: `Troca prevista há ${-d} dia(s)`, referenciaId: r.epi.id, vence: v.vencimentoUso });
+      // Entregue e dentro do prazo não é pendência (decisão do dono, 27/10). Troca
+      // vencida também NÃO é pendência (decisão do dono, 26/11): o EPI já foi
+      // entregue ao menos uma vez — vira aviso de reposição (MEDIA = atenção).
+      // Pendência real de EPI é só o nunca entregue (EPI_NAO_ENTREGUE).
+      if (d < 0) {
+        const dm = (x: Date) => x.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+        out.push({ ...base, tipo: "EPI_VENCIDO", severidade: "MEDIA", titulo: `Troca de EPI vencida: ${r.epi.nome}`, detalhe: `Entregue em ${dm(v.data)}, troca prevista em ${dm(v.vencimentoUso)} (há ${-d} dia${-d === 1 ? "" : "s"})`, referenciaId: r.epi.id, vence: v.vencimentoUso });
+      }
     }
     if (r.epi.caValidade && r.epi.caValidade.getTime() < hoje.getTime()) {
       out.push({ ...base, tipo: "EPI_CA_VENCIDO", severidade: "ALTA", titulo: `CA vencido: ${r.epi.nome}${r.epi.ca ? ` (CA ${r.epi.ca})` : ""}`, referenciaId: r.epi.id, vence: r.epi.caValidade, link: `/sst/epis` });

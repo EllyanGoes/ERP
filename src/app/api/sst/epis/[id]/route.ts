@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const novaGrade = Array.isArray(b.itens) || b.itemId !== undefined;
   const linhas: LinhaVariacaoEpi[] = Array.isArray(b.itens) ? b.itens : b.itemId ? [{ itemId: b.itemId }] : [];
   // Item já em outro EPI ativo: barra ao trocar a grade e ao reativar.
-  const atual = await prismaSemEscopo.sstEpi.findUnique({ where: { id: params.id }, select: { empresaId: true, ativo: true, itens: { select: { itemId: true } } } });
+  const atual = await prismaSemEscopo.sstEpi.findUnique({ where: { id: params.id }, select: { empresaId: true, ativo: true, vidaUtilDias: true, descartavel: true, itens: { select: { itemId: true } } } });
   if (!atual) return NextResponse.json({ error: "EPI não encontrado" }, { status: 404 });
   const ficaAtivo = b.ativo !== undefined ? !!b.ativo : atual.ativo;
   if (ficaAtivo && (novaGrade || !atual.ativo)) {
@@ -28,11 +28,37 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const conflito = await conflitoItemEpi(prismaSemEscopo, { empresaId: atual.empresaId, epiId: params.id, itemIds });
     if (conflito) return NextResponse.json({ error: conflito }, { status: 409 });
   }
-  const epi = await prisma.sstEpi.update({ where: { id: params.id }, data });
-  if (novaGrade) {
-    await prismaSemEscopo.$transaction((tx) => salvarTamanhosEpi(tx, epi.id, linhas));
-  }
-  return NextResponse.json({ data: epi });
+  // Vida útil mudou: o vencimentoUso é gravado na entrega, então por padrão
+  // (recalcularVigentes !== false) recalcula a troca da ÚLTIMA entrega/troca de
+  // cada colaborador deste EPI = data da entrega + nova vida útil (sem vida útil
+  // → sem troca prevista). Descartável não vence: fica como está.
+  const novaVida = data.vidaUtilDias !== undefined ? (data.vidaUtilDias as number | null) : atual.vidaUtilDias;
+  const ficaDescartavel = data.descartavel !== undefined ? (data.descartavel as boolean) : atual.descartavel;
+  const recalcular = b.vidaUtilDias !== undefined && b.recalcularVigentes !== false && novaVida !== atual.vidaUtilDias && !ficaDescartavel;
+  const { epi, recalculadas } = await prisma.$transaction(async (tx) => {
+    const epi = await tx.sstEpi.update({ where: { id: params.id }, data });
+    if (novaGrade) await salvarTamanhosEpi(tx, epi.id, linhas);
+    let recalculadas = 0;
+    if (recalcular) {
+      const entregas = await tx.sstEpiEntrega.findMany({
+        where: { epiId: epi.id },
+        orderBy: [{ data: "desc" }, { createdAt: "desc" }],
+        select: { id: true, colaboradorId: true, tipo: true, data: true, vencimentoUso: true },
+      });
+      const vistos = new Set<string>();
+      for (const e of entregas) {
+        if (vistos.has(e.colaboradorId)) continue;
+        vistos.add(e.colaboradorId);
+        if (e.tipo === "DEVOLUCAO") continue; // devolvido: não há entrega vigente
+        const venc = novaVida ? new Date(e.data.getTime() + novaVida * 86_400_000) : null;
+        if ((venc?.getTime() ?? null) === (e.vencimentoUso?.getTime() ?? null)) continue;
+        await tx.sstEpiEntrega.update({ where: { id: e.id }, data: { vencimentoUso: venc } });
+        recalculadas++;
+      }
+    }
+    return { epi, recalculadas };
+  });
+  return NextResponse.json({ data: epi, recalculadas });
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
