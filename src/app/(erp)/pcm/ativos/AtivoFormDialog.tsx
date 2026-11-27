@@ -12,14 +12,10 @@ import SelectMenu from "@/components/shared/SelectMenu";
 import DatePicker from "@/components/shared/DatePicker";
 import { Autoria } from "@/components/shared/Autoria";
 import { Save } from "lucide-react";
+import { TIPO_ATIVO_LABEL } from "@/lib/manutencao/tipos-ativo";
 import type { AtivoNode } from "@/app/api/pcm/ativos/route";
 
-export const TIPO_ATIVO_LABEL: Record<string, string> = {
-  LOCAL: "Local / área",
-  EQUIPAMENTO: "Equipamento",
-  COMPONENTE: "Componente",
-  VEICULO: "Veículo",
-};
+export { TIPO_ATIVO_LABEL } from "@/lib/manutencao/tipos-ativo";
 
 export interface Lookups {
   familias: { id: string; nome: string }[];

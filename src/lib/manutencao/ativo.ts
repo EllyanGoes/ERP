@@ -6,8 +6,8 @@ import { prisma, prismaSemEscopo } from "@/lib/prisma";
 // Validação única do formulário (POST/PATCH) e geração do codApl.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const TIPOS_ATIVO = ["LOCAL", "EQUIPAMENTO", "COMPONENTE", "VEICULO"] as const;
-export type TipoAtivo = (typeof TIPOS_ATIVO)[number];
+import { TIPOS_ATIVO } from "@/lib/manutencao/tipos-ativo";
+export { TIPOS_ATIVO, type TipoAtivo } from "@/lib/manutencao/tipos-ativo";
 
 export class ErroAtivo extends Error {
   constructor(message: string, public status = 400) {

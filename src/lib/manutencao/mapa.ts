@@ -24,7 +24,7 @@ export interface NoMapa {
   codApl: number;
   tag: string;
   nome: string;
-  tipo: string; // LOCAL | EQUIPAMENTO | COMPONENTE | VEICULO
+  tipo: string; // LOCAL | LINHA | EQUIPAMENTO | COMPONENTE | VEICULO
   paiId: string | null;
   ativo: boolean;
   criticidade: "A" | "B" | "C" | null;

@@ -21,6 +21,7 @@ import { useRelatorioCache } from "@/lib/use-relatorio-cache";
 import { cn } from "@/lib/utils";
 import { AtivoCombobox, useManutLookups } from "@/components/manutencao/comum";
 import type { IndicadoresResponse, IndicadorAtivo, PontoTendencia } from "@/lib/manutencao/confiabilidade";
+import { ehAgrupador } from "@/lib/manutencao/tipos-ativo";
 
 const iso = (d: Date) => d.toLocaleDateString("sv-SE");
 const num = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
@@ -103,7 +104,7 @@ function Indicadores() {
             </div>
           </div>
           <div><Label className="text-xs">Criticidade</Label><SelectMenu value={crit} options={OPCOES_CRIT} onChange={setCrit} className="w-48" /></div>
-          <div className="min-w-[18rem]"><Label className="text-xs">Ativo</Label><AtivoCombobox ativos={lk.ativos.filter((a) => a.tipo !== "LOCAL")} value={ativoId} onChange={setAtivoId} placeholder="Todos os ativos" allowNone /></div>
+          <div className="min-w-[18rem]"><Label className="text-xs">Ativo</Label><AtivoCombobox ativos={lk.ativos.filter((a) => !ehAgrupador(a.tipo))} value={ativoId} onChange={setAtivoId} placeholder="Todos os ativos" allowNone /></div>
           <div><Label className="text-xs">Horizonte R(t)</Label><SelectMenu value={horizonte} options={OPCOES_HORIZONTE} onChange={setHorizonte} className="w-32" /></div>
         </div>
 

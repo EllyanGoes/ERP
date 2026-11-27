@@ -10,7 +10,8 @@ import { Autoria } from "@/components/shared/Autoria";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
 import { cn } from "@/lib/utils";
 import { Loader2, Pencil, Plus, Trash2, X, RotateCcw, ExternalLink } from "lucide-react";
-import { TIPO_ATIVO_LABEL, type AtivoFicha } from "./AtivoFormDialog";
+import { type AtivoFicha } from "./AtivoFormDialog";
+import { TIPO_ATIVO_LABEL, ehAgrupador } from "@/lib/manutencao/tipos-ativo";
 import AtivoPecas from "@/components/manutencao/AtivoPecas";
 import AtivoIndicadores from "@/components/manutencao/AtivoIndicadores";
 
@@ -242,7 +243,7 @@ export default function AtivoPainel({
       </Bloco>
 
       {/* Indicadores de confiabilidade (12 meses) — só para equipamentos/componentes */}
-      {d.tipo !== "LOCAL" && <AtivoIndicadores ativoId={d.id} />}
+      {!ehAgrupador(d.tipo) && <AtivoIndicadores ativoId={d.id} />}
 
       {/* Planos */}
       <Bloco titulo={`Planos aplicados (${d.planos.length})`}>

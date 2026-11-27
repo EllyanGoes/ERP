@@ -14,15 +14,13 @@ import { randomBytes } from "crypto";
 import { prismaSemEscopo } from "@/lib/prisma";
 import { STATUS_ABERTOS, dataReferenciaOS, horasParada, wherePeriodoOS } from "@/lib/manutencao/consultas";
 import { WHERE_FALHA_MTBF, calcMtbf, calcMttr } from "@/lib/pcm-mtbf";
+import { TIPO_ATIVO_LABEL } from "@/lib/manutencao/tipos-ativo";
 import { descreverGatilho, fmtDia, inicioDoDia, usaCalendario, usaMedidor } from "@/lib/manutencao/gatilho";
 
 const DIA = 86_400_000;
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const round1 = (v: number | null) => (v == null ? null : Math.round(v * 10) / 10);
 
-export const TIPO_ATIVO_LABEL: Record<string, string> = {
-  EQUIPAMENTO: "Equipamento", COMPONENTE: "Componente", VEICULO: "Veículo", LOCAL: "Local / área",
-};
 
 /** Status da OS em linguagem de chão de fábrica (sem jargão de PCM). */
 export const STATUS_OS_PUBLICO: Record<string, string> = {

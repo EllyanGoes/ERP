@@ -14,6 +14,7 @@ import { AlertTriangle, Boxes, CheckCircle2, ChevronRight, CircleOff, CircleStop
 import { cn } from "@/lib/utils";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import type { MapaResponse, NoMapa, StatusMapa } from "@/lib/manutencao/mapa";
+import { ehAgrupador } from "@/lib/manutencao/tipos-ativo";
 
 // ── Status: cor (token do tema) + ícone + rótulo. Nunca só cor. ──────────────
 const ORDEM: StatusMapa[] = ["PARADO", "EM_MANUTENCAO", "ATENCAO", "OK", "INATIVO"];
@@ -76,7 +77,7 @@ export default function MapaPlanta({ telaCheia = false }: { telaCheia?: boolean 
     const calc = (n: NoMapa, trilha: Set<string>): Rollup => {
       const memo = rollup.get(n.id); if (memo) return memo;
       const r: Rollup = { status: n.status, osAbertas: n.osAbertas, contagem: zeroContagem(), equipamentos: 0 };
-      if (n.tipo !== "LOCAL") { r.contagem[n.status]++; r.equipamentos++; }
+      if (!ehAgrupador(n.tipo)) { r.contagem[n.status]++; r.equipamentos++; }
       if (!trilha.has(n.id)) {
         trilha.add(n.id);
         for (const f of filhos.get(n.id) ?? []) {
@@ -98,7 +99,7 @@ export default function MapaPlanta({ telaCheia = false }: { telaCheia?: boolean 
     const out: NoMapa[] = [];
     const walk = (pid: string, prof: number) => {
       for (const f of filhos.get(pid) ?? []) {
-        if (f.tipo === "LOCAL") { if (!pularLocais && prof < 12) walk(f.id, prof + 1); }
+        if (ehAgrupador(f.tipo)) { if (!pularLocais && prof < 12) walk(f.id, prof + 1); }
         else out.push(f);
       }
     };
@@ -110,12 +111,12 @@ export default function MapaPlanta({ telaCheia = false }: { telaCheia?: boolean 
   const blocos = useMemo<Bloco[]>(() => {
     if (!dados) return [];
     const out: Bloco[] = [];
-    const blocoDe = (n: NoMapa, pularLocais = false): Bloco => ({ chave: n.id, no: n, titulo: n.nome, tiles: tilesDe(n.id, pularLocais), subareas: (filhos.get(n.id) ?? []).filter((f) => f.tipo === "LOCAL") });
+    const blocoDe = (n: NoMapa, pularLocais = false): Bloco => ({ chave: n.id, no: n, titulo: n.nome, tiles: tilesDe(n.id, pularLocais), subareas: (filhos.get(n.id) ?? []).filter((f) => ehAgrupador(f.tipo)) });
     if (foco === null) {
       const soltos: NoMapa[] = [];
       for (const r of filhos.get("") ?? []) {
-        if (r.tipo !== "LOCAL") { soltos.push(r); continue; }
-        const locais = (filhos.get(r.id) ?? []).filter((f) => f.tipo === "LOCAL");
+        if (!ehAgrupador(r.tipo)) { soltos.push(r); continue; }
+        const locais = (filhos.get(r.id) ?? []).filter((f) => ehAgrupador(f.tipo));
         if (locais.length === 0) { out.push(blocoDe(r)); continue; }
         // raiz "PLANTA FABRIL": as áreas filhas viram blocos; equipamentos diretos ficam num bloco da raiz
         for (const l of locais) out.push(blocoDe(l));
@@ -127,9 +128,9 @@ export default function MapaPlanta({ telaCheia = false }: { telaCheia?: boolean 
       const n = porId.get(foco);
       if (!n) return [];
       const fs = filhos.get(n.id) ?? [];
-      for (const l of fs.filter((f) => f.tipo === "LOCAL")) out.push(blocoDe(l));
-      const diretos = fs.filter((f) => f.tipo !== "LOCAL").sort((a, b) => PESO[rollup.get(a.id)!.status] - PESO[rollup.get(b.id)!.status] || a.tag.localeCompare(b.tag, "pt-BR"));
-      if (diretos.length || out.length === 0) out.push({ chave: `${n.id}__diretos`, no: null, titulo: n.tipo === "LOCAL" ? `Equipamentos de ${n.nome}` : `Componentes de ${n.nome}`, tiles: diretos, subareas: [] });
+      for (const l of fs.filter((f) => ehAgrupador(f.tipo))) out.push(blocoDe(l));
+      const diretos = fs.filter((f) => !ehAgrupador(f.tipo)).sort((a, b) => PESO[rollup.get(a.id)!.status] - PESO[rollup.get(b.id)!.status] || a.tag.localeCompare(b.tag, "pt-BR"));
+      if (diretos.length || out.length === 0) out.push({ chave: `${n.id}__diretos`, no: null, titulo: ehAgrupador(n.tipo) ? `Equipamentos de ${n.nome}` : `Componentes de ${n.nome}`, tiles: diretos, subareas: [] });
     }
     return out;
   }, [dados, foco, filhos, porId, rollup, tilesDe]);
@@ -247,7 +248,7 @@ export default function MapaPlanta({ telaCheia = false }: { telaCheia?: boolean 
 
   const totais = useMemo(() => {
     const c = zeroContagem();
-    for (const n of dados?.nos ?? []) if (n.tipo !== "LOCAL") c[n.status]++;
+    for (const n of dados?.nos ?? []) if (!ehAgrupador(n.tipo)) c[n.status]++;
     return c;
   }, [dados]);
 

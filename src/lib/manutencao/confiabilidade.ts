@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { WHERE_FALHA_MTBF, calcMtbf, calcMttr, diasNoMes } from "@/lib/pcm-mtbf";
 import { dataReferenciaOS, horasParada, wherePeriodoOS } from "@/lib/manutencao/consultas";
+import { ehAgrupador } from "@/lib/manutencao/tipos-ativo";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Indicadores de confiabilidade (docs/manutencao-prd.md §14 — tela Indicadores,
@@ -120,8 +121,8 @@ export async function indicadoresConfiabilidade(f: FiltrosIndicadores): Promise<
     return h;
   };
 
-  // Seleção: um ativo específico, ou os ativos ativos não-LOCAL (filtrados por criticidade).
-  let selecionados = todos.filter((a) => a.ativo && a.tipo !== "LOCAL");
+  // Seleção: um ativo específico, ou os ativos ativos não-agrupadores (área/linha) (filtrados por criticidade).
+  let selecionados = todos.filter((a) => a.ativo && !ehAgrupador(a.tipo));
   if (f.ativoId) selecionados = todos.filter((a) => a.id === f.ativoId);
   else if (f.criticidade) selecionados = selecionados.filter((a) => a.criticidade === f.criticidade);
   const selecionadosIds = new Set(selecionados.map((a) => a.id));

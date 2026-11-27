@@ -11,19 +11,22 @@ import { Button } from "@/components/ui/button";
 import AtivoFormDialog, { type AtivoFicha, type Lookups } from "./AtivoFormDialog";
 import AtivoPainel, { StatusAtivoBadge } from "./AtivoPainel";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { TIPO_ATIVO_LABEL } from "@/lib/manutencao/tipos-ativo";
 import {
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
-  Layers,
+  Cog,
   Cpu,
+  LandPlot,
+  Workflow,
   Search,
   RefreshCw,
   AlertTriangle,
   PackageSearch,
   Plus,
-  MapPin,
   Truck,
   Puzzle,
   GripVertical,
@@ -176,7 +179,14 @@ function RegimeSelector({
 }
 
 // ── Linha da árvore ──────────────────────────────────────────────────────────
-const ICONE_TIPO: Record<string, typeof Cpu> = { LOCAL: MapPin, EQUIPAMENTO: Cpu, COMPONENTE: Puzzle, VEICULO: Truck };
+// Ícone e cor pelo TIPO do ativo (área, linha, equipamento, componente, veículo).
+const ICONE_TIPO: Record<string, { Icon: typeof Cpu; cor: string }> = {
+  LOCAL: { Icon: LandPlot, cor: "text-indigo-500" },
+  LINHA: { Icon: Workflow, cor: "text-sky-500" },
+  EQUIPAMENTO: { Icon: Cog, cor: "text-amber-600" },
+  COMPONENTE: { Icon: Puzzle, cor: "text-emerald-600" },
+  VEICULO: { Icon: Truck, cor: "text-slate-500" },
+};
 
 // ── Arrastar e soltar (mover o ativo para baixo de outro) ─────────────────────
 type DragCtxValue = {
@@ -232,7 +242,7 @@ function AtivoRow({
   const hasChildren = node.children.length > 0;
   const isOpen = forceOpen || expanded.has(node.id);
   const indent = 8 + depth * 18;
-  const Icon = hasChildren && node.tipo !== "VEICULO" ? Layers : ICONE_TIPO[node.tipo] ?? Cpu;
+  const { Icon, cor } = ICONE_TIPO[node.tipo] ?? { Icon: Cpu, cor: "text-muted-foreground" };
   const dnd = useContext(DragCtx);
   const podeReceber = !!dnd?.arrastando && !dnd.invalidos.has(node.id) && dnd.arrastando.id !== node.id;
   const sobre = podeReceber && dnd?.alvo === node.id;
@@ -279,9 +289,9 @@ function AtivoRow({
         ) : (
           <span className="w-5 shrink-0" />
         )}
-        <Icon
-          className={cn("w-4 h-4 shrink-0", hasChildren ? "text-indigo-400" : "text-muted-foreground")}
-        />
+        <span title={TIPO_ATIVO_LABEL[node.tipo] ?? node.tipo} className="shrink-0">
+          <Icon className={cn("w-4 h-4", cor)} />
+        </span>
         <div className="min-w-0 flex-1">
           <p
             className={cn("text-sm truncate", hasChildren ? "font-medium text-foreground" : "text-foreground")}
@@ -608,7 +618,7 @@ export default function AtivosPage() {
         </div>
       )}
 
-      {/* Conteúdo: árvore + painel do ativo */}
+      {/* Conteúdo: árvore (o ativo abre em popup) */}
       <div className="flex-1 min-h-0 flex gap-4 px-8 pb-8">
       <div className="flex-1 min-w-0 overflow-y-auto">
         {loading ? (
@@ -688,19 +698,22 @@ export default function AtivosPage() {
           </DragCtx.Provider>
         )}
       </div>
-      {selecionado != null && (
-        <aside className="w-full max-w-[440px] shrink-0 overflow-y-auto bg-card rounded-xl border border-border shadow-sm">
-          <AtivoPainel
+      </div>
+
+      {/* Detalhe do ativo em popup */}
+      <Dialog open={selecionado != null} onOpenChange={(v) => !v && setSelecionado(null)}>
+        <DialogContent showCloseButton={false} className="sm:max-w-2xl max-h-[88vh] overflow-y-auto p-0">
+          <DialogTitle className="sr-only">Detalhes do ativo</DialogTitle>
+          {selecionado != null && <AtivoPainel
             codApl={selecionado}
             versao={versao}
             onFechar={() => setSelecionado(null)}
             onEditar={(a) => { setEditando(a); setPaiInicial(null); setFormAberto(true); }}
             onNovoFilho={(paiId) => novoAtivo(paiId)}
             onAlterado={load}
-          />
-        </aside>
-      )}
-      </div>
+          />}
+        </DialogContent>
+      </Dialog>
 
       <AtivoFormDialog
         open={formAberto}

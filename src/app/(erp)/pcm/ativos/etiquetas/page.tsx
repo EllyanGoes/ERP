@@ -27,7 +27,8 @@ const TIPOS = [
   { value: "EQUIPAMENTO", label: "Equipamentos" },
   { value: "COMPONENTE", label: "Componentes" },
   { value: "VEICULO", label: "Veículos" },
-  { value: "LOCAL", label: "Locais / áreas" },
+  { value: "LINHA", label: "Linhas de produção" },
+  { value: "LOCAL", label: "Áreas / locais" },
 ];
 
 type Linha = { a: AtivoLookup; nivel: number; temFilhos: boolean };
