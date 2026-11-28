@@ -43,6 +43,11 @@ export default function EtiquetasQrPage() {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [origem, setOrigem] = useState("");
   useEffect(() => { setOrigem(window.location.origin); }, []);
+  // ?ativo=<id> (botão "Etiqueta QR" no detalhe do ativo): já vem marcado.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("ativo");
+    if (id) setSel(new Set([id]));
+  }, []);
 
   // Código da etiqueta (qrToken) por ativo → link público /ativo/<qrToken>.
   const [tokens, setTokens] = useState<Record<string, string>>({});

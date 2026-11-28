@@ -10,7 +10,7 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { Autoria } from "@/components/shared/Autoria";
 import CriticidadeBadge from "@/components/pcm/CriticidadeBadge";
 import { cn } from "@/lib/utils";
-import { Loader2, Pencil, Plus, Trash2, X, RotateCcw, ExternalLink, FileText, Wrench, Activity, CalendarClock, Package } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, X, RotateCcw, ExternalLink, FileText, Wrench, Activity, CalendarClock, Package, QrCode } from "lucide-react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { useTabTitle } from "@/lib/tabs-context";
 import { type AtivoFicha } from "./AtivoFormDialog";
@@ -248,6 +248,9 @@ export default function AtivoPainel({
             ) : (
               <Button size="sm" variant="outline" className="gap-1.5" disabled={saving} onClick={reativar}><RotateCcw className="w-3.5 h-3.5" /> Reativar</Button>
             )}
+            <Button size="sm" variant="outline" className="gap-1.5" asChild title="Imprimir a etiqueta QR deste ativo">
+              <Link href={`/pcm/ativos/etiquetas?ativo=${d.id}`}><QrCode className="w-3.5 h-3.5" /> Etiqueta QR</Link>
+            </Button>
             {onAbrirEmJanela && (
               <Button size="sm" variant="outline" className="gap-1.5" onClick={onAbrirEmJanela} title="Abrir o ativo em tela própria">
                 <ExternalLink className="w-3.5 h-3.5" /> Abrir em janela
